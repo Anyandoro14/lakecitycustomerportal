@@ -263,10 +263,17 @@ serve(async (req) => {
       );
     }
 
-    // Find header row
+    // Find header row and get column indices
     const headers = rows[0];
     const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
+    const firstNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('first'));
+    const lastNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('last'));
     const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
+    const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
+    const paymentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
+    const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
+    const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
+    const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
     
     if (standNumIndex === -1) {
       return new Response(
@@ -298,18 +305,23 @@ serve(async (req) => {
     const standNumber = customerRow[standNumIndex];
     console.log(`User ${userEmail} authorized for stand: ${standNumber}`);
 
-    // Map the data
+    // Combine first and last name
+    const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
+    const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    // Map the data to match the actual Google Sheet structure
     const customerData = {
-      customerId: customerRow[0] || '',
+      customerId: customerRow[standNumIndex] || '',
       standNumber: standNumber || '',
-      customerName: customerRow[1] || '',
-      standBalance: customerRow[2] || '0',
-      lastPayment: customerRow[3] || '',
-      nextPayment: customerRow[4] || '',
-      currentBalance: customerRow[5] || '0',
-      lastDueDate: customerRow[6] || '',
-      monthlyPayment: customerRow[7] || '0',
-      nextDueDate: customerRow[8] || '',
+      customerName: fullName || '',
+      standBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
+      lastPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
+      nextPayment: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
+      currentBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
+      lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
+      monthlyPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
+      nextDueDate: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
     };
 
     return new Response(
