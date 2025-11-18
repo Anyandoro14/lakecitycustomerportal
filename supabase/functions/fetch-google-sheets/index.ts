@@ -289,43 +289,45 @@ serve(async (req) => {
       );
     }
 
-    // Find the customer row by matching the user's email
-    const customerRow = rows.slice(1).find(row => 
+    // Find ALL customer rows by matching the user's email (support multiple stands)
+    const customerRows = rows.slice(1).filter(row => 
       row[emailIndex] && row[emailIndex].toString().trim().toLowerCase() === userEmail.toLowerCase()
     );
 
-    if (!customerRow) {
+    if (customerRows.length === 0) {
       return new Response(
         JSON.stringify({ error: `Your email (${userEmail}) is not authorized to view any stand. Please contact support.` }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get the stand number for this authorized user
-    const standNumber = customerRow[standNumIndex];
-    console.log(`User ${userEmail} authorized for stand: ${standNumber}`);
+    console.log(`User ${userEmail} authorized for ${customerRows.length} stand(s)`);
 
-    // Combine first and last name
-    const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
-    const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
-    const fullName = `${firstName} ${lastName}`.trim();
+    // Map all stands to data objects
+    const stands = customerRows.map(customerRow => {
+      const standNumber = customerRow[standNumIndex];
+      
+      // Combine first and last name
+      const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
+      const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
+      const fullName = `${firstName} ${lastName}`.trim();
 
-    // Map the data to match the actual Google Sheet structure
-    const customerData = {
-      customerId: customerRow[standNumIndex] || '',
-      standNumber: standNumber || '',
-      customerName: fullName || '',
-      standBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
-      lastPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
-      nextPayment: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
-      currentBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
-      lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
-      monthlyPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
-      nextDueDate: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
-    };
+      return {
+        customerId: customerRow[standNumIndex] || '',
+        standNumber: standNumber || '',
+        customerName: fullName || '',
+        standBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
+        lastPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
+        nextPayment: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
+        currentBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
+        lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
+        monthlyPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
+        nextDueDate: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
+      };
+    });
 
     return new Response(
-      JSON.stringify(customerData),
+      JSON.stringify({ stands }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

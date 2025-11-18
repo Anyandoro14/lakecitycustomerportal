@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [customerData, setCustomerData] = useState<any>(null);
+  const [allStands, setAllStands] = useState<any[]>([]);
+  const [selectedStand, setSelectedStand] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -52,7 +53,8 @@ const Index = () => {
         return;
       }
 
-      setCustomerData(data);
+      setAllStands(data.stands || []);
+      setSelectedStand(data.stands?.[0] || null);
     } catch (error) {
       console.error('Error fetching customer data:', error);
       toast({
@@ -76,7 +78,7 @@ const Index = () => {
     );
   }
 
-  if (!customerData) {
+  if (!selectedStand) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center space-y-4">
@@ -93,22 +95,24 @@ const Index = () => {
       
       <main className="max-w-md mx-auto px-4 py-5 space-y-4">
         <CustomerOverview
-          customerId={customerData.customerId}
-          customerName={customerData.customerName}
+          customerId={selectedStand.customerId}
+          customerName={selectedStand.customerName}
         />
 
         <InfoCards
-          standNumber={customerData.standNumber}
-          standBalance={customerData.standBalance}
-          lastPayment={customerData.lastPayment}
-          nextPayment={customerData.nextPayment}
+          standNumber={selectedStand.standNumber}
+          standBalance={selectedStand.standBalance}
+          lastPayment={selectedStand.lastPayment}
+          nextPayment={selectedStand.nextPayment}
+          allStands={allStands}
+          onStandChange={setSelectedStand}
         />
 
         <PaymentSummary
-          currentBalance={customerData.currentBalance}
-          lastDueDate={customerData.lastDueDate}
-          monthlyPayment={customerData.monthlyPayment}
-          nextDueDate={customerData.nextDueDate}
+          currentBalance={selectedStand.currentBalance}
+          lastDueDate={selectedStand.lastDueDate}
+          monthlyPayment={selectedStand.monthlyPayment}
+          nextDueDate={selectedStand.nextDueDate}
         />
 
         <DocumentsSection documents={{
