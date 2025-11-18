@@ -64,13 +64,16 @@ serve(async (req) => {
     
     // Clean and prepare the private key (support PEM with or without headers)
     const extractPemBase64 = (pem: string) => {
-      // If JSON stored it with escaped newlines, normalize first
-      const normalized = pem.replace(/\\n/g, '\n');
-      const m = normalized.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
-      const body = m ? m[1] : normalized; // if no headers, assume raw base64
-      let base64 = body.replace(/\r/g, '').replace(/\n/g, '').replace(/\s/g, '');
-      // Ensure proper padding
-      while (base64.length % 4 !== 0) base64 += '=';
+      const normalized = (pem || '').toString().replace(/\r/g, '').replace(/\\n/g, '\n');
+      const match = normalized.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
+      const body = match ? match[1] : normalized; // if no headers, assume it's the raw body
+      // Remove any characters not allowed in base64
+      let base64 = body.replace(/[^A-Za-z0-9+/=\n]/g, '').replace(/\n/g, '');
+      // Add padding if missing
+      const pad = base64.length % 4;
+      if (pad === 2) base64 += '==';
+      else if (pad === 3) base64 += '=';
+      else if (pad === 1) throw new Error('Invalid base64 length');
       return base64;
     };
 
@@ -85,7 +88,7 @@ serve(async (req) => {
       for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
     } catch (e) {
       console.error('Failed to base64-decode private key');
-      throw new Error('Failed to decode base64 private key');
+      return new Response(JSON.stringify({ error: 'Invalid private key format. Please re-upload the key.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
     const privateKey = await crypto.subtle.importKey(
