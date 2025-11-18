@@ -48,10 +48,10 @@ serve(async (req) => {
       );
     }
 
-    // Get user's profile to find their assigned stand number
+    // Get user's profile to check if they have access
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('stand_number')
+      .select('email')
       .eq('id', user.id)
       .single();
 
@@ -63,29 +63,9 @@ serve(async (req) => {
       );
     }
 
-    if (!profile.stand_number) {
-      return new Response(
-        JSON.stringify({ error: 'No stand number assigned to your account. Please contact support.' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get the requested customerId from request body (optional - for validation)
-    const body = await req.json().catch(() => ({}));
-    const requestedCustomerId = body.customerId;
-
-    // If a customerId was provided, verify it matches their assigned stand
-    if (requestedCustomerId && requestedCustomerId !== profile.stand_number) {
-      console.warn(`User ${user.email} attempted to access stand ${requestedCustomerId} but is assigned to ${profile.stand_number}`);
-      return new Response(
-        JSON.stringify({ error: 'Access denied. You can only view your own stand information.' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Use the user's assigned stand number
-    const customerId = profile.stand_number;
-    console.log('Fetching data for customer:', customerId, 'for user:', user.email);
+    // Use the authenticated user's email to find their stand
+    const userEmail = user.email || profile.email;
+    console.log('Fetching data for user:', userEmail);
 
     // Get credentials - support both JSON and separate key/email
     const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
@@ -289,6 +269,7 @@ serve(async (req) => {
     // Find header row
     const headers = rows[0];
     const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
+    const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
     
     if (standNumIndex === -1) {
       return new Response(
@@ -297,22 +278,33 @@ serve(async (req) => {
       );
     }
 
-    // Find the customer row
+    if (emailIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Could not find "Email" column in spreadsheet' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Find the customer row by matching the user's email
     const customerRow = rows.slice(1).find(row => 
-      row[standNumIndex] && row[standNumIndex].toString().trim() === customerId.toString().trim()
+      row[emailIndex] && row[emailIndex].toString().trim().toLowerCase() === userEmail.toLowerCase()
     );
 
     if (!customerRow) {
       return new Response(
-        JSON.stringify({ error: `Stand number ${customerId} not found in spreadsheet` }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: `Your email (${userEmail}) is not authorized to view any stand. Please contact support.` }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Get the stand number for this authorized user
+    const standNumber = customerRow[standNumIndex];
+    console.log(`User ${userEmail} authorized for stand: ${standNumber}`);
 
     // Map the data
     const customerData = {
       customerId: customerRow[0] || '',
-      standNumber: customerRow[standNumIndex] || customerId,
+      standNumber: standNumber || '',
       customerName: customerRow[1] || '',
       standBalance: customerRow[2] || '0',
       lastPayment: customerRow[3] || '',
