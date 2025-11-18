@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import CustomerHeader from "@/components/CustomerHeader";
 import CustomerOverview from "@/components/CustomerOverview";
 import InfoCards from "@/components/InfoCards";
@@ -11,10 +12,27 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [customerId, setCustomerId] = useState("");
   const [customerData, setCustomerData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      navigate("/login");
+      return;
+    }
+    
+    setIsAuthenticated(true);
+  };
 
   const fetchCustomerData = async (id: string) => {
     setLoading(true);
@@ -57,6 +75,10 @@ const Index = () => {
       fetchCustomerData(customerId.trim());
     }
   };
+
+  if (!isAuthenticated) {
+    return null; // Will redirect to login
+  }
 
   if (!customerData) {
     return (
