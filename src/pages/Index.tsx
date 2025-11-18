@@ -14,16 +14,15 @@ import { Button } from "@/components/ui/button";
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [customerId, setCustomerId] = useState("");
   const [customerData, setCustomerData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    checkAuthAndLoadData();
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuthAndLoadData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
@@ -32,13 +31,14 @@ const Index = () => {
     }
     
     setIsAuthenticated(true);
+    await fetchCustomerData();
   };
 
-  const fetchCustomerData = async (id: string) => {
+  const fetchCustomerData = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
-        body: { customerId: id }
+        body: {} // No customerId needed - server will use user's assigned stand
       });
 
       if (error) throw error;
@@ -53,15 +53,11 @@ const Index = () => {
       }
 
       setCustomerData(data);
-      toast({
-        title: "Success",
-        description: "Customer data loaded successfully"
-      });
     } catch (error) {
       console.error('Error fetching customer data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch customer data",
+        description: "Failed to fetch your account data",
         variant: "destructive"
       });
     } finally {
@@ -69,37 +65,23 @@ const Index = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (customerId.trim()) {
-      fetchCustomerData(customerId.trim());
-    }
-  };
-
-  if (!isAuthenticated) {
-    return null; // Will redirect to login
+  if (!isAuthenticated || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading your account...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!customerData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-4">
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold">Customer Portal</h1>
-            <p className="text-muted-foreground">Enter your customer ID to view your account</p>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="text"
-              placeholder="Customer ID (e.g., 00E9557)"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full"
-            />
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Loading..." : "View Account"}
-            </Button>
-          </form>
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">No account data found. Please contact support.</p>
+          <Button onClick={() => navigate("/settings")}>Go to Settings</Button>
         </div>
       </div>
     );
@@ -138,9 +120,9 @@ const Index = () => {
         <Button 
           variant="outline" 
           className="w-full"
-          onClick={() => setCustomerData(null)}
+          onClick={() => fetchCustomerData()}
         >
-          View Different Account
+          Refresh Data
         </Button>
       </main>
 
