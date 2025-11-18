@@ -19,38 +19,60 @@ serve(async (req) => {
     const { customerId } = await req.json();
     console.log('Fetching data for customer:', customerId);
 
-    // Parse the service account credentials
-    let credentialsString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '{}';
+    // Get credentials - support both JSON and separate key/email
+    const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
+    const clientEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL') || '';
     
-    // Handle escaped newlines in the secret
-    credentialsString = credentialsString.replace(/\\n/g, '\n');
+    let privateKeyPem: string;
+    let serviceAccountEmail: string;
     
-    const credentials = JSON.parse(credentialsString);
-    console.log('Parsed credentials for:', credentials.client_email);
+    // Try parsing as JSON first
+    try {
+      const credentials = JSON.parse(keyString.replace(/\\n/g, '\n'));
+      privateKeyPem = credentials.private_key;
+      serviceAccountEmail = credentials.client_email;
+    } catch {
+      // If not JSON, treat as raw private key
+      privateKeyPem = keyString;
+      serviceAccountEmail = clientEmail;
+    }
+    
+    console.log('Using service account:', serviceAccountEmail);
     
     // Get access token using service account
-    const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
     const now = Math.floor(Date.now() / 1000);
-    const jwtClaimSet = btoa(JSON.stringify({
-      iss: credentials.client_email,
+    const header = { alg: "RS256", typ: "JWT" };
+    const claimSet = {
+      iss: serviceAccountEmail,
       scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
       aud: "https://oauth2.googleapis.com/token",
       exp: now + 3600,
       iat: now,
-    }));
-
+    };
+    
+    // Base64url encode (not regular base64)
+    const base64url = (str: string) => {
+      return btoa(str)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    };
+    
+    const jwtHeader = base64url(JSON.stringify(header));
+    const jwtClaimSet = base64url(JSON.stringify(claimSet));
     const signatureInput = `${jwtHeader}.${jwtClaimSet}`;
     
     // Clean and prepare the private key
-    const privateKeyPem = credentials.private_key
+    const cleanKey = privateKeyPem
       .replace(/-----BEGIN PRIVATE KEY-----/g, '')
       .replace(/-----END PRIVATE KEY-----/g, '')
       .replace(/\\n/g, '')
       .replace(/\n/g, '')
+      .replace(/\s/g, '')
       .trim();
     
     // Import the private key
-    const binaryKey = Uint8Array.from(atob(privateKeyPem), c => c.charCodeAt(0));
+    const binaryKey = Uint8Array.from(atob(cleanKey), c => c.charCodeAt(0));
     const privateKey = await crypto.subtle.importKey(
       "pkcs8",
       binaryKey,
@@ -66,7 +88,14 @@ serve(async (req) => {
       new TextEncoder().encode(signatureInput)
     );
 
-    const jwt = `${signatureInput}.${btoa(String.fromCharCode(...new Uint8Array(signature)))}`;
+    // Convert signature to base64url
+    const signatureArray = new Uint8Array(signature);
+    const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    const jwt = `${signatureInput}.${signatureBase64}`;
 
     // Exchange JWT for access token
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -75,7 +104,14 @@ serve(async (req) => {
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
     });
 
-    const { access_token } = await tokenResponse.json();
+    const tokenData = await tokenResponse.json();
+    
+    if (tokenData.error) {
+      console.error('Token error:', tokenData);
+      throw new Error(`Failed to get access token: ${tokenData.error_description || tokenData.error}`);
+    }
+    
+    const { access_token } = tokenData;
     console.log('Successfully obtained access token');
 
     // Fetch data from Google Sheets
