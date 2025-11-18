@@ -91,20 +91,24 @@ const Login = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Update profile with phone number
+        // Update profile with phone number and stand number
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({ phone_number: signupPhone })
+          .update({ 
+            phone_number: signupPhone,
+            stand_number: null // Admin will assign this later
+          })
           .eq('id', data.user.id);
 
         if (profileError) throw profileError;
 
         toast({
           title: "Account created",
-          description: "Your account has been created successfully",
+          description: "Your account has been created. An administrator will assign your stand number.",
         });
 
-        navigate("/");
+        // Don't auto-login until stand is assigned
+        // navigate("/");
       }
     } catch (error: any) {
       toast({

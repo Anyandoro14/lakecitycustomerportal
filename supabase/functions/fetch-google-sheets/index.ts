@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,8 +17,75 @@ serve(async (req) => {
   }
 
   try {
-    const { customerId } = await req.json();
-    console.log('Fetching data for customer:', customerId);
+    // Get authorization token from request
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create Supabase client with the user's token
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          authorization: authHeader
+        }
+      }
+    });
+
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('Authentication error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's profile to find their assigned stand number
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('stand_number')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('Profile fetch error:', profileError);
+      return new Response(
+        JSON.stringify({ error: 'User profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!profile.stand_number) {
+      return new Response(
+        JSON.stringify({ error: 'No stand number assigned to your account. Please contact support.' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get the requested customerId from request body (optional - for validation)
+    const body = await req.json().catch(() => ({}));
+    const requestedCustomerId = body.customerId;
+
+    // If a customerId was provided, verify it matches their assigned stand
+    if (requestedCustomerId && requestedCustomerId !== profile.stand_number) {
+      console.warn(`User ${user.email} attempted to access stand ${requestedCustomerId} but is assigned to ${profile.stand_number}`);
+      return new Response(
+        JSON.stringify({ error: 'Access denied. You can only view your own stand information.' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use the user's assigned stand number
+    const customerId = profile.stand_number;
+    console.log('Fetching data for customer:', customerId, 'for user:', user.email);
 
     // Get credentials - support both JSON and separate key/email
     const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
@@ -105,120 +173,154 @@ serve(async (req) => {
     );
 
     // Sign the JWT
+    const encoder = new TextEncoder();
     const signature = await crypto.subtle.sign(
       "RSASSA-PKCS1-v1_5",
       privateKey,
-      new TextEncoder().encode(signatureInput)
+      encoder.encode(signatureInput)
     );
 
-    // Convert signature to base64url
-    const signatureArray = new Uint8Array(signature);
-    const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-    
-    const jwt = `${signatureInput}.${signatureBase64}`;
+    const signatureBase64 = base64url(String.fromCharCode(...new Uint8Array(signature)));
+    const jwt = `${jwtHeader}.${jwtClaimSet}.${signatureBase64}`;
 
     // Exchange JWT for access token
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
     });
 
-    const tokenData = await tokenResponse.json();
-    
-    if (tokenData.error) {
-      console.error('Token error:', tokenData);
-      throw new Error(`Failed to get access token: ${tokenData.error_description || tokenData.error}`);
-    }
-    
-    const { access_token } = tokenData;
-    console.log('Successfully obtained access token');
-
-    // Fetch data from Google Sheets
-    const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
-    if (!spreadsheetId) {
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('Token exchange failed:', errorData);
       return new Response(
-        JSON.stringify({ error: 'Missing SPREADSHEET_ID' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Resolve sheet title automatically
-    const preferredName = Deno.env.get('SHEET_NAME');
-    const preferredGid = Deno.env.get('SHEET_GID');
-    let sheetTitle = preferredName || '';
-
-    try {
-      const metaResp = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(title,sheetId))`,
-        { headers: { Authorization: `Bearer ${access_token}` } }
-      );
-      if (metaResp.ok) {
-        const meta = await metaResp.json();
-        const sheets = (meta.sheets || []).map((s: any) => s.properties);
-        if (!sheetTitle && preferredGid) {
-          const byGid = sheets.find((p: any) => String(p.sheetId) === String(preferredGid));
-          if (byGid) sheetTitle = byGid.title;
-        }
-        if (!sheetTitle) sheetTitle = sheets[0]?.title || 'Sheet1';
-      }
-    } catch (e) {
-      console.warn('Failed to fetch sheet metadata, falling back to Sheet1');
-      if (!sheetTitle) sheetTitle = 'Sheet1';
-    }
-
-    const range = `${sheetTitle}!A:Z`; // Adjust range as needed
-    
-    const sheetsResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
-      {
-        headers: { Authorization: `Bearer ${access_token}` },
-      }
-    );
-
-    if (!sheetsResponse.ok) {
-      const errorText = await sheetsResponse.text();
-      console.error('Sheets API error:', sheetsResponse.status, errorText);
-      return new Response(
-        JSON.stringify({ 
-          error: `Google Sheets API error (${sheetsResponse.status}). Check: 1) Spreadsheet ID is correct, 2) Sheet is shared with ${serviceAccountEmail} as Viewer` 
-        }),
+        JSON.stringify({ error: `Failed to get access token: ${errorData}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data: GoogleSheetsResponse = await sheetsResponse.json();
-    console.log('Fetched rows:', data.values?.length || 0);
+    const { access_token } = await tokenResponse.json();
+    console.log('Successfully obtained access token');
 
-    // Parse the data (assuming first row is headers)
-    const headers = data.values[0];
-    const rows = data.values.slice(1);
-    
-    // Find the customer row by Stand Number (column A)
-    const customerRow = rows.find(row => row[0] === customerId);
-    
-    if (!customerRow) {
+    const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+    if (!spreadsheetId) {
       return new Response(
-        JSON.stringify({ error: 'Customer not found' }),
+        JSON.stringify({ error: 'SPREADSHEET_ID not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // First, get spreadsheet metadata to determine the sheet title
+    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metadataResponse = await fetch(metadataUrl, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!metadataResponse.ok) {
+      const errorText = await metadataResponse.text();
+      console.error('Metadata fetch error:', errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: `Google Sheets API error (${metadataResponse.status}). Check: 1) Spreadsheet ID is correct, 2) Sheet is shared with ${serviceAccountEmail} as Viewer` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const metadata = await metadataResponse.json();
+    const sheets = metadata.sheets || [];
+    
+    // Determine which sheet to use
+    const preferredName = Deno.env.get('SHEET_NAME');
+    const preferredGid = Deno.env.get('SHEET_GID');
+    
+    let sheetTitle = 'Sheet1'; // Default fallback
+    
+    if (preferredName) {
+      const found = sheets.find((s: any) => s.properties.title === preferredName);
+      if (found) {
+        sheetTitle = found.properties.title;
+      }
+    } else if (preferredGid) {
+      const found = sheets.find((s: any) => s.properties.sheetId?.toString() === preferredGid);
+      if (found) {
+        sheetTitle = found.properties.title;
+      }
+    } else if (sheets.length > 0) {
+      sheetTitle = sheets[0].properties.title;
+    }
+
+    console.log(`Using sheet: "${sheetTitle}"`);
+
+    // Fetch the data
+    const range = encodeURIComponent(`${sheetTitle}!A:Z`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Sheets fetch error:', errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: `Google Sheets API error (${response.status}). Check: 1) Spreadsheet ID is correct, 2) Sheet is shared with ${serviceAccountEmail} as Viewer` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const data: GoogleSheetsResponse = await response.json();
+    const rows = data.values || [];
+    
+    console.log(`Fetched rows: ${rows.length}`);
+
+    if (rows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No data found in spreadsheet' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Map the data based on your sheet structure
+    // Find header row
+    const headers = rows[0];
+    const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
+    
+    if (standNumIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Could not find "Stand Number" column in spreadsheet' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Find the customer row
+    const customerRow = rows.slice(1).find(row => 
+      row[standNumIndex] && row[standNumIndex].toString().trim() === customerId.toString().trim()
+    );
+
+    if (!customerRow) {
+      return new Response(
+        JSON.stringify({ error: `Stand number ${customerId} not found in spreadsheet` }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Map the data
     const customerData = {
-      customerId: customerRow[0], // Stand Number
-      customerName: `${customerRow[1]} ${customerRow[2]}`, // First Name + Last Name
-      standNumber: customerRow[0], // Stand Number
-      standBalance: customerRow[7] || '$0.00', // TOTAL PRICE
-      lastPayment: customerRow[9] || '$0.00', // PAYMENT
-      nextPayment: customerRow[9] || '$0.00', // PAYMENT
-      currentBalance: customerRow[7] || '$0.00', // TOTAL PRICE
-      lastDueDate: customerRow[10] || 'N/A', // START DATE
-      monthlyPayment: customerRow[9] || '$0.00', // PAYMENT
-      nextDueDate: customerRow[11] || 'N/A', // NEXT INSTALLMENT DATE
+      customerId: customerRow[0] || '',
+      standNumber: customerRow[standNumIndex] || customerId,
+      customerName: customerRow[1] || '',
+      standBalance: customerRow[2] || '0',
+      lastPayment: customerRow[3] || '',
+      nextPayment: customerRow[4] || '',
+      currentBalance: customerRow[5] || '0',
+      lastDueDate: customerRow[6] || '',
+      monthlyPayment: customerRow[7] || '0',
+      nextDueDate: customerRow[8] || '',
     };
 
     return new Response(
@@ -226,11 +328,10 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('Error in fetch-google-sheets:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+  } catch (error: any) {
+    console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
