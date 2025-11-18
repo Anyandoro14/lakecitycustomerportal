@@ -62,20 +62,35 @@ serve(async (req) => {
     const jwtClaimSet = base64url(JSON.stringify(claimSet));
     const signatureInput = `${jwtHeader}.${jwtClaimSet}`;
     
-    // Clean and prepare the private key
-    const cleanKey = privateKeyPem
-      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-      .replace(/-----END PRIVATE KEY-----/g, '')
-      .replace(/\\n/g, '')
-      .replace(/\n/g, '')
-      .replace(/\s/g, '')
-      .trim();
-    
+    // Clean and prepare the private key (support PEM with or without headers)
+    const extractPemBase64 = (pem: string) => {
+      // If JSON stored it with escaped newlines, normalize first
+      const normalized = pem.replace(/\\n/g, '\n');
+      const m = normalized.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
+      const body = m ? m[1] : normalized; // if no headers, assume raw base64
+      let base64 = body.replace(/\r/g, '').replace(/\n/g, '').replace(/\s/g, '');
+      // Ensure proper padding
+      while (base64.length % 4 !== 0) base64 += '=';
+      return base64;
+    };
+
+    const base64Key = extractPemBase64(privateKeyPem);
+
     // Import the private key
-    const binaryKey = Uint8Array.from(atob(cleanKey), c => c.charCodeAt(0));
+    let buffer: ArrayBuffer;
+    try {
+      const raw = atob(base64Key);
+      buffer = new ArrayBuffer(raw.length);
+      const view = new Uint8Array(buffer);
+      for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+    } catch (e) {
+      console.error('Failed to base64-decode private key');
+      throw new Error('Failed to decode base64 private key');
+    }
+
     const privateKey = await crypto.subtle.importKey(
       "pkcs8",
-      binaryKey,
+      buffer,
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
       false,
       ["sign"]
