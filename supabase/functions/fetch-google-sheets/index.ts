@@ -26,19 +26,16 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client with the user's token
+    // Create Supabase client with service role for admin operations
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          authorization: authHeader
-        }
-      }
-    });
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Extract JWT token from authorization header
+    const userToken = authHeader.replace('Bearer ', '');
+
+    // Verify the JWT and get user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(userToken);
     
     if (userError || !user) {
       console.error('Authentication error:', userError);
@@ -48,8 +45,8 @@ serve(async (req) => {
       );
     }
 
-    // Get user's profile to check if they have access
-    const { data: profile, error: profileError } = await supabase
+    // Get user's profile
+    const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('email')
       .eq('id', user.id)
