@@ -148,6 +148,17 @@ serve(async (req) => {
       }
     );
 
+    if (!sheetsResponse.ok) {
+      const errorText = await sheetsResponse.text();
+      console.error('Sheets API error:', sheetsResponse.status, errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: `Google Sheets API error (${sheetsResponse.status}). Check: 1) Spreadsheet ID is correct, 2) Sheet is shared with ${serviceAccountEmail} as Viewer` 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const data: GoogleSheetsResponse = await sheetsResponse.json();
     console.log('Fetched rows:', data.values?.length || 0);
 
