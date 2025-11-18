@@ -20,7 +20,11 @@ serve(async (req) => {
     console.log('Fetching data for customer:', customerId);
 
     // Parse the service account credentials
-    const credentialsString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '{}';
+    let credentialsString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '{}';
+    
+    // Handle escaped newlines in the secret
+    credentialsString = credentialsString.replace(/\\n/g, '\n');
+    
     const credentials = JSON.parse(credentialsString);
     console.log('Parsed credentials for:', credentials.client_email);
     
