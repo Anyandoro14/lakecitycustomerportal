@@ -110,7 +110,7 @@ const Index = () => {
         <DocumentsSection documents={{
           agreementOfSale: "/docs/agreement.pdf",
           monthlyStatement: "/docs/statement.csv",
-          paymentSchedule: "/docs/schedule.xlsx",
+          projectDocuments: "/docs/project-docs.pdf",
         }} />
 
         <Button 
