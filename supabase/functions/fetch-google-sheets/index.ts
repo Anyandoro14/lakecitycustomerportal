@@ -20,7 +20,9 @@ serve(async (req) => {
     console.log('Fetching data for customer:', customerId);
 
     // Parse the service account credentials
-    const credentials = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '{}');
+    const credentialsString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '{}';
+    const credentials = JSON.parse(credentialsString);
+    console.log('Parsed credentials for:', credentials.client_email);
     
     // Get access token using service account
     const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
@@ -35,10 +37,19 @@ serve(async (req) => {
 
     const signatureInput = `${jwtHeader}.${jwtClaimSet}`;
     
+    // Clean and prepare the private key
+    const privateKeyPem = credentials.private_key
+      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+      .replace(/-----END PRIVATE KEY-----/g, '')
+      .replace(/\\n/g, '')
+      .replace(/\n/g, '')
+      .trim();
+    
     // Import the private key
+    const binaryKey = Uint8Array.from(atob(privateKeyPem), c => c.charCodeAt(0));
     const privateKey = await crypto.subtle.importKey(
       "pkcs8",
-      Uint8Array.from(atob(credentials.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n/g, '')), c => c.charCodeAt(0)),
+      binaryKey,
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
       false,
       ["sign"]
@@ -81,7 +92,7 @@ serve(async (req) => {
     const headers = data.values[0];
     const rows = data.values.slice(1);
     
-    // Find the customer row
+    // Find the customer row by Stand Number (column A)
     const customerRow = rows.find(row => row[0] === customerId);
     
     if (!customerRow) {
@@ -91,18 +102,18 @@ serve(async (req) => {
       );
     }
 
-    // Map the data (adjust indices based on your sheet structure)
+    // Map the data based on your sheet structure
     const customerData = {
-      customerId: customerRow[0],
-      customerName: customerRow[1],
-      standNumber: customerRow[2],
-      standBalance: customerRow[3],
-      lastPayment: customerRow[4],
-      nextPayment: customerRow[5],
-      currentBalance: customerRow[6],
-      lastDueDate: customerRow[7],
-      monthlyPayment: customerRow[8],
-      nextDueDate: customerRow[9],
+      customerId: customerRow[0], // Stand Number
+      customerName: `${customerRow[1]} ${customerRow[2]}`, // First Name + Last Name
+      standNumber: customerRow[0], // Stand Number
+      standBalance: customerRow[7] || '$0.00', // TOTAL PRICE
+      lastPayment: customerRow[9] || '$0.00', // PAYMENT
+      nextPayment: customerRow[9] || '$0.00', // PAYMENT
+      currentBalance: customerRow[7] || '$0.00', // TOTAL PRICE
+      lastDueDate: customerRow[10] || 'N/A', // START DATE
+      monthlyPayment: customerRow[9] || '$0.00', // PAYMENT
+      nextDueDate: customerRow[11] || 'N/A', // NEXT INSTALLMENT DATE
     };
 
     return new Response(
