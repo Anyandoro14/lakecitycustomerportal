@@ -36,10 +36,15 @@ serve(async (req) => {
       privateKeyPem = keyString;
       serviceAccountEmail = clientEmail;
     }
-    
-    console.log('Using service account:', serviceAccountEmail);
-    
-    // Get access token using service account
+    // Validate service account email format
+    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    if (!serviceAccountEmail || !emailRegex.test(serviceAccountEmail)) {
+      console.error('Invalid or missing service account email');
+      return new Response(
+        JSON.stringify({ error: 'Invalid service account email. Re-upload full JSON key or set GOOGLE_CLIENT_EMAIL.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const now = Math.floor(Date.now() / 1000);
     const header = { alg: "RS256", typ: "JWT" };
     const claimSet = {
