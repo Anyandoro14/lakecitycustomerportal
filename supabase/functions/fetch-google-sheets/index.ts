@@ -139,10 +139,41 @@ serve(async (req) => {
 
     // Fetch data from Google Sheets
     const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
-    const range = 'Sheet1!A:Z'; // Adjust range as needed
+    if (!spreadsheetId) {
+      return new Response(
+        JSON.stringify({ error: 'Missing SPREADSHEET_ID' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Resolve sheet title automatically
+    const preferredName = Deno.env.get('SHEET_NAME');
+    const preferredGid = Deno.env.get('SHEET_GID');
+    let sheetTitle = preferredName || '';
+
+    try {
+      const metaResp = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(title,sheetId))`,
+        { headers: { Authorization: `Bearer ${access_token}` } }
+      );
+      if (metaResp.ok) {
+        const meta = await metaResp.json();
+        const sheets = (meta.sheets || []).map((s: any) => s.properties);
+        if (!sheetTitle && preferredGid) {
+          const byGid = sheets.find((p: any) => String(p.sheetId) === String(preferredGid));
+          if (byGid) sheetTitle = byGid.title;
+        }
+        if (!sheetTitle) sheetTitle = sheets[0]?.title || 'Sheet1';
+      }
+    } catch (e) {
+      console.warn('Failed to fetch sheet metadata, falling back to Sheet1');
+      if (!sheetTitle) sheetTitle = 'Sheet1';
+    }
+
+    const range = `${sheetTitle}!A:Z`; // Adjust range as needed
     
     const sheetsResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
       {
         headers: { Authorization: `Bearer ${access_token}` },
       }
