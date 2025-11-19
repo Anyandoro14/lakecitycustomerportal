@@ -233,7 +233,7 @@ serve(async (req) => {
     console.log(`Using sheet: "${sheetTitle}"`);
 
     // Fetch the data
-    const range = encodeURIComponent(`${sheetTitle}!A:Z`);
+    const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -334,11 +334,16 @@ serve(async (req) => {
 
       // Column O (index 14) through AR (index 43) are the 36 payment months
       // Column AS (index 44) is Total Paid
-      // Column AT (index 45) is Current Balance
+      // Column AT (index 45) is Current Balance  
+      // Column AU (index 46) is Payment Progress %
       const paymentStartCol = 14; // Column O
       const paymentEndCol = 43; // Column AR
       const totalPaidCol = 44; // Column AS
       const currentBalanceCol = 45; // Column AT
+      const paymentProgressCol = 46; // Column AU
+
+      console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
+      console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
 
       // Base date for monthly payment columns comes from the header of column O (e.g. "5 November 2025")
       const firstPaymentHeader = headers[paymentStartCol];
@@ -353,8 +358,9 @@ serve(async (req) => {
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
       const totalPaid = customerRow[totalPaidCol] || '$0.00';
       const currentBalance = customerRow[currentBalanceCol] || '$0.00';
+      const paymentProgress = customerRow[paymentProgressCol] || '0%';
       
-      console.log(`Stand ${standNumber}: Total Paid (col ${totalPaidCol}) = ${totalPaid}, Current Balance (col ${currentBalanceCol}) = ${currentBalance}`);
+      console.log(`Stand ${standNumber}: Total Paid (col ${totalPaidCol}) = ${totalPaid}, Current Balance (col ${currentBalanceCol}) = ${currentBalance}, Progress (col ${paymentProgressCol}) = ${paymentProgress}`);
       
       // Extract payment columns
       const paymentColumns = [];
@@ -415,13 +421,24 @@ serve(async (req) => {
         }
       }
       
-      // Calculate payment progress percentage
-      const totalPaidNum = parseFloat(totalPaid.toString().replace(/[$,]/g, '')) || 0;
-      const balanceNum = parseFloat(currentBalance.toString().replace(/[$,]/g, '')) || 0;
-      const totalAmountDue = totalPaidNum + balanceNum; // Total = what's paid + what's left
-      const progressPercentage = totalAmountDue > 0 ? Math.round((totalPaidNum / totalAmountDue) * 100) : 0;
+      // Calculate payment progress percentage from sheet or fallback to calculation
+      let progressPercentage = 0;
       
-      console.log(`Stand ${standNumber}: Progress = ${progressPercentage}% (${totalPaidNum} paid of ${totalAmountDue} total)`);
+      // Try to use the payment progress from column AU first
+      const progressStr = paymentProgress.toString().replace('%', '').trim();
+      const progressNum = parseFloat(progressStr);
+      
+      if (!isNaN(progressNum) && progressNum >= 0) {
+        progressPercentage = Math.round(progressNum);
+      } else {
+        // Fallback: calculate from total paid and current balance
+        const totalPaidNum = parseFloat(totalPaid.toString().replace(/[$,]/g, '')) || 0;
+        const balanceNum = parseFloat(currentBalance.toString().replace(/[$,]/g, '')) || 0;
+        const totalAmountDue = totalPaidNum + balanceNum;
+        progressPercentage = totalAmountDue > 0 ? Math.round((totalPaidNum / totalAmountDue) * 100) : 0;
+      }
+      
+      console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);
 
       return {
         customerId: customerRow[standNumIndex] || '',
