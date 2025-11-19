@@ -336,9 +336,19 @@ serve(async (req) => {
       // Column AS (index 44) is Total Paid
       // Column AT (index 45) is Current Balance
       const paymentStartCol = 14; // Column O
-      const paymentEndCol = 49; // Column AR (O=14, so AR=14+35=49 for 36 months)
+      const paymentEndCol = 43; // Column AR
       const totalPaidCol = 44; // Column AS
       const currentBalanceCol = 45; // Column AT
+
+      // Base date for monthly payment columns comes from the header of column O (e.g. "5 November 2025")
+      const firstPaymentHeader = headers[paymentStartCol];
+      let basePaymentDate = customerStartDate;
+      if (firstPaymentHeader) {
+        const parsedHeaderDate = new Date(firstPaymentHeader);
+        if (!isNaN(parsedHeaderDate.getTime())) {
+          basePaymentDate = parsedHeaderDate;
+        }
+      }
       
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
       const totalPaid = customerRow[totalPaidCol] || '$0.00';
@@ -363,9 +373,9 @@ serve(async (req) => {
         if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
           lastPaymentAmount = paymentColumns[i].toString();
           lastPaymentIndex = i;
-          // Calculate date using customer's actual start date
+          // Calculate date using base payment date from header row
           const monthsFromStart = i;
-          const paymentDate = new Date(customerStartDate);
+          const paymentDate = new Date(basePaymentDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
           console.log(`Stand ${standNumber}: Payment at index ${i} = ${lastPaymentAmount}, Date: ${lastPaymentDate}`);
@@ -383,7 +393,7 @@ serve(async (req) => {
         // Next payment is the cell after the last payment
         const nextPaymentIndex = lastPaymentIndex + 1;
         const monthsFromStart = nextPaymentIndex;
-        const nextDueDate = new Date(customerStartDate);
+        const nextDueDate = new Date(basePaymentDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + monthsFromStart);
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
@@ -394,13 +404,14 @@ serve(async (req) => {
           daysOverdue = Math.floor((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
         }
       } else if (lastPaymentIndex === -1) {
-        // No payments made yet, first payment is due on customer's start date
-        nextPaymentDue = customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        // No payments made yet, first payment is due on the first header month date
+        const firstDueDate = new Date(basePaymentDate);
+        nextPaymentDue = firstDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
         const today = new Date();
-        if (today > customerStartDate) {
+        if (today > firstDueDate) {
           isOverdue = true;
-          daysOverdue = Math.floor((today.getTime() - customerStartDate.getTime()) / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.floor((today.getTime() - firstDueDate.getTime()) / (1000 * 60 * 60 * 24));
         }
       }
       
