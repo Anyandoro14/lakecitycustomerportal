@@ -334,13 +334,17 @@ serve(async (req) => {
 
       // Column O (index 14) through AR (index 43) are the 36 payment months
       // Column AS (index 44) is Total Paid
+      // Column AT (index 45) is Current Balance
       const paymentStartCol = 14; // Column O
-      const paymentEndCol = 43; // Column AR
+      const paymentEndCol = 49; // Column AR (O=14, so AR=14+35=49 for 36 months)
       const totalPaidCol = 44; // Column AS
+      const currentBalanceCol = 45; // Column AT
       
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
       const totalPaid = customerRow[totalPaidCol] || '$0.00';
-      const currentBalance = totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00';
+      const currentBalance = customerRow[currentBalanceCol] || '$0.00';
+      
+      console.log(`Stand ${standNumber}: Total Paid (col ${totalPaidCol}) = ${totalPaid}, Current Balance (col ${currentBalanceCol}) = ${currentBalance}`);
       
       // Extract payment columns
       const paymentColumns = [];
@@ -403,7 +407,10 @@ serve(async (req) => {
       // Calculate payment progress percentage
       const totalPaidNum = parseFloat(totalPaid.toString().replace(/[$,]/g, '')) || 0;
       const balanceNum = parseFloat(currentBalance.toString().replace(/[$,]/g, '')) || 0;
-      const progressPercentage = balanceNum > 0 ? Math.round((totalPaidNum / balanceNum) * 100) : 0;
+      const totalAmountDue = totalPaidNum + balanceNum; // Total = what's paid + what's left
+      const progressPercentage = totalAmountDue > 0 ? Math.round((totalPaidNum / totalAmountDue) * 100) : 0;
+      
+      console.log(`Stand ${standNumber}: Progress = ${progressPercentage}% (${totalPaidNum} paid of ${totalAmountDue} total)`);
 
       return {
         customerId: customerRow[standNumIndex] || '',
