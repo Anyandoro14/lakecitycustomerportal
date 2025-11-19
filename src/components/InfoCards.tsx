@@ -86,10 +86,8 @@ const InfoCards = ({
         </Card>
 
         <Card className="p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-1">Stand Number</h3>
-          <p className="text-lg font-bold text-foreground mb-2">{standNumber}</p>
-          <p className="text-xs text-muted-foreground">Current Balance</p>
-          <p className="text-base font-bold text-foreground">{standBalance}</p>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Current Balance</h3>
+          <p className="text-2xl font-bold text-primary">{standBalance}</p>
         </Card>
 
         <Card className="p-4 shadow-sm">
