@@ -312,17 +312,93 @@ serve(async (req) => {
       const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
       const fullName = `${firstName} ${lastName}`.trim();
 
+      // Column O (index 14) through AR (index 43) are the 36 payment months
+      // Column AS (index 44) is Total Paid
+      const paymentStartCol = 14; // Column O
+      const paymentEndCol = 43; // Column AR
+      const totalPaidCol = 44; // Column AS
+      
+      const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
+      const totalPaid = customerRow[totalPaidCol] || '$0.00';
+      const currentBalance = totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00';
+      
+      // Extract payment columns
+      const paymentColumns = [];
+      for (let i = paymentStartCol; i <= paymentEndCol; i++) {
+        paymentColumns.push(customerRow[i] || '');
+      }
+      
+      // Find last payment (last filled cell from left to right)
+      let lastPaymentAmount = '';
+      let lastPaymentDate = '';
+      let lastPaymentIndex = -1;
+      
+      for (let i = 0; i < paymentColumns.length; i++) {
+        if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
+          lastPaymentAmount = paymentColumns[i].toString();
+          lastPaymentIndex = i;
+          // Calculate date: start from November 2025 (month 0)
+          const monthsFromStart = i;
+          const startDate = new Date(2025, 10, 5); // November 5, 2025
+          const paymentDate = new Date(startDate);
+          paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
+          lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+      }
+      
+      // Find next payment (next empty cell after last payment)
+      let nextPaymentDue = '';
+      let daysOverdue = 0;
+      let isOverdue = false;
+      
+      if (lastPaymentIndex >= 0 && lastPaymentIndex < paymentColumns.length - 1) {
+        // Next payment is the cell after the last payment
+        const nextPaymentIndex = lastPaymentIndex + 1;
+        const monthsFromStart = nextPaymentIndex;
+        const startDate = new Date(2025, 10, 5); // November 5, 2025
+        const nextDueDate = new Date(startDate);
+        nextDueDate.setMonth(nextDueDate.getMonth() + monthsFromStart);
+        nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        
+        // Check if overdue
+        const today = new Date();
+        if (today > nextDueDate) {
+          isOverdue = true;
+          daysOverdue = Math.floor((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+      } else if (lastPaymentIndex === -1) {
+        // No payments made yet, first payment is due
+        const startDate = new Date(2025, 10, 5); // November 5, 2025
+        nextPaymentDue = startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        
+        const today = new Date();
+        if (today > startDate) {
+          isOverdue = true;
+          daysOverdue = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+      }
+      
+      // Calculate payment progress percentage
+      const totalPaidNum = parseFloat(totalPaid.toString().replace(/[$,]/g, '')) || 0;
+      const balanceNum = parseFloat(currentBalance.toString().replace(/[$,]/g, '')) || 0;
+      const progressPercentage = balanceNum > 0 ? Math.round((totalPaidNum / balanceNum) * 100) : 0;
+
       return {
         customerId: customerRow[standNumIndex] || '',
         standNumber: standNumber || '',
         customerName: fullName || '',
-        standBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
-        lastPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
-        nextPayment: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
-        currentBalance: totalPriceIndex !== -1 ? (customerRow[totalPriceIndex] || '$0.00') : '$0.00',
+        standBalance: currentBalance,
+        lastPayment: lastPaymentAmount,
+        lastPaymentDate: lastPaymentDate,
+        nextPayment: nextPaymentDue,
+        isOverdue: isOverdue,
+        daysOverdue: daysOverdue,
+        currentBalance: currentBalance,
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
-        monthlyPayment: paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00',
-        nextDueDate: nextInstallmentIndex !== -1 ? (customerRow[nextInstallmentIndex] || '') : '',
+        monthlyPayment: monthlyPayment,
+        nextDueDate: nextPaymentDue,
+        totalPaid: totalPaid,
+        progressPercentage: progressPercentage,
       };
     });
 
