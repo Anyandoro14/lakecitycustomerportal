@@ -58,55 +58,15 @@ const InfoCards = ({
       {/* Info Cards Grid */}
       <div className="grid grid-cols-2 gap-3">
         <Card className="p-4 shadow-sm">
-          {allStands.length > 1 ? (
-            <Select 
-              value={standNumber} 
-              onValueChange={(value) => {
-                const stand = allStands.find(s => s.standNumber === value);
-                if (stand) onStandChange(stand);
-              }}
-            >
-              <SelectTrigger className="bg-primary text-primary-foreground border-0 mb-3 h-auto">
-                <div className="text-left w-full py-1">
-                  <div className="text-[10px] uppercase tracking-wide mb-1">Stand Number</div>
-                  <div className="text-lg font-bold">
-                    <SelectValue />
-                  </div>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {allStands.map((stand) => (
-                  <SelectItem key={stand.standNumber} value={stand.standNumber}>
-                    Stand Number {stand.standNumber}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="bg-primary text-primary-foreground rounded-lg px-3 py-2 mb-3 inline-block">
-              <div className="text-[10px] uppercase tracking-wide mb-1">Stand Number</div>
-              <div className="text-lg font-bold">{standNumber}</div>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">Current Balance</p>
-          <p className="text-base font-bold text-foreground">{standBalance}</p>
-        </Card>
-
-        <Card className="p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Total Paid</h3>
-          <p className="text-2xl font-bold text-primary">{totalPaid}</p>
-        </Card>
-
-        <Card className="p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-2">Last Payment</h3>
-          <p className="text-base font-bold text-foreground">{lastPayment || 'No payments yet'}</p>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Last Payment</h3>
+          <p className="text-2xl font-bold text-primary">{lastPayment || 'No payments yet'}</p>
           {lastPaymentDate && (
             <p className="text-xs text-muted-foreground mt-1">{lastPaymentDate}</p>
           )}
         </Card>
 
         <Card className={`p-4 shadow-sm ${isOverdue ? 'border-destructive border-2' : ''}`}>
-          <div className="flex items-start justify-between mb-2">
+          <div className="flex items-start justify-between mb-3">
             <h3 className="text-sm font-semibold text-foreground">Next Payment</h3>
             {isOverdue && <AlertCircle className="h-4 w-4 text-destructive" />}
           </div>
@@ -123,6 +83,18 @@ const InfoCards = ({
               {daysOverdue} days overdue
             </p>
           )}
+        </Card>
+
+        <Card className="p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-foreground mb-1">Stand Number</h3>
+          <p className="text-lg font-bold text-foreground mb-2">{standNumber}</p>
+          <p className="text-xs text-muted-foreground">Current Balance</p>
+          <p className="text-base font-bold text-foreground">{standBalance}</p>
+        </Card>
+
+        <Card className="p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Total Paid</h3>
+          <p className="text-2xl font-bold text-primary">{totalPaid}</p>
         </Card>
       </div>
     </div>

@@ -98,6 +98,9 @@ const Index = () => {
         <CustomerOverview
           customerId={selectedStand.customerId}
           customerName={selectedStand.customerName}
+          standNumber={selectedStand.standNumber}
+          allStands={allStands}
+          onStandChange={setSelectedStand}
         />
 
           <InfoCards 
