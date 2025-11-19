@@ -362,8 +362,17 @@ serve(async (req) => {
       
       console.log(`Stand ${standNumber}: Total Paid (col ${totalPaidCol}) = ${totalPaid}, Current Balance (col ${currentBalanceCol}) = ${currentBalance}, Progress (col ${paymentProgressCol}) = ${paymentProgress}`);
       
-      // Extract payment columns
+      // Extract payment columns and build payment history
       const paymentColumns = [];
+      const paymentHistory: Array<{
+        date: string;
+        amount: string;
+        principal: string;
+        interest: string;
+        vat: string;
+        total: string;
+      }> = [];
+      
       for (let i = paymentStartCol; i <= paymentEndCol; i++) {
         paymentColumns.push(customerRow[i] || '');
       }
@@ -384,6 +393,17 @@ serve(async (req) => {
           const paymentDate = new Date(basePaymentDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+          
+          // Add to payment history
+          paymentHistory.push({
+            date: lastPaymentDate,
+            amount: paymentColumns[i].toString(),
+            principal: paymentColumns[i].toString(), // For now, full amount goes to principal
+            interest: '$0.00', // Will be calculated from separate sheet later
+            vat: '$0.00', // Will be calculated from separate sheet later
+            total: paymentColumns[i].toString()
+          });
+          
           console.log(`Stand ${standNumber}: Payment at index ${i} = ${lastPaymentAmount}, Date: ${lastPaymentDate}`);
         }
       }
@@ -456,6 +476,7 @@ serve(async (req) => {
         nextDueDate: nextPaymentDue,
         totalPaid: totalPaid,
         progressPercentage: progressPercentage,
+        paymentHistory: paymentHistory,
       };
     });
 

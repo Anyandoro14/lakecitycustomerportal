@@ -5,6 +5,7 @@ import CustomerOverview from "@/components/CustomerOverview";
 import InfoCards from "@/components/InfoCards";
 import PaymentSummary from "@/components/PaymentSummary";
 import DocumentsSection from "@/components/DocumentsSection";
+import PaymentHistory from "@/components/PaymentHistory";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -125,6 +126,8 @@ const Index = () => {
           monthlyStatement: "/docs/statement.csv",
           projectDocuments: "/docs/project-docs.pdf",
         }} />
+
+        <PaymentHistory payments={selectedStand.paymentHistory || []} />
 
         <Button 
           variant="outline" 
