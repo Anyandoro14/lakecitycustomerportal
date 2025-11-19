@@ -312,6 +312,26 @@ serve(async (req) => {
       const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
       const fullName = `${firstName} ${lastName}`.trim();
 
+      // Get the start date for this customer from the sheet
+      const startDateStr = startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '';
+      let customerStartDate = new Date(2025, 10, 5); // Default to November 5, 2025
+      
+      if (startDateStr) {
+        try {
+          // Try to parse the date from the sheet
+          const parsedDate = new Date(startDateStr);
+          if (!isNaN(parsedDate.getTime())) {
+            customerStartDate = parsedDate;
+            // Set the day to 5th of the month as per requirement
+            customerStartDate.setDate(5);
+          }
+        } catch (e) {
+          console.log(`Could not parse start date for stand ${standNumber}: ${startDateStr}`);
+        }
+      }
+
+      console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+
       // Column O (index 14) through AR (index 43) are the 36 payment months
       // Column AS (index 44) is Total Paid
       const paymentStartCol = 14; // Column O
@@ -333,18 +353,22 @@ serve(async (req) => {
       let lastPaymentDate = '';
       let lastPaymentIndex = -1;
       
+      console.log(`Stand ${standNumber}: Processing ${paymentColumns.length} payment columns`);
+      
       for (let i = 0; i < paymentColumns.length; i++) {
         if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
           lastPaymentAmount = paymentColumns[i].toString();
           lastPaymentIndex = i;
-          // Calculate date: start from November 2025 (month 0)
+          // Calculate date using customer's actual start date
           const monthsFromStart = i;
-          const startDate = new Date(2025, 10, 5); // November 5, 2025
-          const paymentDate = new Date(startDate);
+          const paymentDate = new Date(customerStartDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+          console.log(`Stand ${standNumber}: Payment at index ${i} = ${lastPaymentAmount}, Date: ${lastPaymentDate}`);
         }
       }
+      
+      console.log(`Stand ${standNumber}: Last payment index = ${lastPaymentIndex}, Amount = ${lastPaymentAmount}, Date = ${lastPaymentDate}`);
       
       // Find next payment (next empty cell after last payment)
       let nextPaymentDue = '';
@@ -355,8 +379,7 @@ serve(async (req) => {
         // Next payment is the cell after the last payment
         const nextPaymentIndex = lastPaymentIndex + 1;
         const monthsFromStart = nextPaymentIndex;
-        const startDate = new Date(2025, 10, 5); // November 5, 2025
-        const nextDueDate = new Date(startDate);
+        const nextDueDate = new Date(customerStartDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + monthsFromStart);
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
@@ -367,14 +390,13 @@ serve(async (req) => {
           daysOverdue = Math.floor((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
         }
       } else if (lastPaymentIndex === -1) {
-        // No payments made yet, first payment is due
-        const startDate = new Date(2025, 10, 5); // November 5, 2025
-        nextPaymentDue = startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        // No payments made yet, first payment is due on customer's start date
+        nextPaymentDue = customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
         const today = new Date();
-        if (today > startDate) {
+        if (today > customerStartDate) {
           isOverdue = true;
-          daysOverdue = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.floor((today.getTime() - customerStartDate.getTime()) / (1000 * 60 * 60 * 24));
         }
       }
       
