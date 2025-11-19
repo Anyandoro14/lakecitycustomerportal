@@ -106,6 +106,7 @@ const Index = () => {
             lastPayment={selectedStand.lastPayment}
             lastPaymentDate={selectedStand.lastPaymentDate}
             nextPayment={selectedStand.nextPayment}
+            nextPaymentDate={selectedStand.nextPaymentDate}
             isOverdue={selectedStand.isOverdue}
             daysOverdue={selectedStand.daysOverdue}
             totalPaid={selectedStand.totalPaid}
