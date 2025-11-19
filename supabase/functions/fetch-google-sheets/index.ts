@@ -412,6 +412,7 @@ serve(async (req) => {
       
       // Find next payment (next empty cell after last payment)
       let nextPaymentDue = '';
+      let nextPaymentAmount = monthlyPayment; // Monthly payment amount from column M
       let daysOverdue = 0;
       let isOverdue = false;
       
@@ -467,7 +468,8 @@ serve(async (req) => {
         standBalance: currentBalance,
         lastPayment: lastPaymentAmount,
         lastPaymentDate: lastPaymentDate,
-        nextPayment: nextPaymentDue,
+        nextPayment: nextPaymentAmount,
+        nextPaymentDate: nextPaymentDue,
         isOverdue: isOverdue,
         daysOverdue: daysOverdue,
         currentBalance: currentBalance,

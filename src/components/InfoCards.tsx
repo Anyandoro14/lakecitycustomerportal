@@ -15,6 +15,7 @@ interface InfoCardsProps {
   lastPayment: string;
   lastPaymentDate: string;
   nextPayment: string;
+  nextPaymentDate: string;
   isOverdue: boolean;
   daysOverdue: number;
   totalPaid: string;
@@ -29,6 +30,7 @@ const InfoCards = ({
   lastPayment,
   lastPaymentDate,
   nextPayment,
+  nextPaymentDate,
   isOverdue,
   daysOverdue,
   totalPaid,
@@ -108,9 +110,14 @@ const InfoCards = ({
             <h3 className="text-sm font-semibold text-foreground">Next Payment</h3>
             {isOverdue && <AlertCircle className="h-4 w-4 text-destructive" />}
           </div>
-          <p className={`text-base font-bold ${isOverdue ? 'text-destructive' : 'text-foreground'}`}>
+          <p className={`text-2xl font-bold ${isOverdue ? 'text-destructive' : 'text-primary'}`}>
             {nextPayment || 'All paid'}
           </p>
+          {nextPaymentDate && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {nextPaymentDate}
+            </p>
+          )}
           {isOverdue && daysOverdue > 0 && (
             <p className="text-xs text-destructive mt-1 font-semibold">
               {daysOverdue} days overdue
