@@ -58,15 +58,21 @@ serve(async (req) => {
     // JSON format
     try {
       const keyData = JSON.parse(serviceAccountKey);
-      privateKey = keyData.private_key.replace(/\\n/g, '\n');
+      privateKey = keyData.private_key;
     } catch (e) {
       console.error('Error parsing JSON service account key:', e);
       throw new Error('Invalid JSON service account key format');
     }
   } else {
-    // Raw private key format
-    privateKey = serviceAccountKey.replace(/\\n/g, '\n');
+    // Raw private key format - ensure it has proper header/footer
+    privateKey = serviceAccountKey;
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+    }
   }
+  
+  // Ensure newlines are properly formatted
+  privateKey = privateKey.replace(/\\n/g, '\n');
 
     const header = {
       alg: 'RS256',
