@@ -35,21 +35,27 @@ serve(async (req) => {
 
     // Create JWT for Google Sheets API
     const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
-    const serviceAccountKeyJson = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
+    const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
     const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
 
-    if (!serviceAccountEmail || !serviceAccountKeyJson || !spreadsheetId) {
+    if (!serviceAccountEmail || !serviceAccountKey || !spreadsheetId) {
       throw new Error('Missing Google Sheets configuration');
     }
 
-    // Parse the service account key JSON to extract the private key
+    // Handle both raw private key and JSON service account key formats
     let privateKey: string;
-    try {
-      const serviceAccountKey = JSON.parse(serviceAccountKeyJson);
-      privateKey = serviceAccountKey.private_key.replace(/\\n/g, '\n');
-    } catch (e) {
-      console.error('Error parsing service account key:', e);
-      throw new Error('Invalid service account key format');
+    if (serviceAccountKey.trim().startsWith('{')) {
+      // JSON format
+      try {
+        const keyData = JSON.parse(serviceAccountKey);
+        privateKey = keyData.private_key.replace(/\\n/g, '\n');
+      } catch (e) {
+        console.error('Error parsing JSON service account key:', e);
+        throw new Error('Invalid JSON service account key format');
+      }
+    } else {
+      // Raw private key format
+      privateKey = serviceAccountKey.replace(/\\n/g, '\n');
     }
 
     const header = {
