@@ -39,16 +39,16 @@ const InfoCards = ({
   onStandChange 
 }: InfoCardsProps) => {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {/* Payment Progress Bar */}
-      <Card className="p-5 shadow-sm">
-        <div className="space-y-3">
+      <Card className="p-3.5 shadow-sm">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">Payment Progress</h3>
-            <span className="text-2xl font-bold text-primary">{progressPercentage}%</span>
+            <h3 className="text-xs font-semibold text-foreground">Payment Progress</h3>
+            <span className="text-xl font-bold text-primary">{progressPercentage}%</span>
           </div>
-          <Progress value={progressPercentage} className="h-3" />
-          <div className="flex justify-between text-xs text-muted-foreground">
+          <Progress value={progressPercentage} className="h-2.5" />
+          <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>Total Paid: {totalPaid}</span>
             <span>Balance: {standBalance}</span>
           </div>
@@ -56,43 +56,43 @@ const InfoCards = ({
       </Card>
 
       {/* Info Cards Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Last Payment</h3>
-          <p className="text-2xl font-bold text-primary">{lastPayment || 'No payments yet'}</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Card className="p-3 shadow-sm">
+          <h3 className="text-xs font-semibold text-foreground mb-2">Last Payment</h3>
+          <p className="text-xl font-bold text-primary break-words">{lastPayment || 'No payments yet'}</p>
           {lastPaymentDate && (
-            <p className="text-xs text-muted-foreground mt-1">{lastPaymentDate}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{lastPaymentDate}</p>
           )}
         </Card>
 
-        <Card className={`p-4 shadow-sm ${isOverdue ? 'border-destructive border-2' : ''}`}>
-          <div className="flex items-start justify-between mb-3">
-            <h3 className="text-sm font-semibold text-foreground">Next Payment</h3>
-            {isOverdue && <AlertCircle className="h-4 w-4 text-destructive" />}
+        <Card className={`p-3 shadow-sm ${isOverdue ? 'border-destructive border-2' : ''}`}>
+          <div className="flex items-start justify-between mb-2">
+            <h3 className="text-xs font-semibold text-foreground">Next Payment</h3>
+            {isOverdue && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
           </div>
-          <p className={`text-2xl font-bold ${isOverdue ? 'text-destructive' : 'text-primary'}`}>
+          <p className={`text-xl font-bold break-words ${isOverdue ? 'text-destructive' : 'text-primary'}`}>
             {nextPayment || 'All paid'}
           </p>
           {nextPaymentDate && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1">
               {nextPaymentDate}
             </p>
           )}
           {isOverdue && daysOverdue > 0 && (
-            <p className="text-xs text-destructive mt-1 font-semibold">
+            <p className="text-[11px] text-destructive mt-1 font-semibold">
               {daysOverdue} days overdue
             </p>
           )}
         </Card>
 
-        <Card className="p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Current Balance</h3>
-          <p className="text-2xl font-bold text-primary">{standBalance}</p>
+        <Card className="p-3 shadow-sm">
+          <h3 className="text-xs font-semibold text-foreground mb-2">Current Balance</h3>
+          <p className="text-xl font-bold text-primary break-words">{standBalance}</p>
         </Card>
 
-        <Card className="p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Total Paid</h3>
-          <p className="text-2xl font-bold text-primary">{totalPaid}</p>
+        <Card className="p-3 shadow-sm">
+          <h3 className="text-xs font-semibold text-foreground mb-2">Total Paid</h3>
+          <p className="text-xl font-bold text-primary break-words">{totalPaid}</p>
         </Card>
       </div>
     </div>
