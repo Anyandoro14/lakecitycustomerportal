@@ -103,26 +103,19 @@ const Index = () => {
           onStandChange={setSelectedStand}
         />
 
-          <InfoCards 
-            standNumber={selectedStand.standNumber}
-            standBalance={selectedStand.standBalance}
-            lastPayment={selectedStand.lastPayment}
-            lastPaymentDate={selectedStand.lastPaymentDate}
-            nextPayment={selectedStand.nextPayment}
-            nextPaymentDate={selectedStand.nextPaymentDate}
-            isOverdue={selectedStand.isOverdue}
-            daysOverdue={selectedStand.daysOverdue}
-            totalPaid={selectedStand.totalPaid}
-            progressPercentage={selectedStand.progressPercentage}
-            allStands={allStands}
-            onStandChange={setSelectedStand}
-          />
-
-        <PaymentSummary
-          currentBalance={selectedStand.currentBalance}
-          lastDueDate={selectedStand.lastDueDate}
-          monthlyPayment={selectedStand.monthlyPayment}
-          nextDueDate={selectedStand.nextDueDate}
+        <InfoCards 
+          standNumber={selectedStand.standNumber}
+          standBalance={selectedStand.standBalance}
+          lastPayment={selectedStand.lastPayment}
+          lastPaymentDate={selectedStand.lastPaymentDate}
+          nextPayment={selectedStand.nextPayment}
+          nextPaymentDate={selectedStand.nextPaymentDate}
+          isOverdue={selectedStand.isOverdue}
+          daysOverdue={selectedStand.daysOverdue}
+          totalPaid={selectedStand.totalPaid}
+          progressPercentage={selectedStand.progressPercentage}
+          allStands={allStands}
+          onStandChange={setSelectedStand}
         />
 
         <DocumentsSection documents={{
@@ -130,6 +123,11 @@ const Index = () => {
           monthlyStatement: "/docs/statement.csv",
           projectDocuments: "/docs/project-docs.pdf",
         }} />
+
+        <PaymentSummary
+          signedBySeller={true}
+          signedByBuyer={false}
+        />
 
         <PaymentHistory payments={selectedStand.paymentHistory || []} />
 
