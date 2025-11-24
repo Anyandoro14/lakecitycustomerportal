@@ -8,6 +8,8 @@ import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 import MonthlyStatements from "./pages/MonthlyStatements";
 import AgreementOfSaleDocuments from "./pages/AgreementOfSaleDocuments";
+import Reporting from "./pages/Reporting";
+import AccountManagement from "./pages/AccountManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/monthly-statements" element={<MonthlyStatements />} />
           <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
+          <Route path="/reporting" element={<Reporting />} />
+          <Route path="/account-management" element={<AccountManagement />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
