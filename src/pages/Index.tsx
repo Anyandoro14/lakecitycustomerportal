@@ -94,7 +94,7 @@ const Index = () => {
     <div className="min-h-screen bg-background pb-20">
       <CustomerHeader />
       
-      <main className="max-w-md mx-auto px-4 py-5 space-y-4">
+      <main className="max-w-md mx-auto px-3 py-3 space-y-3">
         <CustomerOverview
           customerId={selectedStand.customerId}
           customerName={selectedStand.customerName}

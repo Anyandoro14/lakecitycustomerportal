@@ -17,10 +17,10 @@ interface CustomerOverviewProps {
 
 const CustomerOverview = ({ customerId, customerName, standNumber, allStands, onStandChange }: CustomerOverviewProps) => {
   return (
-    <Card className="p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
-          <h2 className="text-xl font-bold text-foreground">{customerName}</h2>
+    <Card className="p-3.5 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-bold text-foreground truncate">{customerName}</h2>
         </div>
         {allStands.length > 1 ? (
           <Select 
@@ -30,10 +30,10 @@ const CustomerOverview = ({ customerId, customerName, standNumber, allStands, on
               if (stand) onStandChange(stand);
             }}
           >
-            <SelectTrigger className="bg-primary text-primary-foreground border-0 w-auto h-auto px-4 py-2">
+            <SelectTrigger className="bg-primary text-primary-foreground border-0 w-auto h-auto px-3 py-1.5 shrink-0">
               <div className="text-left">
-                <div className="text-[10px] uppercase tracking-wide opacity-80">Stand Number</div>
-                <div className="text-lg font-bold">
+                <div className="text-[9px] uppercase tracking-wide opacity-80">Stand Number</div>
+                <div className="text-base font-bold">
                   <SelectValue />
                 </div>
               </div>
@@ -47,9 +47,9 @@ const CustomerOverview = ({ customerId, customerName, standNumber, allStands, on
             </SelectContent>
           </Select>
         ) : (
-          <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2">
-            <div className="text-[10px] uppercase tracking-wide opacity-80">Stand Number</div>
-            <div className="text-lg font-bold">{standNumber}</div>
+          <div className="bg-primary text-primary-foreground rounded-lg px-3 py-1.5 shrink-0">
+            <div className="text-[9px] uppercase tracking-wide opacity-80">Stand Number</div>
+            <div className="text-base font-bold">{standNumber}</div>
           </div>
         )}
       </div>

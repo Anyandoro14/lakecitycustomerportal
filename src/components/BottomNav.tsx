@@ -6,8 +6,8 @@ const BottomNav = () => {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-      <div className="flex justify-around items-center max-w-md mx-auto px-4 py-3">
+    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-inset-bottom">
+      <div className="flex justify-around items-center max-w-md mx-auto px-2 py-2.5">
         <button 
           onClick={() => navigate("/")}
           className={`flex flex-col items-center gap-1 ${location.pathname === "/" ? "text-primary" : "text-muted-foreground"}`}
