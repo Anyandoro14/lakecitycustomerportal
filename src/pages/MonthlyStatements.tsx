@@ -40,16 +40,11 @@ const MonthlyStatements = () => {
         // Get the first stand for now
         const stand = data.stands[0];
         
-        // Process payment history for October 2025 statement period
+        // Statement date
         const statementDate = new Date(2025, 10, 1); // November 1, 2025
-        const periodStart = new Date(2025, 9, 1); // October 1, 2025
-        const periodEnd = new Date(2025, 9, 31); // October 31, 2025
         
-        // Filter payments for October 2025
-        const periodPayments = stand.paymentHistory?.filter((payment: any) => {
-          const paymentDate = new Date(payment.date);
-          return paymentDate >= periodStart && paymentDate <= periodEnd;
-        }) || [];
+        // Get all payment history
+        const allPayments = stand.paymentHistory || [];
 
         // Calculate next payment due
         const nextPaymentDate = new Date(2025, 11, 5); // December 5, 2025
@@ -58,7 +53,7 @@ const MonthlyStatements = () => {
 
         setStatementData({
           statementDate: "November 1, 2025",
-          statementPeriod: "October 2025",
+          statementPeriod: "All Time",
           customerName: stand.customerName || "[Customer Full Name]",
           standNumber: stand.standNumber,
           totalPrice: "$100,000.00", // Placeholder - add to sheet data
@@ -68,7 +63,7 @@ const MonthlyStatements = () => {
           nextPaymentDue: "December 5, 2025",
           nextPaymentAmount: stand.monthlyPayment || "$1,167.00",
           daysPastDue: daysPastDue,
-          payments: periodPayments.map((p: any) => ({
+          payments: allPayments.map((p: any) => ({
             date: p.date,
             amount: p.amount,
             principal: p.principal,
@@ -273,7 +268,7 @@ const MonthlyStatements = () => {
               </div>
               <div>
                 <p className="font-semibold text-foreground mb-2">Questions about your statement?</p>
-                <p className="text-sm text-muted-foreground">Contact Warwickshire Property Management</p>
+                <p className="text-sm text-muted-foreground">Contact Warwickshire Accounts Receivable</p>
                 <p className="text-sm text-primary font-medium mt-1">accounts@lakecity.co.zw</p>
               </div>
             </div>
