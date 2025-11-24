@@ -43,10 +43,10 @@ serve(async (req) => {
 
     const { action, users } = await req.json();
 
-    // Create JWT for Google Sheets API
-    const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-    const privateKey = Deno.env.get('GOOGLE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
-    const accessSheetId = Deno.env.get('ACCESS_CONTROL_SHEET_ID') || Deno.env.get('GOOGLE_SHEET_ID');
+  // Create JWT for Google Sheets API
+  const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
+  const privateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY')?.replace(/\\n/g, '\n');
+  const accessSheetId = Deno.env.get('SPREADSHEET_ID');
 
     if (!serviceAccountEmail || !privateKey || !accessSheetId) {
       throw new Error('Missing Google Sheets configuration');
