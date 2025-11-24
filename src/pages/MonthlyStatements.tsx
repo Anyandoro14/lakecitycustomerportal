@@ -130,12 +130,9 @@ const MonthlyStatements = () => {
         <Card className="p-4 md:p-8 shadow-lg bg-card">
           {/* Header with Logos */}
           <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4 md:mb-6 pb-4 md:pb-6 border-b-2 border-primary/20">
-            <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto">
-              <img src={lakecityLogo} alt="Lakecity Development" className="h-10 md:h-16 w-auto" />
-              <div>
-                <h1 className="text-lg md:text-2xl font-bold text-primary">Lakecity Development Ltd.</h1>
-                <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">Property Development & Investment</p>
-              </div>
+            <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
+              <img src={lakecityLogo} alt="LakeCity" className="h-8 md:h-10 w-auto" />
+              <h1 className="text-lg md:text-2xl font-bold text-primary">LakeCity</h1>
             </div>
             <div className="text-left md:text-right w-full md:w-auto">
               <div className="bg-primary/10 px-3 md:px-4 py-1.5 md:py-2 rounded-lg mb-1 md:mb-2 inline-block">
