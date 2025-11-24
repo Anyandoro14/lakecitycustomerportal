@@ -332,15 +332,15 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);
 
-      // Column O (index 14) through AR (index 43) are the 36 payment months
-      // Column AS (index 44) is Total Paid
-      // Column AT (index 45) is Current Balance  
-      // Column AU (index 46) is Payment Progress %
-      const paymentStartCol = 14; // Column O
-      const paymentEndCol = 43; // Column AR
-      const totalPaidCol = 44; // Column AS
-      const currentBalanceCol = 45; // Column AT
-      const paymentProgressCol = 46; // Column AU
+      // Column M (index 12) through AV (index 47) are the payment months
+      // Column AX (index 49) is Total Paid
+      // Column AY (index 50) is Current Balance  
+      // Column AZ (index 51) is Payment Progress %
+      const paymentStartCol = 12; // Column M
+      const paymentEndCol = 47; // Column AV
+      const totalPaidCol = 49; // Column AX
+      const currentBalanceCol = 50; // Column AY
+      const paymentProgressCol = 51; // Column AZ
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
