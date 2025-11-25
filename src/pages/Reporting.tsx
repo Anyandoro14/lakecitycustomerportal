@@ -119,8 +119,31 @@ const Reporting = () => {
     percentage: parseFloat(m.percentage)
   }));
 
-  // Get last 3 months for collection tiles
-  const last3Months = monthlyTotals.slice(-3).reverse();
+  // Get current month and 2 previous months based on today's date
+  const today = new Date();
+  const getLast3Months = () => {
+    const months = [];
+    for (let i = 0; i < 3; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+      const year = date.getFullYear();
+      
+      // Find matching data from monthlyTotals
+      const monthData = monthlyTotals.find((m: any) => {
+        const dataMonth = m.month.split(' ')[1];
+        const dataYear = m.month.split(' ')[2];
+        return dataMonth === monthName && dataYear === year.toString();
+      });
+      
+      months.push({
+        month: `${monthName} ${year}`,
+        received: monthData ? monthData.received : 0
+      });
+    }
+    return months;
+  };
+  
+  const last3Months = getLast3Months();
 
   const COLORS = ['#10b981', '#ef4444', '#f59e0b'];
 
@@ -211,14 +234,13 @@ const Reporting = () => {
         {/* Monthly Collection Tiles */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {last3Months.map((monthData: any, idx: number) => {
-            const monthName = monthData.month.split(' ')[1] + ' ' + monthData.month.split(' ')[2];
             const formattedAmount = `$${monthData.received.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
             
             return (
               <Card key={idx}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Collected in {monthName}
+                    Total Collected in {monthData.month}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
