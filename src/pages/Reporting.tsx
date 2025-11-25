@@ -107,20 +107,6 @@ const Reporting = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!hasAccess || !reportingData) {
-    return null;
-  }
-
-  const { stands, monthlyTotals, monthColumns } = reportingData;
-  
   // Price range definitions
   const priceRanges = [
     { label: "$10,000 - $15,000", min: 10000, max: 15000 },
@@ -131,20 +117,23 @@ const Reporting = () => {
     { label: "$100,001+", min: 100001, max: Infinity },
   ];
   
-  // Get unique customer categories
+  // Get unique customer categories - safe to call even when reportingData is null
   const uniqueCategories = useMemo(() => {
+    if (!reportingData?.stands) return [];
     const categories = new Set<string>();
-    stands.forEach((s: any) => {
+    reportingData.stands.forEach((s: any) => {
       if (s.customerCategory && s.customerCategory.trim()) {
         categories.add(s.customerCategory.trim());
       }
     });
     return Array.from(categories).sort();
-  }, [stands]);
+  }, [reportingData?.stands]);
   
-  // Apply filters
+  // Apply filters - safe to call even when reportingData is null
   const filteredStands = useMemo(() => {
-    return stands.filter((stand: any) => {
+    if (!reportingData?.stands) return [];
+    
+    return reportingData.stands.filter((stand: any) => {
       // Skip unsold stands from filtering
       if (stand.isUnsold) return true;
       
@@ -172,10 +161,10 @@ const Reporting = () => {
       
       return true;
     });
-  }, [stands, selectedCategories, selectedPriceRanges, filterOfferReceived, filterInitialPayment, filterAgreementRequested, filterAgreementSignedWarwickshire, filterAgreementSignedClient]);
+  }, [reportingData?.stands, selectedCategories, selectedPriceRanges, filterOfferReceived, filterInitialPayment, filterAgreementRequested, filterAgreementSignedWarwickshire, filterAgreementSignedClient]);
   
-  const soldStands = filteredStands.filter((s: any) => !s.isUnsold);
-  const unsoldStands = filteredStands.filter((s: any) => s.isUnsold);
+  const soldStands = useMemo(() => filteredStands.filter((s: any) => !s.isUnsold), [filteredStands]);
+  const unsoldStands = useMemo(() => filteredStands.filter((s: any) => s.isUnsold), [filteredStands]);
   
   // Recalculate summary based on filtered data
   const filteredSummary = useMemo(() => {
@@ -242,6 +231,20 @@ const Reporting = () => {
     filterOfferReceived !== null || filterInitialPayment !== null || 
     filterAgreementRequested !== null || filterAgreementSignedWarwickshire !== null || 
     filterAgreementSignedClient !== null;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!hasAccess || !reportingData) {
+    return null;
+  }
+
+  const { monthlyTotals, monthColumns } = reportingData;
 
   // Prepare chart data from filtered monthly totals
   const monthlyChartData = filteredMonthlyTotals.map((m: any) => ({
