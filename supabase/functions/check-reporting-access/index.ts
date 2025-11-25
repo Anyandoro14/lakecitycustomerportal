@@ -12,6 +12,47 @@ interface GoogleSheetsResponse {
   values?: string[][];
 }
 
+// Retry helper with exponential backoff
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      // Don't retry on client errors (4xx) or success (2xx)
+      if (response.status < 500) {
+        return response;
+      }
+      
+      // Server error (5xx) - retry with backoff
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`API call failed with ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`API call failed: ${lastError.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -120,24 +161,32 @@ serve(async (req) => {
 
     const jwt = `${unsignedToken}.${signatureBase64}`;
 
-    // Exchange JWT for access token
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    // Exchange JWT for access token with retry
+    const tokenResponse = await fetchWithRetry('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
     });
 
+    if (!tokenResponse.ok) {
+      throw new Error(`Failed to get access token: ${tokenResponse.status}`);
+    }
+
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // Fetch access control data from User Access Control sheet
+    // Fetch access control data from User Access Control sheet with retry
     const sheetName = 'User Access Control';
     const range = `${sheetName}!A1:D100`;
     const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${accessSheetId}/values/${encodeURIComponent(range)}`;
 
-    const sheetsResponse = await fetch(sheetsUrl, {
+    const sheetsResponse = await fetchWithRetry(sheetsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    if (!sheetsResponse.ok) {
+      throw new Error(`Failed to fetch sheet data: ${sheetsResponse.status}`);
+    }
 
     const sheetsData: GoogleSheetsResponse = await sheetsResponse.json();
     const rows = sheetsData.values || [];
