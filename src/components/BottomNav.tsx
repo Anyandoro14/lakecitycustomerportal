@@ -15,11 +15,17 @@ const BottomNav = () => {
           <Home className="h-5 w-5" />
           <span className="text-xs font-medium">Home</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-muted-foreground">
+        <button 
+          onClick={() => navigate("/monthly-statements")}
+          className={`flex flex-col items-center gap-1 ${location.pathname === "/monthly-statements" ? "text-primary" : "text-muted-foreground"}`}
+        >
           <CreditCard className="h-5 w-5" />
           <span className="text-xs">Payments</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-muted-foreground">
+        <button 
+          onClick={() => navigate("/agreement-of-sale")}
+          className={`flex flex-col items-center gap-1 ${location.pathname === "/agreement-of-sale" ? "text-primary" : "text-muted-foreground"}`}
+        >
           <FileText className="h-5 w-5" />
           <span className="text-xs">Documents</span>
         </button>
