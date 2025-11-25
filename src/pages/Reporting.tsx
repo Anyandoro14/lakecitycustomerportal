@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Home } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Home, Filter, X } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   LineChart,
   Line,
@@ -45,6 +47,16 @@ const Reporting = () => {
   const [reportingData, setReportingData] = useState<any>(null);
   const [selectedStand, setSelectedStand] = useState<any>(null);
   const [selectedMonth, setSelectedMonth] = useState<any>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filter states
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([]);
+  const [filterOfferReceived, setFilterOfferReceived] = useState<boolean | null>(null);
+  const [filterInitialPayment, setFilterInitialPayment] = useState<boolean | null>(null);
+  const [filterAgreementRequested, setFilterAgreementRequested] = useState<boolean | null>(null);
+  const [filterAgreementSignedWarwickshire, setFilterAgreementSignedWarwickshire] = useState<boolean | null>(null);
+  const [filterAgreementSignedClient, setFilterAgreementSignedClient] = useState<boolean | null>(null);
 
   useEffect(() => {
     checkAccess();
@@ -107,12 +119,132 @@ const Reporting = () => {
     return null;
   }
 
-  const { stands, summary, monthlyTotals, monthColumns } = reportingData;
-  const soldStands = stands.filter((s: any) => !s.isUnsold);
-  const unsoldStands = stands.filter((s: any) => s.isUnsold);
+  const { stands, monthlyTotals, monthColumns } = reportingData;
+  
+  // Price range definitions
+  const priceRanges = [
+    { label: "$10,000 - $15,000", min: 10000, max: 15000 },
+    { label: "$15,001 - $25,000", min: 15001, max: 25000 },
+    { label: "$25,001 - $50,000", min: 25001, max: 50000 },
+    { label: "$50,001 - $75,000", min: 50001, max: 75000 },
+    { label: "$75,001 - $100,000", min: 75001, max: 100000 },
+    { label: "$100,001+", min: 100001, max: Infinity },
+  ];
+  
+  // Get unique customer categories
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set<string>();
+    stands.forEach((s: any) => {
+      if (s.customerCategory && s.customerCategory.trim()) {
+        categories.add(s.customerCategory.trim());
+      }
+    });
+    return Array.from(categories).sort();
+  }, [stands]);
+  
+  // Apply filters
+  const filteredStands = useMemo(() => {
+    return stands.filter((stand: any) => {
+      // Skip unsold stands from filtering
+      if (stand.isUnsold) return true;
+      
+      // Category filter
+      if (selectedCategories.length > 0) {
+        if (!selectedCategories.includes(stand.customerCategory)) return false;
+      }
+      
+      // Price range filter
+      if (selectedPriceRanges.length > 0) {
+        const inRange = selectedPriceRanges.some(rangeLabel => {
+          const range = priceRanges.find(r => r.label === rangeLabel);
+          if (!range) return false;
+          return stand.priceNumeric >= range.min && stand.priceNumeric <= range.max;
+        });
+        if (!inRange) return false;
+      }
+      
+      // Boolean filters
+      if (filterOfferReceived !== null && stand.offerReceived !== filterOfferReceived) return false;
+      if (filterInitialPayment !== null && stand.initialPaymentCompleted !== filterInitialPayment) return false;
+      if (filterAgreementRequested !== null && stand.agreementRequested !== filterAgreementRequested) return false;
+      if (filterAgreementSignedWarwickshire !== null && stand.agreementSignedWarwickshire !== filterAgreementSignedWarwickshire) return false;
+      if (filterAgreementSignedClient !== null && stand.agreementSignedClient !== filterAgreementSignedClient) return false;
+      
+      return true;
+    });
+  }, [stands, selectedCategories, selectedPriceRanges, filterOfferReceived, filterInitialPayment, filterAgreementRequested, filterAgreementSignedWarwickshire, filterAgreementSignedClient]);
+  
+  const soldStands = filteredStands.filter((s: any) => !s.isUnsold);
+  const unsoldStands = filteredStands.filter((s: any) => s.isUnsold);
+  
+  // Recalculate summary based on filtered data
+  const filteredSummary = useMemo(() => {
+    const totalExpected = soldStands.reduce((sum: number, s: any) => {
+      const price = parseFloat(s.totalPrice.replace(/[$,]/g, '')) || 0;
+      return sum + price;
+    }, 0);
 
-  // Prepare chart data
-  const monthlyChartData = monthlyTotals.map((m: any) => ({
+    const totalReceived = soldStands.reduce((sum: number, s: any) => {
+      const paid = parseFloat(s.totalPaid.replace(/[$,]/g, '')) || 0;
+      return sum + paid;
+    }, 0);
+
+    const totalOutstanding = soldStands.reduce((sum: number, s: any) => {
+      const balance = parseFloat(s.currentBalance.replace(/[$,]/g, '')) || 0;
+      return sum + balance;
+    }, 0);
+    
+    return {
+      totalExpected: `$${totalExpected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      totalReceived: `$${totalReceived.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      totalOutstanding: `$${totalOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      collectionPercentage: totalExpected > 0 ? ((totalReceived / totalExpected) * 100).toFixed(2) : '0',
+    };
+  }, [soldStands]);
+  
+  // Recalculate monthly totals based on filtered stands
+  const filteredMonthlyTotals = useMemo(() => {
+    const monthlyData: { [month: string]: { expected: number; received: number; count: number } } = {};
+    
+    soldStands.forEach((stand: any) => {
+      const monthlyPaymentAmount = parseFloat(stand.monthlyPayment.replace(/[$,]/g, '')) || 0;
+      
+      stand.payments.forEach((payment: any) => {
+        if (!monthlyData[payment.month]) {
+          monthlyData[payment.month] = { expected: 0, received: 0, count: 0 };
+        }
+        monthlyData[payment.month].received += payment.amountNumeric;
+        monthlyData[payment.month].expected += monthlyPaymentAmount;
+        monthlyData[payment.month].count += 1;
+      });
+    });
+    
+    return Object.entries(monthlyData).map(([month, data]) => ({
+      month,
+      expected: data.expected,
+      received: data.received,
+      percentage: data.expected > 0 ? ((data.received / data.expected) * 100).toFixed(2) : '0',
+      count: data.count
+    }));
+  }, [soldStands]);
+  
+  const clearAllFilters = () => {
+    setSelectedCategories([]);
+    setSelectedPriceRanges([]);
+    setFilterOfferReceived(null);
+    setFilterInitialPayment(null);
+    setFilterAgreementRequested(null);
+    setFilterAgreementSignedWarwickshire(null);
+    setFilterAgreementSignedClient(null);
+  };
+  
+  const hasActiveFilters = selectedCategories.length > 0 || selectedPriceRanges.length > 0 || 
+    filterOfferReceived !== null || filterInitialPayment !== null || 
+    filterAgreementRequested !== null || filterAgreementSignedWarwickshire !== null || 
+    filterAgreementSignedClient !== null;
+
+  // Prepare chart data from filtered monthly totals
+  const monthlyChartData = filteredMonthlyTotals.map((m: any) => ({
     month: m.month.split(' ')[1], // Extract month name
     expected: m.expected,
     received: m.received,
@@ -128,8 +260,8 @@ const Reporting = () => {
       const monthName = date.toLocaleDateString('en-US', { month: 'long' });
       const year = date.getFullYear();
       
-      // Find matching data from monthlyTotals
-      const monthData = monthlyTotals.find((m: any) => {
+      // Find matching data from filteredMonthlyTotals
+      const monthData = filteredMonthlyTotals.find((m: any) => {
         const dataMonth = m.month.split(' ')[1];
         const dataYear = m.month.split(' ')[2];
         return dataMonth === monthName && dataYear === year.toString();
@@ -189,6 +321,194 @@ const Reporting = () => {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        {/* Filter Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filters
+              </CardTitle>
+              <div className="flex gap-2">
+                {hasActiveFilters && (
+                  <Button variant="outline" size="sm" onClick={clearAllFilters}>
+                    <X className="h-4 w-4 mr-2" />
+                    Clear All
+                  </Button>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  {showFilters ? 'Hide' : 'Show'} Filters
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          {showFilters && (
+            <CardContent className="space-y-6">
+              {/* Customer Category Filter */}
+              {uniqueCategories.length > 0 && (
+                <div>
+                  <Label className="text-sm font-semibold mb-3 block">Customer Category</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {uniqueCategories.map((category) => (
+                      <div key={category} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`cat-${category}`}
+                          checked={selectedCategories.includes(category)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedCategories([...selectedCategories, category]);
+                            } else {
+                              setSelectedCategories(selectedCategories.filter(c => c !== category));
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`cat-${category}`} className="text-sm cursor-pointer">
+                          {category}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Price Range Filter */}
+              <div>
+                <Label className="text-sm font-semibold mb-3 block">Price Range</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {priceRanges.map((range) => (
+                    <div key={range.label} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`price-${range.label}`}
+                        checked={selectedPriceRanges.includes(range.label)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedPriceRanges([...selectedPriceRanges, range.label]);
+                          } else {
+                            setSelectedPriceRanges(selectedPriceRanges.filter(p => p !== range.label));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`price-${range.label}`} className="text-sm cursor-pointer">
+                        {range.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Boolean Filters */}
+              <div>
+                <Label className="text-sm font-semibold mb-3 block">Agreement Status</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Offer Received</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={filterOfferReceived === true ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterOfferReceived(filterOfferReceived === true ? null : true)}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        variant={filterOfferReceived === false ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterOfferReceived(filterOfferReceived === false ? null : false)}
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Initial Payment Completed</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={filterInitialPayment === true ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterInitialPayment(filterInitialPayment === true ? null : true)}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        variant={filterInitialPayment === false ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterInitialPayment(filterInitialPayment === false ? null : false)}
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Agreement Requested</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={filterAgreementRequested === true ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterAgreementRequested(filterAgreementRequested === true ? null : true)}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        variant={filterAgreementRequested === false ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterAgreementRequested(filterAgreementRequested === false ? null : false)}
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Agreement Signed (Warwickshire)</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={filterAgreementSignedWarwickshire === true ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterAgreementSignedWarwickshire(filterAgreementSignedWarwickshire === true ? null : true)}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        variant={filterAgreementSignedWarwickshire === false ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterAgreementSignedWarwickshire(filterAgreementSignedWarwickshire === false ? null : false)}
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Agreement Signed (Client)</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={filterAgreementSignedClient === true ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterAgreementSignedClient(filterAgreementSignedClient === true ? null : true)}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        variant={filterAgreementSignedClient === false ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterAgreementSignedClient(filterAgreementSignedClient === false ? null : false)}
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+        
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
@@ -198,7 +518,7 @@ const Reporting = () => {
             <CardContent>
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-primary" />
-                <p className="text-xl md:text-2xl font-bold">{summary.totalExpected}</p>
+                <p className="text-xl md:text-2xl font-bold">{filteredSummary.totalExpected}</p>
               </div>
             </CardContent>
           </Card>
@@ -210,7 +530,7 @@ const Reporting = () => {
             <CardContent>
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-600" />
-                <p className="text-xl md:text-2xl font-bold text-green-600">{summary.totalReceived}</p>
+                <p className="text-xl md:text-2xl font-bold text-green-600">{filteredSummary.totalReceived}</p>
               </div>
             </CardContent>
           </Card>
@@ -222,7 +542,7 @@ const Reporting = () => {
             <CardContent>
               <div className="flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-red-600" />
-                <p className="text-xl md:text-2xl font-bold text-red-600">{summary.totalOutstanding}</p>
+                <p className="text-xl md:text-2xl font-bold text-red-600">{filteredSummary.totalOutstanding}</p>
               </div>
             </CardContent>
           </Card>
@@ -234,7 +554,7 @@ const Reporting = () => {
             <CardContent>
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                <p className="text-xl md:text-2xl font-bold">{summary.collectionPercentage}%</p>
+                <p className="text-xl md:text-2xl font-bold">{filteredSummary.collectionPercentage}%</p>
               </div>
             </CardContent>
           </Card>
