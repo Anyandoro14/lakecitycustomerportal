@@ -115,16 +115,41 @@ serve(async (req) => {
   // Ensure newlines are properly formatted
   privateKey = privateKey.replace(/\\n/g, '\n');
 
-  // Convert PEM to DER format
+  // Convert PEM to DER format for Web Crypto API
   const pemHeader = '-----BEGIN PRIVATE KEY-----';
   const pemFooter = '-----END PRIVATE KEY-----';
-  const pemContents = privateKey
-    .replace(pemHeader, '')
-    .replace(pemFooter, '')
-    .replace(/\s/g, '');
   
-  // Decode base64 to get DER format
-  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+  // Extract the base64 content between headers
+  let pemContents = privateKey;
+  if (pemContents.includes(pemHeader)) {
+    pemContents = pemContents
+      .substring(
+        pemContents.indexOf(pemHeader) + pemHeader.length,
+        pemContents.indexOf(pemFooter)
+      );
+  }
+  
+  // Remove all whitespace characters (newlines, spaces, etc.)
+  pemContents = pemContents.replace(/\s/g, '');
+  
+  // Validate base64 content
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(pemContents)) {
+    console.error('Invalid base64 content in private key');
+    throw new Error('Invalid private key format - contains invalid base64 characters');
+  }
+  
+  // Decode base64 to get DER format (binary)
+  let binaryDer: Uint8Array;
+  try {
+    const binaryString = atob(pemContents);
+    binaryDer = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      binaryDer[i] = binaryString.charCodeAt(i);
+    }
+  } catch (e) {
+    console.error('Failed to decode base64 private key:', e);
+    throw new Error('Failed to decode private key - invalid base64 encoding');
+  }
 
     const header = {
       alg: 'RS256',
@@ -147,7 +172,7 @@ serve(async (req) => {
 
     const key = await crypto.subtle.importKey(
       'pkcs8',
-      binaryDer,
+      binaryDer.buffer as ArrayBuffer,
       { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
       false,
       ['sign']
