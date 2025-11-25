@@ -279,8 +279,13 @@ serve(async (req) => {
       const agreementSignedWarwickshire = (row[agreementSignedWarwickshireIdx] || '').toUpperCase() === 'TRUE';
       const agreementSignedClient = (row[agreementSignedClientIdx] || '').toUpperCase() === 'TRUE';
 
-      // Check if this is an unsold stand
-      const isUnsold = !firstName && !lastName && !email;
+      // Determine if this is an unsold stand
+      let isUnsold = !firstName && !lastName && !email;
+      
+      // Internal group stands should always be treated as sold, even if name/email are blank
+      if (customerCategory && customerCategory.toLowerCase().includes('internal')) {
+        isUnsold = false;
+      }
       
       // Parse price for price range filtering
       const priceNumeric = parseFloat(totalPrice.replace(/[$,]/g, '')) || 0;
