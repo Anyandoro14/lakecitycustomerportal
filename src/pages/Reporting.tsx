@@ -152,7 +152,7 @@ const Reporting = () => {
       delta,
       previousMonthName: previousMonth ? previousMonth.month.split(' ')[0] : null
     };
-  });
+  }).reverse(); // Reverse to show chronologically from oldest to newest
 
   const COLORS = ['#10b981', '#ef4444', '#f59e0b'];
 
