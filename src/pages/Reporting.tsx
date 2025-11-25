@@ -166,6 +166,34 @@ const Reporting = () => {
   const soldStands = useMemo(() => filteredStands.filter((s: any) => !s.isUnsold), [filteredStands]);
   const unsoldStands = useMemo(() => filteredStands.filter((s: any) => s.isUnsold), [filteredStands]);
   
+  // Log filtering results for debugging
+  console.log('Reporting filters:', {
+    categories: selectedCategories,
+    priceRanges: selectedPriceRanges.length,
+    offerReceived: filterOfferReceived,
+    initialPayment: filterInitialPayment,
+    agreementRequested: filterAgreementRequested,
+    agreementSignedW: filterAgreementSignedWarwickshire,
+    agreementSignedC: filterAgreementSignedClient,
+    totalStands: reportingData?.stands?.length || 0,
+    filteredCount: filteredStands.length,
+    soldCount: soldStands.length
+  });
+  
+  // Log filtering results for debugging
+  console.log('Reporting filters:', {
+    categories: selectedCategories,
+    priceRanges: selectedPriceRanges.length,
+    offerReceived: filterOfferReceived,
+    initialPayment: filterInitialPayment,
+    agreementRequested: filterAgreementRequested,
+    agreementSignedW: filterAgreementSignedWarwickshire,
+    agreementSignedC: filterAgreementSignedClient,
+    totalStands: reportingData?.stands?.length || 0,
+    filteredStands: filteredStands.length,
+    soldStands: soldStands.length
+  });
+  
   // Recalculate summary based on filtered data
   const filteredSummary = useMemo(() => {
     const totalExpected = soldStands.reduce((sum: number, s: any) => {
@@ -513,6 +541,16 @@ const Reporting = () => {
         </Card>
         
         {/* Summary Cards */}
+        {soldStands.length === 0 && hasActiveFilters && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <p className="text-yellow-800 font-medium">No stands match your current filters</p>
+            <p className="text-yellow-700 text-sm mt-1">
+              Try clearing some filters, especially the Agreement Status filters. When all status filters are set to "Yes", 
+              only stands with ALL statuses checked will be included.
+            </p>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">

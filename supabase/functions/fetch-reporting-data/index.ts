@@ -331,6 +331,11 @@ serve(async (req) => {
         agreementSignedClient,
         payments
       });
+      
+      // Log first few Internal category stands for debugging
+      if (i <= 5 && customerCategory.toLowerCase().includes('internal')) {
+        console.log(`Stand ${standNumber}: Category="${customerCategory}", Offer=${offerReceived}, Initial=${initialPaymentCompleted}, Requested=${agreementRequested}, SignedW=${agreementSignedWarwickshire}, SignedC=${agreementSignedClient}`);
+      }
     }
 
     console.log(`Processed ${allStands.length} stands`);
