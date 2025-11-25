@@ -119,8 +119,8 @@ serve(async (req) => {
         );
     }
     
-    // Remove all whitespace characters (newlines, spaces, tabs, etc.)
-    pemContents = pemContents.replace(/[\r\n\t\s]/g, '');
+    // Keep only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
+    pemContents = pemContents.replace(/[^A-Za-z0-9+/=]/g, '');
     
     // Decode base64 to get DER format (binary)
     let binaryDer: Uint8Array;

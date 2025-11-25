@@ -119,18 +119,18 @@ serve(async (req) => {
   const pemHeader = '-----BEGIN PRIVATE KEY-----';
   const pemFooter = '-----END PRIVATE KEY-----';
   
-  // Extract the base64 content between headers
-  let pemContents = privateKey;
-  if (pemContents.includes(pemHeader)) {
-    pemContents = pemContents
-      .substring(
-        pemContents.indexOf(pemHeader) + pemHeader.length,
-        pemContents.indexOf(pemFooter)
-      );
-  }
-  
-  // Remove all whitespace characters (newlines, spaces, tabs, etc.)
-  pemContents = pemContents.replace(/[\r\n\t\s]/g, '');
+    // Extract the base64 content between headers
+    let pemContents = privateKey;
+    if (pemContents.includes(pemHeader)) {
+      pemContents = pemContents
+        .substring(
+          pemContents.indexOf(pemHeader) + pemHeader.length,
+          pemContents.indexOf(pemFooter)
+        );
+    }
+    
+    // Keep only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
+    pemContents = pemContents.replace(/[^A-Za-z0-9+/=]/g, '');
   
   // Decode base64 to get DER format (binary)
   let binaryDer: Uint8Array;
