@@ -123,7 +123,7 @@ const Reporting = () => {
   const today = new Date();
   const getLast3Months = () => {
     const months = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) { // Get 4 months to calculate deltas
       const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'long' });
       const year = date.getFullYear();
@@ -143,7 +143,16 @@ const Reporting = () => {
     return months;
   };
   
-  const last3Months = getLast3Months();
+  const last4Months = getLast3Months();
+  const last3Months = last4Months.slice(0, 3).map((month: any, idx: number) => {
+    const previousMonth = last4Months[idx + 1];
+    const delta = previousMonth ? month.received - previousMonth.received : null;
+    return {
+      ...month,
+      delta,
+      previousMonthName: previousMonth ? previousMonth.month.split(' ')[0] : null
+    };
+  });
 
   const COLORS = ['#10b981', '#ef4444', '#f59e0b'];
 
@@ -235,6 +244,7 @@ const Reporting = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {last3Months.map((monthData: any, idx: number) => {
             const formattedAmount = `$${monthData.received.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const currentMonthName = monthData.month.split(' ')[0];
             
             return (
               <Card key={idx}>
@@ -244,10 +254,15 @@ const Reporting = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mb-2">
                     <DollarSign className="h-4 w-4 text-green-600" />
                     <p className="text-xl md:text-2xl font-bold text-green-600">{formattedAmount}</p>
                   </div>
+                  {monthData.delta !== null && (
+                    <p className={`text-xs ${monthData.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ${Math.abs(monthData.delta).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {monthData.delta >= 0 ? 'increase' : 'decrease'} from {monthData.previousMonthName}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             );
