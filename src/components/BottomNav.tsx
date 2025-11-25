@@ -30,9 +30,12 @@ const BottomNav = () => {
           <User className="h-5 w-5" />
           <span className="text-xs">Settings</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-muted-foreground">
+        <button 
+          onClick={() => navigate("/guide")}
+          className={`flex flex-col items-center gap-1 ${location.pathname === "/guide" ? "text-primary" : "text-muted-foreground"}`}
+        >
           <HelpCircle className="h-5 w-5" />
-          <span className="text-xs">Support</span>
+          <span className="text-xs">Guide</span>
         </button>
       </div>
     </nav>
