@@ -119,6 +119,9 @@ const Reporting = () => {
     percentage: parseFloat(m.percentage)
   }));
 
+  // Get last 3 months for collection tiles
+  const last3Months = monthlyTotals.slice(-3).reverse();
+
   const COLORS = ['#10b981', '#ef4444', '#f59e0b'];
 
   return (
@@ -203,6 +206,30 @@ const Reporting = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Monthly Collection Tiles */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {last3Months.map((monthData: any, idx: number) => {
+            const monthName = monthData.month.split(' ')[1] + ' ' + monthData.month.split(' ')[2];
+            const formattedAmount = `$${monthData.received.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            
+            return (
+              <Card key={idx}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Collected in {monthName}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <p className="text-xl md:text-2xl font-bold text-green-600">{formattedAmount}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Monthly Collections Trend */}
