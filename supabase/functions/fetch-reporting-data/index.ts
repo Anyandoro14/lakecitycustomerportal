@@ -226,12 +226,20 @@ serve(async (req) => {
     const firstNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('first name'));
     const lastNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('last name'));
     const emailIdx = headerRow.findIndex(h => h?.toLowerCase().includes('email'));
+    const customerCategoryIdx = 5; // Column F (0-indexed: A=0, B=1, C=2, D=3, E=4, F=5)
     const totalPriceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total price'));
     const totalPaidIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total paid'));
     const currentBalanceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('current balance'));
     const progressIdx = headerRow.findIndex(h => h?.toLowerCase().includes('payment progress'));
     const monthlyPaymentIdx = headerRow.findIndex(h => h?.toLowerCase().includes('payment'));
     const startDateIdx = headerRow.findIndex(h => h?.toLowerCase().includes('start date'));
+    
+    // New boolean columns: BC=54, BD=55, BE=56, BF=57, BG=58 (0-indexed)
+    const offerReceivedIdx = 54; // Column BC
+    const initialPaymentCompletedIdx = 55; // Column BD
+    const agreementRequestedIdx = 56; // Column BE
+    const agreementSignedWarwickshireIdx = 57; // Column BF
+    const agreementSignedClientIdx = 58; // Column BG
 
     // Find month columns (starting from column M onwards)
     const monthColumns: Array<{ index: number; month: string }> = [];
@@ -257,14 +265,25 @@ serve(async (req) => {
       const firstName = row[firstNameIdx] || '';
       const lastName = row[lastNameIdx] || '';
       const email = row[emailIdx] || '';
+      const customerCategory = row[customerCategoryIdx] || '';
       const totalPrice = row[totalPriceIdx] || '0';
       const totalPaid = row[totalPaidIdx] || '0';
       const currentBalance = row[currentBalanceIdx] || '0';
       const progress = row[progressIdx] || '0';
       const monthlyPayment = row[monthlyPaymentIdx] || '0';
+      
+      // Parse boolean fields (TRUE/FALSE strings to boolean)
+      const offerReceived = (row[offerReceivedIdx] || '').toUpperCase() === 'TRUE';
+      const initialPaymentCompleted = (row[initialPaymentCompletedIdx] || '').toUpperCase() === 'TRUE';
+      const agreementRequested = (row[agreementRequestedIdx] || '').toUpperCase() === 'TRUE';
+      const agreementSignedWarwickshire = (row[agreementSignedWarwickshireIdx] || '').toUpperCase() === 'TRUE';
+      const agreementSignedClient = (row[agreementSignedClientIdx] || '').toUpperCase() === 'TRUE';
 
       // Check if this is an unsold stand
       const isUnsold = !firstName && !lastName && !email;
+      
+      // Parse price for price range filtering
+      const priceNumeric = parseFloat(totalPrice.replace(/[$,]/g, '')) || 0;
 
       // Extract payment history from month columns
       const payments: any[] = [];
@@ -297,12 +316,19 @@ serve(async (req) => {
         firstName,
         lastName,
         email,
+        customerCategory,
         totalPrice,
+        priceNumeric,
         totalPaid,
         currentBalance,
         progressPercentage: parseFloat(progress.replace('%', '')) || 0,
         monthlyPayment,
         isUnsold,
+        offerReceived,
+        initialPaymentCompleted,
+        agreementRequested,
+        agreementSignedWarwickshire,
+        agreementSignedClient,
         payments
       });
     }
