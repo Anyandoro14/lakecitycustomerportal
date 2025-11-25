@@ -74,6 +74,17 @@ serve(async (req) => {
   // Ensure newlines are properly formatted
   privateKey = privateKey.replace(/\\n/g, '\n');
 
+  // Convert PEM to DER format
+  const pemHeader = '-----BEGIN PRIVATE KEY-----';
+  const pemFooter = '-----END PRIVATE KEY-----';
+  const pemContents = privateKey
+    .replace(pemHeader, '')
+    .replace(pemFooter, '')
+    .replace(/\s/g, '');
+  
+  // Decode base64 to get DER format
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+
     const header = {
       alg: 'RS256',
       typ: 'JWT',
@@ -95,7 +106,7 @@ serve(async (req) => {
 
     const key = await crypto.subtle.importKey(
       'pkcs8',
-      encoder.encode(privateKey),
+      binaryDer,
       { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
       false,
       ['sign']
