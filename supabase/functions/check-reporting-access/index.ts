@@ -124,14 +124,8 @@ serve(async (req) => {
         );
     }
     
-    // Remove all whitespace characters (newlines, spaces, etc.)
-    pemContents = pemContents.replace(/\s/g, '');
-    
-    // Validate base64 content
-    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(pemContents)) {
-      console.error('Invalid base64 content in private key');
-      throw new Error('Invalid private key format - contains invalid base64 characters');
-    }
+    // Remove all whitespace characters (newlines, spaces, tabs, etc.)
+    pemContents = pemContents.replace(/[\r\n\t\s]/g, '');
     
     // Decode base64 to get DER format (binary)
     let binaryDer: Uint8Array;
@@ -143,6 +137,8 @@ serve(async (req) => {
       }
     } catch (e) {
       console.error('Failed to decode base64 private key:', e);
+      console.error('PEM contents length:', pemContents.length);
+      console.error('First 50 chars:', pemContents.substring(0, 50));
       throw new Error('Failed to decode private key - invalid base64 encoding');
     }
 
