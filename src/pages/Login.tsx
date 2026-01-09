@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle2, XCircle, Eye, EyeOff } from "lucide-react";
+import { 
+  emailSchema, 
+  passwordSchema, 
+  phoneSchema, 
+  verificationCodeSchema,
+  maskPhoneNumber,
+  getPasswordErrors 
+} from "@/lib/validation";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,6 +25,7 @@ const Login = () => {
   const [showVerification, setShowVerification] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -24,9 +35,65 @@ const Login = () => {
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Validation errors
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Check if already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && !showVerification) {
+        navigate("/");
+      }
+    };
+    checkAuth();
+  }, [navigate, showVerification]);
+
+  const validateLoginForm = (): boolean => {
+    const newErrors: { [key: string]: string } = {};
+    
+    const emailResult = emailSchema.safeParse(loginEmail);
+    if (!emailResult.success) {
+      newErrors.loginEmail = emailResult.error.errors[0].message;
+    }
+    
+    if (!loginPassword) {
+      newErrors.loginPassword = "Password is required";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateSignupForm = (): boolean => {
+    const newErrors: { [key: string]: string } = {};
+    
+    const emailResult = emailSchema.safeParse(signupEmail);
+    if (!emailResult.success) {
+      newErrors.signupEmail = emailResult.error.errors[0].message;
+    }
+    
+    const passwordResult = passwordSchema.safeParse(signupPassword);
+    if (!passwordResult.success) {
+      newErrors.signupPassword = passwordResult.error.errors[0].message;
+    }
+    
+    const phoneResult = phoneSchema.safeParse(signupPhone);
+    if (!phoneResult.success) {
+      newErrors.signupPhone = phoneResult.error.errors[0].message;
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateLoginForm()) return;
+    
     setLoading(true);
 
     try {
@@ -46,7 +113,12 @@ const Login = () => {
           .single();
 
         if (profile?.phone_number) {
+          // Sign out immediately - user must complete 2FA to get a valid session
+          await supabase.auth.signOut();
+          
+          setPendingUserId(data.user.id);
           setPhoneNumber(profile.phone_number);
+          
           // Send 2FA code
           const { error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
             body: { phoneNumber: profile.phone_number }
@@ -77,6 +149,9 @@ const Login = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateSignupForm()) return;
+    
     setLoading(true);
 
     try {
@@ -105,6 +180,11 @@ const Login = () => {
           title: "Account created",
           description: "Your account has been created. Please login to access your stand information.",
         });
+        
+        // Clear signup form
+        setSignupEmail("");
+        setSignupPassword("");
+        setSignupPhone("");
       }
     } catch (error: any) {
       toast({
@@ -119,6 +199,13 @@ const Login = () => {
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const codeResult = verificationCodeSchema.safeParse(verificationCode);
+    if (!codeResult.success) {
+      setErrors({ verificationCode: codeResult.error.errors[0].message });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -129,6 +216,14 @@ const Login = () => {
       if (error) throw error;
 
       if (data.verified) {
+        // Re-authenticate user after successful 2FA
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password: loginPassword,
+        });
+        
+        if (signInError) throw signInError;
+        
         toast({
           title: "Verification successful",
           description: "You have been logged in",
@@ -148,6 +243,16 @@ const Login = () => {
     }
   };
 
+  const handleBackToLogin = async () => {
+    setShowVerification(false);
+    setVerificationCode("");
+    setPendingUserId(null);
+    setPhoneNumber("");
+  };
+
+  const passwordErrors = getPasswordErrors(signupPassword);
+  const maskedPhone = maskPhoneNumber(phoneNumber);
+
   if (showVerification) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -155,7 +260,7 @@ const Login = () => {
           <CardHeader>
             <CardTitle>Two-Factor Authentication</CardTitle>
             <CardDescription>
-              Enter the verification code sent to {phoneNumber}
+              Enter the verification code sent to {maskedPhone}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -167,10 +272,17 @@ const Login = () => {
                   type="text"
                   placeholder="Enter 6-digit code"
                   value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
+                  onChange={(e) => {
+                    setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                    setErrors({ ...errors, verificationCode: '' });
+                  }}
                   maxLength={6}
                   required
+                  className={errors.verificationCode ? 'border-destructive' : ''}
                 />
+                {errors.verificationCode && (
+                  <p className="text-sm text-destructive">{errors.verificationCode}</p>
+                )}
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Verifying..." : "Verify"}
@@ -179,7 +291,7 @@ const Login = () => {
                 type="button"
                 variant="ghost"
                 className="w-full"
-                onClick={() => setShowVerification(false)}
+                onClick={handleBackToLogin}
               >
                 Back to Login
               </Button>
@@ -213,9 +325,16 @@ const Login = () => {
                     type="email"
                     placeholder="your@email.com"
                     value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
+                    onChange={(e) => {
+                      setLoginEmail(e.target.value);
+                      setErrors({ ...errors, loginEmail: '' });
+                    }}
                     required
+                    className={errors.loginEmail ? 'border-destructive' : ''}
                   />
+                  {errors.loginEmail && (
+                    <p className="text-sm text-destructive">{errors.loginEmail}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Password</Label>
@@ -224,9 +343,16 @@ const Login = () => {
                     type="password"
                     placeholder="••••••••"
                     value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      setErrors({ ...errors, loginPassword: '' });
+                    }}
                     required
+                    className={errors.loginPassword ? 'border-destructive' : ''}
                   />
+                  {errors.loginPassword && (
+                    <p className="text-sm text-destructive">{errors.loginPassword}</p>
+                  )}
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
@@ -243,21 +369,53 @@ const Login = () => {
                     type="email"
                     placeholder="your@email.com"
                     value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
+                    onChange={(e) => {
+                      setSignupEmail(e.target.value);
+                      setErrors({ ...errors, signupEmail: '' });
+                    }}
                     required
+                    className={errors.signupEmail ? 'border-destructive' : ''}
                   />
+                  {errors.signupEmail && (
+                    <p className="text-sm text-destructive">{errors.signupEmail}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={signupPassword}
+                      onChange={(e) => {
+                        setSignupPassword(e.target.value);
+                        setErrors({ ...errors, signupPassword: '' });
+                      }}
+                      required
+                      className={errors.signupPassword ? 'border-destructive pr-10' : 'pr-10'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {signupPassword && (
+                    <div className="space-y-1 text-xs">
+                      {['At least 8 characters', 'One uppercase letter', 'One lowercase letter', 'One number', 'One special character'].map((req) => {
+                        const isMet = !passwordErrors.includes(req);
+                        return (
+                          <div key={req} className={`flex items-center gap-1 ${isMet ? 'text-green-600' : 'text-muted-foreground'}`}>
+                            {isMet ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                            <span>{req}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-phone">Phone Number (for 2FA)</Label>
@@ -266,11 +424,21 @@ const Login = () => {
                     type="tel"
                     placeholder="+1234567890"
                     value={signupPhone}
-                    onChange={(e) => setSignupPhone(e.target.value)}
+                    onChange={(e) => {
+                      setSignupPhone(e.target.value);
+                      setErrors({ ...errors, signupPhone: '' });
+                    }}
                     required
+                    className={errors.signupPhone ? 'border-destructive' : ''}
                   />
+                  {errors.signupPhone && (
+                    <p className="text-sm text-destructive">{errors.signupPhone}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Enter your phone number with country code (e.g., +1234567890)
+                  </p>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || passwordErrors.length > 0}>
                   {loading ? "Creating account..." : "Sign Up"}
                 </Button>
               </form>

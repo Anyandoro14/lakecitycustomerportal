@@ -6,7 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SUPER_ADMINS = ['alex@michaeltenable.com', 'alex@lakecity.co.zw'];
+// Get super admins from environment variable
+const getSuperAdmins = (): string[] => {
+  const superAdminEmails = Deno.env.get('SUPER_ADMIN_EMAILS') || '';
+  return superAdminEmails.split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
+};
 
 interface GoogleSheetsResponse {
   values?: string[][];
@@ -25,15 +29,13 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, options);
       
-      // Don't retry on client errors (4xx) or success (2xx)
       if (response.status < 500) {
         return response;
       }
       
-      // Server error (5xx) - retry with backoff
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`API call failed with ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`API call failed with ${response.status}, retrying in ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -44,7 +46,7 @@ async function fetchWithRetry(
       
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`API call failed: ${lastError.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`API call failed, retrying in ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -74,10 +76,12 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    console.log(`Checking access for user: ${user.email}`);
+    const userEmail = user.email?.toLowerCase() || '';
+    console.log(`Checking access for user`);
 
     // Check if user is a Super Admin
-    const isSuperAdmin = SUPER_ADMINS.includes(user.email || '');
+    const superAdmins = getSuperAdmins();
+    const isSuperAdmin = superAdmins.includes(userEmail);
 
     // Create JWT for Google Sheets API
     const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
@@ -91,30 +95,25 @@ serve(async (req) => {
     // Handle both raw private key and JSON service account key formats
     let privateKey: string;
     if (serviceAccountKey.trim().startsWith('{')) {
-      // JSON format
       try {
         const keyData = JSON.parse(serviceAccountKey);
         privateKey = keyData.private_key;
       } catch (e) {
-        console.error('Error parsing JSON service account key:', e);
+        console.error('Error parsing JSON service account key');
         throw new Error('Invalid JSON service account key format');
       }
     } else {
-      // Raw private key format - ensure it has proper header/footer
       privateKey = serviceAccountKey;
       if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
         privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
       }
     }
     
-    // Ensure newlines are properly formatted
     privateKey = privateKey.replace(/\\n/g, '\n');
 
-    // Convert PEM to DER format for Web Crypto API
     const pemHeader = '-----BEGIN PRIVATE KEY-----';
     const pemFooter = '-----END PRIVATE KEY-----';
     
-    // Extract the base64 content between headers
     let pemContents = privateKey;
     if (pemContents.includes(pemHeader)) {
       pemContents = pemContents
@@ -124,10 +123,8 @@ serve(async (req) => {
         );
     }
     
-    // Keep only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
     pemContents = pemContents.replace(/[^A-Za-z0-9+/=]/g, '');
     
-    // Decode base64 to get DER format (binary)
     let binaryDer: Uint8Array;
     try {
       const binaryString = atob(pemContents);
@@ -136,9 +133,7 @@ serve(async (req) => {
         binaryDer[i] = binaryString.charCodeAt(i);
       }
     } catch (e) {
-      console.error('Failed to decode base64 private key:', e);
-      console.error('PEM contents length:', pemContents.length);
-      console.error('First 50 chars:', pemContents.substring(0, 50));
+      console.error('Failed to decode base64 private key');
       throw new Error('Failed to decode private key - invalid base64 encoding');
     }
 
@@ -182,7 +177,6 @@ serve(async (req) => {
 
     const jwt = `${unsignedToken}.${signatureBase64}`;
 
-    // Exchange JWT for access token with retry
     const tokenResponse = await fetchWithRetry('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -196,7 +190,6 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // Fetch access control data from User Access Control sheet with retry
     const sheetName = 'User Access Control';
     const range = `${sheetName}!A1:D100`;
     const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${accessSheetId}/values/${encodeURIComponent(range)}`;
@@ -215,7 +208,6 @@ serve(async (req) => {
     console.log(`Fetched ${rows.length} access control rows`);
 
     if (rows.length === 0) {
-      // If no access control sheet exists, default to Super Admins only
       return new Response(
         JSON.stringify({
           hasAccess: isSuperAdmin,
@@ -226,13 +218,11 @@ serve(async (req) => {
       );
     }
 
-    // Parse header row
     const headerRow = rows[0];
     const emailIdx = headerRow.findIndex(h => h?.toLowerCase().includes('email'));
     const roleIdx = headerRow.findIndex(h => h?.toLowerCase().includes('role'));
     const accessIdx = headerRow.findIndex(h => h?.toLowerCase().includes('access'));
 
-    // Find user in access control list
     let userAccess = false;
     let userRole = 'None';
 
@@ -241,7 +231,7 @@ serve(async (req) => {
       if (!row || row.length === 0) continue;
 
       const email = row[emailIdx]?.toLowerCase() || '';
-      if (email === user.email?.toLowerCase()) {
+      if (email === userEmail) {
         userRole = row[roleIdx] || 'Viewer';
         const accessValue = row[accessIdx]?.toLowerCase() || '';
         userAccess = accessValue === 'yes' || accessValue === 'true' || accessValue === '1';
@@ -249,7 +239,6 @@ serve(async (req) => {
       }
     }
 
-    // Super Admins always have access
     const hasAccess = isSuperAdmin || userAccess;
 
     return new Response(
@@ -262,10 +251,9 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error checking access:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error checking access:', error instanceof Error ? error.message : 'Unknown error');
     return new Response(
-      JSON.stringify({ error: errorMessage, hasAccess: false }),
+      JSON.stringify({ error: 'Access check failed', hasAccess: false }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

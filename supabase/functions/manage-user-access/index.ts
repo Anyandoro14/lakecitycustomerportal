@@ -6,7 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SUPER_ADMINS = ['alex@michaeltenable.com', 'alex@lakecity.co.zw'];
+// Get super admins from environment variable
+const getSuperAdmins = (): string[] => {
+  const superAdminEmails = Deno.env.get('SUPER_ADMIN_EMAILS') || '';
+  return superAdminEmails.split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
+};
 
 interface GoogleSheetsResponse {
   values?: string[][];
@@ -25,15 +29,13 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, options);
       
-      // Don't retry on client errors (4xx) or success (2xx)
       if (response.status < 500) {
         return response;
       }
       
-      // Server error (5xx) - retry with backoff
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`API call failed with ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`API call failed with ${response.status}, retrying in ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -44,7 +46,7 @@ async function fetchWithRetry(
       
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`API call failed: ${lastError.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`API call failed, retrying in ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -75,51 +77,47 @@ serve(async (req) => {
     }
 
     // Check if user is a Super Admin
-    const isSuperAdmin = SUPER_ADMINS.includes(user.email || '');
+    const superAdmins = getSuperAdmins();
+    const userEmail = user.email?.toLowerCase() || '';
+    const isSuperAdmin = superAdmins.includes(userEmail);
+    
     if (!isSuperAdmin) {
       throw new Error('Forbidden: Only Super Admins can manage user access');
     }
 
-    console.log(`Managing user access by: ${user.email}`);
+    console.log('Managing user access by super admin');
 
     const { action, users } = await req.json();
 
-  // Create JWT for Google Sheets API
-  const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
-  const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
-  const accessSheetId = Deno.env.get('SPREADSHEET_ID');
+    const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
+    const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
+    const accessSheetId = Deno.env.get('SPREADSHEET_ID');
 
-  if (!serviceAccountEmail || !serviceAccountKey || !accessSheetId) {
-    throw new Error('Missing Google Sheets configuration');
-  }
-
-  // Handle both raw private key and JSON service account key formats
-  let privateKey: string;
-  if (serviceAccountKey.trim().startsWith('{')) {
-    // JSON format
-    try {
-      const keyData = JSON.parse(serviceAccountKey);
-      privateKey = keyData.private_key;
-    } catch (e) {
-      console.error('Error parsing JSON service account key:', e);
-      throw new Error('Invalid JSON service account key format');
+    if (!serviceAccountEmail || !serviceAccountKey || !accessSheetId) {
+      throw new Error('Missing Google Sheets configuration');
     }
-  } else {
-    // Raw private key format - ensure it has proper header/footer
-    privateKey = serviceAccountKey;
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
-    }
-  }
-  
-  // Ensure newlines are properly formatted
-  privateKey = privateKey.replace(/\\n/g, '\n');
 
-  // Convert PEM to DER format for Web Crypto API
-  const pemHeader = '-----BEGIN PRIVATE KEY-----';
-  const pemFooter = '-----END PRIVATE KEY-----';
-  
-    // Extract the base64 content between headers
+    let privateKey: string;
+    if (serviceAccountKey.trim().startsWith('{')) {
+      try {
+        const keyData = JSON.parse(serviceAccountKey);
+        privateKey = keyData.private_key;
+      } catch (e) {
+        console.error('Error parsing JSON service account key');
+        throw new Error('Invalid JSON service account key format');
+      }
+    } else {
+      privateKey = serviceAccountKey;
+      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+        privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+      }
+    }
+    
+    privateKey = privateKey.replace(/\\n/g, '\n');
+
+    const pemHeader = '-----BEGIN PRIVATE KEY-----';
+    const pemFooter = '-----END PRIVATE KEY-----';
+    
     let pemContents = privateKey;
     if (pemContents.includes(pemHeader)) {
       pemContents = pemContents
@@ -129,23 +127,19 @@ serve(async (req) => {
         );
     }
     
-    // Keep only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
     pemContents = pemContents.replace(/[^A-Za-z0-9+/=]/g, '');
-  
-  // Decode base64 to get DER format (binary)
-  let binaryDer: Uint8Array;
-  try {
-    const binaryString = atob(pemContents);
-    binaryDer = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      binaryDer[i] = binaryString.charCodeAt(i);
+    
+    let binaryDer: Uint8Array;
+    try {
+      const binaryString = atob(pemContents);
+      binaryDer = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        binaryDer[i] = binaryString.charCodeAt(i);
+      }
+    } catch (e) {
+      console.error('Failed to decode base64 private key');
+      throw new Error('Failed to decode private key - invalid base64 encoding');
     }
-  } catch (e) {
-    console.error('Failed to decode base64 private key:', e);
-    console.error('PEM contents length:', pemContents.length);
-    console.error('First 50 chars:', pemContents.substring(0, 50));
-    throw new Error('Failed to decode private key - invalid base64 encoding');
-  }
 
     const header = {
       alg: 'RS256',
@@ -187,7 +181,6 @@ serve(async (req) => {
 
     const jwt = `${unsignedToken}.${signatureBase64}`;
 
-    // Exchange JWT for access token with retry
     const tokenResponse = await fetchWithRetry('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -202,7 +195,6 @@ serve(async (req) => {
     const accessToken = tokenData.access_token;
 
     if (action === 'fetch') {
-      // Fetch current access control list with retry
       const sheetName = 'User Access Control';
       const range = `${sheetName}!A1:D100`;
       const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${accessSheetId}/values/${encodeURIComponent(range)}`;
@@ -225,7 +217,6 @@ serve(async (req) => {
         );
       }
 
-      const headerRow = rows[0];
       const usersList = rows.slice(1).map(row => ({
         email: row[0] || '',
         fullName: row[1] || '',
@@ -238,7 +229,6 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else if (action === 'update') {
-      // Update access control list
       const sheetName = 'User Access Control';
       const range = `${sheetName}!A1:D${users.length + 1}`;
       
@@ -264,8 +254,7 @@ serve(async (req) => {
       });
 
       if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        throw new Error(`Failed to update access control sheet: ${updateResponse.status} - ${errorText}`);
+        throw new Error(`Failed to update access control sheet: ${updateResponse.status}`);
       }
 
       return new Response(
@@ -277,10 +266,9 @@ serve(async (req) => {
     throw new Error('Invalid action');
 
   } catch (error) {
-    console.error('Error managing user access:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error managing user access:', error instanceof Error ? error.message : 'Unknown error');
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'User access management failed' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

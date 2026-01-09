@@ -1,13 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { AlertCircle } from "lucide-react";
+import { formatCurrency } from "@/lib/validation";
 
 interface InfoCardsProps {
   standNumber: string;
@@ -38,6 +32,12 @@ const InfoCards = ({
   allStands,
   onStandChange 
 }: InfoCardsProps) => {
+  // Format currency values for display
+  const formattedTotalPaid = formatCurrency(totalPaid);
+  const formattedBalance = formatCurrency(standBalance);
+  const formattedLastPayment = lastPayment ? formatCurrency(lastPayment) : null;
+  const formattedNextPayment = nextPayment ? formatCurrency(nextPayment) : null;
+
   return (
     <div className="space-y-2.5">
       {/* Payment Progress Bar */}
@@ -49,8 +49,8 @@ const InfoCards = ({
           </div>
           <Progress value={progressPercentage} className="h-2.5" />
           <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>Total Paid: {totalPaid}</span>
-            <span>Balance: {standBalance}</span>
+            <span>Total Paid: {formattedTotalPaid}</span>
+            <span>Balance: {formattedBalance}</span>
           </div>
         </div>
       </Card>
@@ -59,7 +59,7 @@ const InfoCards = ({
       <div className="grid grid-cols-2 gap-2.5">
         <Card className="p-3 shadow-sm">
           <h3 className="text-xs font-semibold text-foreground mb-2">Last Payment</h3>
-          <p className="text-xl font-bold text-primary break-words">{lastPayment || 'No payments yet'}</p>
+          <p className="text-xl font-bold text-primary break-words">{formattedLastPayment || 'No payments yet'}</p>
           {lastPaymentDate && (
             <p className="text-[11px] text-muted-foreground mt-1">{lastPaymentDate}</p>
           )}
@@ -71,7 +71,7 @@ const InfoCards = ({
             {isOverdue && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
           </div>
           <p className={`text-xl font-bold break-words ${isOverdue ? 'text-destructive' : 'text-primary'}`}>
-            {nextPayment || 'All paid'}
+            {formattedNextPayment || 'All paid'}
           </p>
           {nextPaymentDate && (
             <p className="text-[11px] text-muted-foreground mt-1">
@@ -87,12 +87,12 @@ const InfoCards = ({
 
         <Card className="p-3 shadow-sm">
           <h3 className="text-xs font-semibold text-foreground mb-2">Current Balance</h3>
-          <p className="text-xl font-bold text-primary break-words">{standBalance}</p>
+          <p className="text-xl font-bold text-primary break-words">{formattedBalance}</p>
         </Card>
 
         <Card className="p-3 shadow-sm">
           <h3 className="text-xs font-semibold text-foreground mb-2">Total Paid</h3>
-          <p className="text-xl font-bold text-primary break-words">{totalPaid}</p>
+          <p className="text-xl font-bold text-primary break-words">{formattedTotalPaid}</p>
         </Card>
       </div>
     </div>
