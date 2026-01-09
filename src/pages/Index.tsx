@@ -9,8 +9,9 @@ import PaymentHistory from "@/components/PaymentHistory";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { RefreshCw } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -18,7 +19,11 @@ const Index = () => {
   const [allStands, setAllStands] = useState<any[]>([]);
   const [selectedStand, setSelectedStand] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Session timeout hook
+  useSessionTimeout();
 
   useEffect(() => {
     checkAuthAndLoadData();
@@ -36,11 +41,15 @@ const Index = () => {
     await fetchCustomerData();
   };
 
-  const fetchCustomerData = async () => {
-    setLoading(true);
+  const fetchCustomerData = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
-        body: {} // No customerId needed - server will use user's assigned stand
+        body: {}
       });
 
       if (error) throw error;
@@ -56,8 +65,14 @@ const Index = () => {
 
       setAllStands(data.stands || []);
       setSelectedStand(data.stands?.[0] || null);
+      
+      if (isRefresh) {
+        toast({
+          title: "Data refreshed",
+          description: "Your account data has been updated",
+        });
+      }
     } catch (error) {
-      console.error('Error fetching customer data:', error);
       toast({
         title: "Error",
         description: "Failed to fetch your account data",
@@ -65,6 +80,7 @@ const Index = () => {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -134,9 +150,11 @@ const Index = () => {
         <Button 
           variant="outline" 
           className="w-full"
-          onClick={() => fetchCustomerData()}
+          onClick={() => fetchCustomerData(true)}
+          disabled={refreshing}
         >
-          Refresh Data
+          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? "Refreshing..." : "Refresh Data"}
         </Button>
       </main>
 

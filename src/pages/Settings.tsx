@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
-import { ArrowLeft } from "lucide-react";
+import LogoutConfirmDialog from "@/components/LogoutConfirmDialog";
+import { ArrowLeft, CheckCircle2, XCircle, Info } from "lucide-react";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { passwordSchema, phoneSchema, getPasswordErrors } from "@/lib/validation";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -18,6 +22,10 @@ const Settings = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Session timeout hook
+  useSessionTimeout();
 
   useEffect(() => {
     loadProfile();
@@ -43,12 +51,21 @@ const Settings = () => {
         setPhoneNumber(profile.phone_number || "");
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      // Don't log sensitive data
+      console.error('Error loading profile');
     }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate phone number
+    const phoneResult = phoneSchema.safeParse(phoneNumber);
+    if (!phoneResult.success) {
+      setErrors({ phoneNumber: phoneResult.error.errors[0].message });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -56,29 +73,19 @@ const Settings = () => {
       
       if (!user) throw new Error("Not authenticated");
 
-      // Update profile
+      // Update profile - email is read-only for regular users
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
-          email,
           phone_number: phoneNumber 
         })
         .eq('id', user.id);
 
       if (profileError) throw profileError;
 
-      // Update email in auth if changed
-      if (email !== user.email) {
-        const { error: emailError } = await supabase.auth.updateUser({
-          email: email
-        });
-
-        if (emailError) throw emailError;
-      }
-
       toast({
         title: "Profile updated",
-        description: "Your profile has been updated successfully",
+        description: "Your phone number has been updated successfully",
       });
     } catch (error: any) {
       toast({
@@ -93,6 +100,14 @@ const Settings = () => {
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate new password
+    const passwordResult = passwordSchema.safeParse(newPassword);
+    if (!passwordResult.success) {
+      setErrors({ newPassword: passwordResult.error.errors[0].message });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -118,6 +133,7 @@ const Settings = () => {
 
       setCurrentPassword("");
       setNewPassword("");
+      setErrors({});
     } catch (error: any) {
       toast({
         title: "Password update failed",
@@ -141,6 +157,8 @@ const Settings = () => {
       });
     }
   };
+
+  const passwordErrors = getPasswordErrors(newPassword);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -168,11 +186,14 @@ const Settings = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your@email.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  disabled
+                  className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Info className="h-3 w-3" />
+                  Contact support to change your email address
+                </p>
               </div>
               
               <div className="space-y-2">
@@ -182,13 +203,20 @@ const Settings = () => {
                   type="tel"
                   placeholder="+1234567890"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setErrors({ ...errors, phoneNumber: '' });
+                  }}
                   required
+                  className={errors.phoneNumber ? 'border-destructive' : ''}
                 />
+                {errors.phoneNumber && (
+                  <p className="text-sm text-destructive">{errors.phoneNumber}</p>
+                )}
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Updating..." : "Update Profile"}
+                {loading ? "Updating..." : "Update Phone Number"}
               </Button>
             </form>
           </CardContent>
@@ -220,26 +248,36 @@ const Settings = () => {
                   type="password"
                   placeholder="••••••••"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setErrors({ ...errors, newPassword: '' });
+                  }}
                   required
-                  minLength={6}
+                  className={errors.newPassword ? 'border-destructive' : ''}
                 />
+                {newPassword && (
+                  <div className="space-y-1 text-xs">
+                    {['At least 8 characters', 'One uppercase letter', 'One lowercase letter', 'One number', 'One special character'].map((req) => {
+                      const isMet = !passwordErrors.includes(req);
+                      return (
+                        <div key={req} className={`flex items-center gap-1 ${isMet ? 'text-green-600' : 'text-muted-foreground'}`}>
+                          {isMet ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                          <span>{req}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || (newPassword.length > 0 && passwordErrors.length > 0)}>
                 {loading ? "Updating..." : "Change Password"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <Button 
-          variant="destructive" 
-          className="w-full"
-          onClick={handleLogout}
-        >
-          Logout
-        </Button>
+        <LogoutConfirmDialog onConfirm={handleLogout} loading={loading} />
       </main>
 
       <BottomNav />
