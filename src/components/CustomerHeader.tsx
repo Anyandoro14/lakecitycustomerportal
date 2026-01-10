@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
+import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
 
 const CustomerHeader = () => {
   const navigate = useNavigate();
@@ -27,10 +29,17 @@ const CustomerHeader = () => {
     <header className="sticky top-0 z-50 w-full bg-card border-b border-border px-3 py-2.5">
       <div className="flex items-center justify-between max-w-md mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xs">LC</span>
-          </div>
-          <h1 className="text-base font-semibold text-foreground">Customer Portal</h1>
+          {/* Wordmark for desktop, Monogram for mobile */}
+          <img 
+            src={logoWordmark} 
+            alt="LakeCity" 
+            className="hidden sm:block h-8 w-auto"
+          />
+          <img 
+            src={logoMonogram} 
+            alt="LakeCity" 
+            className="sm:hidden h-8 w-8"
+          />
         </div>
         
         <Sheet open={open} onOpenChange={setOpen}>
@@ -41,7 +50,10 @@ const CustomerHeader = () => {
           </SheetTrigger>
           <SheetContent side="right" className="w-[280px]">
             <SheetHeader>
-              <SheetTitle>Navigation</SheetTitle>
+              <SheetTitle className="flex items-center gap-2">
+                <img src={logoMonogram} alt="LakeCity" className="h-6 w-6" />
+                <span>LakeCity</span>
+              </SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-2 mt-6">
               {menuItems.map((item) => (

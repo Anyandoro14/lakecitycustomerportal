@@ -17,6 +17,8 @@ import {
   maskPhoneNumber,
   getPasswordErrors 
 } from "@/lib/validation";
+import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
+import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -307,10 +309,16 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
+            {/* Wordmark for desktop, Monogram for mobile */}
             <img 
-              src="/lakecity-logo.svg" 
+              src={logoWordmark} 
               alt="LakeCity" 
-              className="h-10 w-auto"
+              className="hidden sm:block h-10 w-auto"
+            />
+            <img 
+              src={logoMonogram} 
+              alt="LakeCity" 
+              className="sm:hidden h-12 w-12"
             />
           </div>
           <div>
