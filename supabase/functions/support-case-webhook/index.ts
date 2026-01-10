@@ -42,14 +42,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Format the WhatsApp message
+    // Format the WhatsApp message with customer contact info prominently displayed
+    const customerContact = whatsapp_number 
+      ? `📱 *Reply to Customer:* ${whatsapp_number}` 
+      : `📧 *Contact Customer:* ${email}`;
+
     const message = `🆘 *New Support Case*
 
 📋 *Case Number:* ${case_number}
 
+${customerContact}
+
 👤 *Customer:* ${first_name} ${last_name}
 📧 *Email:* ${email}
-📱 *WhatsApp:* ${whatsapp_number || 'Not provided'}
 
 🔖 *Issue Type:* ${issue_type}
 📝 *Specific Issue:* ${sub_issue}
