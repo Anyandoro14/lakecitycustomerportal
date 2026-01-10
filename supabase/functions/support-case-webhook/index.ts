@@ -3,8 +3,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// WhatsApp notification target number
-const SUPPORT_WHATSAPP_NUMBER = "+263783002138";
+// This webhook is now for internal logging only
+// WhatsApp conversations are initiated by customers via wa.me links
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,86 +25,22 @@ Deno.serve(async (req) => {
       description,
     } = payload;
 
-    console.log(`[Support Case Webhook] New case: ${case_number}`);
+    // Log the support case for internal tracking
+    console.log(`[Support Case Webhook] New case created: ${case_number}`);
     console.log(`[Support Case Webhook] Customer: ${first_name} ${last_name} (${email})`);
     console.log(`[Support Case Webhook] Issue: ${issue_type} - ${sub_issue}`);
     console.log(`[Support Case Webhook] WhatsApp: ${whatsapp_number || 'Not provided'}`);
+    console.log(`[Support Case Webhook] Description: ${description}`);
 
-    // Send WhatsApp notification using Twilio
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-
-    if (!accountSid || !authToken) {
-      console.error("[Support Case Webhook] Twilio credentials not configured");
-      return new Response(
-        JSON.stringify({ success: true, whatsapp_sent: false, reason: "Twilio not configured" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Format the WhatsApp message with customer contact info prominently displayed
-    const customerContact = whatsapp_number 
-      ? `📱 *Reply to Customer:* ${whatsapp_number}` 
-      : `📧 *Contact Customer:* ${email}`;
-
-    const message = `🆘 *New Support Case*
-
-📋 *Case Number:* ${case_number}
-
-${customerContact}
-
-👤 *Customer:* ${first_name} ${last_name}
-📧 *Email:* ${email}
-
-🔖 *Issue Type:* ${issue_type}
-📝 *Specific Issue:* ${sub_issue}
-
-💬 *Description:*
-${description}
-
----
-_Submitted via LakeCity Customer Portal_`;
-
-    // Send WhatsApp message via Twilio
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    
-    const formData = new URLSearchParams();
-    formData.append("To", `whatsapp:${SUPPORT_WHATSAPP_NUMBER}`);
-    formData.append("From", "whatsapp:+263783002138"); // Production WhatsApp Business number
-    formData.append("Body", message);
-
-    const twilioResponse = await fetch(twilioUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${btoa(`${accountSid}:${authToken}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: formData.toString(),
-    });
-
-    const twilioResult = await twilioResponse.json();
-
-    if (!twilioResponse.ok) {
-      console.error("[Support Case Webhook] Twilio error:", twilioResult);
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          whatsapp_sent: false, 
-          reason: "WhatsApp delivery failed",
-          case_number 
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`[Support Case Webhook] WhatsApp notification sent successfully for case ${case_number}`);
+    // NOTE: WhatsApp messages are NOT sent automatically
+    // Customers initiate WhatsApp conversations via wa.me click-to-chat links
+    // This ensures compliance with WhatsApp Business policies
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        whatsapp_sent: true,
         case_number,
-        message_sid: twilioResult.sid 
+        message: "Support case logged. Customer will initiate WhatsApp conversation." 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
