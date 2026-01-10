@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
-import { ArrowLeft, CheckCircle2, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Send, Loader2, MessageCircle } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 
 const issueTypes = [
@@ -182,19 +182,8 @@ const SupportRequest = () => {
 
       if (insertError) throw insertError;
 
-      // Trigger WhatsApp notification webhook
-      await supabase.functions.invoke('support-case-webhook', {
-        body: {
-          case_number: caseData.case_number,
-          first_name: firstName,
-          last_name: lastName,
-          email: email,
-          whatsapp_number: whatsappNumber || null,
-          issue_type: issueTypes.find(i => i.value === issueType)?.label,
-          sub_issue: subIssues[issueType]?.find(s => s.value === subIssue)?.label,
-          description: description,
-        }
-      });
+      // Log the support case (no automatic WhatsApp notification - customer initiates)
+      console.log(`[Support Case] Created: ${caseData.case_number}`);
 
       setCaseNumber(caseData.case_number);
       setSubmitted(true);
@@ -225,6 +214,23 @@ const SupportRequest = () => {
     );
   }
 
+  // Generate WhatsApp click-to-chat link with pre-filled message
+  const generateWhatsAppLink = () => {
+    const issueLabel = issueTypes.find(i => i.value === issueType)?.label || issueType;
+    const message = `Hello LakeCity Support,
+
+I've submitted a support request via the LakeCity Customer Portal.
+
+Case Number: ${caseNumber}
+Issue: ${issueLabel}
+
+Thank you.`;
+    
+    // WhatsApp number without + for wa.me link
+    const whatsappBusinessNumber = "263783002138";
+    return `https://wa.me/${whatsappBusinessNumber}?text=${encodeURIComponent(message)}`;
+  };
+
   if (submitted) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -237,14 +243,38 @@ const SupportRequest = () => {
               </div>
               <h2 className="text-2xl font-bold mb-2">Request Submitted</h2>
               <p className="text-muted-foreground mb-4">
-                Thank you for contacting us. We've received your support request.
+                Your support request has been logged successfully.
               </p>
               <div className="bg-muted/50 rounded-lg p-4 mb-6">
                 <p className="text-sm text-muted-foreground">Your case number:</p>
                 <p className="text-2xl font-bold text-primary">{caseNumber}</p>
               </div>
+              
+              {/* WhatsApp Chat Section */}
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+                <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-3">
+                  To chat with our support team on WhatsApp, tap the button below:
+                </p>
+                <Button 
+                  asChild
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <a 
+                    href={generateWhatsAppLink()} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <MessageCircle className="mr-2 h-5 w-5" />
+                    Message LakeCity Support on WhatsApp
+                  </a>
+                </Button>
+                <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                  This will open WhatsApp with a pre-filled message containing your case number.
+                </p>
+              </div>
+
               <p className="text-sm text-muted-foreground mb-6">
-                We will contact you via email{whatsappNumber ? " and/or WhatsApp" : ""} regarding this issue.
+                Alternatively, we will contact you via email regarding this issue.
               </p>
               <div className="flex flex-col gap-2">
                 <Button onClick={() => navigate("/")} className="w-full">
