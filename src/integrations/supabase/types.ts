@@ -99,6 +99,7 @@ export type Database = {
           id: string
           issue_type: string
           last_name: string
+          preferred_contact_method: string
           status: string
           sub_issue: string
           updated_at: string
@@ -114,6 +115,7 @@ export type Database = {
           id?: string
           issue_type: string
           last_name: string
+          preferred_contact_method?: string
           status?: string
           sub_issue: string
           updated_at?: string
@@ -129,6 +131,7 @@ export type Database = {
           id?: string
           issue_type?: string
           last_name?: string
+          preferred_contact_method?: string
           status?: string
           sub_issue?: string
           updated_at?: string
