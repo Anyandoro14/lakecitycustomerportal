@@ -1,12 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// WhatsApp notification target number
-const SUPPORT_WHATSAPP_NUMBER = "+263783002138";
+// Make.com webhook URL
+const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/rgq377xe7pqsq1a09h1ltkljrp5kxex4";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -32,76 +30,47 @@ Deno.serve(async (req) => {
     console.log(`[Support Case Webhook] Issue: ${issue_type} - ${sub_issue}`);
     console.log(`[Support Case Webhook] WhatsApp: ${whatsapp_number || 'Not provided'}`);
 
-    // Send WhatsApp notification using Twilio
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-
-    if (!accountSid || !authToken) {
-      console.error("[Support Case Webhook] Twilio credentials not configured");
-      return new Response(
-        JSON.stringify({ success: true, whatsapp_sent: false, reason: "Twilio not configured" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Format the WhatsApp message
-    const message = `🆘 *New Support Case*
-
-📋 *Case Number:* ${case_number}
-
-👤 *Customer:* ${first_name} ${last_name}
-📧 *Email:* ${email}
-📱 *WhatsApp:* ${whatsapp_number || 'Not provided'}
-
-🔖 *Issue Type:* ${issue_type}
-📝 *Specific Issue:* ${sub_issue}
-
-💬 *Description:*
-${description}
-
----
-_Submitted via LakeCity Customer Portal_`;
-
-    // Send WhatsApp message via Twilio
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    
-    const formData = new URLSearchParams();
-    formData.append("To", `whatsapp:${SUPPORT_WHATSAPP_NUMBER}`);
-    formData.append("From", "whatsapp:+14155238886"); // Twilio WhatsApp sandbox number
-    formData.append("Body", message);
-
-    const twilioResponse = await fetch(twilioUrl, {
+    // Send to Make.com webhook
+    const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${btoa(`${accountSid}:${authToken}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": "application/json",
       },
-      body: formData.toString(),
+      body: JSON.stringify({
+        case_number,
+        first_name,
+        last_name,
+        email,
+        whatsapp_number: whatsapp_number || null,
+        issue_type,
+        sub_issue,
+        description,
+        submitted_at: new Date().toISOString(),
+        source: "LakeCity Customer Portal",
+      }),
     });
 
-    const twilioResult = await twilioResponse.json();
-
-    if (!twilioResponse.ok) {
-      console.error("[Support Case Webhook] Twilio error:", twilioResult);
+    if (!makeResponse.ok) {
+      const errorText = await makeResponse.text();
+      console.error(`[Support Case Webhook] Make.com error: ${makeResponse.status} - ${errorText}`);
       return new Response(
         JSON.stringify({ 
           success: true, 
-          whatsapp_sent: false, 
-          reason: "WhatsApp delivery failed",
+          webhook_sent: false, 
+          reason: "Make.com webhook failed",
           case_number 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[Support Case Webhook] WhatsApp notification sent successfully for case ${case_number}`);
+    console.log(`[Support Case Webhook] Make.com webhook triggered successfully for case ${case_number}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        whatsapp_sent: true,
+        webhook_sent: true,
         case_number,
-        message_sid: twilioResult.sid 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
