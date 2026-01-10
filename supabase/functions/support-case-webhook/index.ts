@@ -65,7 +65,7 @@ _Submitted via LakeCity Customer Portal_`;
     
     const formData = new URLSearchParams();
     formData.append("To", `whatsapp:${SUPPORT_WHATSAPP_NUMBER}`);
-    formData.append("From", "whatsapp:+14155238886"); // Twilio WhatsApp sandbox number
+    formData.append("From", "whatsapp:+263783002138"); // Production WhatsApp Business number
     formData.append("Body", message);
 
     const twilioResponse = await fetch(twilioUrl, {
