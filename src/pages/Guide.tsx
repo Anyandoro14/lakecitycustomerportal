@@ -18,7 +18,6 @@ import {
   CreditCard,
   Bell,
   HelpCircle,
-  Mail,
   Smartphone,
   Monitor,
   Lock,
@@ -34,7 +33,6 @@ import { Badge } from "@/components/ui/badge";
 import homeDashboard from "@/assets/guide/home-dashboard.png";
 import paymentHistory from "@/assets/guide/payment-history.png";
 import agreementOfSale from "@/assets/guide/agreement-of-sale.png";
-import documentsList from "@/assets/guide/documents-list.png";
 import monthlyStatements from "@/assets/guide/monthly-statements.png";
 import statementSummary from "@/assets/guide/statement-summary.png";
 
@@ -128,7 +126,7 @@ const Guide = () => {
                     Open your browser and go to:
                   </p>
                   <code className="bg-primary/10 text-primary px-3 py-1.5 rounded-md text-sm font-mono">
-                    https://app.lakecityzim.com
+                    https://lakecity.standledger.io
                   </code>
                 </div>
               </div>
@@ -241,9 +239,9 @@ const Guide = () => {
                   <CreditCard className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm">Payment Progress</h4>
+                  <h4 className="font-semibold text-sm">View Your Balance</h4>
                   <p className="text-xs text-muted-foreground">
-                    See a visual summary of how far you are toward full ownership
+                    See your current outstanding balance and payment progress
                   </p>
                 </div>
               </div>
@@ -253,9 +251,9 @@ const Guide = () => {
                   <Bell className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm">Payment Reminders</h4>
+                  <h4 className="font-semibold text-sm">Payment Progress</h4>
                   <p className="text-xs text-muted-foreground">
-                    View important reminders about upcoming payment due dates
+                    Track how far you are toward full ownership
                   </p>
                 </div>
               </div>
@@ -265,9 +263,9 @@ const Guide = () => {
                   <FileText className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm">Download Documents</h4>
+                  <h4 className="font-semibold text-sm">Download Monthly Statements</h4>
                   <p className="text-xs text-muted-foreground">
-                    Access your signed Agreements of Sale anytime
+                    Access formal monthly statements for your records
                   </p>
                 </div>
               </div>
@@ -277,9 +275,9 @@ const Guide = () => {
                   <Receipt className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm">Payment History</h4>
+                  <h4 className="font-semibold text-sm">View Agreement of Sale</h4>
                   <p className="text-xs text-muted-foreground">
-                    View your complete payment history and remaining balance
+                    Access your signed Agreement of Sale documents
                   </p>
                 </div>
               </div>
@@ -304,11 +302,11 @@ const Guide = () => {
               <div className="p-2 bg-secondary/30 rounded-lg">
                 <Receipt className="h-5 w-5 text-secondary-foreground" />
               </div>
-              <h3 className="text-xl font-semibold">🧾 View Statements</h3>
+              <h3 className="text-xl font-semibold">🧾 Monthly Statements</h3>
             </div>
             
             <p className="text-muted-foreground mb-4">
-              Navigate to the <strong>"Statements"</strong> tab to access your financial records.
+              Navigate to the <strong>"Monthly Statements"</strong> section to access your formal financial records.
             </p>
 
             <div className="my-4 border-4 border-secondary/30 rounded-lg overflow-hidden shadow-lg">
@@ -325,15 +323,15 @@ const Guide = () => {
             <ul className="space-y-2 text-sm">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Downloadable PDFs of your full transaction history</span>
+                <span>View your monthly statement showing opening balance, payments, and closing balance</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Filter statements by month or date range</span>
+                <span>Statements are generated at the end of each month</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Auto-generated on the 1st of each month</span>
+                <span>Download statements as PDF for your records</span>
               </li>
             </ul>
 
@@ -352,11 +350,11 @@ const Guide = () => {
               <div className="p-2 bg-secondary/30 rounded-lg">
                 <FileText className="h-5 w-5 text-secondary-foreground" />
               </div>
-              <h3 className="text-xl font-semibold">📄 View Signed Agreements</h3>
+              <h3 className="text-xl font-semibold">📄 Agreement of Sale</h3>
             </div>
             
             <p className="text-muted-foreground mb-4">
-              Go to <strong>"Documents"</strong> to access all your legal documents.
+              Go to <strong>"Agreement of Sale"</strong> to access your legal documents.
             </p>
 
             <div className="my-4 border-4 border-secondary/30 rounded-lg overflow-hidden shadow-lg">
@@ -373,15 +371,15 @@ const Guide = () => {
             <ul className="space-y-2 text-sm">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>All legal documents signed via DocuSign</span>
+                <span>View your signed Agreement of Sale</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Click to view or download as needed</span>
+                <span>Download as PDF for your records</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Track signing status (Seller signed, Buyer signed, Fully executed)</span>
+                <span>Track signing status (Seller signed, Buyer signed)</span>
               </li>
             </ul>
 
@@ -400,7 +398,7 @@ const Guide = () => {
               <div className="p-2 bg-secondary/30 rounded-lg">
                 <DollarSign className="h-5 w-5 text-secondary-foreground" />
               </div>
-              <h3 className="text-xl font-semibold">💵 Track Your Payments</h3>
+              <h3 className="text-xl font-semibold">💵 Payment Summary</h3>
             </div>
             
             <p className="text-muted-foreground mb-4">
@@ -428,8 +426,8 @@ const Guide = () => {
                 <p className="font-semibold text-sm">Upcoming installment</p>
               </div>
               <div className="p-4 bg-muted/30 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground mb-1">Due Date</p>
-                <p className="font-semibold text-sm">When payment is expected</p>
+                <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
+                <p className="font-semibold text-sm">Outstanding amount</p>
               </div>
             </div>
 
@@ -467,11 +465,11 @@ const Guide = () => {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>See breakdown of principal, interest, and VAT</span>
+                <span>See payment dates and amounts</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Overdue payments highlighted in red with days past due</span>
+                <span>Overdue payments are clearly highlighted</span>
               </li>
             </ul>
           </Card>
@@ -537,28 +535,24 @@ const Guide = () => {
             </p>
           </Card>
 
-          {/* Support */}
+          {/* Support - Updated to remove email, add Contact Support button */}
           <Card className="p-6 mb-4 bg-gradient-to-br from-primary/5 to-accent/5 border-2 border-primary/20">
             <div className="flex items-center gap-3 mb-4">
               <MessageCircle className="h-5 w-5 text-primary" />
               <h3 className="text-lg font-semibold">Need Help?</h3>
             </div>
             <p className="text-muted-foreground text-sm mb-4">
-              We're here to support you. If you have any questions or need assistance:
+              We're here to support you. If you have any questions or need assistance with your account, please submit a support request and we'll get back to you promptly.
             </p>
             <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-card rounded-lg">
-                <Mail className="h-5 w-5 text-primary flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">Email Support</p>
-                  <a 
-                    href="mailto:support@lakecityzim.com" 
-                    className="text-sm text-primary hover:underline"
-                  >
-                    support@lakecityzim.com
-                  </a>
-                </div>
-              </div>
+              <Button 
+                onClick={() => navigate('/support')} 
+                className="w-full"
+                size="lg"
+              >
+                <MessageCircle className="mr-2 h-5 w-5" />
+                Contact Support
+              </Button>
               <div className="flex items-center gap-3 p-3 bg-card rounded-lg">
                 <Download className="h-5 w-5 text-primary flex-shrink-0" />
                 <div>
@@ -585,11 +579,11 @@ const Guide = () => {
           <Button 
             size="lg" 
             variant="outline"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/support')}
             className="h-auto py-4"
           >
-            <LogIn className="mr-2 h-5 w-5" />
-            Log In / Sign Up
+            <MessageCircle className="mr-2 h-5 w-5" />
+            Contact Support
           </Button>
         </div>
       </main>

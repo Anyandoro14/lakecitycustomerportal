@@ -15,9 +15,39 @@ import { LogOut } from "lucide-react";
 interface LogoutConfirmDialogProps {
   onConfirm: () => void;
   loading?: boolean;
+  triggerClassName?: string;
 }
 
-const LogoutConfirmDialog = ({ onConfirm, loading }: LogoutConfirmDialogProps) => {
+const LogoutConfirmDialog = ({ onConfirm, loading = false, triggerClassName }: LogoutConfirmDialogProps) => {
+  // If custom trigger class is provided, render as a menu-style button
+  if (triggerClassName) {
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="ghost" className={triggerClassName}>
+            <LogOut className="h-5 w-5" />
+            Log Out
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to log out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will need to log in again to access your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirm} disabled={loading}>
+              {loading ? "Logging out..." : "Log Out"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  // Default render for settings page
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
