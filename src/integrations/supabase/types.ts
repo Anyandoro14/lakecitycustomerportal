@@ -14,10 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      monthly_statements: {
+        Row: {
+          closing_balance: number
+          created_at: string
+          customer_email: string
+          days_overdue: number | null
+          generated_at: string
+          id: string
+          is_overdue: boolean | null
+          opening_balance: number
+          payments_received: Json | null
+          stand_number: string
+          statement_month: string
+          total_payments: number
+        }
+        Insert: {
+          closing_balance?: number
+          created_at?: string
+          customer_email: string
+          days_overdue?: number | null
+          generated_at?: string
+          id?: string
+          is_overdue?: boolean | null
+          opening_balance?: number
+          payments_received?: Json | null
+          stand_number: string
+          statement_month: string
+          total_payments?: number
+        }
+        Update: {
+          closing_balance?: number
+          created_at?: string
+          customer_email?: string
+          days_overdue?: number | null
+          generated_at?: string
+          id?: string
+          is_overdue?: boolean | null
+          opening_balance?: number
+          payments_received?: Json | null
+          stand_number?: string
+          statement_month?: string
+          total_payments?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
           email: string | null
+          full_name: string | null
           id: string
           phone_number: string | null
           stand_number: string | null
@@ -26,6 +72,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          full_name?: string | null
           id: string
           phone_number?: string | null
           stand_number?: string | null
@@ -34,10 +81,59 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          full_name?: string | null
           id?: string
           phone_number?: string | null
           stand_number?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      support_cases: {
+        Row: {
+          case_number: string
+          created_at: string
+          description: string
+          email: string
+          first_name: string
+          id: string
+          issue_type: string
+          last_name: string
+          status: string
+          sub_issue: string
+          updated_at: string
+          user_id: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          case_number: string
+          created_at?: string
+          description: string
+          email: string
+          first_name: string
+          id?: string
+          issue_type: string
+          last_name: string
+          status?: string
+          sub_issue: string
+          updated_at?: string
+          user_id?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          case_number?: string
+          created_at?: string
+          description?: string
+          email?: string
+          first_name?: string
+          id?: string
+          issue_type?: string
+          last_name?: string
+          status?: string
+          sub_issue?: string
+          updated_at?: string
+          user_id?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
