@@ -52,9 +52,23 @@ const Index = () => {
         body: {}
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle auth errors by redirecting to login
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+          await supabase.auth.signOut();
+          navigate("/login");
+          return;
+        }
+        throw error;
+      }
 
-      if (data.error) {
+      if (data?.error) {
+        // Handle auth errors in response
+        if (data.error.includes('Unauthorized') || data.error.includes('Invalid token')) {
+          await supabase.auth.signOut();
+          navigate("/login");
+          return;
+        }
         toast({
           title: "Error",
           description: data.error,
@@ -72,7 +86,14 @@ const Index = () => {
           description: "Your account data has been updated",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Check if it's an authentication error
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('session')) {
+        await supabase.auth.signOut();
+        navigate("/login");
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to fetch your account data",
