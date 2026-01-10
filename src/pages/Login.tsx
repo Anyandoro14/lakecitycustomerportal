@@ -305,9 +305,18 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Customer Portal</CardTitle>
-          <CardDescription>Sign in to your account or create a new one</CardDescription>
+        <CardHeader className="text-center space-y-4">
+          <div className="flex justify-center">
+            <img 
+              src="/lakecity-logo.svg" 
+              alt="LakeCity" 
+              className="h-10 w-auto"
+            />
+          </div>
+          <div>
+            <CardTitle className="text-xl">Sign in to your LakeCity account</CardTitle>
+            <CardDescription className="mt-1">Access your stand details, payments, and documents</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
