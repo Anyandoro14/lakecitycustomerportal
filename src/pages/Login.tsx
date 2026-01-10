@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, XCircle, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, XCircle, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { 
   emailSchema, 
   passwordSchema, 
@@ -20,6 +20,9 @@ import {
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+const MAX_RESEND_ATTEMPTS = 3;
+
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -28,6 +31,12 @@ const Login = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  
+  // Resend 2FA state
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendAttempts, setResendAttempts] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -41,6 +50,37 @@ const Login = () => {
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Cleanup cooldown interval on unmount
+  useEffect(() => {
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Start cooldown timer
+  const startCooldownTimer = useCallback(() => {
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    
+    if (cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+    }
+    
+    cooldownIntervalRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          if (cooldownIntervalRef.current) {
+            clearInterval(cooldownIntervalRef.current);
+            cooldownIntervalRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
 
   // Check if already authenticated
   useEffect(() => {
@@ -91,6 +131,20 @@ const Login = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const sendVerificationCode = async (phone: string): Promise<boolean> => {
+    try {
+      const { error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
+        body: { phoneNumber: phone }
+      });
+
+      if (verifyError) throw verifyError;
+      return true;
+    } catch (error: any) {
+      console.error("Failed to send verification code:", error);
+      throw error;
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -121,17 +175,20 @@ const Login = () => {
           setPendingUserId(data.user.id);
           setPhoneNumber(profile.phone_number);
           
+          // Reset resend state for new login attempt
+          setResendAttempts(0);
+          setResendCooldown(0);
+          
           // Send 2FA code
-          const { error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
-            body: { phoneNumber: profile.phone_number }
-          });
-
-          if (verifyError) throw verifyError;
+          await sendVerificationCode(profile.phone_number);
+          
+          // Start cooldown after initial send
+          startCooldownTimer();
 
           setShowVerification(true);
           toast({
             title: "Verification code sent",
-            description: "Please check your phone for the verification code",
+            description: `We've sent a 6-digit code to your phone ending in ${maskPhoneNumber(profile.phone_number)}`,
           });
         } else {
           // No phone number, proceed without 2FA
@@ -146,6 +203,34 @@ const Login = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || resendAttempts >= MAX_RESEND_ATTEMPTS || isResending) {
+      return;
+    }
+
+    setIsResending(true);
+
+    try {
+      await sendVerificationCode(phoneNumber);
+      
+      setResendAttempts((prev) => prev + 1);
+      startCooldownTimer();
+      
+      toast({
+        title: "New code sent",
+        description: `A new verification code has been sent to your phone ending in ${maskPhoneNumber(phoneNumber)}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Unable to resend code",
+        description: "Please wait a moment and try again. If the issue continues, contact support.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -246,14 +331,24 @@ const Login = () => {
   };
 
   const handleBackToLogin = async () => {
+    // Clear cooldown timer
+    if (cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+      cooldownIntervalRef.current = null;
+    }
+    
     setShowVerification(false);
     setVerificationCode("");
     setPendingUserId(null);
     setPhoneNumber("");
+    setResendAttempts(0);
+    setResendCooldown(0);
   };
 
   const passwordErrors = getPasswordErrors(signupPassword);
   const maskedPhone = maskPhoneNumber(phoneNumber);
+  const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
+  const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
 
   if (showVerification) {
     return (
@@ -262,7 +357,7 @@ const Login = () => {
           <CardHeader>
             <CardTitle>Two-Factor Authentication</CardTitle>
             <CardDescription>
-              Enter the verification code sent to {maskedPhone}
+              We've sent a 6-digit verification code to your phone ending in {maskedPhone}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -286,6 +381,44 @@ const Login = () => {
                   <p className="text-sm text-destructive">{errors.verificationCode}</p>
                 )}
               </div>
+              
+              {/* Resend Code Section */}
+              <div className="text-center space-y-2 py-2">
+                <p className="text-sm text-muted-foreground">
+                  Didn't receive a code?
+                </p>
+                
+                {resendAttempts >= MAX_RESEND_ATTEMPTS ? (
+                  <p className="text-sm text-muted-foreground">
+                    Maximum resend attempts reached. Please contact support if you need assistance.
+                  </p>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResendCode}
+                      disabled={!canResend}
+                      className="gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isResending ? 'animate-spin' : ''}`} />
+                      {isResending 
+                        ? "Sending..." 
+                        : resendCooldown > 0 
+                          ? `Resend code in ${resendCooldown}s` 
+                          : "Resend code"
+                      }
+                    </Button>
+                    {resendAttempts > 0 && remainingResends > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {remainingResends} resend{remainingResends !== 1 ? 's' : ''} remaining
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Verifying..." : "Verify"}
               </Button>
