@@ -1,13 +1,12 @@
 import { Card } from "@/components/ui/card";
 import { FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
 interface DocumentsSectionProps {
   documents: {
     agreementOfSale: string;
     monthlyStatement: string;
-    projectDocuments: string;
+    projectDocuments?: string; // Made optional, will be removed
   };
 }
 
@@ -49,16 +48,7 @@ const DocumentsSection = ({ documents }: DocumentsSectionProps) => {
           </div>
         </Card>
 
-        <Card className="p-3 shadow-sm col-span-2">
-          <div className="flex items-start gap-2">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-              <FileText className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div className="text-left">
-              <p className="text-xs font-semibold">Project Documents</p>
-            </div>
-          </div>
-        </Card>
+        {/* Project Documents removed as per requirements */}
       </div>
     </div>
   );

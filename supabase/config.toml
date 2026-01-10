@@ -8,3 +8,9 @@ verify_jwt = true
 
 [functions.verify-2fa-code]
 verify_jwt = true
+
+[functions.admin-reset-password]
+verify_jwt = false
+
+[functions.support-case-webhook]
+verify_jwt = true
