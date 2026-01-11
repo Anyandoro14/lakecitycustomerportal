@@ -61,6 +61,17 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // StandLedger Design System
+        "sl-green": {
+          DEFAULT: "hsl(var(--sl-green))",
+          dark: "hsl(var(--sl-green-dark))",
+        },
+        "sl-gold": {
+          DEFAULT: "hsl(var(--sl-gold))",
+          dark: "hsl(var(--sl-gold-dark))",
+        },
+        "sl-charcoal": "hsl(var(--sl-charcoal))",
+        "sl-cream": "hsl(var(--sl-cream))",
       },
       borderRadius: {
         lg: "var(--radius)",
