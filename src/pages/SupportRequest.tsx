@@ -197,6 +197,27 @@ const SupportRequest = () => {
 
       setCaseNumber(caseData.case_number);
 
+      // Forward to webhook for Make.com integration
+      try {
+        await supabase.functions.invoke('support-case-webhook', {
+          body: {
+            case_number: caseData.case_number,
+            first_name: firstName,
+            last_name: lastName,
+            email: email,
+            whatsapp_number: whatsappNumber || null,
+            issue_type: issueType,
+            sub_issue: subIssue,
+            description: description,
+            preferred_contact_method: contactMethod,
+          }
+        });
+        console.log(`[Support Case] Webhook sent for: ${caseData.case_number}`);
+      } catch (webhookError) {
+        console.error('[Support Case] Webhook error:', webhookError);
+        // Don't fail the submission if webhook fails
+      }
+
       // If WhatsApp is selected, redirect immediately to WhatsApp
       if (contactMethod === "whatsapp") {
         const issueLabel = issueTypes.find(i => i.value === issueType)?.label || issueType;
