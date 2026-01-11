@@ -3,8 +3,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// This webhook is now for internal logging only
-// WhatsApp conversations are initiated by customers via wa.me links
+const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/o13arw034ek53aqjt15kge16n2ygg1ic";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,6 +22,7 @@ Deno.serve(async (req) => {
       issue_type,
       sub_issue,
       description,
+      preferred_contact_method,
     } = payload;
 
     // Log the support case for internal tracking
@@ -30,17 +30,44 @@ Deno.serve(async (req) => {
     console.log(`[Support Case Webhook] Customer: ${first_name} ${last_name} (${email})`);
     console.log(`[Support Case Webhook] Issue: ${issue_type} - ${sub_issue}`);
     console.log(`[Support Case Webhook] WhatsApp: ${whatsapp_number || 'Not provided'}`);
+    console.log(`[Support Case Webhook] Contact Method: ${preferred_contact_method}`);
     console.log(`[Support Case Webhook] Description: ${description}`);
 
-    // NOTE: WhatsApp messages are NOT sent automatically
-    // Customers initiate WhatsApp conversations via wa.me click-to-chat links
-    // This ensures compliance with WhatsApp Business policies
+    // Forward to Make.com webhook
+    try {
+      const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          case_number,
+          first_name,
+          last_name,
+          email,
+          whatsapp_number,
+          issue_type,
+          sub_issue,
+          description,
+          preferred_contact_method,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      if (!makeResponse.ok) {
+        console.error(`[Support Case Webhook] Make.com webhook failed: ${makeResponse.status}`);
+      } else {
+        console.log(`[Support Case Webhook] Successfully forwarded to Make.com`);
+      }
+    } catch (makeError) {
+      console.error(`[Support Case Webhook] Error forwarding to Make.com:`, makeError);
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         case_number,
-        message: "Support case logged. Customer will initiate WhatsApp conversation." 
+        message: "Support case logged and forwarded to Make.com." 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
