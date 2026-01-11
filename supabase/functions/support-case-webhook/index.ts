@@ -33,25 +33,27 @@ Deno.serve(async (req) => {
     console.log(`[Support Case Webhook] Contact Method: ${preferred_contact_method}`);
     console.log(`[Support Case Webhook] Description: ${description}`);
 
-    // Forward to Make.com webhook
+    // Forward to Make.com webhook with flat fields
     try {
-      const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
+      // Build URL with query parameters for Make.com to parse individually
+      const params = new URLSearchParams();
+      params.append("case_number", case_number || "");
+      params.append("first_name", first_name || "");
+      params.append("last_name", last_name || "");
+      params.append("email", email || "");
+      params.append("whatsapp_number", whatsapp_number || "");
+      params.append("issue_type", issue_type || "");
+      params.append("sub_issue", sub_issue || "");
+      params.append("description", description || "");
+      params.append("preferred_contact_method", preferred_contact_method || "");
+      params.append("timestamp", new Date().toISOString());
+
+      const makeResponse = await fetch(`${MAKE_WEBHOOK_URL}?${params.toString()}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: JSON.stringify({
-          case_number,
-          first_name,
-          last_name,
-          email,
-          whatsapp_number,
-          issue_type,
-          sub_issue,
-          description,
-          preferred_contact_method,
-          timestamp: new Date().toISOString(),
-        }),
+        body: params.toString(),
       });
 
       if (!makeResponse.ok) {
