@@ -4,23 +4,41 @@ import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, ArrowLeft, Printer } from "lucide-react";
+import { Download, ArrowLeft, Printer, Calendar, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import lakecityLogo from "@/assets/lakecity-logo.svg";
+import { format, parseISO } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+interface MonthlyStatement {
+  id: string;
+  statement_month: string;
+  opening_balance: number;
+  payments_received: unknown;
+  total_payments: number;
+  closing_balance: number;
+  is_overdue: boolean;
+  days_overdue: number;
+  stand_number: string;
+  customer_email: string;
+}
 
 const MonthlyStatements = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [statementData, setStatementData] = useState<any>(null);
+  const [statements, setStatements] = useState<MonthlyStatement[]>([]);
+  const [selectedStatement, setSelectedStatement] = useState<MonthlyStatement | null>(null);
+  const [customerName, setCustomerName] = useState<string>("");
+  const [showHistory, setShowHistory] = useState(true);
 
   useEffect(() => {
-    fetchStatementData();
+    fetchStatements();
   }, []);
 
-  const fetchStatementData = async () => {
+  const fetchStatements = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -28,72 +46,70 @@ const MonthlyStatements = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("fetch-google-sheets", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      // Fetch customer name from profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (profile?.full_name) {
+        setCustomerName(profile.full_name);
+      }
+
+      // Fetch all statements for this user from the database
+      const { data, error } = await supabase
+        .from("monthly_statements")
+        .select("*")
+        .order("statement_month", { ascending: false });
 
       if (error) throw error;
 
-      if (data && data.stands && data.stands.length > 0) {
-        // Get the first stand for now
-        const stand = data.stands[0];
-        
-        // Statement date
-        const statementDate = new Date(2025, 10, 1); // November 1, 2025
-        
-        // Get all payment history
-        const allPayments = stand.paymentHistory || [];
-
-        // Calculate next payment due
-        const nextPaymentDate = new Date(2025, 11, 5); // December 5, 2025
-        const daysPastDue = statementDate > nextPaymentDate ? 
-          Math.floor((statementDate.getTime() - nextPaymentDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-
-        setStatementData({
-          statementDate: "November 1, 2025",
-          statementPeriod: "All Time",
-          customerName: stand.customerName || "[Customer Full Name]",
-          standNumber: stand.standNumber,
-          totalPrice: "$100,000.00", // Placeholder - add to sheet data
-          totalPaid: stand.totalPaid,
-          currentBalance: stand.currentBalance,
-          paymentProgress: stand.progressPercentage,
-          nextPaymentDue: "December 5, 2025",
-          nextPaymentAmount: stand.monthlyPayment || "$1,167.00",
-          daysPastDue: daysPastDue,
-          payments: allPayments.map((p: any) => ({
-            date: p.date,
-            amount: p.amount,
-            principal: p.principal,
-            interest: p.interest,
-            vat: p.vat
-          }))
-        });
+      if (data && data.length > 0) {
+        setStatements(data);
+        // Auto-select the most recent statement
+        setSelectedStatement(data[0]);
+        setShowHistory(false);
       }
 
       setLoading(false);
     } catch (error: any) {
-      console.error("Error fetching statement data:", error);
+      console.error("Error fetching statements:", error);
       toast({
         title: "Error",
-        description: "Failed to load statement data",
+        description: "Failed to load statements",
         variant: "destructive",
       });
       setLoading(false);
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
+  };
+
+  const formatMonthYear = (dateString: string) => {
+    const date = parseISO(dateString);
+    return format(date, "MMMM yyyy");
+  };
+
+  const formatShortMonth = (dateString: string) => {
+    const date = parseISO(dateString);
+    return format(date, "MMM yyyy");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-20 flex items-center justify-center">
-        <p className="text-muted-foreground">Loading statement...</p>
+        <p className="text-muted-foreground">Loading statements...</p>
       </div>
     );
   }
 
-  if (!statementData) {
+  if (statements.length === 0) {
     return (
       <div className="min-h-screen bg-background pb-20">
         <CustomerHeader />
@@ -103,7 +119,13 @@ const MonthlyStatements = () => {
             Back
           </Button>
           <Card className="p-8">
-            <p className="text-center text-muted-foreground">No statement data available</p>
+            <div className="text-center">
+              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No statements available yet</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Your monthly statements will appear here once generated.
+              </p>
+            </div>
           </Card>
         </main>
         <BottomNav />
@@ -111,20 +133,131 @@ const MonthlyStatements = () => {
     );
   }
 
+  // Statement History View
+  if (showHistory) {
+    return (
+      <div className="min-h-screen bg-background pb-20">
+        <CustomerHeader />
+        
+        <main className="max-w-4xl mx-auto px-3 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/")}
+            className="mb-3 -ml-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+
+          <div className="mb-4">
+            <h1 className="text-xl font-bold text-foreground">Monthly Statements</h1>
+            <p className="text-sm text-muted-foreground">View and download your account statements</p>
+          </div>
+
+          <Card className="overflow-hidden">
+            <div className="bg-primary/5 px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">Statement History</span>
+              </div>
+            </div>
+            
+            <ScrollArea className="max-h-[60vh]">
+              <div className="divide-y divide-border">
+                {statements.map((statement) => (
+                  <button
+                    key={statement.id}
+                    onClick={() => {
+                      setSelectedStatement(statement);
+                      setShowHistory(false);
+                    }}
+                    className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Calendar className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {formatMonthYear(statement.statement_month)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Stand {statement.stand_number}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-foreground">
+                          {formatCurrency(statement.closing_balance)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Balance</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </Card>
+        </main>
+
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // Single Statement View
+  if (!selectedStatement) {
+    return null;
+  }
+
+  const payments = Array.isArray(selectedStatement.payments_received) 
+    ? selectedStatement.payments_received 
+    : [];
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <CustomerHeader />
       
       <main className="max-w-4xl mx-auto px-3 py-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate("/")}
-          className="mb-3 -ml-2"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
+        <div className="flex items-center justify-between mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowHistory(true)}
+            className="-ml-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            All Statements
+          </Button>
+          
+          {/* Quick month navigator */}
+          <div className="flex items-center gap-1">
+            {statements.slice(0, 3).map((stmt) => (
+              <Button
+                key={stmt.id}
+                variant={stmt.id === selectedStatement.id ? "default" : "outline"}
+                size="sm"
+                className="text-xs px-2 h-7"
+                onClick={() => setSelectedStatement(stmt)}
+              >
+                {formatShortMonth(stmt.statement_month)}
+              </Button>
+            ))}
+            {statements.length > 3 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs px-2 h-7"
+                onClick={() => setShowHistory(true)}
+              >
+                More
+              </Button>
+            )}
+          </div>
+        </div>
 
         {/* Statement Document */}
         <Card className="p-4 md:p-8 shadow-lg bg-card">
@@ -136,10 +269,12 @@ const MonthlyStatements = () => {
             </div>
             <div className="text-left md:text-right w-full md:w-auto">
               <div className="bg-primary/10 px-3 md:px-4 py-1.5 md:py-2 rounded-lg mb-1 md:mb-2 inline-block">
-                <p className="text-xs font-semibold text-primary uppercase tracking-wide">Statement Date</p>
-                <p className="text-base md:text-lg font-bold text-foreground">{statementData.statementDate}</p>
+                <p className="text-xs font-semibold text-primary uppercase tracking-wide">Statement Period</p>
+                <p className="text-base md:text-lg font-bold text-foreground">
+                  {formatMonthYear(selectedStatement.statement_month)}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">Period: {statementData.statementPeriod}</p>
+              <p className="text-xs text-muted-foreground">Stand: {selectedStatement.stand_number}</p>
             </div>
           </div>
 
@@ -156,58 +291,52 @@ const MonthlyStatements = () => {
             <h3 className="text-xs md:text-sm font-semibold text-primary uppercase tracking-wide mb-3 md:mb-4">Account Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Customer Name</p>
-                <p className="text-base md:text-lg font-bold text-foreground break-words">{statementData.customerName}</p>
+                <p className="text-xs text-muted-foreground mb-1">Customer</p>
+                <p className="text-base md:text-lg font-bold text-foreground break-words">
+                  {customerName || selectedStatement.customer_email}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Stand Number</p>
-                <p className="text-base md:text-lg font-bold text-foreground">{statementData.standNumber}</p>
+                <p className="text-base md:text-lg font-bold text-foreground">{selectedStatement.stand_number}</p>
               </div>
             </div>
           </div>
 
           <Separator className="my-6" />
 
-          {/* Account Summary - Enhanced Design */}
+          {/* Account Summary */}
           <div className="mb-6 md:mb-8">
             <h3 className="text-xs md:text-sm font-semibold text-primary uppercase tracking-wide mb-3 md:mb-4">Account Summary</h3>
             <div className="grid grid-cols-2 gap-2.5 md:gap-4">
               <div className="bg-gradient-to-br from-muted/50 to-muted/30 p-3 md:p-5 rounded-xl border border-border">
-                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Purchase Price</p>
-                <p className="text-base md:text-2xl font-bold text-foreground">{statementData.totalPrice}</p>
+                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Opening Balance</p>
+                <p className="text-base md:text-2xl font-bold text-foreground">
+                  {formatCurrency(selectedStatement.opening_balance)}
+                </p>
               </div>
               <div className="bg-gradient-to-br from-primary/20 to-primary/10 p-3 md:p-5 rounded-xl border border-primary/30">
-                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Total Paid</p>
-                <p className="text-base md:text-2xl font-bold text-primary">{statementData.totalPaid}</p>
-              </div>
-              <div className="bg-gradient-to-br from-muted/50 to-muted/30 p-3 md:p-5 rounded-xl border border-border">
-                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Balance Due</p>
-                <p className="text-base md:text-2xl font-bold text-foreground">{statementData.currentBalance}</p>
-              </div>
-              <div className="bg-gradient-to-br from-accent/20 to-accent/10 p-3 md:p-5 rounded-xl border border-accent/30">
-                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Progress</p>
-                <p className="text-base md:text-2xl font-bold text-foreground">{statementData.paymentProgress}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Next Payment Due - Enhanced */}
-          <div className={`mb-6 md:mb-8 p-4 md:p-6 rounded-xl border-2 ${statementData.daysPastDue > 0 ? 'bg-destructive/10 border-destructive' : 'bg-accent/10 border-accent'}`}>
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-3 md:gap-0">
-              <div>
-                <p className="text-xs md:text-sm font-semibold text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Next Payment Due</p>
-                <p className={`text-lg md:text-2xl font-bold ${statementData.daysPastDue > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                  {statementData.nextPaymentDue}
+                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Payments Received</p>
+                <p className="text-base md:text-2xl font-bold text-primary">
+                  {formatCurrency(selectedStatement.total_payments)}
                 </p>
-                {statementData.daysPastDue > 0 && (
+              </div>
+              <div className={`col-span-2 p-3 md:p-5 rounded-xl border ${
+                selectedStatement.is_overdue 
+                  ? 'bg-gradient-to-br from-destructive/20 to-destructive/10 border-destructive/30' 
+                  : 'bg-gradient-to-br from-accent/20 to-accent/10 border-accent/30'
+              }`}>
+                <p className="text-xs text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Closing Balance</p>
+                <p className={`text-xl md:text-3xl font-bold ${
+                  selectedStatement.is_overdue ? 'text-destructive' : 'text-foreground'
+                }`}>
+                  {formatCurrency(selectedStatement.closing_balance)}
+                </p>
+                {selectedStatement.is_overdue && selectedStatement.days_overdue > 0 && (
                   <p className="text-xs md:text-sm text-destructive font-semibold mt-1 md:mt-2 flex items-center gap-1">
-                    ⚠️ {statementData.daysPastDue} days past due
+                    ⚠️ {selectedStatement.days_overdue} days overdue
                   </p>
                 )}
-              </div>
-              <div className="text-left md:text-right">
-                <p className="text-xs md:text-sm text-muted-foreground mb-1 md:mb-2 uppercase tracking-wide">Amount Due</p>
-                <p className="text-2xl md:text-3xl font-bold text-foreground">{statementData.nextPaymentAmount}</p>
               </div>
             </div>
           </div>
@@ -217,33 +346,31 @@ const MonthlyStatements = () => {
           {/* Payment History Table */}
           <div className="mb-6 md:mb-8">
             <h3 className="text-xs md:text-sm font-semibold text-primary uppercase tracking-wide mb-3 md:mb-4">
-              Payment History - {statementData.statementPeriod}
+              Payments Received This Month
             </h3>
             <div className="overflow-x-auto rounded-lg border border-border -mx-4 md:mx-0">
               <table className="w-full text-xs md:text-sm">
                 <thead className="bg-muted/50">
                   <tr className="border-b border-border">
                     <th className="text-left py-2.5 md:py-4 px-2 md:px-4 font-semibold text-foreground whitespace-nowrap">Date</th>
-                    <th className="text-right py-2.5 md:py-4 px-2 md:px-4 font-semibold text-foreground whitespace-nowrap">Principal</th>
-                    <th className="text-right py-2.5 md:py-4 px-2 md:px-4 font-semibold text-foreground whitespace-nowrap hidden md:table-cell">Interest</th>
-                    <th className="text-right py-2.5 md:py-4 px-2 md:px-4 font-semibold text-foreground whitespace-nowrap hidden md:table-cell">VAT</th>
-                    <th className="text-right py-2.5 md:py-4 px-2 md:px-4 font-semibold text-primary whitespace-nowrap">Total</th>
+                    <th className="text-right py-2.5 md:py-4 px-2 md:px-4 font-semibold text-foreground whitespace-nowrap">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="bg-card">
-                  {statementData.payments.length > 0 ? (
-                    statementData.payments.map((payment: any, index: number) => (
+                  {payments.length > 0 ? (
+                    payments.map((payment: any, index: number) => (
                       <tr key={index} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-muted-foreground whitespace-nowrap">{payment.date}</td>
-                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-right text-foreground whitespace-nowrap">{payment.principal}</td>
-                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-right text-foreground whitespace-nowrap hidden md:table-cell">{payment.interest}</td>
-                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-right text-foreground whitespace-nowrap hidden md:table-cell">{payment.vat}</td>
-                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-right font-semibold text-primary whitespace-nowrap">{payment.amount}</td>
+                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-muted-foreground whitespace-nowrap">
+                          {payment.date || "N/A"}
+                        </td>
+                        <td className="py-2.5 md:py-4 px-2 md:px-4 text-right font-semibold text-primary whitespace-nowrap">
+                          {payment.amount || formatCurrency(payment.value || 0)}
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-6 md:py-8 text-center text-muted-foreground text-xs md:text-sm">
+                      <td colSpan={2} className="py-6 md:py-8 text-center text-muted-foreground text-xs md:text-sm">
                         No payments recorded for this period
                       </td>
                     </tr>
