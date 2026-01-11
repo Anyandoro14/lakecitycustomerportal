@@ -3,7 +3,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/o13arw034ek53aqjt15kge16n2ygg1ic";
+const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/swrvhnlusw1klo1zoxkv4ufskpm9roe1";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
