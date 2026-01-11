@@ -15,6 +15,7 @@ import Reporting from "./pages/Reporting";
 import AccountManagement from "./pages/AccountManagement";
 import Guide from "./pages/Guide";
 import SupportRequest from "./pages/SupportRequest";
+import StandLedgerLanding from "./pages/StandLedgerLanding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/account-management" element={<AccountManagement />} />
             <Route path="/guide" element={<Guide />} />
             <Route path="/support" element={<SupportRequest />} />
+            <Route path="/standsledger" element={<StandLedgerLanding />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
