@@ -26,3 +26,12 @@ verify_jwt = false
 
 [functions.verify-password-reset]
 verify_jwt = false
+
+[functions.validate-signup]
+verify_jwt = false
+
+[functions.register-user]
+verify_jwt = false
+
+[functions.verify-signup-otp]
+verify_jwt = false
