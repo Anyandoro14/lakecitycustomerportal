@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.generate-monthly-statements]
 verify_jwt = false
+
+[functions.lookup-stand-email]
+verify_jwt = false

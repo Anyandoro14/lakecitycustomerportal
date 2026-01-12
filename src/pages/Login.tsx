@@ -155,32 +155,37 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // First, look up the user's email by stand number
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('email, phone_number')
-        .eq('stand_number', loginStandNumber.trim())
-        .maybeSingle();
+      // First, look up the user's email by stand number via edge function (bypasses RLS)
+      const { data: lookupData, error: lookupError } = await supabase.functions.invoke('lookup-stand-email', {
+        body: { standNumber: loginStandNumber.trim() }
+      });
 
-      if (profileError) throw profileError;
+      if (lookupError) throw lookupError;
       
-      if (!profile || !profile.email) {
-        throw new Error("No account found for this stand number. Please check your stand number or contact support.");
+      if (!lookupData?.found || !lookupData?.email) {
+        throw new Error(lookupData?.error || "No account found for this stand number. Please check your stand number or contact support.");
       }
 
       // Store email for re-auth after 2FA
-      setUserEmail(profile.email);
+      setUserEmail(lookupData.email);
 
       // Authenticate with the found email
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: profile.email,
+        email: lookupData.email,
         password: loginPassword,
       });
 
       if (error) throw error;
 
       if (data.user) {
-        if (profile.phone_number) {
+        // Get phone number for 2FA (now we're authenticated, RLS allows it)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone_number')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profile?.phone_number) {
           // Sign out immediately - user must complete 2FA to get a valid session
           await supabase.auth.signOut();
           
