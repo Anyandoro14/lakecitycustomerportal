@@ -286,14 +286,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    if (phoneIndex === -1) {
-      console.error('Could not find phone column in spreadsheet');
-      return new Response(
-        JSON.stringify({ valid: false, error: "Data source configuration error" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
     // Find the row with matching stand number (case-insensitive)
     const customerRow = rows.slice(1).find((row: string[]) => 
       row[standNumIndex] && row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase()
@@ -310,29 +302,37 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Normalize phone numbers for comparison
-    const normalizePhone = (phone: string): string => {
-      return phone.replace(/[\s\-\(\)]/g, '').replace(/^0/, '+263');
-    };
+    // Check phone column if it exists (optional validation)
+    if (phoneIndex !== -1) {
+      // Normalize phone numbers for comparison
+      const normalizePhone = (phone: string): string => {
+        return phone.replace(/[\s\-\(\)]/g, '').replace(/^0/, '+263');
+      };
 
-    const sheetPhone = customerRow[phoneIndex]?.toString().trim() || '';
-    const normalizedSheetPhone = normalizePhone(sheetPhone);
-    const normalizedInputPhone = normalizePhone(trimmedPhone);
+      const sheetPhone = customerRow[phoneIndex]?.toString().trim() || '';
+      
+      if (sheetPhone) {
+        const normalizedSheetPhone = normalizePhone(sheetPhone);
+        const normalizedInputPhone = normalizePhone(trimmedPhone);
 
-    // Check if phone numbers match (allowing for some flexibility)
-    const phonesMatch = normalizedSheetPhone.endsWith(normalizedInputPhone.slice(-9)) || 
-                       normalizedInputPhone.endsWith(normalizedSheetPhone.slice(-9)) ||
-                       normalizedSheetPhone === normalizedInputPhone;
+        // Check if phone numbers match (allowing for some flexibility)
+        const phonesMatch = normalizedSheetPhone.endsWith(normalizedInputPhone.slice(-9)) || 
+                           normalizedInputPhone.endsWith(normalizedSheetPhone.slice(-9)) ||
+                           normalizedSheetPhone === normalizedInputPhone;
 
-    if (!phonesMatch) {
-      console.log(`Phone mismatch for stand ${trimmedStand}: sheet=${normalizedSheetPhone}, input=${normalizedInputPhone}`);
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: "The phone number does not match our records for this stand number. Please check and try again." 
-        }),
-        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+        if (!phonesMatch) {
+          console.log(`Phone mismatch for stand ${trimmedStand}: sheet=${normalizedSheetPhone}, input=${normalizedInputPhone}`);
+          return new Response(
+            JSON.stringify({ 
+              valid: false, 
+              error: "The phone number does not match our records for this stand number. Please check and try again." 
+            }),
+            { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+      }
+    } else {
+      console.log('Phone column not found in spreadsheet - skipping phone validation');
     }
 
     // Get email if available (optional)
