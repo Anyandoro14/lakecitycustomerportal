@@ -101,6 +101,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          payment_start_date: string
           phone_number: string | null
           stand_number: string | null
           updated_at: string
@@ -110,6 +111,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          payment_start_date?: string
           phone_number?: string | null
           stand_number?: string | null
           updated_at?: string
@@ -119,6 +121,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          payment_start_date?: string
           phone_number?: string | null
           stand_number?: string | null
           updated_at?: string
