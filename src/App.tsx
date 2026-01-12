@@ -7,7 +7,6 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import MonthlyStatements from "./pages/MonthlyStatements";
 import AgreementOfSaleDocuments from "./pages/AgreementOfSaleDocuments";
@@ -31,7 +30,6 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/monthly-statements" element={<MonthlyStatements />} />
             <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />

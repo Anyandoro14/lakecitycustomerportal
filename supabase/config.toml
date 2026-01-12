@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.lookup-stand-email]
 verify_jwt = false
+
+[functions.request-password-reset]
+verify_jwt = false
+
+[functions.verify-password-reset]
+verify_jwt = false
