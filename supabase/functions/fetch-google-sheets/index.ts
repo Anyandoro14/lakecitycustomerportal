@@ -314,7 +314,7 @@ serve(async (req) => {
 
       // Get the start date for this customer from the sheet
       const startDateStr = startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '';
-      let customerStartDate = new Date(2025, 10, 5); // Default to November 5, 2025
+      let customerStartDate = new Date(2025, 8, 5); // Default to September 5, 2025 (updated from November)
       
       if (startDateStr) {
         try {
@@ -332,15 +332,16 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);
 
-      // Column M (index 12) through AV (index 47) are the payment months
-      // Column AX (index 49) is Total Paid
-      // Column AY (index 50) is Current Balance  
-      // Column AZ (index 51) is Payment Progress %
-      const paymentStartCol = 12; // Column M
-      const paymentEndCol = 47; // Column AV
-      const totalPaidCol = 49; // Column AX
-      const currentBalanceCol = 50; // Column AY
-      const paymentProgressCol = 51; // Column AZ
+      // Column M (index 12) is now September 5, 2025 (new column added)
+      // Column AW (index 48) is end of payment months (shifted +1)
+      // Column AY (index 50) is Total Paid (shifted +1)
+      // Column AZ (index 51) is Current Balance (shifted +1)
+      // Column BA (index 52) is Payment Progress % (shifted +1)
+      const paymentStartCol = 12; // Column M - now September 2025
+      const paymentEndCol = 48; // Column AW (shifted from AV)
+      const totalPaidCol = 50; // Column AY (shifted from AX)
+      const currentBalanceCol = 51; // Column AZ (shifted from AY)
+      const paymentProgressCol = 52; // Column BA (shifted from AZ)
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);

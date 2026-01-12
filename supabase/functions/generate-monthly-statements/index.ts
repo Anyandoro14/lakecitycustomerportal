@@ -222,10 +222,14 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
     throw new Error('Required columns not found in spreadsheet');
   }
 
-  const paymentStartCol = 12; // Column M
-  const paymentEndCol = 47; // Column AV
-  const totalPaidCol = 49; // Column AX
-  const currentBalanceCol = 50; // Column AY
+  // Column M (index 12) is now September 5, 2025 (new column added)
+  // Column AW (index 48) is end of payment months (shifted +1)
+  // Column AY (index 50) is Total Paid (shifted +1)
+  // Column AZ (index 51) is Current Balance (shifted +1)
+  const paymentStartCol = 12; // Column M - now September 2025
+  const paymentEndCol = 48; // Column AW (shifted from AV)
+  const totalPaidCol = 50; // Column AY (shifted from AX)
+  const currentBalanceCol = 51; // Column AZ (shifted from AY)
 
   const customers: CustomerData[] = [];
 
@@ -245,8 +249,9 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
     const currentBalance = parseCurrency(row[currentBalanceCol]);
 
     // Get first payment header to determine base date
+    // Column M is now September 5, 2025
     const firstPaymentHeader = headers[paymentStartCol];
-    let basePaymentDate = new Date(2025, 9, 5); // October 5, 2025 default
+    let basePaymentDate = new Date(2025, 8, 5); // September 5, 2025 default (updated from October)
     if (firstPaymentHeader) {
       const parsedHeaderDate = new Date(firstPaymentHeader);
       if (!isNaN(parsedHeaderDate.getTime())) {
