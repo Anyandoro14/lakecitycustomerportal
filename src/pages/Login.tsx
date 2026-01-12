@@ -187,8 +187,8 @@ const Login = () => {
 
           setShowVerification(true);
           toast({
-            title: "Verification code sent",
-            description: `We've sent a 6-digit code to your phone ending in ${maskPhoneNumber(profile.phone_number)}`,
+            title: "WhatsApp verification code sent",
+            description: `We've sent a 6-digit code via WhatsApp to ${maskPhoneNumber(profile.phone_number)}`,
           });
         } else {
           // No phone number, proceed without 2FA
@@ -220,8 +220,8 @@ const Login = () => {
       startCooldownTimer();
       
       toast({
-        title: "New code sent",
-        description: `A new verification code has been sent to your phone ending in ${maskPhoneNumber(phoneNumber)}`,
+        title: "New WhatsApp code sent",
+        description: `A new verification code has been sent via WhatsApp to ${maskPhoneNumber(phoneNumber)}`,
       });
     } catch (error: any) {
       toast({
@@ -355,9 +355,9 @@ const Login = () => {
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Two-Factor Authentication</CardTitle>
+            <CardTitle>WhatsApp Verification</CardTitle>
             <CardDescription>
-              We've sent a 6-digit verification code to your phone ending in {maskedPhone}
+              We've sent a 6-digit verification code via WhatsApp to {maskedPhone}
             </CardDescription>
           </CardHeader>
           <CardContent>
