@@ -59,6 +59,42 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_tokens: {
+        Row: {
+          attempts: number
+          created_at: string
+          expires_at: string
+          id: string
+          max_attempts: number
+          phone_number: string
+          token_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          max_attempts?: number
+          phone_number: string
+          token_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          max_attempts?: number
+          phone_number?: string
+          token_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -145,6 +181,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_password_reset_tokens: { Args: never; Returns: undefined }
       get_user_stand_number: { Args: { user_id: string }; Returns: string }
     }
     Enums: {
