@@ -275,7 +275,10 @@ const handler = async (req: Request): Promise<Response> => {
     // Find column indices
     const headers = rows[0];
     const standNumIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('stand'));
-    const phoneIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('phone'));
+    const phoneIndex = headers.findIndex((h: string) => {
+      const header = h?.toString().toLowerCase().trim() || '';
+      return header.includes('phone') || header.includes('contact');
+    });
     const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
 
     if (standNumIndex === -1) {
