@@ -14,6 +14,7 @@ import {
   passwordSchema, 
   phoneSchema, 
   verificationCodeSchema,
+  standNumberSchema,
   maskPhoneNumber,
   getPasswordErrors 
 } from "@/lib/validation";
@@ -39,8 +40,9 @@ const Login = () => {
   const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Login form state
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginStandNumber, setLoginStandNumber] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [userEmail, setUserEmail] = useState(""); // Store email for re-auth after 2FA
   
   // Signup form state
   const [signupEmail, setSignupEmail] = useState("");
@@ -96,9 +98,9 @@ const Login = () => {
   const validateLoginForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
     
-    const emailResult = emailSchema.safeParse(loginEmail);
-    if (!emailResult.success) {
-      newErrors.loginEmail = emailResult.error.errors[0].message;
+    const standResult = standNumberSchema.safeParse(loginStandNumber);
+    if (!standResult.success) {
+      newErrors.loginStandNumber = standResult.error.errors[0].message;
     }
     
     if (!loginPassword) {
@@ -153,22 +155,32 @@ const Login = () => {
     setLoading(true);
 
     try {
+      // First, look up the user's email by stand number
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('email, phone_number')
+        .eq('stand_number', loginStandNumber.trim())
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      
+      if (!profile || !profile.email) {
+        throw new Error("No account found for this stand number. Please check your stand number or contact support.");
+      }
+
+      // Store email for re-auth after 2FA
+      setUserEmail(profile.email);
+
+      // Authenticate with the found email
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
+        email: profile.email,
         password: loginPassword,
       });
 
       if (error) throw error;
 
       if (data.user) {
-        // Get user's phone number for 2FA
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('phone_number')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profile?.phone_number) {
+        if (profile.phone_number) {
           // Sign out immediately - user must complete 2FA to get a valid session
           await supabase.auth.signOut();
           
@@ -303,9 +315,9 @@ const Login = () => {
       if (error) throw error;
 
       if (data.verified) {
-        // Re-authenticate user after successful 2FA
+        // Re-authenticate user after successful 2FA using stored email
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
+          email: userEmail,
           password: loginPassword,
         });
         
@@ -469,21 +481,21 @@ const Login = () => {
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-stand">Stand Number</Label>
                   <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={loginEmail}
+                    id="login-stand"
+                    type="text"
+                    placeholder="e.g., A123"
+                    value={loginStandNumber}
                     onChange={(e) => {
-                      setLoginEmail(e.target.value);
-                      setErrors({ ...errors, loginEmail: '' });
+                      setLoginStandNumber(e.target.value);
+                      setErrors({ ...errors, loginStandNumber: '' });
                     }}
                     required
-                    className={errors.loginEmail ? 'border-destructive' : ''}
+                    className={errors.loginStandNumber ? 'border-destructive' : ''}
                   />
-                  {errors.loginEmail && (
-                    <p className="text-sm text-destructive">{errors.loginEmail}</p>
+                  {errors.loginStandNumber && (
+                    <p className="text-sm text-destructive">{errors.loginStandNumber}</p>
                   )}
                 </div>
                 <div className="space-y-2">

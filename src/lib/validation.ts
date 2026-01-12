@@ -20,8 +20,15 @@ export const phoneSchema = z
   .trim()
   .regex(/^\+?[1-9]\d{6,14}$/, 'Please enter a valid phone number (e.g., +1234567890)');
 
+// Stand number validation - alphanumeric, typically like "A123" or "Block-A-12"
+export const standNumberSchema = z
+  .string()
+  .trim()
+  .min(1, 'Stand number is required')
+  .max(50, 'Stand number must be less than 50 characters');
+
 export const loginSchema = z.object({
-  email: emailSchema,
+  standNumber: standNumberSchema,
   password: z.string().min(1, 'Password is required'),
 });
 
