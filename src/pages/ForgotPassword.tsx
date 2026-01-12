@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
-import { emailSchema } from "@/lib/validation";
+import { standNumberSchema } from "@/lib/validation";
 
 const ForgotPassword = () => {
   const { toast } = useToast();
-  const [email, setEmail] = useState("");
+  const [standNumber, setStandNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -21,26 +21,45 @@ const ForgotPassword = () => {
     e.preventDefault();
     setError("");
 
-    // Validate email
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      setError(emailResult.error.errors[0].message);
+    // Validate stand number
+    const standResult = standNumberSchema.safeParse(standNumber);
+    if (!standResult.success) {
+      setError(standResult.error.errors[0].message);
       return;
     }
 
     setLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      // Look up email from stand number
+      const { data: lookupData, error: lookupError } = await supabase.functions.invoke('lookup-stand-email', {
+        body: { standNumber: standNumber.trim() }
+      });
+
+      if (lookupError) {
+        console.error("Lookup error:", lookupError);
+        // Don't reveal if stand number exists - show success anyway
+        setSubmitted(true);
+        return;
+      }
+
+      if (!lookupData?.found || !lookupData?.email) {
+        // Don't reveal if stand number exists - show success anyway
+        setSubmitted(true);
+        return;
+      }
+
+      // Send password reset email
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(lookupData.email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (resetError) throw resetError;
 
-      // Always show success message to prevent email enumeration
+      // Always show success message to prevent enumeration
       setSubmitted(true);
     } catch (err: any) {
-      // Don't reveal if email exists or not for security
+      // Don't reveal if stand number exists or not for security
       console.error("Password reset error:", err);
       setSubmitted(true);
     } finally {
@@ -58,7 +77,7 @@ const ForgotPassword = () => {
             </div>
             <CardTitle>Check Your Email</CardTitle>
             <CardDescription className="text-base">
-              If your email was found, a password reset link has been sent. Be sure to check your spam/junk folders.
+              If your stand number was found, a password reset link has been sent to the email associated with it. Be sure to check your spam/junk folders.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -73,11 +92,11 @@ const ForgotPassword = () => {
                 variant="outline"
                 onClick={() => {
                   setSubmitted(false);
-                  setEmail("");
+                  setStandNumber("");
                 }}
                 className="w-full"
               >
-                Try a different email
+                Try a different stand number
               </Button>
               <Link to="/login" className="w-full">
                 <Button variant="ghost" className="w-full">
@@ -98,20 +117,20 @@ const ForgotPassword = () => {
         <CardHeader>
           <CardTitle>Reset Password</CardTitle>
           <CardDescription>
-            Enter your email address linked to your LakeCity account. You'll receive a secure link if it exists in our system.
+            Enter your stand number and we'll send a password reset link to the email associated with your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="standNumber">Stand Number</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
+                id="standNumber"
+                type="text"
+                placeholder="e.g., A123"
+                value={standNumber}
                 onChange={(e) => {
-                  setEmail(e.target.value);
+                  setStandNumber(e.target.value);
                   setError("");
                 }}
                 required
@@ -125,11 +144,11 @@ const ForgotPassword = () => {
             
             <Alert>
               <AlertDescription className="text-sm text-muted-foreground">
-                For security, we'll only send a reset link if this email is registered with LakeCity. If you don't receive an email, please check your spam folder or contact support.
+                For security, we'll only send a reset link if this stand number is registered with LakeCity. If you don't receive an email, please check your spam folder or contact support.
               </AlertDescription>
             </Alert>
 
-            <Button type="submit" className="w-full" disabled={loading || !email}>
+            <Button type="submit" className="w-full" disabled={loading || !standNumber}>
               {loading ? "Sending..." : "Send Reset Link"}
             </Button>
 
