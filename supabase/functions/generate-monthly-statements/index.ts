@@ -294,7 +294,8 @@ async function generateStatementsForCustomer(
   supabase: any,
   customer: CustomerData,
   startMonth: Date,
-  endMonth: Date
+  endMonth: Date,
+  paymentStartDate: Date
 ): Promise<{ created: number; skipped: number }> {
   let created = 0;
   let skipped = 0;
@@ -349,11 +350,22 @@ async function generateStatementsForCustomer(
     const totalPaymentsReceived = paymentsThisMonth.reduce((sum, p) => sum + parseCurrency(p.amount), 0);
     const closingBalance = openingBalance - totalPaymentsReceived;
 
-    // Determine overdue status (if closing balance > 0 and we're past the due date)
-    const isOverdue = closingBalance > 0 && new Date() > lastDayOfMonth;
-    const daysOverdue = isOverdue 
-      ? Math.floor((new Date().getTime() - lastDayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
+    // Determine overdue status
+    // Skip delinquency evaluation if statement_month is before payment_start_date
+    const statementDate = new Date(year, month, 1);
+    const isBeforePaymentStart = statementDate < paymentStartDate;
+    
+    let isOverdue = false;
+    let daysOverdue = 0;
+    
+    if (!isBeforePaymentStart) {
+      // Only evaluate delinquency when statement_month >= payment_start_date
+      isOverdue = closingBalance > 0 && new Date() > lastDayOfMonth;
+      daysOverdue = isOverdue 
+        ? Math.floor((new Date().getTime() - lastDayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+    }
+    // If before payment start date, is_overdue and days_overdue remain false/0
 
     // Format payments for JSONB storage
     const paymentsJson = paymentsThisMonth.map(p => ({
@@ -458,15 +470,41 @@ serve(async (req) => {
     let totalCreated = 0;
     let totalSkipped = 0;
 
+    // Fetch payment_start_date for all customers from profiles
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('stand_number, payment_start_date');
+    
+    if (profilesError) {
+      console.warn('Could not fetch profiles for payment_start_date, using default:', profilesError.message);
+    }
+    
+    // Create a map of stand_number -> payment_start_date
+    const paymentStartDateMap: Record<string, Date> = {};
+    const defaultPaymentStartDate = new Date(2025, 8, 5); // September 5, 2025
+    
+    if (profiles) {
+      for (const profile of profiles) {
+        if (profile.stand_number && profile.payment_start_date) {
+          paymentStartDateMap[profile.stand_number] = new Date(profile.payment_start_date);
+        }
+      }
+    }
+    
     // Process each customer
     for (const customer of customersToProcess) {
       console.log(`Processing customer: ${customer.email}, Stand: ${customer.standNumber}`);
+      
+      // Get customer-specific payment start date or use default
+      const customerPaymentStartDate = paymentStartDateMap[customer.standNumber] || defaultPaymentStartDate;
+      console.log(`Payment start date for ${customer.standNumber}: ${customerPaymentStartDate.toISOString().split('T')[0]}`);
       
       const { created, skipped } = await generateStatementsForCustomer(
         supabase,
         customer,
         startMonth,
-        endMonth
+        endMonth,
+        customerPaymentStartDate
       );
       
       totalCreated += created;
