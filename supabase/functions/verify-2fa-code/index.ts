@@ -30,7 +30,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Twilio credentials not configured");
     }
 
-    console.log(`Verifying code for ${phoneNumber}`);
+    console.log(`Verifying WhatsApp code for ${phoneNumber}`);
 
     // Verify code using Twilio Verify API
     const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`;

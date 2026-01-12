@@ -29,9 +29,9 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Twilio credentials not configured");
     }
 
-    console.log(`Sending verification code to ${phoneNumber}`);
+    console.log(`Sending WhatsApp verification code to ${phoneNumber}`);
 
-    // Send verification code using Twilio Verify API
+    // Send verification code using Twilio Verify API via WhatsApp channel
     const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/Verifications`;
     
     const response = await fetch(url, {
@@ -42,7 +42,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: new URLSearchParams({
         To: phoneNumber,
-        Channel: 'sms'
+        Channel: 'whatsapp'
       })
     });
 
