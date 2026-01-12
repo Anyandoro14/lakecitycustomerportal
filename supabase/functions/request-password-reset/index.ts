@@ -283,16 +283,19 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Failed to initiate password reset');
     }
 
-    // Send WhatsApp verification code via Twilio Verify
+    // Send verification code via Twilio Verify (WhatsApp first, SMS fallback)
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
       throw new Error("Twilio credentials not configured");
     }
 
-    console.log(`Sending password reset code to ${phoneNumber}`);
-
     const twilioUrl = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/Verifications`;
+    let deliveryChannel = 'whatsapp';
+    let twilioData: any;
+
+    // Try WhatsApp first
+    console.log(`Attempting WhatsApp delivery to ${phoneNumber}`);
     
-    const twilioResponse = await fetch(twilioUrl, {
+    let twilioResponse = await fetch(twilioUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -304,23 +307,47 @@ const handler = async (req: Request): Promise<Response> => {
       })
     });
 
-    const twilioData = await twilioResponse.json();
+    twilioData = await twilioResponse.json();
 
+    // If WhatsApp fails, fall back to SMS
     if (!twilioResponse.ok) {
-      console.error('Twilio error:', twilioData);
-      throw new Error(twilioData.message || 'Failed to send verification code');
+      console.log('WhatsApp delivery failed, falling back to SMS:', twilioData.message || twilioData.code);
+      deliveryChannel = 'sms';
+      
+      twilioResponse = await fetch(twilioUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)
+        },
+        body: new URLSearchParams({
+          To: phoneNumber,
+          Channel: 'sms'
+        })
+      });
+
+      twilioData = await twilioResponse.json();
+
+      if (!twilioResponse.ok) {
+        console.error('SMS delivery also failed:', twilioData);
+        throw new Error(twilioData.message || 'Failed to send verification code');
+      }
     }
 
-    console.log('Password reset code sent successfully:', twilioData.sid);
+    console.log(`Password reset code sent via ${deliveryChannel}:`, twilioData.sid);
 
     // Mask phone number for response
     const maskedPhone = phoneNumber.replace(/(\+\d{1,3})(\d+)(\d{4})$/, '$1****$3');
+    const channelMessage = deliveryChannel === 'whatsapp' 
+      ? "Verification code sent to your WhatsApp" 
+      : "Verification code sent via SMS";
 
     return new Response(
       JSON.stringify({ 
         success: true,
         phoneNumber: maskedPhone,
-        message: "Verification code sent to your WhatsApp"
+        channel: deliveryChannel,
+        message: channelMessage
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
