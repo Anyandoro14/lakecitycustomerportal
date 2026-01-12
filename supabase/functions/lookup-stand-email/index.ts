@@ -260,6 +260,7 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ 
         found: true,
         email: email,
+        standNumber: trimmedStand, // Return the stand number for syncing to profile
         hasPhone: !!existingProfile?.phone_number
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

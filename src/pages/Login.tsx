@@ -5,18 +5,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, XCircle, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { 
-  emailSchema, 
-  passwordSchema, 
-  phoneSchema, 
   verificationCodeSchema,
   standNumberSchema,
-  maskPhoneNumber,
-  getPasswordErrors 
+  maskPhoneNumber
 } from "@/lib/validation";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
@@ -43,12 +37,7 @@ const Login = () => {
   const [loginStandNumber, setLoginStandNumber] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [userEmail, setUserEmail] = useState(""); // Store email for re-auth after 2FA
-  
-  // Signup form state
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupPhone, setSignupPhone] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [userStandNumber, setUserStandNumber] = useState(""); // Store stand number for syncing
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -111,26 +100,22 @@ const Login = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const validateSignupForm = (): boolean => {
-    const newErrors: { [key: string]: string } = {};
-    
-    const emailResult = emailSchema.safeParse(signupEmail);
-    if (!emailResult.success) {
-      newErrors.signupEmail = emailResult.error.errors[0].message;
+  // Sync stand number to profile after successful auth
+  const syncStandNumberToProfile = async (userId: string, standNumber: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ stand_number: standNumber })
+        .eq('id', userId);
+      
+      if (error) {
+        console.error('Failed to sync stand number to profile:', error);
+      } else {
+        console.log(`Synced stand number ${standNumber} to profile`);
+      }
+    } catch (err) {
+      console.error('Error syncing stand number:', err);
     }
-    
-    const passwordResult = passwordSchema.safeParse(signupPassword);
-    if (!passwordResult.success) {
-      newErrors.signupPassword = passwordResult.error.errors[0].message;
-    }
-    
-    const phoneResult = phoneSchema.safeParse(signupPhone);
-    if (!phoneResult.success) {
-      newErrors.signupPhone = phoneResult.error.errors[0].message;
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const sendVerificationCode = async (phone: string): Promise<boolean> => {
@@ -155,7 +140,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // First, look up the user's email by stand number via edge function (bypasses RLS)
+      // Look up the user's email by stand number via edge function (bypasses RLS)
       const { data: lookupData, error: lookupError } = await supabase.functions.invoke('lookup-stand-email', {
         body: { standNumber: loginStandNumber.trim() }
       });
@@ -166,8 +151,9 @@ const Login = () => {
         throw new Error(lookupData?.error || "No account found for this stand number. Please check your stand number or contact support.");
       }
 
-      // Store email for re-auth after 2FA
+      // Store email and stand number for later use
       setUserEmail(lookupData.email);
+      setUserStandNumber(lookupData.standNumber || loginStandNumber.trim());
 
       // Authenticate with the found email
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -178,6 +164,9 @@ const Login = () => {
       if (error) throw error;
 
       if (data.user) {
+        // Sync the stand number to the user's profile
+        await syncStandNumberToProfile(data.user.id, lookupData.standNumber || loginStandNumber.trim());
+
         // Get phone number for 2FA (now we're authenticated, RLS allows it)
         const { data: profile } = await supabase
           .from('profiles')
@@ -251,56 +240,6 @@ const Login = () => {
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateSignupForm()) return;
-    
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: signupEmail,
-        password: signupPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        // Update profile with phone number
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ 
-            phone_number: signupPhone
-          })
-          .eq('id', data.user.id);
-
-        if (profileError) throw profileError;
-
-        toast({
-          title: "Account created",
-          description: "Your account has been created. Please login to access your stand information.",
-        });
-        
-        // Clear signup form
-        setSignupEmail("");
-        setSignupPassword("");
-        setSignupPhone("");
-      }
-    } catch (error: any) {
-      toast({
-        title: "Signup failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -321,12 +260,17 @@ const Login = () => {
 
       if (data.verified) {
         // Re-authenticate user after successful 2FA using stored email
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
           email: userEmail,
           password: loginPassword,
         });
         
         if (signInError) throw signInError;
+
+        // Sync stand number after 2FA re-auth
+        if (authData.user && userStandNumber) {
+          await syncStandNumberToProfile(authData.user.id, userStandNumber);
+        }
         
         toast({
           title: "Verification successful",
@@ -362,7 +306,6 @@ const Login = () => {
     setResendCooldown(0);
   };
 
-  const passwordErrors = getPasswordErrors(signupPassword);
   const maskedPhone = maskPhoneNumber(phoneNumber);
   const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
   const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
@@ -477,150 +420,57 @@ const Login = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="login-stand">Stand Number</Label>
+              <Input
+                id="login-stand"
+                type="text"
+                placeholder="e.g., A123"
+                value={loginStandNumber}
+                onChange={(e) => {
+                  setLoginStandNumber(e.target.value);
+                  setErrors({ ...errors, loginStandNumber: '' });
+                }}
+                required
+                className={errors.loginStandNumber ? 'border-destructive' : ''}
+              />
+              {errors.loginStandNumber && (
+                <p className="text-sm text-destructive">{errors.loginStandNumber}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="login-password">Password</Label>
+              <Input
+                id="login-password"
+                type="password"
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => {
+                  setLoginPassword(e.target.value);
+                  setErrors({ ...errors, loginPassword: '' });
+                }}
+                required
+                className={errors.loginPassword ? 'border-destructive' : ''}
+              />
+              {errors.loginPassword && (
+                <p className="text-sm text-destructive">{errors.loginPassword}</p>
+              )}
+            </div>
             
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-stand">Stand Number</Label>
-                  <Input
-                    id="login-stand"
-                    type="text"
-                    placeholder="e.g., A123"
-                    value={loginStandNumber}
-                    onChange={(e) => {
-                      setLoginStandNumber(e.target.value);
-                      setErrors({ ...errors, loginStandNumber: '' });
-                    }}
-                    required
-                    className={errors.loginStandNumber ? 'border-destructive' : ''}
-                  />
-                  {errors.loginStandNumber && (
-                    <p className="text-sm text-destructive">{errors.loginStandNumber}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => {
-                      setLoginPassword(e.target.value);
-                      setErrors({ ...errors, loginPassword: '' });
-                    }}
-                    required
-                    className={errors.loginPassword ? 'border-destructive' : ''}
-                  />
-                  {errors.loginPassword && (
-                    <p className="text-sm text-destructive">{errors.loginPassword}</p>
-                  )}
-                </div>
-                
-                <div className="text-right">
-                  <Link 
-                    to="/forgot-password" 
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
-                
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Logging in..." : "Login"}
-                </Button>
-              </form>
-            </TabsContent>
+            <div className="text-right">
+              <Link 
+                to="/forgot-password" 
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot your password?
+              </Link>
+            </div>
             
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={signupEmail}
-                    onChange={(e) => {
-                      setSignupEmail(e.target.value);
-                      setErrors({ ...errors, signupEmail: '' });
-                    }}
-                    required
-                    className={errors.signupEmail ? 'border-destructive' : ''}
-                  />
-                  {errors.signupEmail && (
-                    <p className="text-sm text-destructive">{errors.signupEmail}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={signupPassword}
-                      onChange={(e) => {
-                        setSignupPassword(e.target.value);
-                        setErrors({ ...errors, signupPassword: '' });
-                      }}
-                      required
-                      className={errors.signupPassword ? 'border-destructive pr-10' : 'pr-10'}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {signupPassword && (
-                    <div className="space-y-1 text-xs">
-                      {['At least 8 characters', 'One uppercase letter', 'One lowercase letter', 'One number', 'One special character'].map((req) => {
-                        const isMet = !passwordErrors.includes(req);
-                        return (
-                          <div key={req} className={`flex items-center gap-1 ${isMet ? 'text-green-600' : 'text-muted-foreground'}`}>
-                            {isMet ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                            <span>{req}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone">Phone Number (for 2FA)</Label>
-                  <Input
-                    id="signup-phone"
-                    type="tel"
-                    placeholder="+1234567890"
-                    value={signupPhone}
-                    onChange={(e) => {
-                      setSignupPhone(e.target.value);
-                      setErrors({ ...errors, signupPhone: '' });
-                    }}
-                    required
-                    className={errors.signupPhone ? 'border-destructive' : ''}
-                  />
-                  {errors.signupPhone && (
-                    <p className="text-sm text-destructive">{errors.signupPhone}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Enter your phone number with country code (e.g., +1234567890)
-                  </p>
-                </div>
-                <Button type="submit" className="w-full" disabled={loading || passwordErrors.length > 0}>
-                  {loading ? "Creating account..." : "Sign Up"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
