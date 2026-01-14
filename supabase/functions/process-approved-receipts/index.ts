@@ -277,14 +277,21 @@ async function fetchCollectionScheduleData(accessToken: string): Promise<{
   const metadata = await metadataResponse.json();
   const sheets = metadata.sheets || [];
   
-  // Find the main collection sheet
+  // Find "Collection Schedule 1" specifically - this is the source of truth for posting
   let sheetTitle = sheets[0]?.properties?.title || 'Sheet1';
-  const richcraftSheet = sheets.find((s: any) => 
-    s.properties.title.toUpperCase().includes('RICHCRAFT') || 
-    s.properties.title.toUpperCase().includes('CLIENT LIST')
+  const collectionScheduleSheet = sheets.find((s: any) => 
+    s.properties.title === 'Collection Schedule 1'
   );
-  if (richcraftSheet) {
-    sheetTitle = richcraftSheet.properties.title;
+  if (collectionScheduleSheet) {
+    sheetTitle = collectionScheduleSheet.properties.title;
+  } else {
+    // Fallback to first sheet that contains "Collection Schedule" in name
+    const fallbackSheet = sheets.find((s: any) => 
+      s.properties.title.toLowerCase().includes('collection schedule')
+    );
+    if (fallbackSheet) {
+      sheetTitle = fallbackSheet.properties.title;
+    }
   }
 
   console.log(`Fetching Collection Schedule data from: "${sheetTitle}"`);
@@ -319,23 +326,26 @@ async function fetchCollectionScheduleData(accessToken: string): Promise<{
   }
 
   // Find the first payment column (typically starts after customer info columns)
-  // Look for columns with month-year pattern or "Payment" in header
+  // Look for columns with date patterns like "5 December 2025", month-year patterns, or "Payment"
   let paymentColumnStart = -1;
   for (let i = 0; i < headerRow.length; i++) {
-    const header = headerRow[i]?.toString().toLowerCase() || '';
-    // Look for month patterns like "sep 2025", "oct-25", payment columns, or "M1", "M2" etc.
-    if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(header) ||
-        /payment\s*\d/i.test(header) ||
-        /^m\d+$/i.test(header)) {
+    const header = headerRow[i]?.toString() || '';
+    const headerLower = header.toLowerCase();
+    // Look for patterns like "5 December 2025", "5 Jan 2026", month names, or "Payment"
+    if (/\d+\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(header) ||
+        /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(header) ||
+        /payment\s*\d/i.test(headerLower) ||
+        /^m\d+$/i.test(headerLower)) {
       paymentColumnStart = i;
+      console.log(`Detected payment column at index ${i}: "${header}"`);
       break;
     }
   }
   
-  // Default to column G (index 6) if not found
+  // Default to column P (index 15) based on screenshot if not found
   if (paymentColumnStart === -1) {
-    paymentColumnStart = 6;
-    console.log(`Payment columns not auto-detected, defaulting to column ${columnIndexToLetter(paymentColumnStart)}`);
+    paymentColumnStart = 15; // Column P
+    console.log(`Payment columns not auto-detected, defaulting to column ${columnIndexToLetter(paymentColumnStart)} (P)`);
   } else {
     console.log(`Payment columns start at column ${columnIndexToLetter(paymentColumnStart)}`);
   }
@@ -526,15 +536,22 @@ async function postReceiptsToCollectionSchedule(
       continue;
     }
 
+    console.log(`Processing stand ${receipt.stand_number}, row ${rowNum}`);
+
     // Find the next empty payment cell in the row (arrears-first logic)
     const rowData = scheduleData.rows[rowNum - 1] || [];
     let targetColumn = -1;
 
+    console.log(`Scanning from column ${scheduleData.paymentColumnStart} (${columnIndexToLetter(scheduleData.paymentColumnStart)})`);
+    console.log(`Row data length: ${rowData.length}`);
+
     // Scan payment columns for the first empty cell
-    for (let col = scheduleData.paymentColumnStart; col < 50; col++) { // Up to column AX
+    for (let col = scheduleData.paymentColumnStart; col < 53; col++) { // Up to column BA
       const cellValue = rowData[col]?.toString().trim() || '';
+      console.log(`Column ${columnIndexToLetter(col)} (${col}): "${cellValue}"`);
       if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
         targetColumn = col;
+        console.log(`Found empty cell at column ${columnIndexToLetter(col)}`);
         break;
       }
     }
