@@ -232,8 +232,8 @@ serve(async (req) => {
 
     console.log(`Using sheet: "${sheetTitle}"`);
 
-    // Fetch the data
-    const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
+    // Fetch the data - extended to BA to include Payment Progress column
+    const range = encodeURIComponent(`${sheetTitle}!A:BA`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
