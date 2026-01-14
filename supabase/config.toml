@@ -35,3 +35,15 @@ verify_jwt = false
 
 [functions.verify-signup-otp]
 verify_jwt = false
+
+[functions.process-approved-receipts]
+verify_jwt = false
+
+[functions.check-reporting-access]
+verify_jwt = false
+
+[functions.fetch-reporting-data]
+verify_jwt = false
+
+[functions.manage-user-access]
+verify_jwt = false
