@@ -51,15 +51,26 @@ interface RejectedReceipt {
   rejection_reasons: string[];
 }
 
+interface PostedReceipt {
+  intake_id: string;
+  stand_number: string;
+  payment_amount: number;
+  posted_to_column: string;
+  posted_to_row: number;
+}
+
 interface ProcessingResult {
   success: boolean;
   approved_receipts: ApprovedReceipt[];
   rejected_receipts: RejectedReceipt[];
+  posted_receipts: PostedReceipt[];
   summary: {
     total_receipts: number;
     approved_count: number;
     rejected_count: number;
+    posted_count: number;
     total_approved_amount: number;
+    total_posted_amount: number;
   };
 }
 
@@ -97,7 +108,8 @@ async function getGoogleAccessToken(): Promise<string> {
   const header = { alg: "RS256", typ: "JWT" };
   const claimSet = {
     iss: serviceAccountEmail,
-    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+    // WRITE ACCESS needed to post payments back to Collection Schedule
+    scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
@@ -240,17 +252,19 @@ async function fetchValidStandNumbers(accessToken: string): Promise<Set<string>>
   return validStands;
 }
 
-// Fetch and validate receipts from Receipts_Intake sheet
-async function fetchAndValidateReceipts(
-  accessToken: string,
-  validStands: Set<string>
-): Promise<ProcessingResult> {
+// Fetch Collection Schedule data with row mappings for posting
+async function fetchCollectionScheduleData(accessToken: string): Promise<{
+  sheetTitle: string;
+  rows: string[][];
+  standRowMap: Map<string, number>;
+  paymentColumnStart: number;
+  headerRow: string[];
+}> {
   const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
   if (!spreadsheetId) {
     throw new Error('SPREADSHEET_ID not configured');
   }
 
-  // Get spreadsheet metadata to find Receipts_Intake sheet
   const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
   const metadataResponse = await fetch(metadataUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -263,19 +277,127 @@ async function fetchAndValidateReceipts(
   const metadata = await metadataResponse.json();
   const sheets = metadata.sheets || [];
   
-  // Find the Receipts_Intake sheet (EXACT match required)
+  // Find the main collection sheet
+  let sheetTitle = sheets[0]?.properties?.title || 'Sheet1';
+  const richcraftSheet = sheets.find((s: any) => 
+    s.properties.title.toUpperCase().includes('RICHCRAFT') || 
+    s.properties.title.toUpperCase().includes('CLIENT LIST')
+  );
+  if (richcraftSheet) {
+    sheetTitle = richcraftSheet.properties.title;
+  }
+
+  console.log(`Fetching Collection Schedule data from: "${sheetTitle}"`);
+
+  // Fetch entire sheet to get payment columns
+  const range = encodeURIComponent(`${sheetTitle}!A:BA`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+  
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch Collection Schedule data');
+  }
+
+  const data: GoogleSheetsResponse = await response.json();
+  const rows = data.values || [];
+  
+  if (rows.length < 2) {
+    throw new Error('Collection Schedule has no data rows');
+  }
+
+  const headerRow = rows[0];
+  
+  // Find Stand Number column
+  const standNumIndex = headerRow.findIndex(h => 
+    h && h.toString().toLowerCase().includes('stand')
+  );
+  if (standNumIndex === -1) {
+    throw new Error('Could not find Stand Number column');
+  }
+
+  // Find the first payment column (typically starts after customer info columns)
+  // Look for columns with month-year pattern or "Payment" in header
+  let paymentColumnStart = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    const header = headerRow[i]?.toString().toLowerCase() || '';
+    // Look for month patterns like "sep 2025", "oct-25", payment columns, or "M1", "M2" etc.
+    if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(header) ||
+        /payment\s*\d/i.test(header) ||
+        /^m\d+$/i.test(header)) {
+      paymentColumnStart = i;
+      break;
+    }
+  }
+  
+  // Default to column G (index 6) if not found
+  if (paymentColumnStart === -1) {
+    paymentColumnStart = 6;
+    console.log(`Payment columns not auto-detected, defaulting to column ${columnIndexToLetter(paymentColumnStart)}`);
+  } else {
+    console.log(`Payment columns start at column ${columnIndexToLetter(paymentColumnStart)}`);
+  }
+
+  // Build stand -> row mapping
+  const standRowMap = new Map<string, number>();
+  for (let i = 1; i < rows.length; i++) {
+    const standNum = rows[i][standNumIndex]?.toString().trim();
+    if (standNum) {
+      standRowMap.set(standNum, i + 1); // 1-indexed row number for Sheets API
+    }
+  }
+
+  console.log(`Found ${standRowMap.size} stands mapped to rows`);
+
+  return { sheetTitle, rows, standRowMap, paymentColumnStart, headerRow };
+}
+
+// Convert column index to letter (0 = A, 1 = B, etc.)
+function columnIndexToLetter(index: number): string {
+  let letter = '';
+  let temp = index;
+  while (temp >= 0) {
+    letter = String.fromCharCode((temp % 26) + 65) + letter;
+    temp = Math.floor(temp / 26) - 1;
+  }
+  return letter;
+}
+
+// Fetch and validate receipts from Receipts_Intake sheet
+async function fetchAndValidateReceipts(
+  accessToken: string,
+  validStands: Set<string>
+): Promise<{ approved: ApprovedReceipt[]; rejected: RejectedReceipt[] }> {
+  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    throw new Error('SPREADSHEET_ID not configured');
+  }
+
+  const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+  const metadataResponse = await fetch(metadataUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!metadataResponse.ok) {
+    throw new Error('Failed to fetch spreadsheet metadata');
+  }
+
+  const metadata = await metadataResponse.json();
+  const sheets = metadata.sheets || [];
+  
   const receiptsSheet = sheets.find((s: any) => 
     s.properties.title === 'Receipts_Intake'
   );
 
   if (!receiptsSheet) {
-    throw new Error('Receipts_Intake sheet not found. This is the sole source of truth for receipts.');
+    throw new Error('Receipts_Intake sheet not found');
   }
 
   const sheetTitle = receiptsSheet.properties.title;
-  console.log(`Processing receipts from sheet: "${sheetTitle}"`);
+  console.log(`Processing receipts from: "${sheetTitle}"`);
 
-  // Fetch all data from Receipts_Intake
   const range = encodeURIComponent(`${sheetTitle}!A:L`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
   
@@ -293,47 +415,28 @@ async function fetchAndValidateReceipts(
   console.log(`Fetched ${rows.length} rows from Receipts_Intake`);
 
   if (rows.length < 2) {
-    return {
-      success: true,
-      approved_receipts: [],
-      rejected_receipts: [],
-      summary: {
-        total_receipts: 0,
-        approved_count: 0,
-        rejected_count: 0,
-        total_approved_amount: 0
-      }
-    };
+    return { approved: [], rejected: [] };
   }
 
-  // Validate header row matches expected structure
-  const headers = rows[0];
-  console.log('Receipts_Intake headers:', headers);
-  
-  // Column indices based on the screenshot:
-  // A: Intake_ID, B: Timestamp, C: Stand_Number, D: Customer_Name, 
-  // E: Payment_Date, F: Payment_Amount, G: Payment_Method, H: Reference,
-  // I: Receipt_URL, J: Entered_By, K: Intake_Status, L: Notes
-  const COL_INTAKE_ID = 0;      // Column A
-  const COL_TIMESTAMP = 1;      // Column B
-  const COL_STAND_NUMBER = 2;   // Column C - MANDATORY
-  const COL_CUSTOMER_NAME = 3;  // Column D
-  const COL_PAYMENT_DATE = 4;   // Column E
-  const COL_PAYMENT_AMOUNT = 5; // Column F - MANDATORY (must be > 0)
-  const COL_PAYMENT_METHOD = 6; // Column G
-  const COL_REFERENCE = 7;      // Column H
-  const COL_RECEIPT_URL = 8;    // Column I
-  const COL_ENTERED_BY = 9;     // Column J
-  const COL_INTAKE_STATUS = 10; // Column K - MUST be exactly "Approved"
-  const COL_NOTES = 11;         // Column L
+  const COL_INTAKE_ID = 0;
+  const COL_TIMESTAMP = 1;
+  const COL_STAND_NUMBER = 2;
+  const COL_CUSTOMER_NAME = 3;
+  const COL_PAYMENT_DATE = 4;
+  const COL_PAYMENT_AMOUNT = 5;
+  const COL_PAYMENT_METHOD = 6;
+  const COL_REFERENCE = 7;
+  const COL_RECEIPT_URL = 8;
+  const COL_ENTERED_BY = 9;
+  const COL_INTAKE_STATUS = 10;
+  const COL_NOTES = 11;
 
-  const approved_receipts: ApprovedReceipt[] = [];
-  const rejected_receipts: RejectedReceipt[] = [];
+  const approved: ApprovedReceipt[] = [];
+  const rejected: RejectedReceipt[] = [];
 
-  // Process each receipt row (skip header)
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    const rowNum = i + 1; // Human-readable row number
+    const rowNum = i + 1;
     
     const intakeId = row[COL_INTAKE_ID]?.toString().trim() || `ROW_${rowNum}`;
     const standNumber = row[COL_STAND_NUMBER]?.toString().trim() || '';
@@ -342,46 +445,33 @@ async function fetchAndValidateReceipts(
     
     const rejectionReasons: string[] = [];
 
-    // =================================================================
-    // MANDATORY CONDITION 1: Column C (Stand_Number) must be present
-    // and must match an existing stand number in Collection Schedule
-    // =================================================================
+    // CONDITION 1: Stand Number must exist
     if (!standNumber) {
       rejectionReasons.push('Stand Number (Column C) is missing');
     } else if (!validStands.has(standNumber)) {
-      rejectionReasons.push(`Stand Number "${standNumber}" does not exist in Collection Schedule`);
+      rejectionReasons.push(`Stand Number "${standNumber}" not in Collection Schedule`);
     }
 
-    // =================================================================
-    // MANDATORY CONDITION 2: Column F (Payment_Amount) must contain
-    // a valid numeric value greater than zero
-    // =================================================================
+    // CONDITION 2: Payment Amount must be > 0
     const paymentAmount = parseCurrency(paymentAmountStr);
     if (!paymentAmountStr) {
       rejectionReasons.push('Payment Amount (Column F) is missing');
     } else if (paymentAmount <= 0) {
-      rejectionReasons.push(`Payment Amount must be greater than zero (got: "${paymentAmountStr}")`);
+      rejectionReasons.push(`Payment Amount must be > 0 (got: "${paymentAmountStr}")`);
     }
 
-    // =================================================================
-    // MANDATORY CONDITION 3: Column K (Intake_Status) must read
-    // EXACTLY "Approved" (case-sensitive)
-    // No other value is acceptable (e.g., Pending, Yes, TRUE, etc.)
-    // =================================================================
+    // CONDITION 3: Status must be exactly "Approved"
     if (intakeStatus !== 'Approved') {
       if (!intakeStatus) {
         rejectionReasons.push('Approval Status (Column K) is missing');
       } else {
-        rejectionReasons.push(`Approval Status must be exactly "Approved" (got: "${intakeStatus}")`);
+        rejectionReasons.push(`Status must be "Approved" (got: "${intakeStatus}")`);
       }
     }
 
-    // =================================================================
-    // COMPLIANCE DECISION: If ANY condition fails, REJECT the receipt
-    // =================================================================
     if (rejectionReasons.length > 0) {
-      console.log(`[REJECTED] Row ${rowNum} (${intakeId}): ${rejectionReasons.join('; ')}`);
-      rejected_receipts.push({
+      console.log(`[REJECTED] Row ${rowNum}: ${rejectionReasons.join('; ')}`);
+      rejected.push({
         intake_id: intakeId,
         stand_number: standNumber,
         payment_amount: paymentAmountStr,
@@ -391,12 +481,8 @@ async function fetchAndValidateReceipts(
       continue;
     }
 
-    // =================================================================
-    // ALL CONDITIONS MET: Receipt is APPROVED for processing
-    // =================================================================
-    console.log(`[APPROVED] Row ${rowNum} (${intakeId}): Stand ${standNumber}, Amount ${paymentAmount}`);
-    
-    approved_receipts.push({
+    console.log(`[APPROVED] Row ${rowNum}: Stand ${standNumber}, Amount $${paymentAmount}`);
+    approved.push({
       intake_id: intakeId,
       timestamp: row[COL_TIMESTAMP]?.toString().trim() || '',
       stand_number: standNumber,
@@ -412,19 +498,152 @@ async function fetchAndValidateReceipts(
     });
   }
 
-  const totalApprovedAmount = approved_receipts.reduce((sum, r) => sum + r.payment_amount, 0);
+  return { approved, rejected };
+}
 
-  return {
-    success: true,
-    approved_receipts,
-    rejected_receipts,
-    summary: {
-      total_receipts: rows.length - 1, // Exclude header
-      approved_count: approved_receipts.length,
-      rejected_count: rejected_receipts.length,
-      total_approved_amount: totalApprovedAmount
+// Post approved receipts to the Collection Schedule
+async function postReceiptsToCollectionSchedule(
+  accessToken: string,
+  approvedReceipts: ApprovedReceipt[],
+  scheduleData: {
+    sheetTitle: string;
+    rows: string[][];
+    standRowMap: Map<string, number>;
+    paymentColumnStart: number;
+  }
+): Promise<PostedReceipt[]> {
+  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    throw new Error('SPREADSHEET_ID not configured');
+  }
+
+  const posted: PostedReceipt[] = [];
+
+  for (const receipt of approvedReceipts) {
+    const rowNum = scheduleData.standRowMap.get(receipt.stand_number);
+    if (!rowNum) {
+      console.log(`[SKIP] No row found for stand ${receipt.stand_number}`);
+      continue;
     }
-  };
+
+    // Find the next empty payment cell in the row (arrears-first logic)
+    const rowData = scheduleData.rows[rowNum - 1] || [];
+    let targetColumn = -1;
+
+    // Scan payment columns for the first empty cell
+    for (let col = scheduleData.paymentColumnStart; col < 50; col++) { // Up to column AX
+      const cellValue = rowData[col]?.toString().trim() || '';
+      if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
+        targetColumn = col;
+        break;
+      }
+    }
+
+    if (targetColumn === -1) {
+      console.log(`[SKIP] No empty payment cell for stand ${receipt.stand_number}`);
+      continue;
+    }
+
+    const columnLetter = columnIndexToLetter(targetColumn);
+    const cellRange = `${scheduleData.sheetTitle}!${columnLetter}${rowNum}`;
+
+    console.log(`[POSTING] ${receipt.intake_id}: $${receipt.payment_amount} -> ${cellRange}`);
+
+    // Write the payment to the cell
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
+    
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [[receipt.payment_amount]]
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error(`[ERROR] Failed to post ${receipt.intake_id}: ${errorText}`);
+      continue;
+    }
+
+    console.log(`[SUCCESS] Posted ${receipt.intake_id} to ${cellRange}`);
+    posted.push({
+      intake_id: receipt.intake_id,
+      stand_number: receipt.stand_number,
+      payment_amount: receipt.payment_amount,
+      posted_to_column: columnLetter,
+      posted_to_row: rowNum
+    });
+  }
+
+  return posted;
+}
+
+// Mark receipts as "Posted" in the Receipts_Intake sheet
+async function markReceiptsAsPosted(
+  accessToken: string,
+  postedReceipts: PostedReceipt[]
+): Promise<void> {
+  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+  if (!spreadsheetId || postedReceipts.length === 0) return;
+
+  // We need to find the row numbers in Receipts_Intake for each posted receipt
+  // and update Column K (Intake_Status) to "Posted"
+  
+  const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+  const metadataResponse = await fetch(metadataUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!metadataResponse.ok) return;
+
+  const metadata = await metadataResponse.json();
+  const sheets = metadata.sheets || [];
+  const receiptsSheet = sheets.find((s: any) => s.properties.title === 'Receipts_Intake');
+  if (!receiptsSheet) return;
+
+  const sheetTitle = receiptsSheet.properties.title;
+
+  // Fetch intake IDs to find row numbers
+  const range = encodeURIComponent(`${sheetTitle}!A:A`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!response.ok) return;
+
+  const data: GoogleSheetsResponse = await response.json();
+  const rows = data.values || [];
+
+  // Build intake_id -> row number map
+  const intakeIdToRow = new Map<string, number>();
+  for (let i = 1; i < rows.length; i++) {
+    const intakeId = rows[i][0]?.toString().trim();
+    if (intakeId) {
+      intakeIdToRow.set(intakeId, i + 1);
+    }
+  }
+
+  // Update each posted receipt's status to "Posted"
+  for (const posted of postedReceipts) {
+    const rowNum = intakeIdToRow.get(posted.intake_id);
+    if (!rowNum) continue;
+
+    const cellRange = `${sheetTitle}!K${rowNum}`;
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
+    
+    await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values: [['Posted']] }),
+    });
+
+    console.log(`[MARKED] ${posted.intake_id} status updated to "Posted"`);
+  }
 }
 
 serve(async (req) => {
@@ -438,22 +657,44 @@ serve(async (req) => {
     console.log('='.repeat(60));
     console.log(`Timestamp: ${new Date().toISOString()}`);
 
-    // Create Supabase client with service role
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get Google Sheets access token
-    console.log('Authenticating with Google Sheets...');
+    // Get Google Sheets access token (with WRITE permission)
+    console.log('Authenticating with Google Sheets (write access)...');
     const accessToken = await getGoogleAccessToken();
 
-    // Step 1: Fetch valid stand numbers from Collection Schedule
-    console.log('Step 1: Fetching valid stand numbers from Collection Schedule...');
-    const validStands = await fetchValidStandNumbers(accessToken);
+    // Step 1: Fetch Collection Schedule data with row mappings
+    console.log('Step 1: Fetching Collection Schedule data...');
+    const scheduleData = await fetchCollectionScheduleData(accessToken);
+    const validStands = new Set(scheduleData.standRowMap.keys());
 
     // Step 2: Fetch and validate receipts from Receipts_Intake
-    console.log('Step 2: Processing receipts from Receipts_Intake (sole source of truth)...');
-    const result = await fetchAndValidateReceipts(accessToken, validStands);
+    console.log('Step 2: Processing receipts from Receipts_Intake...');
+    const { approved, rejected } = await fetchAndValidateReceipts(accessToken, validStands);
+
+    // Step 3: Post approved receipts to Collection Schedule
+    console.log('Step 3: Posting approved receipts to Collection Schedule...');
+    const posted = await postReceiptsToCollectionSchedule(accessToken, approved, scheduleData);
+
+    // Step 4: Mark posted receipts as "Posted" in Receipts_Intake
+    console.log('Step 4: Updating status in Receipts_Intake...');
+    await markReceiptsAsPosted(accessToken, posted);
+
+    const totalApprovedAmount = approved.reduce((sum, r) => sum + r.payment_amount, 0);
+    const totalPostedAmount = posted.reduce((sum, r) => sum + r.payment_amount, 0);
+
+    const result: ProcessingResult = {
+      success: true,
+      approved_receipts: approved,
+      rejected_receipts: rejected,
+      posted_receipts: posted,
+      summary: {
+        total_receipts: approved.length + rejected.length,
+        approved_count: approved.length,
+        rejected_count: rejected.length,
+        posted_count: posted.length,
+        total_approved_amount: totalApprovedAmount,
+        total_posted_amount: totalPostedAmount
+      }
+    };
 
     // Log compliance summary
     console.log('='.repeat(60));
@@ -461,14 +702,23 @@ serve(async (req) => {
     console.log('='.repeat(60));
     console.log(`Total Receipts Processed: ${result.summary.total_receipts}`);
     console.log(`Approved (passed QC): ${result.summary.approved_count}`);
+    console.log(`Posted to Schedule: ${result.summary.posted_count}`);
     console.log(`Rejected (failed QC): ${result.summary.rejected_count}`);
-    console.log(`Total Approved Amount: $${result.summary.total_approved_amount.toFixed(2)}`);
+    console.log(`Total Approved Amount: $${totalApprovedAmount.toFixed(2)}`);
+    console.log(`Total Posted Amount: $${totalPostedAmount.toFixed(2)}`);
     console.log('='.repeat(60));
 
-    if (result.rejected_receipts.length > 0) {
-      console.log('REJECTED RECEIPTS DETAIL:');
-      for (const rejected of result.rejected_receipts) {
-        console.log(`  - ${rejected.intake_id}: ${rejected.rejection_reasons.join('; ')}`);
+    if (posted.length > 0) {
+      console.log('POSTED RECEIPTS:');
+      for (const p of posted) {
+        console.log(`  - ${p.intake_id}: $${p.payment_amount} -> Column ${p.posted_to_column}, Row ${p.posted_to_row}`);
+      }
+    }
+
+    if (rejected.length > 0) {
+      console.log('REJECTED RECEIPTS:');
+      for (const r of rejected) {
+        console.log(`  - ${r.intake_id}: ${r.rejection_reasons.join('; ')}`);
       }
     }
 
