@@ -14,6 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          performed_by: string | null
+          performed_by_email: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          performed_by?: string | null
+          performed_by_email?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          performed_by?: string | null
+          performed_by_email?: string | null
+        }
+        Relationships: []
+      }
+      internal_users: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          full_name: string | null
+          id: string
+          is_override_approver: boolean
+          role: Database["public"]["Enums"]["internal_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          is_override_approver?: boolean
+          role?: Database["public"]["Enums"]["internal_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_override_approver?: boolean
+          role?: Database["public"]["Enums"]["internal_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      knowledge_base: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       monthly_statements: {
         Row: {
           closing_balance: number
@@ -185,10 +293,16 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_password_reset_tokens: { Args: never; Returns: undefined }
+      get_internal_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["internal_role"]
+      }
       get_user_stand_number: { Args: { user_id: string }; Returns: string }
+      is_internal_user: { Args: { _user_id: string }; Returns: boolean }
+      is_override_approver: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      internal_role: "helpdesk" | "admin" | "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -315,6 +429,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      internal_role: ["helpdesk", "admin", "super_admin"],
+    },
   },
 } as const

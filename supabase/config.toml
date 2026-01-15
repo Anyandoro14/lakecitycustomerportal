@@ -56,3 +56,9 @@ verify_jwt = false
 
 [functions.write-cell]
 verify_jwt = false
+
+[functions.internal-portal-access]
+verify_jwt = false
+
+[functions.internal-send-message]
+verify_jwt = false
