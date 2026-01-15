@@ -30,6 +30,10 @@ import {
   FileText,
   Home,
   LogOut,
+  UserCog,
+  Trash2,
+  Crown,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -47,6 +51,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -126,6 +140,12 @@ const InternalPortal = () => {
   const [knowledgeArticles, setKnowledgeArticles] = useState<KnowledgeArticle[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<KnowledgeArticle | null>(null);
 
+  // User management states
+  const [internalUsers, setInternalUsers] = useState<InternalUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<InternalUser | null>(null);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
   useEffect(() => {
     checkAccess();
   }, []);
@@ -165,6 +185,11 @@ const InternalPortal = () => {
       // Load initial data
       loadAuditLogs();
       loadKnowledgeBase();
+      
+      // Load users if super admin
+      if (data.user?.role === 'super_admin') {
+        loadInternalUsers();
+      }
     } catch (error: any) {
       console.error('Access check error:', error);
       toast.error("Failed to verify access");
@@ -185,6 +210,84 @@ const InternalPortal = () => {
       console.error('Failed to load audit logs:', error);
     } finally {
       setAuditLoading(false);
+    }
+  };
+
+  const loadInternalUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('internal-portal-access', {
+        body: { action: 'list-internal-users' }
+      });
+      if (error) throw error;
+      if (data?.users) setInternalUsers(data.users);
+    } catch (error) {
+      console.error('Failed to load internal users:', error);
+      toast.error("Failed to load users");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleUpdateRole = async (targetUserId: string, newRole: string) => {
+    setUpdatingUserId(targetUserId);
+    try {
+      const { data, error } = await supabase.functions.invoke('internal-portal-access', {
+        body: { action: 'update-user-role', targetUserId, newRole }
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("Role updated successfully");
+        loadInternalUsers();
+        loadAuditLogs();
+      }
+    } catch (error: any) {
+      console.error('Error updating role:', error);
+      toast.error(error.message || "Failed to update role");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleToggleApprover = async (targetUserId: string, isApprover: boolean) => {
+    setUpdatingUserId(targetUserId);
+    try {
+      const { data, error } = await supabase.functions.invoke('internal-portal-access', {
+        body: { action: 'toggle-override-approver', targetUserId, isApprover }
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(isApprover ? "User is now an approver" : "Approver status removed");
+        loadInternalUsers();
+        loadAuditLogs();
+      }
+    } catch (error: any) {
+      console.error('Error toggling approver:', error);
+      toast.error(error.message || "Failed to update approver status");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleRevokeAccess = async () => {
+    if (!userToDelete) return;
+    setUpdatingUserId(userToDelete.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('internal-portal-access', {
+        body: { action: 'revoke-user-access', targetUserId: userToDelete.id }
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("User access revoked");
+        loadInternalUsers();
+        loadAuditLogs();
+      }
+    } catch (error: any) {
+      console.error('Error revoking access:', error);
+      toast.error(error.message || "Failed to revoke access");
+    } finally {
+      setUpdatingUserId(null);
+      setUserToDelete(null);
     }
   };
 
@@ -369,7 +472,7 @@ const InternalPortal = () => {
 
       <div className="max-w-7xl mx-auto p-4 md:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-2 md:grid-cols-5 gap-2 h-auto p-1">
+          <TabsList className={`grid ${currentUser?.role === 'super_admin' ? 'grid-cols-3 md:grid-cols-6' : 'grid-cols-2 md:grid-cols-5'} gap-2 h-auto p-1`}>
             <TabsTrigger value="dashboard" className="flex items-center gap-2 py-2">
               <Home className="h-4 w-4" />
               <span className="hidden md:inline">Dashboard</span>
@@ -390,6 +493,12 @@ const InternalPortal = () => {
               <BookOpen className="h-4 w-4" />
               <span className="hidden md:inline">Knowledge</span>
             </TabsTrigger>
+            {currentUser?.role === 'super_admin' && (
+              <TabsTrigger value="users" className="flex items-center gap-2 py-2">
+                <UserCog className="h-4 w-4" />
+                <span className="hidden md:inline">Users</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -834,6 +943,171 @@ const InternalPortal = () => {
               </Card>
             </div>
           </TabsContent>
+
+          {/* User Management Tab - Super Admin Only */}
+          {currentUser?.role === 'super_admin' && (
+            <TabsContent value="users" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <UserCog className="h-5 w-5" />
+                        User Management
+                      </CardTitle>
+                      <CardDescription>Manage internal portal access, roles, and permissions</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={loadInternalUsers} disabled={usersLoading}>
+                      <RefreshCw className={`h-4 w-4 mr-2 ${usersLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {usersLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : internalUsers.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No internal users found</p>
+                  ) : (
+                    <ScrollArea className="h-[500px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Override Approver</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {internalUsers.map((user) => (
+                            <TableRow key={user.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{user.full_name || 'No name'}</p>
+                                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={user.role}
+                                  onValueChange={(value) => handleUpdateRole(user.id, value)}
+                                  disabled={updatingUserId === user.id}
+                                >
+                                  <SelectTrigger className="w-[130px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="helpdesk">
+                                      <span className="flex items-center gap-2">
+                                        <Users className="h-3 w-3" />
+                                        Helpdesk
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="admin">
+                                      <span className="flex items-center gap-2">
+                                        <ShieldCheck className="h-3 w-3" />
+                                        Admin
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="super_admin">
+                                      <span className="flex items-center gap-2">
+                                        <Crown className="h-3 w-3" />
+                                        Super Admin
+                                      </span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant={user.is_override_approver ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleToggleApprover(user.id, !user.is_override_approver)}
+                                  disabled={updatingUserId === user.id}
+                                >
+                                  {updatingUserId === user.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : user.is_override_approver ? (
+                                    <>
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Approver
+                                    </>
+                                  ) : (
+                                    "Make Approver"
+                                  )}
+                                </Button>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => setUserToDelete(user)}
+                                  disabled={updatingUserId === user.id}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Role Descriptions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Role Permissions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users className="h-5 w-5 text-muted-foreground" />
+                        <h3 className="font-semibold">Helpdesk</h3>
+                      </div>
+                      <ul className="text-sm space-y-1 text-muted-foreground">
+                        <li>• Customer lookup</li>
+                        <li>• View audit logs</li>
+                        <li>• Send messages</li>
+                        <li>• Knowledge base access</li>
+                      </ul>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldCheck className="h-5 w-5 text-blue-600" />
+                        <h3 className="font-semibold">Admin</h3>
+                      </div>
+                      <ul className="text-sm space-y-1 text-muted-foreground">
+                        <li>• All Helpdesk permissions</li>
+                        <li>• Password resets</li>
+                        <li>• Manage knowledge base</li>
+                        <li>• View reports</li>
+                      </ul>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Crown className="h-5 w-5 text-yellow-600" />
+                        <h3 className="font-semibold">Super Admin</h3>
+                      </div>
+                      <ul className="text-sm space-y-1 text-muted-foreground">
+                        <li>• All Admin permissions</li>
+                        <li>• User management</li>
+                        <li>• Role assignments</li>
+                        <li>• System configuration</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
@@ -868,6 +1142,33 @@ const InternalPortal = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Revoke Access Confirmation Dialog */}
+      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke User Access</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to revoke portal access for <strong>{userToDelete?.email}</strong>? 
+              This action cannot be undone. The user will no longer be able to access the internal portal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevokeAccess}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {updatingUserId === userToDelete?.id ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Revoke Access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

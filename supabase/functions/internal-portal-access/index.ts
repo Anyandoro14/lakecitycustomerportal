@@ -136,7 +136,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'search-customer') {
-      const { searchType, searchQuery } = await req.json().catch(() => ({}));
+      const body = await req.clone().json();
+      const { searchType, searchQuery } = body;
       
       let query = supabaseAdmin.from('profiles').select('*');
       
@@ -177,6 +178,203 @@ Deno.serve(async (req) => {
             user_id: c.id
           })) || []
         }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ==================== USER MANAGEMENT ====================
+
+    // Helper to check if current user is super_admin
+    const checkSuperAdmin = async () => {
+      const { data: currentUserData } = await supabaseAdmin
+        .from('internal_users')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+      return currentUserData?.role === 'super_admin';
+    };
+
+    if (action === 'list-internal-users') {
+      // Only super_admin can list all internal users
+      const isSuperAdmin = await checkSuperAdmin();
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only super admins can manage users' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: users, error } = await supabaseAdmin
+        .from('internal_users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching internal users:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch users' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ users: users || [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'update-user-role') {
+      const isSuperAdmin = await checkSuperAdmin();
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only super admins can update roles' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const body = await req.clone().json();
+      const { targetUserId, newRole } = body;
+
+      if (!['helpdesk', 'admin', 'super_admin'].includes(newRole)) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid role' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Prevent demoting yourself
+      if (targetUserId === userId && newRole !== 'super_admin') {
+        return new Response(
+          JSON.stringify({ error: 'Cannot demote yourself' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: updated, error } = await supabaseAdmin
+        .from('internal_users')
+        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .eq('id', targetUserId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating user role:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to update role' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Log the action
+      await supabaseAdmin.from('audit_log').insert({
+        action: 'UPDATE_USER_ROLE',
+        entity_type: 'internal_user',
+        entity_id: targetUserId,
+        performed_by: userId,
+        performed_by_email: userEmail,
+        details: { targetEmail: updated.email, newRole }
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, user: updated }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'toggle-override-approver') {
+      const isSuperAdmin = await checkSuperAdmin();
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only super admins can toggle approver status' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const body = await req.clone().json();
+      const { targetUserId, isApprover } = body;
+
+      const { data: updated, error } = await supabaseAdmin
+        .from('internal_users')
+        .update({ is_override_approver: isApprover, updated_at: new Date().toISOString() })
+        .eq('id', targetUserId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error toggling approver status:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to update approver status' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Log the action
+      await supabaseAdmin.from('audit_log').insert({
+        action: 'TOGGLE_APPROVER',
+        entity_type: 'internal_user',
+        entity_id: targetUserId,
+        performed_by: userId,
+        performed_by_email: userEmail,
+        details: { targetEmail: updated.email, isApprover }
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, user: updated }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'revoke-user-access') {
+      const isSuperAdmin = await checkSuperAdmin();
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only super admins can revoke access' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const body = await req.clone().json();
+      const { targetUserId } = body;
+
+      // Prevent revoking your own access
+      const { data: targetUser } = await supabaseAdmin
+        .from('internal_users')
+        .select('user_id, email')
+        .eq('id', targetUserId)
+        .single();
+
+      if (targetUser?.user_id === userId) {
+        return new Response(
+          JSON.stringify({ error: 'Cannot revoke your own access' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error } = await supabaseAdmin
+        .from('internal_users')
+        .delete()
+        .eq('id', targetUserId);
+
+      if (error) {
+        console.error('Error revoking user access:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to revoke access' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Log the action
+      await supabaseAdmin.from('audit_log').insert({
+        action: 'REVOKE_ACCESS',
+        entity_type: 'internal_user',
+        entity_id: targetUserId,
+        performed_by: userId,
+        performed_by_email: userEmail,
+        details: { revokedEmail: targetUser?.email }
+      });
+
+      return new Response(
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
