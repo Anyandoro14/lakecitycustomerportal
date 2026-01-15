@@ -162,8 +162,8 @@ const Index = () => {
         }} />
 
         <PaymentSummary
-          signedBySeller={true}
-          signedByBuyer={false}
+          signedBySeller={selectedStand.agreementSignedByWarwickshire || false}
+          signedByBuyer={selectedStand.agreementSignedByClient || false}
         />
 
         <PaymentHistory payments={selectedStand.paymentHistory || []} />

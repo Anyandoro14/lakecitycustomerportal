@@ -232,8 +232,8 @@ serve(async (req) => {
 
     console.log(`Using sheet: "${sheetTitle}"`);
 
-    // Fetch the data - extended to BA to include Payment Progress column
-    const range = encodeURIComponent(`${sheetTitle}!A:BA`);
+    // Fetch the data - extended to BH to include Agreement signed columns
+    const range = encodeURIComponent(`${sheetTitle}!A:BH`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -342,6 +342,8 @@ serve(async (req) => {
       const totalPaidCol = 50; // Column AY (shifted from AX)
       const currentBalanceCol = 51; // Column AZ (shifted from AY)
       const paymentProgressCol = 52; // Column BA (shifted from AZ)
+      const agreementSignedByWarwickshireCol = 58; // Column BG - Agreement signed by Warwickshire
+      const agreementSignedByClientCol = 59; // Column BH - Agreement signed by client
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
@@ -462,6 +464,13 @@ serve(async (req) => {
       
       console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);
 
+      // Get agreement signature status from columns BG and BH
+      // Checkbox columns typically have "TRUE" or empty/"FALSE"
+      const agreementSignedByWarwickshire = customerRow[agreementSignedByWarwickshireCol]?.toString().toUpperCase() === 'TRUE';
+      const agreementSignedByClient = customerRow[agreementSignedByClientCol]?.toString().toUpperCase() === 'TRUE';
+      
+      console.log(`Stand ${standNumber}: Agreement signed by Warwickshire = ${agreementSignedByWarwickshire}, by Client = ${agreementSignedByClient}`);
+
       return {
         customerId: customerRow[standNumIndex] || '',
         standNumber: standNumber || '',
@@ -480,6 +489,8 @@ serve(async (req) => {
         totalPaid: totalPaid,
         progressPercentage: progressPercentage,
         paymentHistory: paymentHistory,
+        agreementSignedByWarwickshire: agreementSignedByWarwickshire,
+        agreementSignedByClient: agreementSignedByClient,
       };
     });
 

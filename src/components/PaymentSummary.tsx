@@ -23,7 +23,7 @@ const PaymentSummary = ({ signedBySeller = false, signedByBuyer = false }: Payme
           ) : (
             <Circle className="h-4 w-4" />
           )}
-          <span>Signed by Seller</span>
+          <span>Signed by Warwickshire</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
           {signedByBuyer ? (
@@ -31,7 +31,7 @@ const PaymentSummary = ({ signedBySeller = false, signedByBuyer = false }: Payme
           ) : (
             <Circle className="h-4 w-4" />
           )}
-          <span>Signed by Buyer</span>
+          <span>Signed by Client</span>
         </div>
       </div>
     </Card>
