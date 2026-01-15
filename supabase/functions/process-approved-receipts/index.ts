@@ -94,9 +94,12 @@ async function getGoogleAccessToken(): Promise<string> {
     const credentials = JSON.parse(keyString.replace(/\\n/g, '\n'));
     privateKeyPem = credentials.private_key;
     serviceAccountEmail = credentials.client_email;
-  } catch {
+    console.log(`Using service account from JSON: ${serviceAccountEmail}`);
+  } catch (e) {
+    console.log(`Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY as JSON: ${e}`);
     privateKeyPem = keyString;
     serviceAccountEmail = clientEmail;
+    console.log(`Using GOOGLE_CLIENT_EMAIL fallback: ${serviceAccountEmail}`);
   }
 
   const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
