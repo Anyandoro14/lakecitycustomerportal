@@ -473,9 +473,20 @@ const InternalPortal = () => {
                       Override Approvers
                     </h3>
                     <div className="space-y-2">
-                      <Badge variant="outline" className="mr-2">Alex</Badge>
-                      <Badge variant="outline" className="mr-2">Brenda</Badge>
-                      <Badge variant="outline">Tapiwa</Badge>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          alex@lakecity.co.zw
+                        </Badge>
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          brenda@lakecity.co.zw
+                        </Badge>
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          tapiwa@lakecity.co.zw
+                        </Badge>
+                      </div>
                     </div>
                     <p className="text-sm text-muted-foreground mt-3">
                       Contact any approver for authorization before proceeding with restricted actions.
