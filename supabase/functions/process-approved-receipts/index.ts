@@ -378,6 +378,52 @@ function columnIndexToLetter(index: number): string {
   return letter;
 }
 
+type SheetProtectedRange = {
+  description?: string;
+  warningOnly?: boolean;
+  range?: {
+    sheetId?: number;
+    startRowIndex?: number;
+    endRowIndex?: number;
+    startColumnIndex?: number;
+    endColumnIndex?: number;
+  };
+  editors?: {
+    users?: string[];
+    groups?: string[];
+    domainUsersCanEdit?: boolean;
+  };
+};
+
+async function getSheetProtectedRanges(accessToken: string, spreadsheetId: string, sheetTitle: string): Promise<{ sheetId?: number; protectedRanges: SheetProtectedRange[] }> {
+  // Only fetch minimal fields for debugging permission issues
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(title,sheetId),protectedRanges)`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) return { protectedRanges: [] };
+
+  const data = await res.json();
+  const sheet = (data.sheets || []).find((s: any) => s?.properties?.title === sheetTitle);
+  return {
+    sheetId: sheet?.properties?.sheetId,
+    protectedRanges: sheet?.protectedRanges || [],
+  };
+}
+
+function protectedRangeCoversCell(r: SheetProtectedRange, sheetId: number | undefined, rowIndex0: number, colIndex0: number): boolean {
+  const range = r.range;
+  if (!range) return false;
+  if (typeof sheetId === 'number' && typeof range.sheetId === 'number' && range.sheetId !== sheetId) return false;
+
+  const startRow = range.startRowIndex ?? 0;
+  const endRow = range.endRowIndex ?? Number.POSITIVE_INFINITY;
+  const startCol = range.startColumnIndex ?? 0;
+  const endCol = range.endColumnIndex ?? Number.POSITIVE_INFINITY;
+
+  return rowIndex0 >= startRow && rowIndex0 < endRow && colIndex0 >= startCol && colIndex0 < endCol;
+}
+
+let protectionCache: { sheetId?: number; protectedRanges: SheetProtectedRange[] } | null = null;
+
 // Fetch and validate receipts from Receipts_Intake sheet
 async function fetchAndValidateReceipts(
   accessToken: string,
@@ -584,8 +630,42 @@ async function postReceiptsToCollectionSchedule(
     });
 
     if (!updateResponse.ok) {
+      const status = updateResponse.status;
       const errorText = await updateResponse.text();
       console.error(`[ERROR] Failed to post ${receipt.intake_id}: ${errorText}`);
+
+      // Common root cause for 403 here is a protected sheet/range (even when the file shows "Editor")
+      if (status === 403) {
+        try {
+          // Lazy-load protection info only when we hit a permission error
+          if (!protectionCache) {
+            protectionCache = await getSheetProtectedRanges(accessToken, spreadsheetId, scheduleData.sheetTitle);
+            console.log(`[DEBUG] Protected ranges on "${scheduleData.sheetTitle}": ${protectionCache.protectedRanges.length}`);
+          }
+
+          const rowIndex0 = rowNum - 1;
+          const colIndex0 = targetColumn;
+          const covering = (protectionCache.protectedRanges || []).filter((r: SheetProtectedRange) =>
+            protectedRangeCoversCell(r, protectionCache?.sheetId, rowIndex0, colIndex0)
+          );
+
+          if (covering.length > 0) {
+            const first = covering[0];
+            const editors = first.editors?.users?.join(', ') || '(no explicit editors listed)';
+            console.log(
+              `[DEBUG] Target cell ${cellRange} is inside a protected range${first.description ? `: ${first.description}` : ''}. ` +
+                `Add the service account to that protection's editors (or remove protection). Editors: ${editors}`
+            );
+          } else {
+            console.log(
+              `[DEBUG] No protected range covering ${cellRange} was detected via API. If 403 persists, double-check the file ownership/shared-drive rules and that edits to this sheet are not restricted by admin policies.`
+            );
+          }
+        } catch (e) {
+          console.log(`[DEBUG] Failed to inspect protected ranges: ${e}`);
+        }
+      }
+
       continue;
     }
 
