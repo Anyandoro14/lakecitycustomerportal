@@ -577,6 +577,9 @@ async function postReceiptsToCollectionSchedule(
   }
 
   const posted: PostedReceipt[] = [];
+  
+  // Track columns we've already posted to for each row (to handle multiple receipts for same stand)
+  const postedColumnsPerRow = new Map<number, Set<number>>();
 
   for (const receipt of approvedReceipts) {
     const rowNum = scheduleData.standRowMap.get(receipt.stand_number);
@@ -590,12 +593,21 @@ async function postReceiptsToCollectionSchedule(
     // Find the next empty payment cell in the row (arrears-first logic)
     const rowData = scheduleData.rows[rowNum - 1] || [];
     let targetColumn = -1;
+    
+    // Get columns already posted to in this run for this row
+    const alreadyPostedCols = postedColumnsPerRow.get(rowNum) || new Set<number>();
 
     console.log(`Scanning from column ${scheduleData.paymentColumnStart} (${columnIndexToLetter(scheduleData.paymentColumnStart)})`);
-    console.log(`Row data length: ${rowData.length}`);
+    console.log(`Row data length: ${rowData.length}, already posted to columns in this run: ${Array.from(alreadyPostedCols).map(c => columnIndexToLetter(c)).join(', ') || 'none'}`);
 
-    // Scan payment columns for the first empty cell
+    // Scan payment columns for the first empty cell that we haven't already posted to
     for (let col = scheduleData.paymentColumnStart; col < 53; col++) { // Up to column BA
+      // Skip columns we already posted to in this batch
+      if (alreadyPostedCols.has(col)) {
+        console.log(`Column ${columnIndexToLetter(col)} (${col}): SKIPPED (already posted in this run)`);
+        continue;
+      }
+      
       const cellValue = rowData[col]?.toString().trim() || '';
       console.log(`Column ${columnIndexToLetter(col)} (${col}): "${cellValue}"`);
       if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
@@ -670,6 +682,13 @@ async function postReceiptsToCollectionSchedule(
     }
 
     console.log(`[SUCCESS] Posted ${receipt.intake_id} to ${cellRange}`);
+    
+    // Mark this column as used for this row so subsequent receipts for same stand go to next column
+    if (!postedColumnsPerRow.has(rowNum)) {
+      postedColumnsPerRow.set(rowNum, new Set<number>());
+    }
+    postedColumnsPerRow.get(rowNum)!.add(targetColumn);
+    
     posted.push({
       intake_id: receipt.intake_id,
       stand_number: receipt.stand_number,
