@@ -328,30 +328,12 @@ async function fetchCollectionScheduleData(accessToken: string): Promise<{
     throw new Error('Could not find Stand Number column');
   }
 
-  // Find the first payment column (typically starts after customer info columns)
-  // Look for columns with date patterns like "5 December 2025", month-year patterns, or "Payment"
-  let paymentColumnStart = -1;
-  for (let i = 0; i < headerRow.length; i++) {
-    const header = headerRow[i]?.toString() || '';
-    const headerLower = header.toLowerCase();
-    // Look for patterns like "5 December 2025", "5 Jan 2026", month names, or "Payment"
-    if (/\d+\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(header) ||
-        /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(header) ||
-        /payment\s*\d/i.test(headerLower) ||
-        /^m\d+$/i.test(headerLower)) {
-      paymentColumnStart = i;
-      console.log(`Detected payment column at index ${i}: "${header}"`);
-      break;
-    }
-  }
-  
-  // Default to column P (index 15) based on screenshot if not found
-  if (paymentColumnStart === -1) {
-    paymentColumnStart = 15; // Column P
-    console.log(`Payment columns not auto-detected, defaulting to column ${columnIndexToLetter(paymentColumnStart)} (P)`);
-  } else {
-    console.log(`Payment columns start at column ${columnIndexToLetter(paymentColumnStart)}`);
-  }
+  // Payment structure in Collection Schedule 1:
+  // - Payment amounts are in columns Z, AB, AD, AF, AH, AJ (every other column starting at Z, index 25)
+  // - Payment dates are in columns AA, AC, AE, AG, AI, AK (interleaved)
+  // This is the FIXED structure - do not auto-detect
+  const paymentColumnStart = 25; // Column Z (index 25)
+  console.log(`Payment columns start at column ${columnIndexToLetter(paymentColumnStart)} (Z) - amounts in Z, AB, AD... dates in AA, AC, AE...`)
 
   // Build stand -> row mapping
   const standRowMap = new Map<string, number>();
@@ -590,18 +572,24 @@ async function postReceiptsToCollectionSchedule(
 
     console.log(`Processing stand ${receipt.stand_number}, row ${rowNum}`);
 
-    // Find the next empty payment cell in the row (arrears-first logic)
+    // Find the next empty payment AMOUNT cell in the row
+    // Payment structure: amounts in Z(25), AB(27), AD(29), AF(31), AH(33), AJ(35)
+    // Dates in AA(26), AC(28), AE(30), AG(32), AI(34), AK(36)
+    // Payment amount columns are at indices: 25, 27, 29, 31, 33, 35 (every other starting at 25)
     const rowData = scheduleData.rows[rowNum - 1] || [];
-    let targetColumn = -1;
+    let targetAmountColumn = -1;
+    let targetDateColumn = -1;
     
     // Get columns already posted to in this run for this row
     const alreadyPostedCols = postedColumnsPerRow.get(rowNum) || new Set<number>();
 
-    console.log(`Scanning from column ${scheduleData.paymentColumnStart} (${columnIndexToLetter(scheduleData.paymentColumnStart)})`);
+    console.log(`Scanning AMOUNT columns from Z (25), AB (27), AD (29)...`);
     console.log(`Row data length: ${rowData.length}, already posted to columns in this run: ${Array.from(alreadyPostedCols).map(c => columnIndexToLetter(c)).join(', ') || 'none'}`);
 
-    // Scan payment columns for the first empty cell that we haven't already posted to
-    for (let col = scheduleData.paymentColumnStart; col < 53; col++) { // Up to column BA
+    // Payment amount columns: Z=25, AB=27, AD=29, AF=31, AH=33, AJ=35
+    const paymentAmountColumns = [25, 27, 29, 31, 33, 35];
+    
+    for (const col of paymentAmountColumns) {
       // Skip columns we already posted to in this batch
       if (alreadyPostedCols.has(col)) {
         console.log(`Column ${columnIndexToLetter(col)} (${col}): SKIPPED (already posted in this run)`);
@@ -611,26 +599,29 @@ async function postReceiptsToCollectionSchedule(
       const cellValue = rowData[col]?.toString().trim() || '';
       console.log(`Column ${columnIndexToLetter(col)} (${col}): "${cellValue}"`);
       if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
-        targetColumn = col;
-        console.log(`Found empty cell at column ${columnIndexToLetter(col)}`);
+        targetAmountColumn = col;
+        targetDateColumn = col + 1; // Date is always the next column
+        console.log(`Found empty amount cell at column ${columnIndexToLetter(col)}, date will go to ${columnIndexToLetter(col + 1)}`);
         break;
       }
     }
 
-    if (targetColumn === -1) {
+    if (targetAmountColumn === -1) {
       console.log(`[SKIP] No empty payment cell for stand ${receipt.stand_number}`);
       continue;
     }
 
-    const columnLetter = columnIndexToLetter(targetColumn);
-    const cellRange = `${scheduleData.sheetTitle}!${columnLetter}${rowNum}`;
+    const amountColumnLetter = columnIndexToLetter(targetAmountColumn);
+    const dateColumnLetter = columnIndexToLetter(targetDateColumn);
+    const amountCellRange = `${scheduleData.sheetTitle}!${amountColumnLetter}${rowNum}`;
+    const dateCellRange = `${scheduleData.sheetTitle}!${dateColumnLetter}${rowNum}`;
 
-    console.log(`[POSTING] ${receipt.intake_id}: $${receipt.payment_amount} -> ${cellRange}`);
+    console.log(`[POSTING] ${receipt.intake_id}: $${receipt.payment_amount} -> ${amountCellRange}, Date: ${receipt.payment_date} -> ${dateCellRange}`);
 
-    // Write the payment to the cell
-    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
+    // Write the payment amount to the amount cell
+    const amountUpdateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(amountCellRange)}?valueInputOption=USER_ENTERED`;
     
-    const updateResponse = await fetch(updateUrl, {
+    const amountUpdateResponse = await fetch(amountUpdateUrl, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -641,59 +632,47 @@ async function postReceiptsToCollectionSchedule(
       }),
     });
 
-    if (!updateResponse.ok) {
-      const status = updateResponse.status;
-      const errorText = await updateResponse.text();
-      console.error(`[ERROR] Failed to post ${receipt.intake_id}: ${errorText}`);
-
-      // Common root cause for 403 here is a protected sheet/range (even when the file shows "Editor")
-      if (status === 403) {
-        try {
-          // Lazy-load protection info only when we hit a permission error
-          if (!protectionCache) {
-            protectionCache = await getSheetProtectedRanges(accessToken, spreadsheetId, scheduleData.sheetTitle);
-            console.log(`[DEBUG] Protected ranges on "${scheduleData.sheetTitle}": ${protectionCache.protectedRanges.length}`);
-          }
-
-          const rowIndex0 = rowNum - 1;
-          const colIndex0 = targetColumn;
-          const covering = (protectionCache.protectedRanges || []).filter((r: SheetProtectedRange) =>
-            protectedRangeCoversCell(r, protectionCache?.sheetId, rowIndex0, colIndex0)
-          );
-
-          if (covering.length > 0) {
-            const first = covering[0];
-            const editors = first.editors?.users?.join(', ') || '(no explicit editors listed)';
-            console.log(
-              `[DEBUG] Target cell ${cellRange} is inside a protected range${first.description ? `: ${first.description}` : ''}. ` +
-                `Add the service account to that protection's editors (or remove protection). Editors: ${editors}`
-            );
-          } else {
-            console.log(
-              `[DEBUG] No protected range covering ${cellRange} was detected via API. If 403 persists, double-check the file ownership/shared-drive rules and that edits to this sheet are not restricted by admin policies.`
-            );
-          }
-        } catch (e) {
-          console.log(`[DEBUG] Failed to inspect protected ranges: ${e}`);
-        }
-      }
-
+    if (!amountUpdateResponse.ok) {
+      const status = amountUpdateResponse.status;
+      const errorText = await amountUpdateResponse.text();
+      console.error(`[ERROR] Failed to post amount for ${receipt.intake_id}: ${errorText}`);
       continue;
     }
 
-    console.log(`[SUCCESS] Posted ${receipt.intake_id} to ${cellRange}`);
+    // Write the payment date to the date cell
+    const dateUpdateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(dateCellRange)}?valueInputOption=USER_ENTERED`;
+    
+    const dateUpdateResponse = await fetch(dateUpdateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [[receipt.payment_date]]
+      }),
+    });
+
+    if (!dateUpdateResponse.ok) {
+      const status = dateUpdateResponse.status;
+      const errorText = await dateUpdateResponse.text();
+      console.error(`[ERROR] Failed to post date for ${receipt.intake_id}: ${errorText}`);
+      // Amount was already posted, so we still count this as success
+    }
+
+    console.log(`[SUCCESS] Posted ${receipt.intake_id}: Amount to ${amountCellRange}, Date to ${dateCellRange}`);
     
     // Mark this column as used for this row so subsequent receipts for same stand go to next column
     if (!postedColumnsPerRow.has(rowNum)) {
       postedColumnsPerRow.set(rowNum, new Set<number>());
     }
-    postedColumnsPerRow.get(rowNum)!.add(targetColumn);
+    postedColumnsPerRow.get(rowNum)!.add(targetAmountColumn);
     
     posted.push({
       intake_id: receipt.intake_id,
       stand_number: receipt.stand_number,
       payment_amount: receipt.payment_amount,
-      posted_to_column: columnLetter,
+      posted_to_column: amountColumnLetter,
       posted_to_row: rowNum
     });
   }
