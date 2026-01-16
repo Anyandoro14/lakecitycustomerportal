@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.internal-send-message]
 verify_jwt = false
+
+[functions.rebuild-payments-from-sheet7]
+verify_jwt = false
