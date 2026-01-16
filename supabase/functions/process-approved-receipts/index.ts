@@ -329,11 +329,11 @@ async function fetchCollectionScheduleData(accessToken: string): Promise<{
   }
 
   // Payment structure in Collection Schedule 1:
-  // - Payment amounts are in columns Z, AB, AD, AF, AH, AJ (every other column starting at Z, index 25)
-  // - Payment dates are in columns AA, AC, AE, AG, AI, AK (interleaved)
-  // This is the FIXED structure - do not auto-detect
-  const paymentColumnStart = 25; // Column Z (index 25)
-  console.log(`Payment columns start at column ${columnIndexToLetter(paymentColumnStart)} (Z) - amounts in Z, AB, AD... dates in AA, AC, AE...`)
+  // - Payments begin at column M (index 12) and continue through column AW (index 48)
+  // - Each column from M to AW is a sequential payment column (NOT interleaved)
+  const paymentColumnStart = 12; // Column M (index 12)
+  const paymentColumnEnd = 48; // Column AW (index 48)
+  console.log(`Payment columns: M (12) through AW (48) - sequential payment cells`)
 
   // Build stand -> row mapping
   const standRowMap = new Map<string, number>();
@@ -572,24 +572,19 @@ async function postReceiptsToCollectionSchedule(
 
     console.log(`Processing stand ${receipt.stand_number}, row ${rowNum}`);
 
-    // Find the next empty payment AMOUNT cell in the row
-    // Payment structure: amounts in Z(25), AB(27), AD(29), AF(31), AH(33), AJ(35)
-    // Dates in AA(26), AC(28), AE(30), AG(32), AI(34), AK(36)
-    // Payment amount columns are at indices: 25, 27, 29, 31, 33, 35 (every other starting at 25)
+    // Find the next empty payment cell in the row
+    // Payments are in columns M (12) through AW (48) - sequential, not interleaved
     const rowData = scheduleData.rows[rowNum - 1] || [];
-    let targetAmountColumn = -1;
-    let targetDateColumn = -1;
+    let targetColumn = -1;
     
     // Get columns already posted to in this run for this row
     const alreadyPostedCols = postedColumnsPerRow.get(rowNum) || new Set<number>();
 
-    console.log(`Scanning AMOUNT columns from Z (25), AB (27), AD (29)...`);
+    console.log(`Scanning payment columns from M (12) through AW (48)...`);
     console.log(`Row data length: ${rowData.length}, already posted to columns in this run: ${Array.from(alreadyPostedCols).map(c => columnIndexToLetter(c)).join(', ') || 'none'}`);
 
-    // Payment amount columns: Z=25, AB=27, AD=29, AF=31, AH=33, AJ=35
-    const paymentAmountColumns = [25, 27, 29, 31, 33, 35];
-    
-    for (const col of paymentAmountColumns) {
+    // Scan all payment columns from M (12) to AW (48)
+    for (let col = 12; col <= 48; col++) {
       // Skip columns we already posted to in this batch
       if (alreadyPostedCols.has(col)) {
         console.log(`Column ${columnIndexToLetter(col)} (${col}): SKIPPED (already posted in this run)`);
@@ -599,29 +594,26 @@ async function postReceiptsToCollectionSchedule(
       const cellValue = rowData[col]?.toString().trim() || '';
       console.log(`Column ${columnIndexToLetter(col)} (${col}): "${cellValue}"`);
       if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
-        targetAmountColumn = col;
-        targetDateColumn = col + 1; // Date is always the next column
-        console.log(`Found empty amount cell at column ${columnIndexToLetter(col)}, date will go to ${columnIndexToLetter(col + 1)}`);
+        targetColumn = col;
+        console.log(`Found empty payment cell at column ${columnIndexToLetter(col)}`);
         break;
       }
     }
 
-    if (targetAmountColumn === -1) {
-      console.log(`[SKIP] No empty payment cell for stand ${receipt.stand_number}`);
+    if (targetColumn === -1) {
+      console.log(`[SKIP] No empty payment cell for stand ${receipt.stand_number} (columns M-AW full)`);
       continue;
     }
 
-    const amountColumnLetter = columnIndexToLetter(targetAmountColumn);
-    const dateColumnLetter = columnIndexToLetter(targetDateColumn);
-    const amountCellRange = `${scheduleData.sheetTitle}!${amountColumnLetter}${rowNum}`;
-    const dateCellRange = `${scheduleData.sheetTitle}!${dateColumnLetter}${rowNum}`;
+    const columnLetter = columnIndexToLetter(targetColumn);
+    const cellRange = `${scheduleData.sheetTitle}!${columnLetter}${rowNum}`;
 
-    console.log(`[POSTING] ${receipt.intake_id}: $${receipt.payment_amount} -> ${amountCellRange}, Date: ${receipt.payment_date} -> ${dateCellRange}`);
+    console.log(`[POSTING] ${receipt.intake_id}: $${receipt.payment_amount} -> ${cellRange}`);
 
-    // Write the payment amount to the amount cell
-    const amountUpdateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(amountCellRange)}?valueInputOption=USER_ENTERED`;
+    // Write the payment amount to the cell
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
     
-    const amountUpdateResponse = await fetch(amountUpdateUrl, {
+    const updateResponse = await fetch(updateUrl, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -632,47 +624,25 @@ async function postReceiptsToCollectionSchedule(
       }),
     });
 
-    if (!amountUpdateResponse.ok) {
-      const status = amountUpdateResponse.status;
-      const errorText = await amountUpdateResponse.text();
-      console.error(`[ERROR] Failed to post amount for ${receipt.intake_id}: ${errorText}`);
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error(`[ERROR] Failed to post ${receipt.intake_id}: ${errorText}`);
       continue;
     }
 
-    // Write the payment date to the date cell
-    const dateUpdateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(dateCellRange)}?valueInputOption=USER_ENTERED`;
-    
-    const dateUpdateResponse = await fetch(dateUpdateUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        values: [[receipt.payment_date]]
-      }),
-    });
-
-    if (!dateUpdateResponse.ok) {
-      const status = dateUpdateResponse.status;
-      const errorText = await dateUpdateResponse.text();
-      console.error(`[ERROR] Failed to post date for ${receipt.intake_id}: ${errorText}`);
-      // Amount was already posted, so we still count this as success
-    }
-
-    console.log(`[SUCCESS] Posted ${receipt.intake_id}: Amount to ${amountCellRange}, Date to ${dateCellRange}`);
+    console.log(`[SUCCESS] Posted ${receipt.intake_id} to ${cellRange}`);
     
     // Mark this column as used for this row so subsequent receipts for same stand go to next column
     if (!postedColumnsPerRow.has(rowNum)) {
       postedColumnsPerRow.set(rowNum, new Set<number>());
     }
-    postedColumnsPerRow.get(rowNum)!.add(targetAmountColumn);
+    postedColumnsPerRow.get(rowNum)!.add(targetColumn);
     
     posted.push({
       intake_id: receipt.intake_id,
       stand_number: receipt.stand_number,
       payment_amount: receipt.payment_amount,
-      posted_to_column: amountColumnLetter,
+      posted_to_column: columnLetter,
       posted_to_row: rowNum
     });
   }
