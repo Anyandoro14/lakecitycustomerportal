@@ -349,45 +349,22 @@ serve(async (req) => {
       }
     }
     
-    // Payment columns in Collection Schedule 1
-    // Based on the screenshot: Column D = Phone
-    // Looking at the image, payment columns appear to start around column Y/Z area
-    // From the existing fetch-google-sheets, payment columns are at indices 40-49 (columns AO-AX approximately)
-    // But based on the screenshot, they seem to be in a different location
-    // Let me check the column mapping from the screenshots:
-    // The screenshots show: Column Z = Payment 1, AA = Date 1, AB = Payment 2, AC = Date 2, etc.
+    // Payment columns in Collection Schedule 1 (based on screenshot):
+    // Column Z (25) = Payment 1 (amount)
+    // Column AA (26) = Date of Payment 1
+    // Column AB (27) = Payment 2 (amount)
+    // Column AC (28) = Date of Payment 2
+    // Column AD (29) = Payment 3 (amount)
+    // Column AE (30) = Date of Payment 3
+    // Column AF (31) = Payment 4 (amount)
+    // Column AG (32) = Date of Payment 4
+    // Column AH (33) = Payment 5 (amount)
+    // Column AI (34) = Date of Payment 5
+    // Column AJ (35) = Payment 6 (amount)
+    // Pattern: Amounts at Z, AB, AD, AF, AH, AJ... (even offsets from Z)
+    // Pattern: Dates at AA, AC, AE, AG, AI, AK... (odd offsets from Z)
     
-    // For Collection Schedule 1, we need to identify where payments should go
-    // Looking at existing code: paymentCols = indices 40-49, dateCols = indices 17-26
-    // But let me map based on what makes sense:
-    
-    // Collection Schedule 1 payment column mapping (based on existing code):
-    // Payment columns: indices 40-49 (10 payments)
-    // Date columns: indices 17-26 (10 dates)
-    // BUT - we need to override existing data
-    
-    // Actually, looking at the images more carefully:
-    // The first image shows Sheet7 with payments starting at Column Z
-    // The second image shows Sheet7 has columns: A=Stand, I=Phone
-    // The third image shows Collection Schedule 1 structure
-    
-    // For Collection Schedule 1, I'll use indices from the existing fetch function:
-    const phoneColCS1 = 3; // Column D (0-indexed = 3)
-    
-    // Payment columns in Collection Schedule 1 - let's use a standard layout
-    // Based on existing code, payments are at columns AO-AX (indices 40-49)
-    // and dates are at different columns. Let's check what columns to write to.
-    
-    // From the original code, the payment/date structure seems complex
-    // Let me use a simpler approach based on the existing pattern
-    // Looking at the code: dateCols from index 17-26, paymentCols from 40-49
-    
-    // For simplicity, I'll write to columns that match the existing structure:
-    // Dates at columns R-AA (indices 17-26)
-    // Payments at columns AO-AX (indices 40-49)
-    
-    // But actually, let me look at what makes sense from the UI perspective
-    // and just clear+rewrite the payment data
+    const paymentStartColCS1 = colLetterToIndex('Z'); // Column Z = 25 (0-indexed)
     
     // Prepare batch updates
     interface CellUpdate {
@@ -419,43 +396,39 @@ serve(async (req) => {
         });
       }
       
-      // Clear existing payment columns first, then write new ones
-      // Writing payment amounts to columns AO-AX (indices 40-49 = 10 columns)
-      // Writing payment dates to columns R-AA (indices 17-26 = 10 columns)
+      // Write payments to Collection Schedule 1 in interleaved format:
+      // Payment 1 Amount at Z, Payment 1 Date at AA
+      // Payment 2 Amount at AB, Payment 2 Date at AC
+      // etc.
       
-      // Actually, let me write payments in pairs as Amount, Date similar to how it appears
-      // Let's use columns that aren't used for other data
-      // From the code, it looks like:
-      // - Date columns are at R onwards (index 17+)
-      // - Payment amount columns are at AO onwards (index 40+)
+      // Support up to 10 payments (columns Z through AS)
+      const maxPayments = 10;
       
-      // For a clean approach, let's write:
-      // Payment amounts: columns AO, AP, AQ, AR, AS, AT, AU, AV, AW, AX (indices 40-49)
-      // Payment dates: columns R, S, T, U, V, W, X, Y, Z, AA (indices 17-26)
-      
-      // But the existing code shows a different structure. Let me just use
-      // what makes sense: write to the payment columns in order
-      
-      // Clear all 10 payment slots first
-      for (let p = 0; p < 10; p++) {
-        const paymentColLetter = indexToColLetter(40 + p); // AO, AP, AQ, ...
-        const dateColLetter = indexToColLetter(17 + p);    // R, S, T, ...
+      for (let p = 0; p < maxPayments; p++) {
+        // Payment amount column: Z, AB, AD, AF, AH, AJ, AL, AN, AP, AR
+        const amountColIndex = paymentStartColCS1 + (p * 2);
+        // Payment date column: AA, AC, AE, AG, AI, AK, AM, AO, AQ, AS
+        const dateColIndex = paymentStartColCS1 + (p * 2) + 1;
+        
+        const amountColLetter = indexToColLetter(amountColIndex);
+        const dateColLetter = indexToColLetter(dateColIndex);
         
         if (p < standData.payments.length) {
+          const payment = standData.payments[p];
           // Write payment amount
           updates.push({
-            range: `Collection Schedule 1!${paymentColLetter}${rowIndex}`,
-            values: [[`$${standData.payments[p].amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]]
+            range: `Collection Schedule 1!${amountColLetter}${rowIndex}`,
+            values: [[`$${payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]]
           });
-          // Write payment date
+          // Write payment date (preserve original date from Sheet 7)
           updates.push({
             range: `Collection Schedule 1!${dateColLetter}${rowIndex}`,
-            values: [[standData.payments[p].dateStr]]
+            values: [[payment.dateStr]]
           });
         } else {
           // Clear unused payment slots
           updates.push({
-            range: `Collection Schedule 1!${paymentColLetter}${rowIndex}`,
+            range: `Collection Schedule 1!${amountColLetter}${rowIndex}`,
             values: [['']]
           });
           updates.push({
