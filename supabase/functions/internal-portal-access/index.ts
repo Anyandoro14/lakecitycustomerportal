@@ -46,7 +46,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action } = body;
 
     // Use service role for admin operations
     const supabaseAdmin = createClient(
@@ -136,7 +137,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'search-customer') {
-      const body = await req.clone().json();
       const { searchType, searchQuery } = body;
       
       let query = supabaseAdmin.from('profiles').select('*');
@@ -232,7 +232,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      const body = await req.clone().json();
       const { targetUserId, newRole } = body;
 
       if (!['helpdesk', 'admin', 'super_admin'].includes(newRole)) {
@@ -290,7 +289,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      const body = await req.clone().json();
       const { targetUserId, isApprover } = body;
 
       const { data: updated, error } = await supabaseAdmin
@@ -333,7 +331,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      const body = await req.clone().json();
       const { targetUserId } = body;
 
       // Prevent revoking your own access
