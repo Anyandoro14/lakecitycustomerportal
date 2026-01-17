@@ -161,14 +161,14 @@ const Settings = () => {
   const passwordErrors = getPasswordErrors(newPassword);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24">
       <CustomerHeader />
       
-      <main className="max-w-md mx-auto px-4 py-5 space-y-4">
+      <main className="max-w-md mx-auto px-4 py-4 space-y-4">
         <Button
           variant="ghost"
           onClick={() => navigate("/")}
-          className="mb-4"
+          className="mb-2 -ml-2 h-10"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dashboard
@@ -215,7 +215,7 @@ const Settings = () => {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
                 {loading ? "Updating..." : "Update Phone Number"}
               </Button>
             </form>
@@ -270,7 +270,7 @@ const Settings = () => {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading || (newPassword.length > 0 && passwordErrors.length > 0)}>
+              <Button type="submit" className="w-full h-12 text-base" disabled={loading || (newPassword.length > 0 && passwordErrors.length > 0)}>
                 {loading ? "Updating..." : "Change Password"}
               </Button>
             </form>

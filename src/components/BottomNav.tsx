@@ -5,44 +5,35 @@ const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const navItems = [
+    { icon: Home, label: "Home", path: "/" },
+    { icon: CreditCard, label: "Payments", path: "/monthly-statements" },
+    { icon: FileText, label: "Documents", path: "/agreement-of-sale" },
+    { icon: User, label: "Settings", path: "/settings" },
+    { icon: HelpCircle, label: "Guide", path: "/guide" },
+  ];
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-inset-bottom">
-      <div className="flex justify-around items-center max-w-md mx-auto px-2 py-2.5">
-        <button 
-          onClick={() => navigate("/")}
-          className={`flex flex-col items-center gap-1 ${location.pathname === "/" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <Home className="h-5 w-5" />
-          <span className="text-xs font-medium">Home</span>
-        </button>
-        <button 
-          onClick={() => navigate("/monthly-statements")}
-          className={`flex flex-col items-center gap-1 ${location.pathname === "/monthly-statements" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <CreditCard className="h-5 w-5" />
-          <span className="text-xs">Payments</span>
-        </button>
-        <button 
-          onClick={() => navigate("/agreement-of-sale")}
-          className={`flex flex-col items-center gap-1 ${location.pathname === "/agreement-of-sale" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <FileText className="h-5 w-5" />
-          <span className="text-xs">Documents</span>
-        </button>
-        <button 
-          onClick={() => navigate("/settings")}
-          className={`flex flex-col items-center gap-1 ${location.pathname === "/settings" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <User className="h-5 w-5" />
-          <span className="text-xs">Settings</span>
-        </button>
-        <button 
-          onClick={() => navigate("/guide")}
-          className={`flex flex-col items-center gap-1 ${location.pathname === "/guide" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <HelpCircle className="h-5 w-5" />
-          <span className="text-xs">Guide</span>
-        </button>
+    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
+      <div 
+        className="flex justify-around items-stretch max-w-md mx-auto"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
+      >
+        {navItems.map(({ icon: Icon, label, path }) => {
+          const isActive = location.pathname === path;
+          return (
+            <button
+              key={path}
+              onClick={() => navigate(path)}
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 px-1 min-h-[56px] transition-colors active:bg-muted/50 ${
+                isActive ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-[10px] font-medium leading-tight">{label}</span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

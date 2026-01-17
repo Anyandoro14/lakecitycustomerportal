@@ -312,10 +312,10 @@ const Login = () => {
 
   if (showVerification) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>WhatsApp Verification</CardTitle>
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-xl">WhatsApp Verification</CardTitle>
             <CardDescription>
               We've sent a 6-digit verification code via WhatsApp to {maskedPhone}
             </CardDescription>
@@ -327,6 +327,7 @@ const Login = () => {
                 <Input
                   id="code"
                   type="text"
+                  inputMode="numeric"
                   placeholder="Enter 6-digit code"
                   value={verificationCode}
                   onChange={(e) => {
@@ -335,7 +336,7 @@ const Login = () => {
                   }}
                   maxLength={6}
                   required
-                  className={errors.verificationCode ? 'border-destructive' : ''}
+                  className={`h-12 text-lg text-center tracking-widest ${errors.verificationCode ? 'border-destructive' : ''}`}
                 />
                 {errors.verificationCode && (
                   <p className="text-sm text-destructive">{errors.verificationCode}</p>
@@ -343,7 +344,7 @@ const Login = () => {
               </div>
               
               {/* Resend Code Section */}
-              <div className="text-center space-y-2 py-2">
+              <div className="text-center space-y-2 py-3">
                 <p className="text-sm text-muted-foreground">
                   Didn't receive a code?
                 </p>
@@ -357,10 +358,9 @@ const Login = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
                       onClick={handleResendCode}
                       disabled={!canResend}
-                      className="gap-2"
+                      className="gap-2 h-10"
                     >
                       <RefreshCw className={`h-4 w-4 ${isResending ? 'animate-spin' : ''}`} />
                       {isResending 
@@ -379,13 +379,13 @@ const Login = () => {
                 )}
               </div>
               
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
                 {loading ? "Verifying..." : "Verify"}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full"
+                className="w-full h-12"
                 onClick={handleBackToLogin}
               >
                 Back to Login
@@ -398,7 +398,7 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
@@ -411,12 +411,12 @@ const Login = () => {
             <img 
               src={logoMonogram} 
               alt="LakeCity" 
-              className="sm:hidden h-12 w-12"
+              className="sm:hidden h-14 w-14"
             />
           </div>
           <div>
             <CardTitle className="text-xl">Sign in to your LakeCity account</CardTitle>
-            <CardDescription className="mt-1">Access your stand details, payments, and documents</CardDescription>
+            <CardDescription className="mt-2">Access your stand details, payments, and documents</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -433,7 +433,7 @@ const Login = () => {
                   setErrors({ ...errors, loginStandNumber: '' });
                 }}
                 required
-                className={errors.loginStandNumber ? 'border-destructive' : ''}
+                className={`h-12 ${errors.loginStandNumber ? 'border-destructive' : ''}`}
               />
               {errors.loginStandNumber && (
                 <p className="text-sm text-destructive">{errors.loginStandNumber}</p>
@@ -451,7 +451,7 @@ const Login = () => {
                   setErrors({ ...errors, loginPassword: '' });
                 }}
                 required
-                className={errors.loginPassword ? 'border-destructive' : ''}
+                className={`h-12 ${errors.loginPassword ? 'border-destructive' : ''}`}
               />
               {errors.loginPassword && (
                 <p className="text-sm text-destructive">{errors.loginPassword}</p>
@@ -467,13 +467,13 @@ const Login = () => {
               </Link>
             </div>
             
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
               {loading ? "Logging in..." : "Login"}
             </Button>
             
-            <div className="text-center text-sm">
+            <div className="text-center text-sm py-2">
               <span className="text-muted-foreground">Don't have an account? </span>
-              <Link to="/signup" className="text-primary hover:underline">
+              <Link to="/signup" className="text-primary hover:underline font-medium">
                 Sign up
               </Link>
             </div>

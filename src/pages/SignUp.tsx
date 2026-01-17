@@ -489,16 +489,16 @@ const SignUp = () => {
 
   if (step === 'register') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
               <img src={logoWordmark} alt="LakeCity" className="hidden sm:block h-10 w-auto" />
-              <img src={logoMonogram} alt="LakeCity" className="sm:hidden h-12 w-12" />
+              <img src={logoMonogram} alt="LakeCity" className="sm:hidden h-14 w-14" />
             </div>
             <div>
               <CardTitle className="text-xl">Create Your Password</CardTitle>
-              <CardDescription className="mt-1">
+              <CardDescription className="mt-2">
                 Stand {validatedData?.standNumber} • {maskPhoneNumber(validatedData?.phoneNumber || '')}
               </CardDescription>
             </div>
@@ -516,7 +516,7 @@ const SignUp = () => {
                     setEmail(e.target.value);
                     setErrors({ ...errors, email: '' });
                   }}
-                  className={errors.email ? 'border-destructive' : ''}
+                  className={`h-12 ${errors.email ? 'border-destructive' : ''}`}
                 />
                 {errors.email && (
                   <p className="text-sm text-destructive">{errors.email}</p>
@@ -538,7 +538,7 @@ const SignUp = () => {
                     setErrors({ ...errors, password: '' });
                   }}
                   required
-                  className={errors.password ? 'border-destructive' : ''}
+                  className={`h-12 ${errors.password ? 'border-destructive' : ''}`}
                 />
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password}</p>
@@ -555,8 +555,8 @@ const SignUp = () => {
                       { check: /[0-9]/.test(password), label: 'One number' },
                       { check: /[^A-Za-z0-9]/.test(password), label: 'One special character' },
                     ].map((req, i) => (
-                      <li key={i} className={`flex items-center gap-1 ${req.check ? 'text-green-600' : 'text-muted-foreground'}`}>
-                        {req.check ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      <li key={i} className={`flex items-center gap-1.5 ${req.check ? 'text-green-600' : 'text-muted-foreground'}`}>
+                        {req.check ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                         {req.label}
                       </li>
                     ))}
@@ -576,21 +576,21 @@ const SignUp = () => {
                     setErrors({ ...errors, confirmPassword: '' });
                   }}
                   required
-                  className={errors.confirmPassword ? 'border-destructive' : ''}
+                  className={`h-12 ${errors.confirmPassword ? 'border-destructive' : ''}`}
                 />
                 {errors.confirmPassword && (
                   <p className="text-sm text-destructive">{errors.confirmPassword}</p>
                 )}
               </div>
               
-              <Button type="submit" className="w-full" disabled={loading || !isPasswordValid}>
+              <Button type="submit" className="w-full h-12 text-base" disabled={loading || !isPasswordValid}>
                 {loading ? "Creating Account..." : "Create Account"}
               </Button>
               
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full"
+                className="w-full h-12"
                 onClick={() => {
                   setStep('validate');
                   setPassword('');
