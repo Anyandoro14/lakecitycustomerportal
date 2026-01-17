@@ -233,7 +233,7 @@ serve(async (req) => {
     console.log(`Using sheet: "${sheetTitle}"`);
 
     // Fetch the data - extended to BH to include Agreement signed columns
-    const range = encodeURIComponent(`${sheetTitle}!A:BH`);
+    const range = encodeURIComponent(`${sheetTitle}!A:BJ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -344,6 +344,7 @@ serve(async (req) => {
       const paymentProgressCol = 52; // Column BA (shifted from AZ)
       const agreementSignedByWarwickshireCol = 58; // Column BG - Agreement signed by Warwickshire
       const agreementSignedByClientCol = 59; // Column BH - Agreement signed by client
+      const agreementOfSaleFileCol = 61; // Column BJ - Agreement of Sale File (Google Drive link)
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
@@ -469,7 +470,11 @@ serve(async (req) => {
       const agreementSignedByWarwickshire = customerRow[agreementSignedByWarwickshireCol]?.toString().toUpperCase() === 'TRUE';
       const agreementSignedByClient = customerRow[agreementSignedByClientCol]?.toString().toUpperCase() === 'TRUE';
       
+      // Get Agreement of Sale File from column BJ (secure - only for this customer's row)
+      const agreementOfSaleFile = customerRow[agreementOfSaleFileCol]?.toString().trim() || null;
+      
       console.log(`Stand ${standNumber}: Agreement signed by Warwickshire = ${agreementSignedByWarwickshire}, by Client = ${agreementSignedByClient}`);
+      console.log(`Stand ${standNumber}: Agreement of Sale File = ${agreementOfSaleFile ? 'Present' : 'Not available'}`);
 
       return {
         customerId: customerRow[standNumIndex] || '',
@@ -491,6 +496,7 @@ serve(async (req) => {
         paymentHistory: paymentHistory,
         agreementSignedByWarwickshire: agreementSignedByWarwickshire,
         agreementSignedByClient: agreementSignedByClient,
+        agreementOfSaleFile: agreementOfSaleFile,
       };
     });
 

@@ -7,6 +7,8 @@ import PaymentSummary from "@/components/PaymentSummary";
 import DocumentsSection from "@/components/DocumentsSection";
 import PaymentHistory from "@/components/PaymentHistory";
 import BottomNav from "@/components/BottomNav";
+import OnboardingWizard from "@/components/OnboardingWizard";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { needsOnboarding, loading: onboardingLoading, markComplete } = useOnboarding();
 
   // Session timeout hook
   useSessionTimeout();
@@ -105,7 +108,7 @@ const Index = () => {
     }
   };
 
-  if (!isAuthenticated || loading) {
+  if (!isAuthenticated || loading || onboardingLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center">
@@ -113,6 +116,16 @@ const Index = () => {
           <p className="mt-4 text-muted-foreground">Loading your account...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show onboarding wizard for new users
+  if (needsOnboarding) {
+    return (
+      <OnboardingWizard 
+        onComplete={markComplete} 
+        customerName={selectedStand?.customerName?.split(' ')[0]}
+      />
     );
   }
 
