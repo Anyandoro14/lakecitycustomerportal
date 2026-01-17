@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.rebuild-payments-from-sheet7]
 verify_jwt = false
+
+[functions.send-customer-invitation]
+verify_jwt = false

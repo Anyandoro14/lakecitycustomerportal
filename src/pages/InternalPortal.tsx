@@ -34,7 +34,9 @@ import {
   Trash2,
   Crown,
   ShieldCheck,
+  UserPlus,
 } from "lucide-react";
+import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import { toast } from "sonner";
 import {
   Table,
@@ -757,7 +759,19 @@ const InternalPortal = () => {
                           <p className="font-medium">{selectedCustomer.payment_start_date}</p>
                         </div>
                       </div>
-                      <div className="flex gap-2 pt-4">
+                      <div className="flex flex-wrap gap-2 pt-4">
+                        <CustomerInviteDialog
+                          standNumber={selectedCustomer.stand_number}
+                          customerName={selectedCustomer.full_name}
+                          customerEmail={selectedCustomer.email}
+                          customerPhone={selectedCustomer.phone_number}
+                          trigger={
+                            <Button size="sm" className="bg-primary hover:bg-primary/90">
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Send Portal Invite
+                            </Button>
+                          }
+                        />
                         <Button size="sm" variant="outline" onClick={() => {
                           setMessageRecipient(selectedCustomer.phone_number);
                           setActiveTab("messaging");
