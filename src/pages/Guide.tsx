@@ -40,62 +40,62 @@ const Guide = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-24">
       <CustomerHeader />
       
-      <main className="pb-24 pt-4 px-4 max-w-4xl mx-auto">
+      <main className="pt-4 px-4 max-w-4xl mx-auto">
         {/* Hero Section */}
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-full mb-4">
-            <BookOpen className="h-8 w-8 text-primary" />
+        <div className="mb-6 text-center">
+          <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-full mb-3">
+            <BookOpen className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3">
+          <h1 className="text-2xl md:text-4xl font-bold text-foreground mb-2">
             Welcome to Your Owner Portal
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
             Your complete guide to managing your LakeCity property investment. 
             We're here to help you every step of the way.
           </p>
         </div>
 
         {/* Quick Navigation */}
-        <Card className="p-6 mb-8 bg-gradient-to-br from-primary/10 to-accent/10 border-2">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Card className="p-4 md:p-6 mb-6 bg-gradient-to-br from-primary/10 to-accent/10 border-2">
+          <h2 className="text-lg md:text-xl font-bold mb-3 flex items-center gap-2">
             <ChevronRight className="h-5 w-5 text-primary" />
             Quick Navigation
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 md:gap-3">
             <Button 
               variant="outline" 
-              className="justify-start h-auto py-3" 
+              className="justify-start h-auto py-3 px-3 text-sm" 
               onClick={() => document.getElementById('accessing')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <LogIn className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span className="text-left">Accessing the Portal</span>
+              <span className="text-left truncate">Accessing</span>
             </Button>
             <Button 
               variant="outline" 
-              className="justify-start h-auto py-3"
+              className="justify-start h-auto py-3 px-3 text-sm"
               onClick={() => document.getElementById('dashboard')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <LayoutDashboard className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span className="text-left">Dashboard Overview</span>
+              <span className="text-left truncate">Dashboard</span>
             </Button>
             <Button 
               variant="outline" 
-              className="justify-start h-auto py-3"
+              className="justify-start h-auto py-3 px-3 text-sm"
               onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <Eye className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span className="text-left">Key Features</span>
+              <span className="text-left truncate">Features</span>
             </Button>
             <Button 
               variant="outline" 
-              className="justify-start h-auto py-3"
+              className="justify-start h-auto py-3 px-3 text-sm"
               onClick={() => document.getElementById('support')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <HelpCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span className="text-left">Help & Support</span>
+              <span className="text-left truncate">Support</span>
             </Button>
           </div>
         </Card>

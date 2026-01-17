@@ -19,40 +19,39 @@ const AgreementOfSaleDocuments = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24">
       <CustomerHeader />
       
-      <main className="max-w-md mx-auto px-3 py-3">
+      <main className="max-w-md mx-auto px-4 py-4">
         <Button
           variant="ghost"
-          size="sm"
           onClick={() => navigate("/")}
-          className="mb-3 -ml-2"
+          className="mb-3 -ml-2 h-10"
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
 
-        <h1 className="text-2xl font-bold text-foreground mb-2">Agreement of Sale</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-3">Agreement of Sale</h1>
         
-        <Card className="p-3.5 shadow-sm mb-4">
+        <Card className="p-4 shadow-sm mb-4">
           <h3 className="text-sm font-semibold text-foreground mb-3">Status</h3>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 text-sm">
               {signedBySeller ? (
-                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
               ) : (
-                <Circle className="h-5 w-5 text-muted-foreground" />
+                <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
               )}
               <span className={signedBySeller ? "text-foreground" : "text-muted-foreground"}>
                 Signed by Seller
               </span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-3 text-sm">
               {signedByBuyer ? (
-                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
               ) : (
-                <Circle className="h-5 w-5 text-muted-foreground" />
+                <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
               )}
               <span className={signedByBuyer ? "text-foreground" : "text-muted-foreground"}>
                 Signed by Buyer
@@ -63,17 +62,17 @@ const AgreementOfSaleDocuments = () => {
 
         <h2 className="text-lg font-semibold text-foreground mb-3">Documents</h2>
 
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {documents.map((doc) => (
             <Card 
               key={doc.id} 
-              className={`p-3.5 shadow-sm transition-all ${
-                doc.available ? "hover:shadow-md" : "opacity-50"
+              className={`p-4 shadow-sm transition-all ${
+                doc.available ? "active:scale-[0.98]" : "opacity-50"
               }`}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-11 h-11 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <FileText className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -81,8 +80,8 @@ const AgreementOfSaleDocuments = () => {
                     <p className="text-xs text-muted-foreground">{doc.date}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" disabled={!doc.available}>
-                  <Download className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-10 w-10 flex-shrink-0" disabled={!doc.available}>
+                  <Download className="h-5 w-5" />
                 </Button>
               </div>
             </Card>

@@ -128,10 +128,10 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24">
       <CustomerHeader />
       
-      <main className="max-w-md mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-md mx-auto px-4 py-4 space-y-4">
         <CustomerOverview
           customerId={selectedStand.customerId}
           customerName={selectedStand.customerName}
@@ -170,7 +170,7 @@ const Index = () => {
 
         <Button 
           variant="outline" 
-          className="w-full"
+          className="w-full h-12 text-base"
           onClick={() => fetchCustomerData(true)}
           disabled={refreshing}
         >

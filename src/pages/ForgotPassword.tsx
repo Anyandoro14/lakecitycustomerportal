@@ -435,10 +435,10 @@ const ForgotPassword = () => {
 
   // Request step - enter stand number
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Reset Password</CardTitle>
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-xl">Reset Password</CardTitle>
           <CardDescription>
             Enter your stand number to receive a password reset code via WhatsApp.
           </CardDescription>
@@ -457,7 +457,7 @@ const ForgotPassword = () => {
                   setError("");
                 }}
                 required
-                className={error ? "border-destructive" : ""}
+                className={`h-12 ${error ? "border-destructive" : ""}`}
                 disabled={loading}
               />
               {error && (
@@ -472,12 +472,12 @@ const ForgotPassword = () => {
               </AlertDescription>
             </Alert>
 
-            <Button type="submit" className="w-full" disabled={loading || !standNumber}>
+            <Button type="submit" className="w-full h-12 text-base" disabled={loading || !standNumber}>
               {loading ? "Sending..." : "Send Verification Code"}
             </Button>
 
             <Link to="/login" className="block">
-              <Button variant="ghost" className="w-full" type="button">
+              <Button variant="ghost" className="w-full h-12" type="button">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Login
               </Button>

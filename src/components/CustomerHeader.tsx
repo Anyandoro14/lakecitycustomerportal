@@ -73,12 +73,15 @@ const CustomerHeader = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-card border-b border-border px-3 py-2.5">
+    <header 
+      className="sticky top-0 z-50 w-full bg-card border-b border-border px-3 py-2"
+      style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)' }}
+    >
       <div className="flex items-center justify-between max-w-md mx-auto">
         <div className="flex items-center gap-2">
           {/* User initials avatar */}
-          <Avatar className="h-8 w-8 bg-primary">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+          <Avatar className="h-9 w-9 bg-primary">
+            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
               {userInitials}
             </AvatarFallback>
           </Avatar>
@@ -98,23 +101,23 @@ const CustomerHeader = () => {
         
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Menu className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
+              <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[280px]">
-            <SheetHeader>
+          <SheetContent side="right" className="w-[85vw] max-w-[320px] p-0">
+            <SheetHeader className="p-4 border-b border-border">
               <SheetTitle className="flex items-center gap-2">
                 <img src={logoMonogram} alt="LakeCity" className="h-6 w-6" />
                 <span>LakeCity</span>
               </SheetTitle>
             </SheetHeader>
-            <nav className="flex flex-col gap-2 mt-6">
+            <nav className="flex flex-col gap-1 p-3">
               {menuItems.map((item) => (
                 <Button
                   key={item.path}
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-base"
+                  className="w-full justify-start gap-3 text-base h-12 rounded-lg"
                   onClick={() => handleNavigation(item.path)}
                 >
                   <item.icon className="h-5 w-5" />
@@ -129,7 +132,7 @@ const CustomerHeader = () => {
               <LogoutConfirmDialog 
                 onConfirm={handleLogout} 
                 loading={logoutLoading}
-                triggerClassName="w-full justify-start gap-3 text-base text-destructive hover:text-destructive hover:bg-destructive/10"
+                triggerClassName="w-full justify-start gap-3 text-base h-12 rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10"
               />
             </nav>
           </SheetContent>

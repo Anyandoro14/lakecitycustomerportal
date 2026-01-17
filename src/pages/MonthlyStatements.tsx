@@ -103,19 +103,22 @@ const MonthlyStatements = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background pb-20 flex items-center justify-center">
-        <p className="text-muted-foreground">Loading statements...</p>
+      <div className="min-h-screen bg-background pb-24 flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading statements...</p>
+        </div>
       </div>
     );
   }
 
   if (statements.length === 0) {
     return (
-      <div className="min-h-screen bg-background pb-20">
+      <div className="min-h-screen bg-background pb-24">
         <CustomerHeader />
-        <main className="max-w-4xl mx-auto px-3 py-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="mb-3 -ml-2">
-            <ArrowLeft className="h-4 w-4 mr-1" />
+        <main className="max-w-4xl mx-auto px-4 py-4">
+          <Button variant="ghost" onClick={() => navigate("/")} className="mb-4 -ml-2 h-10">
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
           <Card className="p-8">
@@ -136,17 +139,16 @@ const MonthlyStatements = () => {
   // Statement History View
   if (showHistory) {
     return (
-      <div className="min-h-screen bg-background pb-20">
+      <div className="min-h-screen bg-background pb-24">
         <CustomerHeader />
         
-        <main className="max-w-4xl mx-auto px-3 py-3">
+        <main className="max-w-4xl mx-auto px-4 py-4">
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => navigate("/")}
-            className="mb-3 -ml-2"
+            className="mb-4 -ml-2 h-10"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
 
@@ -166,15 +168,15 @@ const MonthlyStatements = () => {
             <ScrollArea className="max-h-[60vh]">
               <div className="divide-y divide-border">
                 {statements.map((statement) => (
-                  <button
-                    key={statement.id}
-                    onClick={() => {
-                      setSelectedStatement(statement);
-                      setShowHistory(false);
-                    }}
-                    className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
+                    <button
+                      key={statement.id}
+                      onClick={() => {
+                        setSelectedStatement(statement);
+                        setShowHistory(false);
+                      }}
+                      className="w-full px-4 py-4 flex items-center justify-between hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                         <Calendar className="h-5 w-5 text-primary" />
                       </div>
@@ -218,18 +220,17 @@ const MonthlyStatements = () => {
     : [];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24">
       <CustomerHeader />
       
-      <main className="max-w-4xl mx-auto px-3 py-3">
-        <div className="flex items-center justify-between mb-3">
+      <main className="max-w-4xl mx-auto px-4 py-4">
+        <div className="flex items-center justify-between mb-4 gap-2">
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => setShowHistory(true)}
-            className="-ml-2"
+            className="-ml-2 h-10"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <ArrowLeft className="h-4 w-4 mr-2" />
             All Statements
           </Button>
           
@@ -399,14 +400,14 @@ const MonthlyStatements = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col md:flex-row gap-2 md:gap-3 pt-4 md:pt-6 border-t border-border">
-            <Button className="flex-1" onClick={() => window.print()}>
-              <Printer className="h-4 w-4 mr-2" />
-              <span className="text-sm md:text-base">Print Statement</span>
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 md:pt-6 border-t border-border">
+            <Button className="flex-1 h-12 text-base" onClick={() => window.print()}>
+              <Printer className="h-5 w-5 mr-2" />
+              Print Statement
             </Button>
-            <Button variant="outline" className="flex-1">
-              <Download className="h-4 w-4 mr-2" />
-              <span className="text-sm md:text-base">Download PDF</span>
+            <Button variant="outline" className="flex-1 h-12 text-base">
+              <Download className="h-5 w-5 mr-2" />
+              Download PDF
             </Button>
           </div>
         </Card>
