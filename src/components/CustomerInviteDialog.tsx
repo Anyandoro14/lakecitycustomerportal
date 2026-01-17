@@ -74,7 +74,7 @@ const CustomerInviteDialog = ({
   const defaultMessages = {
     email: `Dear ${customer?.full_name || 'Customer'},\n\nWelcome to the LakeCity Customer Portal! We're excited to invite you to access your personal account for Stand ${customer?.stand_number || ''}.\n\nClick the link below to create your account and view:\n✓ Payment history and statements\n✓ Agreement of Sale documents\n✓ Real-time account balance\n\nAt LakeCity, we believe in Transparency, Integrity, and Honesty.\n\nWarm regards,\nThe LakeCity Team`,
     sms: `LakeCity Portal: Welcome ${customer?.full_name || 'Customer'}! Create your account to view Stand ${customer?.stand_number || ''} payments & documents.`,
-    whatsapp: `🏠 *Welcome to LakeCity Customer Portal!*\n\nDear ${customer?.full_name || 'Customer'},\n\nYour personal portal for *Stand ${customer?.stand_number || ''}* is ready!\n\n✅ View payment history\n✅ Download statements\n✅ Access Agreement of Sale\n\n🤝 *Transparency • Integrity • Honesty*\nLakeCity Development`
+    whatsapp: `*Welcome to LakeCity Customer Portal!*\n\nDear ${customer?.full_name || 'Customer'},\n\nYour personal portal for *Stand ${customer?.stand_number || ''}* is ready!\n\n✅ View payment history\n✅ Download statements\n✅ Access Agreement of Sale\n\n🤝 *Honesty • Integrity • Transparency*\nLakeCity Development`
   };
 
   const handleSend = async () => {
