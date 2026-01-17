@@ -40,6 +40,18 @@ const Index = () => {
       return;
     }
     
+    // Check if user is an internal user - if so, redirect to internal portal
+    const { data: internalUser } = await supabase
+      .from('internal_users')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .single();
+    
+    if (internalUser) {
+      navigate("/internal-portal");
+      return;
+    }
+    
     setIsAuthenticated(true);
     await fetchCustomerData();
   };
