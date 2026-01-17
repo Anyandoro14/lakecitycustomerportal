@@ -45,7 +45,7 @@ const App = () => (
               <Route path="/guide" element={<Guide />} />
               <Route path="/support" element={<SupportRequest />} />
               <Route path="/standsledger" element={<StandLedgerLanding />} />
-              <Route path="/internal" element={<InternalPortal />} />
+              <Route path="/internal-portal" element={<InternalPortal />} />
               <Route path="/internal-login" element={<InternalLogin />} />
               <Route path="/looking-glass" element={<LookingGlassView />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
