@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useLookingGlass } from "@/contexts/LookingGlassContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ import {
   Crown,
   ShieldCheck,
   UserPlus,
+  Eye,
 } from "lucide-react";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import { toast } from "sonner";
@@ -110,6 +112,7 @@ interface KnowledgeArticle {
 
 const InternalPortal = () => {
   const navigate = useNavigate();
+  const { enterLookingGlass } = useLookingGlass();
   const [loading, setLoading] = useState(true);
   const [isInternalUser, setIsInternalUser] = useState(false);
   const [currentUser, setCurrentUser] = useState<InternalUser | null>(null);
@@ -760,6 +763,29 @@ const InternalPortal = () => {
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-4">
+                        {/* Looking Glass Button - View as Customer */}
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          className="bg-amber-500 hover:bg-amber-600 text-white"
+                          onClick={async () => {
+                            const success = await enterLookingGlass(
+                              {
+                                standNumber: selectedCustomer.stand_number,
+                                customerName: selectedCustomer.full_name,
+                                customerEmail: selectedCustomer.email,
+                                userId: selectedCustomer.user_id
+                              },
+                              currentUser?.email || ''
+                            );
+                            if (success) {
+                              navigate('/looking-glass');
+                            }
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View as Customer
+                        </Button>
                         <CustomerInviteDialog
                           standNumber={selectedCustomer.stand_number}
                           customerName={selectedCustomer.full_name}
