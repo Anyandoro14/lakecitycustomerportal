@@ -50,6 +50,102 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_invitations: {
+        Row: {
+          accepted_at: string | null
+          channel: Database["public"]["Enums"]["invitation_channel"]
+          created_at: string
+          custom_message: string | null
+          customer_email: string
+          customer_name: string | null
+          customer_phone: string | null
+          expires_at: string
+          id: string
+          invitation_token: string
+          message_template: string | null
+          sent_at: string
+          sent_by: string | null
+          sent_by_email: string | null
+          stand_number: string
+          status: Database["public"]["Enums"]["invitation_status"]
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          channel?: Database["public"]["Enums"]["invitation_channel"]
+          created_at?: string
+          custom_message?: string | null
+          customer_email: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          expires_at?: string
+          id?: string
+          invitation_token: string
+          message_template?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          sent_by_email?: string | null
+          stand_number: string
+          status?: Database["public"]["Enums"]["invitation_status"]
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          channel?: Database["public"]["Enums"]["invitation_channel"]
+          created_at?: string
+          custom_message?: string | null
+          customer_email?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          expires_at?: string
+          id?: string
+          invitation_token?: string
+          message_template?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          sent_by_email?: string | null
+          stand_number?: string
+          status?: Database["public"]["Enums"]["invitation_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_onboarding: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          id: string
+          skipped: boolean
+          steps_completed: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          id?: string
+          skipped?: boolean
+          steps_completed?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          id?: string
+          skipped?: boolean
+          steps_completed?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       internal_users: {
         Row: {
           created_at: string
@@ -303,6 +399,8 @@ export type Database = {
     }
     Enums: {
       internal_role: "helpdesk" | "admin" | "super_admin"
+      invitation_channel: "email" | "sms" | "whatsapp"
+      invitation_status: "pending" | "accepted" | "expired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -431,6 +529,8 @@ export const Constants = {
   public: {
     Enums: {
       internal_role: ["helpdesk", "admin", "super_admin"],
+      invitation_channel: ["email", "sms", "whatsapp"],
+      invitation_status: ["pending", "accepted", "expired"],
     },
   },
 } as const

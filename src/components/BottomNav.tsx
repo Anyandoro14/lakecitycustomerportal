@@ -1,4 +1,4 @@
-import { Home, CreditCard, FileText, User, HelpCircle } from "lucide-react";
+import { Home, FileText, User, HelpCircle } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const BottomNav = () => {
@@ -7,7 +7,6 @@ const BottomNav = () => {
 
   const navItems = [
     { icon: Home, label: "Home", path: "/" },
-    { icon: CreditCard, label: "Payments", path: "/monthly-statements" },
     { icon: FileText, label: "Documents", path: "/agreement-of-sale" },
     { icon: User, label: "Settings", path: "/settings" },
     { icon: HelpCircle, label: "Guide", path: "/guide" },

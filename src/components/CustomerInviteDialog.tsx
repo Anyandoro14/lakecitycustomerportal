@@ -1,0 +1,234 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { Mail, MessageSquare, Phone, Send, Loader2, CheckCircle2 } from "lucide-react";
+
+interface CustomerInviteDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  customer?: {
+    stand_number: string;
+    full_name: string;
+    email: string;
+    phone_number: string;
+  };
+}
+
+const CustomerInviteDialog = ({ open, onOpenChange, customer }: CustomerInviteDialogProps) => {
+  const [channel, setChannel] = useState<"email" | "sms" | "whatsapp">("email");
+  const [customMessage, setCustomMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const defaultMessages = {
+    email: `Dear ${customer?.full_name || 'Customer'},\n\nWelcome to the LakeCity Customer Portal! We're excited to invite you to access your personal account for Stand ${customer?.stand_number || ''}.\n\nClick the link below to create your account and view:\n✓ Payment history and statements\n✓ Agreement of Sale documents\n✓ Real-time account balance\n\nAt LakeCity, we believe in Transparency, Integrity, and Honesty.\n\nWarm regards,\nThe LakeCity Team`,
+    sms: `LakeCity Portal: Welcome ${customer?.full_name || 'Customer'}! Create your account to view Stand ${customer?.stand_number || ''} payments & documents.`,
+    whatsapp: `🏠 *Welcome to LakeCity Customer Portal!*\n\nDear ${customer?.full_name || 'Customer'},\n\nYour personal portal for *Stand ${customer?.stand_number || ''}* is ready!\n\n✅ View payment history\n✅ Download statements\n✅ Access Agreement of Sale\n\n🤝 *Transparency • Integrity • Honesty*\nLakeCity Development`
+  };
+
+  const handleSend = async () => {
+    if (!customer) return;
+
+    if ((channel === "sms" || channel === "whatsapp") && !customer.phone_number) {
+      toast.error("Phone number required for SMS/WhatsApp invitations");
+      return;
+    }
+
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-customer-invitation', {
+        body: {
+          standNumber: customer.stand_number,
+          customerEmail: customer.email,
+          customerPhone: customer.phone_number,
+          customerName: customer.full_name,
+          channel: channel,
+          customMessage: customMessage || undefined
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        setSent(true);
+        toast.success(`Invitation sent via ${channel.toUpperCase()}`);
+        setTimeout(() => {
+          onOpenChange(false);
+          setSent(false);
+          setCustomMessage("");
+        }, 2000);
+      } else {
+        throw new Error(data?.error || 'Failed to send invitation');
+      }
+    } catch (error: any) {
+      console.error('Send invitation error:', error);
+      toast.error(error.message || 'Failed to send invitation');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const getChannelIcon = () => {
+    switch (channel) {
+      case "email": return <Mail className="h-4 w-4" />;
+      case "sms": return <Phone className="h-4 w-4" />;
+      case "whatsapp": return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  if (sent) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <div className="flex flex-col items-center justify-center py-8 space-y-4">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+            </div>
+            <h3 className="text-lg font-semibold">Invitation Sent!</h3>
+            <p className="text-sm text-muted-foreground text-center">
+              {customer?.full_name} has been invited via {channel.toUpperCase()}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-primary" />
+            Send Portal Invitation
+          </DialogTitle>
+          <DialogDescription>
+            Invite {customer?.full_name || 'customer'} to access their account on the LakeCity Customer Portal
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Customer Info */}
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Stand Number:</span>
+              <span className="font-medium">{customer?.stand_number}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Name:</span>
+              <span className="font-medium">{customer?.full_name}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Email:</span>
+              <span className="font-medium">{customer?.email}</span>
+            </div>
+            {customer?.phone_number && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Phone:</span>
+                <span className="font-medium">{customer?.phone_number}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Channel Selection */}
+          <div className="space-y-2">
+            <Label>Send via</Label>
+            <Select value={channel} onValueChange={(v) => setChannel(v as any)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </div>
+                </SelectItem>
+                <SelectItem value="sms" disabled={!customer?.phone_number}>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    SMS {!customer?.phone_number && "(No phone)"}
+                  </div>
+                </SelectItem>
+                <SelectItem value="whatsapp" disabled={!customer?.phone_number}>
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    WhatsApp {!customer?.phone_number && "(No phone)"}
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Message Preview / Edit */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label>Message</Label>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setCustomMessage("")}
+                className="text-xs"
+              >
+                Reset to default
+              </Button>
+            </div>
+            <Textarea
+              value={customMessage || defaultMessages[channel]}
+              onChange={(e) => setCustomMessage(e.target.value)}
+              className="min-h-[200px] text-sm"
+              placeholder="Customize your invitation message..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Note: The signup link will be automatically added to the message.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSend} 
+            disabled={sending}
+            className="w-full sm:w-auto"
+          >
+            {sending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                {getChannelIcon()}
+                <span className="ml-2">Send Invitation</span>
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default CustomerInviteDialog;
