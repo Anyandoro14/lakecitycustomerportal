@@ -45,6 +45,22 @@ serve(async (req) => {
       );
     }
 
+    // Parse request body for Looking Glass mode
+    let lookingGlassMode = false;
+    let targetStandNumber = null;
+    let requestBody: any = {};
+    
+    try {
+      const bodyText = await req.text();
+      if (bodyText) {
+        requestBody = JSON.parse(bodyText);
+        lookingGlassMode = requestBody.lookingGlassMode === true;
+        targetStandNumber = requestBody.targetStandNumber;
+      }
+    } catch (e) {
+      // No body or invalid JSON, continue with normal flow
+    }
+
     // Get user's profile
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
@@ -63,6 +79,29 @@ serve(async (req) => {
     // Use the authenticated user's email to find their stand
     const userEmail = user.email || profile.email;
     console.log('Fetching data for user:', userEmail);
+
+    // Check if this is Looking Glass mode - only allow for @lakecity.co.zw admins
+    let isLookingGlassAdmin = false;
+    if (lookingGlassMode && targetStandNumber) {
+      if (userEmail && userEmail.toLowerCase().endsWith('@lakecity.co.zw')) {
+        // Verify user is an internal user
+        const { data: internalUser } = await supabaseClient
+          .from('internal_users')
+          .select('id, role')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (internalUser) {
+          isLookingGlassAdmin = true;
+          console.log(`Looking Glass mode activated by ${userEmail} for stand ${targetStandNumber}`);
+        } else {
+          console.warn(`Looking Glass denied - user ${userEmail} not in internal_users table`);
+        }
+      } else {
+        console.warn(`Looking Glass denied - user ${userEmail} not @lakecity.co.zw`);
+      }
+    }
+
 
     // Get credentials - support both JSON and separate key/email
     const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
@@ -289,19 +328,37 @@ serve(async (req) => {
       );
     }
 
-    // Find ALL customer rows by matching the user's email (support multiple stands)
-    const customerRows = rows.slice(1).filter(row => 
-      row[emailIndex] && row[emailIndex].toString().trim().toLowerCase() === userEmail.toLowerCase()
-    );
-
-    if (customerRows.length === 0) {
-      return new Response(
-        JSON.stringify({ error: `Your email (${userEmail}) is not authorized to view any stand. Please contact support.` }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    // Find customer rows - different logic for Looking Glass vs normal mode
+    let customerRows: string[][];
+    
+    if (isLookingGlassAdmin && targetStandNumber) {
+      // Looking Glass mode: Find the specific stand by stand number
+      customerRows = rows.slice(1).filter(row => 
+        row[standNumIndex] && row[standNumIndex].toString().trim().toUpperCase() === targetStandNumber.toUpperCase()
       );
-    }
+      console.log(`Looking Glass: Found ${customerRows.length} row(s) for stand ${targetStandNumber}`);
+      
+      if (customerRows.length === 0) {
+        return new Response(
+          JSON.stringify({ error: `Stand ${targetStandNumber} not found in spreadsheet` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // Normal mode: Find ALL customer rows by matching the user's email (support multiple stands)
+      customerRows = rows.slice(1).filter(row => 
+        row[emailIndex] && row[emailIndex].toString().trim().toLowerCase() === userEmail.toLowerCase()
+      );
 
-    console.log(`User ${userEmail} authorized for ${customerRows.length} stand(s)`);
+      if (customerRows.length === 0) {
+        return new Response(
+          JSON.stringify({ error: `Your email (${userEmail}) is not authorized to view any stand. Please contact support.` }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`User ${userEmail} authorized for ${customerRows.length} stand(s)`);
+    }
 
     // Map all stands to data objects
     const stands = customerRows.map(customerRow => {
