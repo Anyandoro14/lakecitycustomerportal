@@ -62,16 +62,16 @@ const OnboardingWizard = ({ onComplete, customerName }: OnboardingWizardProps) =
           </div>
           <div className="flex items-center justify-center gap-6 pt-4">
             <div className="text-center">
-              <Shield className="h-8 w-8 text-primary mx-auto mb-2" />
-              <p className="text-xs font-medium">Transparency</p>
+              <Eye className="h-8 w-8 text-primary mx-auto mb-2" />
+              <p className="text-xs font-medium">Honesty</p>
             </div>
             <div className="text-center">
               <Heart className="h-8 w-8 text-primary mx-auto mb-2" />
               <p className="text-xs font-medium">Integrity</p>
             </div>
             <div className="text-center">
-              <Eye className="h-8 w-8 text-primary mx-auto mb-2" />
-              <p className="text-xs font-medium">Honesty</p>
+              <Shield className="h-8 w-8 text-primary mx-auto mb-2" />
+              <p className="text-xs font-medium">Transparency</p>
             </div>
           </div>
         </div>
