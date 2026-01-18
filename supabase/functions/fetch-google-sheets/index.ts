@@ -76,9 +76,9 @@ serve(async (req) => {
       );
     }
 
-    // Use the authenticated user's email to find their stand
-    const userEmail = user.email || profile.email;
-    console.log('Fetching data for user:', userEmail);
+    // Use the profile email first (lets us migrate emails without breaking access)
+    const userEmail = profile.email || user.email;
+    console.log('Fetching data for user:', { authEmail: user.email, profileEmail: profile.email, resolvedEmail: userEmail });
 
     // Check if this is Looking Glass mode - only allow for @lakecity.co.zw admins
     let isLookingGlassAdmin = false;
