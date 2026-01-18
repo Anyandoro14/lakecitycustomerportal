@@ -76,32 +76,56 @@ serve(async (req) => {
       );
     }
 
-    // Use the profile email first (lets us migrate emails without breaking access)
-    const userEmail = profile.email || user.email;
-    console.log('Fetching data for user:', { authEmail: user.email, profileEmail: profile.email, resolvedEmail: userEmail });
+    // Normalize + match against BOTH auth email and profile email (supports email migrations)
+    const normalizeEmail = (value: unknown) =>
+      (value ?? "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        // remove any whitespace characters that can sneak into sheets / profiles
+        .replace(/\s+/g, "");
+
+    const candidateEmails = Array.from(
+      new Set([profile.email, user.email].map(normalizeEmail).filter(Boolean)),
+    );
+
+    if (candidateEmails.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "User email not available" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const primaryEmail = candidateEmails[0];
+    console.log('Fetching data for user:', {
+      authEmail: user.email,
+      profileEmail: profile.email,
+      candidateEmails,
+    });
 
     // Check if this is Looking Glass mode - only allow for @lakecity.co.zw admins
     let isLookingGlassAdmin = false;
     if (lookingGlassMode && targetStandNumber) {
-      if (userEmail && userEmail.toLowerCase().endsWith('@lakecity.co.zw')) {
+      const isStaff = candidateEmails.some((e) => e.endsWith('@lakecity.co.zw'));
+
+      if (isStaff) {
         // Verify user is an internal user
         const { data: internalUser } = await supabaseClient
           .from('internal_users')
           .select('id, role')
           .eq('user_id', user.id)
           .single();
-        
+
         if (internalUser) {
           isLookingGlassAdmin = true;
-          console.log(`Looking Glass mode activated by ${userEmail} for stand ${targetStandNumber}`);
+          console.log(`Looking Glass mode activated by ${primaryEmail} for stand ${targetStandNumber}`);
         } else {
-          console.warn(`Looking Glass denied - user ${userEmail} not in internal_users table`);
+          console.warn(`Looking Glass denied - user ${primaryEmail} not in internal_users table`);
         }
       } else {
-        console.warn(`Looking Glass denied - user ${userEmail} not @lakecity.co.zw`);
+        console.warn(`Looking Glass denied - user ${primaryEmail} not @lakecity.co.zw`);
       }
     }
-
 
     // Get credentials - support both JSON and separate key/email
     const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
@@ -345,21 +369,23 @@ serve(async (req) => {
         );
       }
     } else {
-      // Normal mode: Find ALL customer rows by matching the user's email (support multiple stands)
-      customerRows = rows.slice(1).filter(row => 
-        row[emailIndex] && row[emailIndex].toString().trim().toLowerCase() === userEmail.toLowerCase()
-      );
+      // Normal mode: Find ALL customer rows by matching either profile email or auth email (supports migrations)
+      customerRows = rows.slice(1).filter((row) => {
+        const rowEmail = normalizeEmail(row[emailIndex]);
+        return rowEmail && candidateEmails.includes(rowEmail);
+      });
 
       if (customerRows.length === 0) {
         return new Response(
-          JSON.stringify({ error: `Your email (${userEmail}) is not authorized to view any stand. Please contact support.` }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({
+            error: `Your email (${primaryEmail}) is not authorized to view any stand. Please contact support.`,
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
-      
-      console.log(`User ${userEmail} authorized for ${customerRows.length} stand(s)`);
-    }
 
+      console.log(`User ${primaryEmail} authorized for ${customerRows.length} stand(s)`);
+    }
     // Map all stands to data objects
     const stands = customerRows.map(customerRow => {
       const standNumber = customerRow[standNumIndex];
