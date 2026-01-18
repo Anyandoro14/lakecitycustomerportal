@@ -11,11 +11,21 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, newPassword } = await req.json();
+    const { email, standNumber, phone, newPassword } = await req.json();
 
-    if (!email || !newPassword) {
+    // Count how many lookup fields are provided
+    const lookupFields = [email, standNumber, phone].filter(Boolean);
+    
+    if (lookupFields.length < 2) {
       return new Response(
-        JSON.stringify({ error: "Email and newPassword are required" }),
+        JSON.stringify({ error: "At least 2 lookup fields (email, stand number, phone) are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!newPassword) {
+      return new Response(
+        JSON.stringify({ error: "New password is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -26,29 +36,57 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Find the user by email
-    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    // Build query to find customer profile based on provided fields
+    let query = supabaseAdmin.from("profiles").select("*");
     
-    if (listError) {
-      console.error("Error listing users:", listError);
+    if (standNumber) {
+      query = query.ilike("stand_number", standNumber);
+    }
+    if (phone) {
+      query = query.ilike("phone_number", `%${phone.replace(/^0/, "").replace(/^\+263/, "")}%`);
+    }
+    if (email) {
+      query = query.ilike("email", email);
+    }
+
+    const { data: profiles, error: profileError } = await query;
+
+    if (profileError) {
+      console.error("Error finding profile:", profileError);
       return new Response(
-        JSON.stringify({ error: "Failed to find user" }),
+        JSON.stringify({ error: "Failed to find customer" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const user = users.users.find((u) => u.email === email);
-    
-    if (!user) {
+    if (!profiles || profiles.length === 0) {
       return new Response(
-        JSON.stringify({ error: "User not found" }),
+        JSON.stringify({ error: "No customer found matching the provided details" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Update the user's password
+    if (profiles.length > 1) {
+      return new Response(
+        JSON.stringify({ error: "Multiple customers found. Please provide more specific details." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const profile = profiles[0];
+    const userId = profile.id;
+    const userEmail = profile.email;
+
+    if (!userEmail) {
+      return new Response(
+        JSON.stringify({ error: "Customer does not have an email address on file" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Update the user's password using auth admin API
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      user.id,
+      userId,
       { password: newPassword }
     );
 
@@ -60,8 +98,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Log the password reset in audit log
+    const authHeader = req.headers.get("Authorization");
+    let performedBy = null;
+    let performedByEmail = null;
+
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: claimsData } = await supabaseAdmin.auth.getClaims(token);
+        if (claimsData?.claims) {
+          performedBy = claimsData.claims.sub as string;
+          performedByEmail = claimsData.claims.email as string;
+        }
+      } catch (e) {
+        console.error("Error getting claims:", e);
+      }
+    }
+
+    await supabaseAdmin.from("audit_log").insert({
+      action: "PASSWORD_RESET",
+      entity_type: "customer",
+      entity_id: userId,
+      performed_by: performedBy,
+      performed_by_email: performedByEmail,
+      details: {
+        customer_email: userEmail,
+        stand_number: profile.stand_number,
+        lookup_fields_used: { email: !!email, standNumber: !!standNumber, phone: !!phone }
+      }
+    });
+
     return new Response(
-      JSON.stringify({ success: true, message: "Password updated successfully" }),
+      JSON.stringify({ 
+        success: true, 
+        message: "Password updated successfully",
+        customer: {
+          email: userEmail,
+          standNumber: profile.stand_number,
+          name: profile.full_name
+        }
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
