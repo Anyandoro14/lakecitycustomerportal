@@ -193,8 +193,8 @@ const Login = () => {
 
           setShowVerification(true);
           toast({
-            title: "WhatsApp verification code sent",
-            description: `We've sent a 6-digit code via WhatsApp to ${maskPhoneNumber(profile.phone_number)}`,
+            title: "Verification code sent",
+            description: `We've sent a 6-digit code to ${maskPhoneNumber(profile.phone_number)}`,
           });
         } else {
           // No phone number, proceed without 2FA
@@ -226,8 +226,8 @@ const Login = () => {
       startCooldownTimer();
       
       toast({
-        title: "New WhatsApp code sent",
-        description: `A new verification code has been sent via WhatsApp to ${maskPhoneNumber(phoneNumber)}`,
+        title: "New code sent",
+        description: `A new verification code has been sent to ${maskPhoneNumber(phoneNumber)}`,
       });
     } catch (error: any) {
       toast({
@@ -315,9 +315,9 @@ const Login = () => {
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-2">
-            <CardTitle className="text-xl">WhatsApp Verification</CardTitle>
+            <CardTitle className="text-xl">Verification</CardTitle>
             <CardDescription>
-              We've sent a 6-digit verification code via WhatsApp to {maskedPhone}
+              We've sent a 6-digit verification code to {maskedPhone}
             </CardDescription>
           </CardHeader>
           <CardContent>
