@@ -23,20 +23,22 @@ const InternalLogin = () => {
 
   const checkExistingSession = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (session) {
         const userEmail = session.user.email?.toLowerCase() || "";
         if (userEmail.endsWith("@lakecity.co.zw")) {
-          navigate("/internal");
+          navigate("/internal-portal");
           return;
-        } else {
-          // Not a LakeCity email, sign them out
-          await supabase.auth.signOut();
         }
+
+        // Not a LakeCity email, sign them out
+        await supabase.auth.signOut();
       }
     } catch (error) {
-      console.error('Session check error:', error);
+      console.error("Session check error:", error);
     } finally {
       setLoading(false);
     }
@@ -45,8 +47,8 @@ const InternalLogin = () => {
   const handleGoogleSignIn = async () => {
     setSigningIn(true);
     try {
-      const redirectUrl = `${window.location.origin}/internal`;
-      
+      const redirectUrl = `${window.location.origin}/internal-portal`;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -67,7 +69,7 @@ const InternalLogin = () => {
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email.toLowerCase().endsWith("@lakecity.co.zw")) {
       toast.error("Only @lakecity.co.zw emails are permitted.");
       return;
@@ -83,9 +85,9 @@ const InternalLogin = () => {
       if (error) throw error;
 
       toast.success("Signed in successfully!");
-      navigate("/internal");
+      navigate("/internal-portal");
     } catch (error: any) {
-      console.error('Sign in error:', error);
+      console.error("Sign in error:", error);
       toast.error(error.message || "Failed to sign in. Please try again.");
     } finally {
       setSigningIn(false);

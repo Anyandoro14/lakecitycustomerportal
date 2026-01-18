@@ -25,7 +25,7 @@ const LookingGlassView = () => {
   useEffect(() => {
     // Redirect if not in Looking Glass mode
     if (!isLookingGlassMode || !customer) {
-      navigate("/internal");
+      navigate("/internal-portal");
       return;
     }
 
