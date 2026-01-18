@@ -65,6 +65,8 @@ Deno.serve(async (req) => {
 
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
+    const twilioWhatsAppNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
 
     if (!accountSid || !authToken) {
       console.error('Twilio credentials not configured');
@@ -74,10 +76,24 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (type === 'sms' && !twilioPhoneNumber) {
+      return new Response(
+        JSON.stringify({ error: 'SMS service not configured - missing Twilio phone number' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (type === 'whatsapp' && !twilioWhatsAppNumber) {
+      return new Response(
+        JSON.stringify({ error: 'WhatsApp service not configured - missing Twilio WhatsApp number' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     let twilioResponse;
     
     if (type === 'whatsapp') {
-      // Send WhatsApp message
+      // Send WhatsApp message using configured number
       twilioResponse = await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
         {
@@ -87,14 +103,14 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
-            From: 'whatsapp:+14155238886', // Twilio sandbox number
+            From: `whatsapp:${twilioWhatsAppNumber}`,
             To: `whatsapp:${formattedPhone}`,
             Body: message,
           }),
         }
       );
     } else {
-      // Send SMS
+      // Send SMS using configured number
       twilioResponse = await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
         {
@@ -104,7 +120,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
-            From: '+12345678901', // Your Twilio phone number
+            From: twilioPhoneNumber!,
             To: formattedPhone,
             Body: message,
           }),

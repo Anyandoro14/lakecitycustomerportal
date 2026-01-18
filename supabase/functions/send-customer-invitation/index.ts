@@ -154,6 +154,7 @@ LakeCity Development`
       const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
       const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
       const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
+      const twilioWhatsAppNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
 
       if (!accountSid || !authToken) {
         return new Response(
@@ -169,6 +170,13 @@ LakeCity Development`
         );
       }
 
+      if (channel === 'whatsapp' && !twilioWhatsAppNumber) {
+        return new Response(
+          JSON.stringify({ error: 'WhatsApp service not configured - missing Twilio WhatsApp number' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const formattedPhone = formatPhoneNumber(customerPhone);
       const message = channel === 'whatsapp' ? templates.whatsapp : templates.sms;
 
@@ -177,8 +185,8 @@ LakeCity Development`
       };
 
       if (channel === 'whatsapp') {
-        // Use Twilio WhatsApp Sandbox number or configured number
-        twilioParams.From = 'whatsapp:+14155238886';
+        // Use configured Twilio WhatsApp number
+        twilioParams.From = `whatsapp:${twilioWhatsAppNumber}`;
         twilioParams.To = `whatsapp:${formattedPhone}`;
       } else {
         // Use configured Twilio phone number for SMS
