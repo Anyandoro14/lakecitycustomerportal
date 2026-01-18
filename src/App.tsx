@@ -45,6 +45,8 @@ const App = () => (
               <Route path="/guide" element={<Guide />} />
               <Route path="/support" element={<SupportRequest />} />
               <Route path="/standsledger" element={<StandLedgerLanding />} />
+              {/* Backward-compatible internal portal route (OAuth redirects, old links) */}
+              <Route path="/internal" element={<InternalPortal />} />
               <Route path="/internal-portal" element={<InternalPortal />} />
               <Route path="/internal-login" element={<InternalLogin />} />
               <Route path="/looking-glass" element={<LookingGlassView />} />
