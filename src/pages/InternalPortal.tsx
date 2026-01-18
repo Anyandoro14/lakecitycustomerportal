@@ -131,6 +131,8 @@ const InternalPortal = () => {
 
   // Password reset states
   const [resetEmail, setResetEmail] = useState("");
+  const [resetStandNumber, setResetStandNumber] = useState("");
+  const [resetPhone, setResetPhone] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -368,8 +370,15 @@ const InternalPortal = () => {
   };
 
   const handlePasswordReset = async () => {
-    if (!resetEmail.trim() || !newPassword.trim()) {
-      toast.error("Please enter email and new password");
+    // Check at least 2 fields are provided
+    const filledFields = [resetStandNumber.trim(), resetPhone.trim(), resetEmail.trim()].filter(Boolean);
+    if (filledFields.length < 2) {
+      toast.error("Please enter at least 2 lookup fields (Stand Number, Phone, Email)");
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      toast.error("Please enter a new password");
       return;
     }
 
@@ -381,14 +390,22 @@ const InternalPortal = () => {
     setResetLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('admin-reset-password', {
-        body: { email: resetEmail, newPassword }
+        body: { 
+          email: resetEmail.trim() || undefined,
+          standNumber: resetStandNumber.trim() || undefined,
+          phone: resetPhone.trim() || undefined,
+          newPassword 
+        }
       });
 
       if (error) throw error;
 
-      toast.success(`Password reset for ${resetEmail}`);
+      const customerIdentifier = resetEmail || resetStandNumber || resetPhone;
+      toast.success(`Password reset for ${customerIdentifier}`);
       setShowResetDialog(false);
       setResetEmail("");
+      setResetStandNumber("");
+      setResetPhone("");
       setNewPassword("");
       loadAuditLogs();
     } catch (error: any) {
@@ -843,9 +860,49 @@ const InternalPortal = () => {
                   </div>
                 </div>
 
-                <div className="space-y-4 max-w-md">
+                {/* Requirement notice */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex gap-3">
+                    <Shield className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-blue-800 dark:text-blue-200">Lookup Requirement</p>
+                      <p className="text-blue-700 dark:text-blue-300 mt-1">
+                        At least <strong>2 out of 3 fields</strong> (Stand Number, Phone Number, Email) must be entered to look up a customer.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-w-lg">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        Stand Number
+                      </Label>
+                      <Input
+                        placeholder="e.g., A123"
+                        value={resetStandNumber}
+                        onChange={(e) => setResetStandNumber(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        Phone Number
+                      </Label>
+                      <Input
+                        placeholder="e.g., 0771234567"
+                        value={resetPhone}
+                        onChange={(e) => setResetPhone(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <Label>Customer Email</Label>
+                    <Label className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      Customer Email
+                    </Label>
                     <Input
                       type="email"
                       placeholder="customer@email.com"
@@ -853,7 +910,35 @@ const InternalPortal = () => {
                       onChange={(e) => setResetEmail(e.target.value)}
                     />
                   </div>
-                  <Button onClick={() => setShowResetDialog(true)} disabled={!resetEmail.trim()}>
+
+                  {/* Field count indicator */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Fields entered:</span>
+                    <Badge 
+                      variant={
+                        [resetStandNumber.trim(), resetPhone.trim(), resetEmail.trim()].filter(Boolean).length >= 2
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {[resetStandNumber.trim(), resetPhone.trim(), resetEmail.trim()].filter(Boolean).length} / 3
+                    </Badge>
+                    {[resetStandNumber.trim(), resetPhone.trim(), resetEmail.trim()].filter(Boolean).length >= 2 ? (
+                      <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" />
+                        Ready to proceed
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        (need at least 2)
+                      </span>
+                    )}
+                  </div>
+
+                  <Button 
+                    onClick={() => setShowResetDialog(true)} 
+                    disabled={[resetStandNumber.trim(), resetPhone.trim(), resetEmail.trim()].filter(Boolean).length < 2}
+                  >
                     <Key className="h-4 w-4 mr-2" />
                     Proceed to Reset
                   </Button>
@@ -1157,10 +1242,22 @@ const InternalPortal = () => {
           <DialogHeader>
             <DialogTitle>Reset Customer Password</DialogTitle>
             <DialogDescription>
-              Set a new password for {resetEmail}. The customer should change this immediately after logging in.
+              Customer identified by: {[
+                resetStandNumber && `Stand ${resetStandNumber}`,
+                resetPhone && `Phone ${resetPhone}`,
+                resetEmail && resetEmail
+              ].filter(Boolean).join(', ')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="bg-muted/50 rounded-lg p-3 text-sm">
+              <p className="font-medium mb-1">Verification Details:</p>
+              <ul className="space-y-1 text-muted-foreground">
+                {resetStandNumber && <li>• Stand Number: <strong>{resetStandNumber}</strong></li>}
+                {resetPhone && <li>• Phone: <strong>{resetPhone}</strong></li>}
+                {resetEmail && <li>• Email: <strong>{resetEmail}</strong></li>}
+              </ul>
+            </div>
             <div>
               <Label>New Temporary Password</Label>
               <Input
@@ -1169,6 +1266,9 @@ const InternalPortal = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                The customer should change this immediately after logging in.
+              </p>
             </div>
           </div>
           <DialogFooter>
