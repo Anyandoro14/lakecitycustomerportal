@@ -342,6 +342,8 @@ serve(async (req) => {
     const firstNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('first'));
     const lastNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('last'));
     const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
+    const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
+    const phoneIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('phone') || h && h.toString().toLowerCase().includes('contact'));
     const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
     const paymentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
     const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
@@ -418,6 +420,12 @@ serve(async (req) => {
       // Combine first and last name
       const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
       const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
+      
+      // Get Customer Category from Column F
+      const customerCategory = customerRow[customerCategoryIndex]?.toString().trim() || '';
+      
+      // Get phone/contact number
+      const phoneNumber = phoneIndex !== -1 ? (customerRow[phoneIndex]?.toString().trim() || '') : '';
       const fullName = `${firstName} ${lastName}`.trim();
 
       // Get the start date for this customer from the sheet
@@ -629,6 +637,8 @@ serve(async (req) => {
         customerId: customerRow[standNumIndex] || '',
         standNumber: standNumber || '',
         customerName: fullName || '',
+        customerCategory: customerCategory,
+        customerPhone: phoneNumber,
         standBalance: currentBalance,
         lastPayment: lastPaymentAmount,
         lastPaymentDate: lastPaymentDate,

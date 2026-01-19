@@ -148,6 +148,7 @@ async function searchGoogleSheets(searchType: string, searchQuery: string): Prom
   const lastNameIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('last name'));
   const phoneIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('contact'));
   const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
+  const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
 
   const results: any[] = [];
   const normalizedQuery = searchQuery.replace(/\s+/g, '').toLowerCase();
@@ -159,6 +160,7 @@ async function searchGoogleSheets(searchType: string, searchQuery: string): Prom
     const email = row[emailIndex]?.toString().trim().toLowerCase() || '';
     const firstName = row[firstNameIndex]?.toString().trim() || '';
     const lastName = row[lastNameIndex]?.toString().trim() || '';
+    const customerCategory = row[customerCategoryIndex]?.toString().trim() || '';
 
     let matches = false;
     
@@ -191,6 +193,7 @@ async function searchGoogleSheets(searchType: string, searchQuery: string): Prom
         full_name: `${firstName} ${lastName}`.trim() || null,
         email: email || `stand-${standNumber}@lakecity.portal`,
         phone_number: phone || null,
+        customer_category: customerCategory || null,
         payment_start_date: null,
         user_id: null,
         source: 'google_sheets'

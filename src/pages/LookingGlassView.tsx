@@ -132,9 +132,24 @@ const LookingGlassView = () => {
                 Viewing Customer Account
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-amber-700 dark:text-amber-300">
-              <p>You are viewing this account exactly as <strong>{customer.customerName}</strong> sees it.</p>
-              <p className="mt-1 text-xs">All interactions are disabled in this mode.</p>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                You are viewing this account exactly as <strong>{customer.customerName}</strong> sees it.
+              </p>
+              
+              {/* Support Context: Stand Number & Customer Category */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-amber-200 dark:border-amber-700">
+                <div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Stand Number</p>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">{customer.standNumber}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Customer Category</p>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">{standData?.customerCategory || '—'}</p>
+                </div>
+              </div>
+              
+              <p className="text-xs text-amber-600 dark:text-amber-400">All interactions are disabled in this mode.</p>
             </CardContent>
           </Card>
 
