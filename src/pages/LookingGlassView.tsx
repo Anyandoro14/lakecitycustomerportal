@@ -188,6 +188,7 @@ const LookingGlassView = () => {
                   progressPercentage={standData.progressPercentage}
                   allStands={[standData]}
                   onStandChange={() => {}}
+                  paymentNotYetDue={standData.paymentNotYetDue}
                 />
               </div>
 

@@ -178,6 +178,7 @@ const Index = () => {
           progressPercentage={selectedStand.progressPercentage}
           allStands={allStands}
           onStandChange={setSelectedStand}
+          paymentNotYetDue={selectedStand.paymentNotYetDue}
         />
 
         <DocumentsSection documents={{

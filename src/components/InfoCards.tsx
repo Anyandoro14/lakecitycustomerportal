@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/validation";
 
 interface InfoCardsProps {
@@ -16,6 +16,7 @@ interface InfoCardsProps {
   progressPercentage: number;
   allStands: any[];
   onStandChange: (stand: any) => void;
+  paymentNotYetDue?: boolean;
 }
 
 const InfoCards = ({ 
@@ -30,7 +31,8 @@ const InfoCards = ({
   totalPaid,
   progressPercentage,
   allStands,
-  onStandChange 
+  onStandChange,
+  paymentNotYetDue = false
 }: InfoCardsProps) => {
   // Format currency values for display
   const formattedTotalPaid = formatCurrency(totalPaid);
@@ -65,23 +67,44 @@ const InfoCards = ({
           )}
         </Card>
 
-        <Card className={`p-4 shadow-sm ${isOverdue ? 'border-destructive border-2' : ''}`}>
+        {/* Next Payment Card - with "Not Yet Due" handling */}
+        <Card className={`p-4 shadow-sm ${isOverdue && !paymentNotYetDue ? 'border-destructive border-2' : ''}`}>
           <div className="flex items-start justify-between mb-2">
             <h3 className="text-xs font-semibold text-foreground">Next Payment</h3>
-            {isOverdue && <AlertCircle className="h-4 w-4 text-destructive shrink-0" />}
+            {isOverdue && !paymentNotYetDue && <AlertCircle className="h-4 w-4 text-destructive shrink-0" />}
+            {paymentNotYetDue && <Clock className="h-4 w-4 text-muted-foreground shrink-0" />}
           </div>
-          <p className={`text-lg font-bold break-words leading-tight ${isOverdue ? 'text-destructive' : 'text-primary'}`}>
-            {formattedNextPayment || 'All paid'}
-          </p>
-          {nextPaymentDate && (
-            <p className="text-xs text-muted-foreground mt-1.5">
-              {nextPaymentDate}
-            </p>
-          )}
-          {isOverdue && daysOverdue > 0 && (
-            <p className="text-xs text-destructive mt-1 font-semibold">
-              {daysOverdue} days overdue
-            </p>
+          
+          {paymentNotYetDue ? (
+            <>
+              <p className="text-lg font-bold text-muted-foreground break-words leading-tight">
+                Not yet due
+              </p>
+              {nextPaymentDate && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Starts: {nextPaymentDate}
+                </p>
+              )}
+              <p className="text-xs text-green-600 mt-1 font-medium">
+                No payment required yet
+              </p>
+            </>
+          ) : (
+            <>
+              <p className={`text-lg font-bold break-words leading-tight ${isOverdue ? 'text-destructive' : 'text-primary'}`}>
+                {formattedNextPayment || 'All paid'}
+              </p>
+              {nextPaymentDate && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  {nextPaymentDate}
+                </p>
+              )}
+              {isOverdue && daysOverdue > 0 && (
+                <p className="text-xs text-destructive mt-1 font-semibold">
+                  {daysOverdue} days overdue
+                </p>
+              )}
+            </>
           )}
         </Card>
 

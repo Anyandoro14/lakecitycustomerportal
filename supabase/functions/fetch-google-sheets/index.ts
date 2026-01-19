@@ -560,14 +560,34 @@ serve(async (req) => {
       console.log(`Stand ${standNumber}: Covered months = ${coveredMonths}, Remaining balance toward next = ${remainingBalance}`);
       
       // Calculate next payment based on covered months (not last filled cell)
+      // CRITICAL: Respect Payment Start Date (Column L) - no payment due before this date
       let nextPaymentDue = '';
       let nextPaymentAmount = monthlyPayment; // Default to full monthly payment
       let daysOverdue = 0;
       let isOverdue = false;
+      let paymentNotYetDue = false;
       
       const totalPaymentPeriods = paymentColumns.length;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to start of day
       
-      if (coveredMonths >= totalPaymentPeriods) {
+      // Normalize customer start date for comparison
+      const customerStartDateNormalized = new Date(customerStartDate);
+      customerStartDateNormalized.setHours(0, 0, 0, 0);
+      
+      console.log(`Stand ${standNumber}: Today = ${today.toISOString()}, Customer Start Date = ${customerStartDateNormalized.toISOString()}`);
+      
+      // BUSINESS RULE: If today is before the customer's payment start date,
+      // no payment is due yet and nothing can be overdue
+      if (today < customerStartDateNormalized) {
+        // Payment obligations haven't started yet
+        paymentNotYetDue = true;
+        nextPaymentDue = customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        nextPaymentAmount = monthlyPayment;
+        isOverdue = false;
+        daysOverdue = 0;
+        console.log(`Stand ${standNumber}: Payment not yet due - start date is in the future`);
+      } else if (coveredMonths >= totalPaymentPeriods) {
         // All instalments are fully covered - no next payment due
         nextPaymentDue = '';
         nextPaymentAmount = '$0.00';
@@ -575,9 +595,12 @@ serve(async (req) => {
         daysOverdue = 0;
         console.log(`Stand ${standNumber}: All ${totalPaymentPeriods} instalments fully covered, no payment due`);
       } else {
-        // First uncovered month = coveredMonths (0-indexed)
+        // Payment obligations have started - calculate based on customer's start date
+        // The first due month for this customer is their start date month
         const nextUncoveredMonth = coveredMonths;
-        const nextDueDate = new Date(basePaymentDate);
+        
+        // Calculate next due date from customer's actual start date (not the sheet header)
+        const nextDueDate = new Date(customerStartDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + nextUncoveredMonth);
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
@@ -588,9 +611,7 @@ serve(async (req) => {
           console.log(`Stand ${standNumber}: Partial payment applied, remaining due = ${nextPaymentAmount}`);
         }
         
-        // Check if overdue - only if the uncovered month's due date has passed
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize to start of day
+        // Check if overdue - only if the next due date has passed
         const dueDateNormalized = new Date(nextDueDate);
         dueDateNormalized.setHours(0, 0, 0, 0);
         
@@ -646,6 +667,8 @@ serve(async (req) => {
         nextPaymentDate: nextPaymentDue,
         isOverdue: isOverdue,
         daysOverdue: daysOverdue,
+        paymentNotYetDue: paymentNotYetDue,
+        paymentStartDate: customerStartDate.toISOString(),
         currentBalance: currentBalance,
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
