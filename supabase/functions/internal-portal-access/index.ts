@@ -424,7 +424,17 @@ Deno.serve(async (req) => {
 
     // ==================== USER MANAGEMENT ====================
 
-    // Helper to check if current user is super_admin
+    // Helper to check if current user is super_admin or director
+    const checkSuperAdminOrDirector = async () => {
+      const { data: currentUserData } = await supabaseAdmin
+        .from('internal_users')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+      return currentUserData?.role === 'super_admin' || currentUserData?.role === 'director';
+    };
+
+    // Helper to check if current user is super_admin only
     const checkSuperAdmin = async () => {
       const { data: currentUserData } = await supabaseAdmin
         .from('internal_users')
@@ -435,11 +445,11 @@ Deno.serve(async (req) => {
     };
 
     if (action === 'list-internal-users') {
-      // Only super_admin can list all internal users
-      const isSuperAdmin = await checkSuperAdmin();
-      if (!isSuperAdmin) {
+      // Only super_admin or director can list all internal users
+      const hasAccess = await checkSuperAdminOrDirector();
+      if (!hasAccess) {
         return new Response(
-          JSON.stringify({ error: 'Only super admins can manage users' }),
+          JSON.stringify({ error: 'Only super admins or directors can manage users' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -474,7 +484,7 @@ Deno.serve(async (req) => {
 
       const { targetUserId, newRole } = body;
 
-      if (!['helpdesk', 'admin', 'super_admin'].includes(newRole)) {
+      if (!['helpdesk', 'admin', 'director', 'super_admin'].includes(newRole)) {
         return new Response(
           JSON.stringify({ error: 'Invalid role' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

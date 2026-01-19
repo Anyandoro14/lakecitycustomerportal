@@ -401,7 +401,7 @@ export type Database = {
       is_override_approver: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      internal_role: "helpdesk" | "admin" | "super_admin"
+      internal_role: "helpdesk" | "admin" | "super_admin" | "director"
       invitation_channel: "email" | "sms" | "whatsapp"
       invitation_status: "pending" | "accepted" | "expired"
     }
@@ -531,7 +531,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      internal_role: ["helpdesk", "admin", "super_admin"],
+      internal_role: ["helpdesk", "admin", "super_admin", "director"],
       invitation_channel: ["email", "sms", "whatsapp"],
       invitation_status: ["pending", "accepted", "expired"],
     },
