@@ -33,9 +33,9 @@ export const CustomerInvitationEmail = ({
         {/* Header with Logo */}
         <Section style={header}>
           <Img
-            src="https://lakecitycustomerportal.lovable.app/lakecity-logo.svg"
-            width="160"
-            height="48"
+            src="https://lakecitycustomerportal.lovable.app/logo-wordmark-white.svg"
+            width="180"
+            height="40"
             alt="LakeCity"
             style={logo}
           />
@@ -106,17 +106,11 @@ export const CustomerInvitationEmail = ({
         <Section style={footer}>
           <Img
             src="https://lakecitycustomerportal.lovable.app/logo-monogram-white.svg"
-            width="32"
-            height="32"
+            width="40"
+            height="40"
             alt="LakeCity"
             style={footerLogo}
           />
-          <Text style={footerText}>
-            LakeCity Development
-          </Text>
-          <Text style={footerSubtext}>
-            Building communities with transparency, integrity, and honesty.
-          </Text>
         </Section>
       </Container>
     </Body>
@@ -295,19 +289,6 @@ const footer = {
 }
 
 const footerLogo = {
-  margin: '0 auto 12px',
+  margin: '0 auto',
   opacity: 0.9,
-}
-
-const footerText = {
-  color: '#FFFFFF',
-  fontSize: '14px',
-  fontWeight: '500' as const,
-  margin: '0 0 4px',
-}
-
-const footerSubtext = {
-  color: 'rgba(255, 255, 255, 0.7)',
-  fontSize: '12px',
-  margin: '0',
 }
