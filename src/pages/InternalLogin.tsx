@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, AlertTriangle, Loader2, Mail } from "lucide-react";
+import { Shield, AlertTriangle, Loader2, Mail, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
+import ForcePasswordChange from "@/components/ForcePasswordChange";
 
 const InternalLogin = () => {
   const navigate = useNavigate();
@@ -16,10 +17,23 @@ const InternalLogin = () => {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     checkExistingSession();
   }, []);
+
+  const checkForcePasswordChange = async (userId: string) => {
+    const { data } = await supabase
+      .from('internal_users')
+      .select('force_password_change')
+      .eq('user_id', userId)
+      .single();
+    
+    return data?.force_password_change || false;
+  };
 
   const checkExistingSession = async () => {
     try {
@@ -30,6 +44,15 @@ const InternalLogin = () => {
       if (session) {
         const userEmail = session.user.email?.toLowerCase() || "";
         if (userEmail.endsWith("@lakecity.co.zw")) {
+          // Check if password change is required
+          const needsPasswordChange = await checkForcePasswordChange(session.user.id);
+          if (needsPasswordChange) {
+            setForcePasswordChange(true);
+            setCurrentUserId(session.user.id);
+            setCurrentUserEmail(userEmail);
+            setLoading(false);
+            return;
+          }
           navigate("/internal-portal");
           return;
         }
@@ -77,12 +100,24 @@ const InternalLogin = () => {
 
     setSigningIn(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase(),
         password,
       });
 
       if (error) throw error;
+
+      // Check if password change is required
+      if (data.user) {
+        const needsPasswordChange = await checkForcePasswordChange(data.user.id);
+        if (needsPasswordChange) {
+          setForcePasswordChange(true);
+          setCurrentUserId(data.user.id);
+          setCurrentUserEmail(data.user.email || email);
+          setSigningIn(false);
+          return;
+        }
+      }
 
       toast.success("Signed in successfully!");
       navigate("/internal-portal");
@@ -94,11 +129,28 @@ const InternalLogin = () => {
     }
   };
 
+  const handlePasswordChanged = () => {
+    setForcePasswordChange(false);
+    toast.success("Password changed! Welcome to the portal.");
+    navigate("/internal-portal");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // Show password change screen if required
+  if (forcePasswordChange && currentUserId && currentUserEmail) {
+    return (
+      <ForcePasswordChange
+        userId={currentUserId}
+        userEmail={currentUserEmail}
+        onPasswordChanged={handlePasswordChanged}
+      />
     );
   }
 
@@ -240,6 +292,26 @@ const InternalLogin = () => {
               </Button>
             </>
           )}
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">New staff member?</span>
+            </div>
+          </div>
+
+          <Link to="/internal-signup">
+            <Button 
+              variant="secondary"
+              className="w-full h-12 text-base"
+              size="lg"
+            >
+              <UserPlus className="h-5 w-5 mr-2" />
+              Create Staff Account
+            </Button>
+          </Link>
 
           <p className="text-center text-xs text-muted-foreground">
             Only @lakecity.co.zw accounts are permitted.

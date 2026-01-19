@@ -151,6 +151,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           email: string
+          force_password_change: boolean | null
           full_name: string | null
           id: string
           is_override_approver: boolean
@@ -162,6 +163,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email: string
+          force_password_change?: boolean | null
           full_name?: string | null
           id?: string
           is_override_approver?: boolean
@@ -173,6 +175,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email?: string
+          force_password_change?: boolean | null
           full_name?: string | null
           id?: string
           is_override_approver?: boolean
