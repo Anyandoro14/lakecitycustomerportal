@@ -9,9 +9,8 @@ import {
   Preview,
   Section,
   Text,
-  Button,
   Hr,
-} from 'https://esm.sh/@react-email/components@0.0.22'
+} from 'https://esm.sh/@react-email/components@0.0.22?deps=react@18.3.1,react-dom@18.3.1'
 import * as React from 'https://esm.sh/react@18.3.1'
 
 interface CustomerInvitationEmailProps {
@@ -40,7 +39,7 @@ export const CustomerInvitationEmail = ({
             alt="LakeCity"
             style={logo}
           />
-          <div style={headerAccent} />
+          <Hr style={headerAccent} />
         </Section>
 
         {/* Main Content */}
@@ -63,35 +62,27 @@ export const CustomerInvitationEmail = ({
 
           <Text style={subheading}>Through the portal, you can:</Text>
           
-          <Section style={bulletList}>
-            <Text style={bulletItem}>
-              <span style={bulletPoint}>•</span> View your payment history and current balance
-            </Text>
-            <Text style={bulletItem}>
-              <span style={bulletPoint}>•</span> Access your Agreement of Sale
-            </Text>
-            <Text style={bulletItem}>
-              <span style={bulletPoint}>•</span> Track your payment progress securely, at any time
-            </Text>
-          </Section>
+          <Text style={bulletItem}>• View your payment history and current balance</Text>
+          <Text style={bulletItem}>• Access your Agreement of Sale</Text>
+          <Text style={bulletItem}>• Track your payment progress securely, at any time</Text>
 
           <Section style={ctaSection}>
             <Text style={getStartedText}>Get Started</Text>
-            <Text style={paragraph}>
+            <Text style={paragraphCenter}>
               Create your account using the button below:
             </Text>
-            <Button style={ctaButton} href={signupUrl}>
+            <Link style={ctaButton} href={signupUrl}>
               Create My Account
-            </Button>
+            </Link>
           </Section>
 
           <Section style={importantSection}>
             <Text style={importantHeading}>Important:</Text>
             <Text style={importantText}>
-              • Use your <strong>Stand Number</strong> as your username
+              • Use your Stand Number as your username
             </Text>
             <Text style={importantText}>
-              • Use the same <strong>phone number</strong> you previously shared with us
+              • Use the same phone number you previously shared with us
             </Text>
             <Text style={importantNote}>
               For security reasons, only registered details will be accepted.
@@ -104,8 +95,9 @@ export const CustomerInvitationEmail = ({
 
           <Text style={signoff}>
             Warm regards,
-            <br />
-            <strong>The LakeCity Team</strong>
+          </Text>
+          <Text style={signoffBold}>
+            The LakeCity Team
           </Text>
         </Section>
 
@@ -134,10 +126,9 @@ export const CustomerInvitationEmail = ({
 export default CustomerInvitationEmail
 
 // ============= Styles =============
-// LakeCity Brand Colors (HSL to Hex conversions)
-// Primary: hsl(160, 70%, 15%) = #0B3D2E (deep forest green)
-// Secondary: hsl(160, 30%, 55%) = #6BAB8F (soft sage)
-// Background: hsl(0, 0%, 96%) = #F5F5F5
+// LakeCity Brand Colors
+// Primary: #0B3D2E (deep forest green)
+// Secondary: #6BAB8F (soft sage)
 
 const main = {
   backgroundColor: '#F5F5F5',
@@ -150,7 +141,7 @@ const container = {
   margin: '0 auto',
   backgroundColor: '#FFFFFF',
   borderRadius: '8px',
-  overflow: 'hidden',
+  overflow: 'hidden' as const,
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
 }
 
@@ -162,7 +153,6 @@ const header = {
 
 const logo = {
   margin: '0 auto',
-  display: 'block',
 }
 
 const headerAccent = {
@@ -171,6 +161,7 @@ const headerAccent = {
   backgroundColor: '#6BAB8F',
   margin: '20px auto 0',
   borderRadius: '2px',
+  border: 'none',
 }
 
 const content = {
@@ -193,6 +184,14 @@ const paragraph = {
   margin: '0 0 16px',
 }
 
+const paragraphCenter = {
+  color: '#374151',
+  fontSize: '15px',
+  lineHeight: '1.7',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+}
+
 const subheading = {
   color: '#0B3D2E',
   fontSize: '16px',
@@ -200,22 +199,12 @@ const subheading = {
   margin: '24px 0 12px',
 }
 
-const bulletList = {
-  margin: '0 0 24px',
-  padding: '0 0 0 8px',
-}
-
 const bulletItem = {
   color: '#374151',
   fontSize: '15px',
   lineHeight: '1.8',
   margin: '0 0 4px',
-}
-
-const bulletPoint = {
-  color: '#6BAB8F',
-  fontWeight: '600' as const,
-  marginRight: '8px',
+  paddingLeft: '8px',
 }
 
 const ctaSection = {
@@ -232,6 +221,7 @@ const getStartedText = {
   fontSize: '18px',
   fontWeight: '600' as const,
   margin: '0 0 8px',
+  textAlign: 'center' as const,
 }
 
 const ctaButton = {
@@ -280,12 +270,22 @@ const signoff = {
   color: '#374151',
   fontSize: '15px',
   lineHeight: '1.7',
-  margin: '28px 0 0',
+  margin: '28px 0 4px',
+}
+
+const signoffBold = {
+  color: '#374151',
+  fontSize: '15px',
+  fontWeight: '600' as const,
+  lineHeight: '1.7',
+  margin: '0',
 }
 
 const divider = {
   borderTop: '1px solid #E5E7EB',
   margin: '0',
+  border: 'none',
+  borderColor: '#E5E7EB',
 }
 
 const footer = {
