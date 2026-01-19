@@ -315,6 +315,55 @@ serve(async (req) => {
         }
       }
 
+      // Calculate daysOverdue and prepaidDays based on overpayment logic
+      const monthlyPaymentAmount = parseFloat(monthlyPayment.replace(/[$,]/g, '')) || 0;
+      let totalPaymentsSum = 0;
+      for (const payment of payments) {
+        totalPaymentsSum += payment.amountNumeric;
+      }
+      
+      // Calculate covered months using overpayment logic
+      let coveredMonths = 0;
+      if (monthlyPaymentAmount > 0) {
+        coveredMonths = Math.floor(totalPaymentsSum / monthlyPaymentAmount);
+      }
+      
+      // Find the base payment date from the first month column
+      let basePaymentDate = new Date();
+      if (monthColumns.length > 0) {
+        const firstMonthHeader = monthColumns[0].month;
+        const match = firstMonthHeader.match(/(\d+)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+        if (match) {
+          const day = parseInt(match[1]);
+          const monthName = match[2];
+          const year = parseInt(match[3]);
+          const monthIndex = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(monthName.toLowerCase());
+          basePaymentDate = new Date(year, monthIndex, day);
+        }
+      }
+      
+      // Calculate next due date based on covered months
+      const nextDueDate = new Date(basePaymentDate);
+      nextDueDate.setMonth(nextDueDate.getMonth() + coveredMonths);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDateNormalized = new Date(nextDueDate);
+      dueDateNormalized.setHours(0, 0, 0, 0);
+      
+      let daysOverdue = 0;
+      let prepaidDays = 0;
+      
+      if (!isUnsold && monthlyPaymentAmount > 0) {
+        if (today > dueDateNormalized) {
+          // Overdue - due date has passed
+          daysOverdue = Math.floor((today.getTime() - dueDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
+        } else if (today < dueDateNormalized) {
+          // Prepaid - due date is in the future
+          prepaidDays = Math.floor((dueDateNormalized.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        }
+      }
+
       allStands.push({
         standNumber,
         customerName: `${firstName} ${lastName}`.trim(),
@@ -334,7 +383,10 @@ serve(async (req) => {
         agreementRequested,
         agreementSignedWarwickshire,
         agreementSignedClient,
-        payments
+        payments,
+        daysOverdue,
+        prepaidDays,
+        coveredMonths
       });
       
       // Log first few Internal category stands for debugging

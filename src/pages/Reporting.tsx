@@ -57,6 +57,9 @@ const Reporting = () => {
   const [filterAgreementRequested, setFilterAgreementRequested] = useState<boolean | null>(null);
   const [filterAgreementSignedWarwickshire, setFilterAgreementSignedWarwickshire] = useState<boolean | null>(null);
   const [filterAgreementSignedClient, setFilterAgreementSignedClient] = useState<boolean | null>(null);
+  
+  // Payment status filter
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string | null>(null);
 
   useEffect(() => {
     checkAccess();
@@ -117,6 +120,25 @@ const Reporting = () => {
     { label: "$100,001+", min: 100001, max: Infinity },
   ];
   
+  // Payment status filter options
+  const paymentStatusOptions = [
+    { label: "All Overdue", value: "overdue_any", minDays: 1, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 3+ days", value: "overdue_3", minDays: 3, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 7+ days", value: "overdue_7", minDays: 7, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 14+ days", value: "overdue_14", minDays: 14, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 21+ days", value: "overdue_21", minDays: 21, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 30+ days", value: "overdue_30", minDays: 30, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 90+ days", value: "overdue_90", minDays: 90, maxDays: Infinity, type: "overdue" },
+    { label: "Overdue 180+ days", value: "overdue_180", minDays: 180, maxDays: Infinity, type: "overdue" },
+    { label: "Prepaid 3+ days", value: "prepaid_3", minDays: 3, maxDays: Infinity, type: "prepaid" },
+    { label: "Prepaid 7+ days", value: "prepaid_7", minDays: 7, maxDays: Infinity, type: "prepaid" },
+    { label: "Prepaid 14+ days", value: "prepaid_14", minDays: 14, maxDays: Infinity, type: "prepaid" },
+    { label: "Prepaid 21+ days", value: "prepaid_21", minDays: 21, maxDays: Infinity, type: "prepaid" },
+    { label: "Prepaid 30+ days", value: "prepaid_30", minDays: 30, maxDays: Infinity, type: "prepaid" },
+    { label: "Prepaid 90+ days", value: "prepaid_90", minDays: 90, maxDays: Infinity, type: "prepaid" },
+    { label: "Prepaid 180+ days", value: "prepaid_180", minDays: 180, maxDays: Infinity, type: "prepaid" },
+  ];
+  
   // Get unique customer categories - safe to call even when reportingData is null
   const uniqueCategories = useMemo(() => {
     if (!reportingData?.stands) return [];
@@ -159,9 +181,21 @@ const Reporting = () => {
       if (filterAgreementSignedWarwickshire !== null && stand.agreementSignedWarwickshire !== filterAgreementSignedWarwickshire) return false;
       if (filterAgreementSignedClient !== null && stand.agreementSignedClient !== filterAgreementSignedClient) return false;
       
+      // Payment status filter (overdue/prepaid)
+      if (paymentStatusFilter) {
+        const filterOption = paymentStatusOptions.find(opt => opt.value === paymentStatusFilter);
+        if (filterOption) {
+          if (filterOption.type === "overdue") {
+            if ((stand.daysOverdue || 0) < filterOption.minDays) return false;
+          } else if (filterOption.type === "prepaid") {
+            if ((stand.prepaidDays || 0) < filterOption.minDays) return false;
+          }
+        }
+      }
+      
       return true;
     });
-  }, [reportingData?.stands, selectedCategories, selectedPriceRanges, filterOfferReceived, filterInitialPayment, filterAgreementRequested, filterAgreementSignedWarwickshire, filterAgreementSignedClient]);
+  }, [reportingData?.stands, selectedCategories, selectedPriceRanges, filterOfferReceived, filterInitialPayment, filterAgreementRequested, filterAgreementSignedWarwickshire, filterAgreementSignedClient, paymentStatusFilter]);
   
   const soldStands = useMemo(() => filteredStands.filter((s: any) => !s.isUnsold), [filteredStands]);
   const unsoldStands = useMemo(() => filteredStands.filter((s: any) => s.isUnsold), [filteredStands]);
@@ -253,15 +287,16 @@ const Reporting = () => {
     setFilterAgreementRequested(null);
     setFilterAgreementSignedWarwickshire(null);
     setFilterAgreementSignedClient(null);
+    setPaymentStatusFilter(null);
   };
   
   const hasActiveFilters = selectedCategories.length > 0 || selectedPriceRanges.length > 0 || 
     filterOfferReceived !== null || filterInitialPayment !== null || 
     filterAgreementRequested !== null || filterAgreementSignedWarwickshire !== null || 
-    filterAgreementSignedClient !== null;
+    filterAgreementSignedClient !== null || paymentStatusFilter !== null;
 
   const exportToCSV = () => {
-    const headers = ['Stand', 'Customer', 'Category', 'Total Price', 'Monthly Payment', 'Total Paid', 'Balance', 'Progress %'];
+    const headers = ['Stand', 'Customer', 'Category', 'Total Price', 'Monthly Payment', 'Total Paid', 'Balance', 'Progress %', 'Days Overdue', 'Days Prepaid'];
     const rows = soldStands.map((stand: any) => [
       stand.standNumber,
       stand.customerName,
@@ -270,7 +305,9 @@ const Reporting = () => {
       stand.monthlyPayment,
       stand.totalPaid,
       stand.currentBalance,
-      `${stand.progressPercentage}%`
+      `${stand.progressPercentage}%`,
+      stand.daysOverdue || 0,
+      stand.prepaidDays || 0
     ]);
     
     const csvContent = [
@@ -457,6 +494,24 @@ const Reporting = () => {
                         {range.label}
                       </Label>
                     </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Payment Status Filter */}
+              <div>
+                <Label className="text-sm font-semibold mb-3 block">Payment Status</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {paymentStatusOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      variant={paymentStatusFilter === option.value ? "default" : "outline"}
+                      size="sm"
+                      className={`text-xs ${option.type === 'overdue' ? 'border-red-200 hover:border-red-400' : 'border-green-200 hover:border-green-400'} ${paymentStatusFilter === option.value ? (option.type === 'overdue' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700') : ''}`}
+                      onClick={() => setPaymentStatusFilter(paymentStatusFilter === option.value ? null : option.value)}
+                    >
+                      {option.label}
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -725,6 +780,7 @@ const Reporting = () => {
                     <TableHead>Total Paid</TableHead>
                     <TableHead>Balance</TableHead>
                     <TableHead>Progress</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -740,6 +796,19 @@ const Reporting = () => {
                         <Badge variant={stand.progressPercentage > 75 ? "default" : stand.progressPercentage > 50 ? "secondary" : "destructive"}>
                           {stand.progressPercentage}%
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {stand.daysOverdue > 0 ? (
+                          <Badge variant="destructive" className="text-xs">
+                            {stand.daysOverdue}d overdue
+                          </Badge>
+                        ) : stand.prepaidDays > 0 ? (
+                          <Badge variant="default" className="bg-green-600 text-xs">
+                            {stand.prepaidDays}d prepaid
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Current</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
