@@ -489,7 +489,19 @@ serve(async (req) => {
         paymentColumns.push(customerRow[i] || '');
       }
       
-      // Find last payment (last filled cell from left to right)
+      // Parse monthly payment amount from Column K (authoritative source for instalment size)
+      const parseCurrencyToNumber = (val: string): number => {
+        if (!val) return 0;
+        const cleaned = val.toString().replace(/[$,\s]/g, '');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? 0 : num;
+      };
+      
+      const monthlyPaymentAmount = parseCurrencyToNumber(monthlyPayment);
+      console.log(`Stand ${standNumber}: Monthly payment (Column K) = ${monthlyPayment} = ${monthlyPaymentAmount}`);
+      
+      // Sum ALL payments made and track last payment for display
+      let totalPaymentsSum = 0;
       let lastPaymentAmount = '';
       let lastPaymentDate = '';
       let lastPaymentIndex = -1;
@@ -498,8 +510,12 @@ serve(async (req) => {
       
       for (let i = 0; i < paymentColumns.length; i++) {
         if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
+          const paymentValue = parseCurrencyToNumber(paymentColumns[i].toString());
+          totalPaymentsSum += paymentValue;
+          
           lastPaymentAmount = paymentColumns[i].toString();
           lastPaymentIndex = i;
+          
           // Calculate date using base payment date from header row
           const monthsFromStart = i;
           const paymentDate = new Date(basePaymentDate);
@@ -516,41 +532,66 @@ serve(async (req) => {
             total: paymentColumns[i].toString()
           });
           
-          console.log(`Stand ${standNumber}: Payment at index ${i} = ${lastPaymentAmount}, Date: ${lastPaymentDate}`);
+          console.log(`Stand ${standNumber}: Payment at index ${i} = ${paymentColumns[i]} (${paymentValue}), Date: ${lastPaymentDate}`);
         }
       }
       
-      console.log(`Stand ${standNumber}: Last payment index = ${lastPaymentIndex}, Amount = ${lastPaymentAmount}, Date = ${lastPaymentDate}`);
+      console.log(`Stand ${standNumber}: Total payments sum = ${totalPaymentsSum}, Last payment index = ${lastPaymentIndex}`);
       
-      // Find next payment (next empty cell after last payment)
+      // OVERPAYMENT LOGIC: Calculate how many instalments are covered by total payments
+      // coveredMonths = floor(totalPaymentsSum / monthlyPaymentAmount)
+      // remainingBalance = totalPaymentsSum % monthlyPaymentAmount
+      let coveredMonths = 0;
+      let remainingBalance = 0;
+      
+      if (monthlyPaymentAmount > 0) {
+        coveredMonths = Math.floor(totalPaymentsSum / monthlyPaymentAmount);
+        remainingBalance = totalPaymentsSum % monthlyPaymentAmount;
+      }
+      
+      console.log(`Stand ${standNumber}: Covered months = ${coveredMonths}, Remaining balance toward next = ${remainingBalance}`);
+      
+      // Calculate next payment based on covered months (not last filled cell)
       let nextPaymentDue = '';
-      let nextPaymentAmount = monthlyPayment; // Monthly payment amount from column M
+      let nextPaymentAmount = monthlyPayment; // Default to full monthly payment
       let daysOverdue = 0;
       let isOverdue = false;
       
-      if (lastPaymentIndex >= 0 && lastPaymentIndex < paymentColumns.length - 1) {
-        // Next payment is the cell after the last payment
-        const nextPaymentIndex = lastPaymentIndex + 1;
-        const monthsFromStart = nextPaymentIndex;
+      const totalPaymentPeriods = paymentColumns.length;
+      
+      if (coveredMonths >= totalPaymentPeriods) {
+        // All instalments are fully covered - no next payment due
+        nextPaymentDue = '';
+        nextPaymentAmount = '$0.00';
+        isOverdue = false;
+        daysOverdue = 0;
+        console.log(`Stand ${standNumber}: All ${totalPaymentPeriods} instalments fully covered, no payment due`);
+      } else {
+        // First uncovered month = coveredMonths (0-indexed)
+        const nextUncoveredMonth = coveredMonths;
         const nextDueDate = new Date(basePaymentDate);
-        nextDueDate.setMonth(nextDueDate.getMonth() + monthsFromStart);
+        nextDueDate.setMonth(nextDueDate.getMonth() + nextUncoveredMonth);
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
-        // Check if overdue
-        const today = new Date();
-        if (today > nextDueDate) {
-          isOverdue = true;
-          daysOverdue = Math.floor((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+        // Calculate remaining amount due for this instalment (if partial payment exists)
+        if (remainingBalance > 0) {
+          const amountStillDue = monthlyPaymentAmount - remainingBalance;
+          nextPaymentAmount = `$${amountStillDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          console.log(`Stand ${standNumber}: Partial payment applied, remaining due = ${nextPaymentAmount}`);
         }
-      } else if (lastPaymentIndex === -1) {
-        // No payments made yet, first payment is due on the first header month date
-        const firstDueDate = new Date(basePaymentDate);
-        nextPaymentDue = firstDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
+        // Check if overdue - only if the uncovered month's due date has passed
         const today = new Date();
-        if (today > firstDueDate) {
+        today.setHours(0, 0, 0, 0); // Normalize to start of day
+        const dueDateNormalized = new Date(nextDueDate);
+        dueDateNormalized.setHours(0, 0, 0, 0);
+        
+        if (today > dueDateNormalized) {
           isOverdue = true;
-          daysOverdue = Math.floor((today.getTime() - firstDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.floor((today.getTime() - dueDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
+          console.log(`Stand ${standNumber}: Overdue by ${daysOverdue} days (due: ${nextPaymentDue})`);
+        } else {
+          console.log(`Stand ${standNumber}: Next payment due ${nextPaymentDue}, not overdue`);
         }
       }
       
