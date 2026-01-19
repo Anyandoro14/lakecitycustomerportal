@@ -101,7 +101,19 @@ const CustomerInviteDialog = ({
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        let message = error.message || 'Failed to send invitation';
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx && typeof ctx.json === 'function') {
+            const body = await ctx.json();
+            message = body?.hint || body?.error || message;
+          }
+        } catch {
+          // ignore parsing errors
+        }
+        throw new Error(message);
+      }
 
       if (data?.success) {
         setSent(true);
