@@ -202,9 +202,17 @@ LakeCity Development`;
         twilioParams.From = `whatsapp:${twilioWhatsAppNumber}`;
         twilioParams.To = `whatsapp:${formattedPhone}`;
       } else {
-        // Use configured Twilio phone number for SMS
-        twilioParams.From = twilioPhoneNumber!;
+        // SMS
+        const messagingServiceSid = Deno.env.get('TWILIO_MESSAGING_SERVICE_SID');
         twilioParams.To = formattedPhone;
+
+        if (messagingServiceSid) {
+          // Prefer Messaging Services when configured (handles sender selection per region)
+          twilioParams.MessagingServiceSid = messagingServiceSid;
+        } else {
+          // TWILIO_PHONE_NUMBER must be a Twilio, SMS-capable number on this same account
+          twilioParams.From = formatPhoneNumber(twilioPhoneNumber!);
+        }
       }
 
       const twilioResponse = await fetch(
@@ -219,12 +227,32 @@ LakeCity Development`;
         }
       );
 
-      const twilioResult = await twilioResponse.json();
+      let twilioResult: any = {};
+      try {
+        twilioResult = await twilioResponse.json();
+      } catch {
+        twilioResult = {};
+      }
 
       if (!twilioResponse.ok) {
         console.error('Twilio error:', twilioResult);
+
+        const code = typeof twilioResult?.code === 'number' ? twilioResult.code : undefined;
+        const hint =
+          code === 21659
+            ? 'Twilio SMS sender is invalid for this account/country. Ensure TWILIO_PHONE_NUMBER is a Twilio SMS-capable number on this account, or set TWILIO_MESSAGING_SERVICE_SID (recommended).'
+            : undefined;
+
         return new Response(
-          JSON.stringify({ error: twilioResult.message || 'Failed to send message' }),
+          JSON.stringify({
+            error: twilioResult?.message || 'Failed to send message',
+            twilio: {
+              code,
+              status: twilioResult?.status,
+              more_info: twilioResult?.more_info,
+            },
+            ...(hint ? { hint } : {}),
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
