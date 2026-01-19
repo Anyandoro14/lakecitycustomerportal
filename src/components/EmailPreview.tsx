@@ -21,7 +21,7 @@ const EmailPreview = ({ firstName, signupUrl = "https://lakecity.standledger.io/
         <div style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
           <!-- Header with Logo -->
           <div style="background-color: #0B3D2E; padding: 32px 40px 24px; text-align: center;">
-            <img src="/lakecity-logo.svg" width="160" height="48" alt="LakeCity" style="margin: 0 auto; display: block;" />
+            <img src="/logo-wordmark-white.svg" width="180" height="40" alt="LakeCity" style="margin: 0 auto; display: block;" />
             <hr style="height: 3px; width: 60px; background-color: #6BAB8F; margin: 20px auto 0; border-radius: 2px; border: none;" />
           </div>
 
@@ -87,13 +87,7 @@ const EmailPreview = ({ firstName, signupUrl = "https://lakecity.standledger.io/
           <!-- Footer -->
           <hr style="border-top: 1px solid #E5E7EB; margin: 0; border: none; border-color: #E5E7EB;" />
           <div style="background-color: #0B3D2E; padding: 24px 40px; text-align: center;">
-            <img src="/logo-monogram-white.svg" width="32" height="32" alt="LakeCity" style="margin: 0 auto 12px; opacity: 0.9;" />
-            <p style="color: #FFFFFF; font-size: 14px; font-weight: 500; margin: 0 0 4px;">
-              LakeCity Development
-            </p>
-            <p style="color: rgba(255, 255, 255, 0.7); font-size: 12px; margin: 0;">
-              Building communities with transparency, integrity, and honesty.
-            </p>
+            <img src="/logo-monogram-white.svg" width="40" height="40" alt="LakeCity" style="margin: 0 auto; opacity: 0.9;" />
           </div>
         </div>
       </body>
