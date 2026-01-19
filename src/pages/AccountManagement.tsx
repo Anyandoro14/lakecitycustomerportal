@@ -517,6 +517,7 @@ const AccountManagement = () => {
                   <TableRow>
                     <TableHead>Email Address</TableHead>
                     <TableHead>Full Name</TableHead>
+                    <TableHead>Stand Number</TableHead>
                     <TableHead>Account Type</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Account Created</TableHead>
@@ -531,6 +532,11 @@ const AccountManagement = () => {
                     <TableRow key={user.id} className={user.isInternal ? '' : 'bg-muted/30'}>
                       <TableCell className="font-medium">{user.email}</TableCell>
                       <TableCell>{user.fullName || '—'}</TableCell>
+                      <TableCell>
+                        {user.standNumber ? (
+                          <Badge variant="outline" className="font-mono text-xs">{user.standNumber}</Badge>
+                        ) : '—'}
+                      </TableCell>
                       <TableCell>{getAccountTypeBadge(user.accountType)}</TableCell>
                       <TableCell>{getRoleBadge(user.role, user.isSuperAdmin)}</TableCell>
                       <TableCell>
