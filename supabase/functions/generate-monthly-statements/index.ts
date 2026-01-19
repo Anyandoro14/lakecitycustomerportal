@@ -231,8 +231,9 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
   const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
   const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
 
-  if (standNumIndex === -1 || emailIndex === -1) {
-    throw new Error('Required columns not found in spreadsheet');
+  // Email column is optional - we can generate placeholder emails from stand numbers
+  if (standNumIndex === -1) {
+    throw new Error('Required stand number column not found in spreadsheet');
   }
 
   // Column M (index 12) is now September 5, 2025 (new column added)
@@ -248,10 +249,17 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
 
   for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
     const row = rows[rowIdx];
-    const email = row[emailIndex]?.toString().trim().toLowerCase();
     const standNumber = row[standNumIndex]?.toString().trim();
-
-    if (!email || !standNumber) continue;
+    
+    // Skip rows without stand number
+    if (!standNumber) continue;
+    
+    // Use email from sheet if available, otherwise generate placeholder email from stand number
+    // This matches the registration pattern: stand-{standNumber}@lakecity.portal
+    let email = emailIndex !== -1 ? row[emailIndex]?.toString().trim().toLowerCase() : '';
+    if (!email) {
+      email = `stand-${standNumber}@lakecity.portal`;
+    }
 
     const firstName = firstNameIndex !== -1 ? (row[firstNameIndex] || '') : '';
     const lastName = lastNameIndex !== -1 ? (row[lastNameIndex] || '') : '';
