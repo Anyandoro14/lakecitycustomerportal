@@ -39,6 +39,7 @@ import {
   Eye,
   TrendingUp,
 } from "lucide-react";
+import InternalNav from "@/components/InternalNav";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import { toast } from "sonner";
 import {
@@ -479,7 +480,12 @@ const InternalPortal = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
+            <InternalNav 
+              isSuperAdmin={currentUser?.role === 'super_admin'}
+              isDirector={currentUser?.role === 'director'}
+              currentPage="portal"
+            />
+            <div className="text-right hidden lg:block">
               <p className="text-sm font-medium">{currentUser?.full_name || currentUser?.email}</p>
               <Badge variant="secondary" className="text-xs">
                 {currentUser?.role}

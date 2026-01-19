@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Home, Filter, X, Download } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
+import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -397,26 +398,11 @@ const Reporting = () => {
             <h1 className="text-xl md:text-3xl font-bold">Financial Reporting</h1>
             <p className="text-sm md:text-base text-primary-foreground/80">LakeCity Collections Dashboard</p>
           </div>
-          <div className="flex gap-2">
-            {(isSuperAdmin || isDirector) && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate("/account-management")}
-              >
-                Manage Access
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="text-primary-foreground border-primary-foreground/20 hover:bg-primary-foreground/10"
-            >
-              <Home className="h-4 w-4 mr-2" />
-              Home
-            </Button>
-          </div>
+          <InternalNav 
+            isSuperAdmin={isSuperAdmin} 
+            isDirector={isDirector} 
+            currentPage="reporting"
+          />
         </div>
       </div>
 

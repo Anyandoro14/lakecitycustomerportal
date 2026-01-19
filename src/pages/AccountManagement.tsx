@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, ArrowLeft, Shield, Users, Filter, X, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Plus, Shield, Users, Filter, X, ShieldCheck, Eye } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
+import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
 import {
   Table,
@@ -338,15 +339,11 @@ const AccountManagement = () => {
               Manage internal staff access and view all users
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/reporting")}
-            className="text-primary-foreground border-primary-foreground/20 hover:bg-primary-foreground/10"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Reporting
-          </Button>
+          <InternalNav 
+            isSuperAdmin={isSuperAdmin} 
+            isDirector={isDirector} 
+            currentPage="access"
+          />
         </div>
       </div>
 
