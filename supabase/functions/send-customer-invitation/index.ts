@@ -1,9 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import React from 'https://esm.sh/react@18.3.1';
+import { Resend } from 'https://esm.sh/resend@4.0.0';
+import { renderAsync } from 'https://esm.sh/@react-email/components@0.0.22';
+import { CustomerInvitationEmail } from './_templates/customer-invitation.tsx';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 
 const generateInvitationToken = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -89,39 +95,16 @@ Deno.serve(async (req) => {
     // Generate unique invitation token
     const invitationToken = generateInvitationToken();
     
-    // Get the portal URL
-    const portalUrl = 'https://lakecitycustomerportal.lovable.app';
-    const signupUrl = `${portalUrl}/signup?token=${invitationToken}&stand=${encodeURIComponent(standNumber)}`;
+    // Get the portal URL - use the new domain
+    const signupUrl = `https://lakecity.standledger.io/signup?token=${invitationToken}&stand=${encodeURIComponent(standNumber)}`;
 
-    // Create invitation message templates
-    const templates = {
-      email: {
-        subject: `Welcome to LakeCity Customer Portal - Stand ${standNumber}`,
-        body: customMessage || `Dear ${customerName || 'Valued Customer'},
+    // Extract first name from customer name
+    const firstName = customerName?.split(' ')[0] || 'Valued Customer';
 
-Welcome to the LakeCity Customer Portal! We're excited to have you join our digital platform.
-
-Your stand: ${standNumber}
-
-Click the link below to create your account and access:
-✓ Your payment history and statements
-✓ Agreement of Sale documents  
-✓ Real-time account balance
-✓ 24/7 secure access to your information
-
-Create Your Account: ${signupUrl}
-
-This invitation expires in 7 days.
-
-At LakeCity, we believe in Transparency, Integrity, and Honesty. Your portal account gives you complete visibility into your investment.
-
-If you have any questions, please contact our support team.
-
-Warm regards,
-The LakeCity Team`
-      },
-      sms: customMessage || `LakeCity Portal: Welcome ${customerName || 'Customer'}! Create your account to view Stand ${standNumber} payments & documents. Sign up: ${signupUrl} (Expires in 7 days)`,
-      whatsapp: customMessage || `🏠 *Welcome to LakeCity Customer Portal!*
+    // Create SMS/WhatsApp message templates
+    const smsTemplate = customMessage || `LakeCity Portal: Welcome ${customerName || 'Customer'}! Create your account to view Stand ${standNumber} payments & documents. Sign up: ${signupUrl} (Expires in 7 days)`;
+    
+    const whatsappTemplate = customMessage || `🏠 *Welcome to LakeCity Customer Portal!*
 
 Dear ${customerName || 'Valued Customer'},
 
@@ -130,7 +113,7 @@ Your personal portal for *Stand ${standNumber}* is ready!
 ✅ View payment history
 ✅ Download statements
 ✅ Access Agreement of Sale
-✅ Track your investment progress
+✅ Track your payment progress
 
 👉 *Create Your Account:*
 ${signupUrl}
@@ -139,16 +122,46 @@ _Link expires in 7 days_
 
 ---
 🤝 *Transparency • Integrity • Honesty*
-LakeCity Development`
-    };
+LakeCity Development`;
 
     let sendResult = { success: false, messageId: '' };
 
     // Send based on channel
     if (channel === 'email') {
-      // For now, log email content - in production, integrate with email service
-      console.log('Email invitation:', templates.email);
-      sendResult = { success: true, messageId: `email-${Date.now()}` };
+      try {
+        // Render the React Email template
+        const html = await renderAsync(
+          React.createElement(CustomerInvitationEmail, {
+            firstName,
+            signupUrl,
+          })
+        );
+
+        // Send email via Resend
+        const emailResponse = await resend.emails.send({
+          from: 'LakeCity <noreply@noreply.lakecity.co.zw>',
+          to: [customerEmail],
+          subject: 'Welcome to Your LakeCity Customer Portal',
+          html,
+        });
+
+        if (emailResponse.error) {
+          console.error('Resend error:', emailResponse.error);
+          return new Response(
+            JSON.stringify({ error: emailResponse.error.message || 'Failed to send email' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Email sent successfully via Resend:', emailResponse);
+        sendResult = { success: true, messageId: emailResponse.data?.id || `email-${Date.now()}` };
+      } catch (emailError) {
+        console.error('Email sending error:', emailError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to send email invitation' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     } else {
       // Send via Twilio
       const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
@@ -178,7 +191,7 @@ LakeCity Development`
       }
 
       const formattedPhone = formatPhoneNumber(customerPhone);
-      const message = channel === 'whatsapp' ? templates.whatsapp : templates.sms;
+      const message = channel === 'whatsapp' ? whatsappTemplate : smsTemplate;
 
       const twilioParams: Record<string, string> = {
         Body: message,
