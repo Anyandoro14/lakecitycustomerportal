@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.create-internal-admin]
 verify_jwt = false
+
+[functions.send-internal-welcome]
+verify_jwt = false

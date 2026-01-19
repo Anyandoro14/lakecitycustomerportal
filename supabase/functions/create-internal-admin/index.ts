@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, password, fullName, role = "admin" } = await req.json();
+    const { email, password, fullName, role = "helpdesk", forcePasswordChange = false, sendWelcomeEmail = false } = await req.json();
 
     // Validate email domain
     if (!email || !email.toLowerCase().endsWith("@lakecity.co.zw")) {
@@ -34,16 +34,28 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    console.log(`Creating internal admin account for: ${email}`);
+    console.log(`Creating internal account for: ${email}, forcePasswordChange: ${forcePasswordChange}`);
 
     // Check if user already exists
     const { data: users } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = users?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 
+    const isOverrideApprover = ['alex@lakecity.co.zw', 'brenda@lakecity.co.zw', 'tapiwa@lakecity.co.zw'].includes(email.toLowerCase());
+
     if (existingUser) {
       console.log(`User ${email} already exists, updating role to ${role}`);
       
-      // Update internal_users to admin role
+      // Update password
+      const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        { password }
+      );
+
+      if (pwError) {
+        console.error("Error updating password:", pwError);
+      }
+      
+      // Update internal_users
       const { error: updateError } = await supabaseAdmin
         .from('internal_users')
         .upsert({
@@ -51,7 +63,8 @@ Deno.serve(async (req) => {
           email: email.toLowerCase(),
           full_name: fullName || null,
           role: role,
-          is_override_approver: ['alex@lakecity.co.zw', 'brenda@lakecity.co.zw', 'tapiwa@lakecity.co.zw'].includes(email.toLowerCase()),
+          is_override_approver: isOverrideApprover,
+          force_password_change: forcePasswordChange,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
 
@@ -66,9 +79,10 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: `User role updated to ${role}`,
+          message: `User updated with new password and role ${role}`,
           userId: existingUser.id,
-          email: email
+          email: email,
+          forcePasswordChange
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -96,7 +110,7 @@ Deno.serve(async (req) => {
     console.log(`Created auth user: ${userId}`);
 
     // The auto_provision_internal_user trigger will create the internal_users entry
-    // But we need to upgrade to admin role
+    // But we need to set the correct role and force_password_change
     const { error: roleError } = await supabaseAdmin
       .from('internal_users')
       .upsert({
@@ -104,11 +118,12 @@ Deno.serve(async (req) => {
         email: email.toLowerCase(),
         full_name: fullName || null,
         role: role,
-        is_override_approver: ['alex@lakecity.co.zw', 'brenda@lakecity.co.zw', 'tapiwa@lakecity.co.zw'].includes(email.toLowerCase())
+        is_override_approver: isOverrideApprover,
+        force_password_change: forcePasswordChange
       }, { onConflict: 'user_id' });
 
     if (roleError) {
-      console.error("Error setting admin role:", roleError);
+      console.error("Error setting role:", roleError);
     }
 
     // Also update profile if needed
@@ -127,10 +142,11 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Internal admin account created successfully",
+        message: "Internal account created successfully",
         userId: userId,
         email: email,
-        role: role
+        role: role,
+        forcePasswordChange
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

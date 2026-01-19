@@ -19,6 +19,7 @@ import SupportRequest from "./pages/SupportRequest";
 import StandLedgerLanding from "./pages/StandLedgerLanding";
 import InternalPortal from "./pages/InternalPortal";
 import InternalLogin from "./pages/InternalLogin";
+import InternalSignUp from "./pages/InternalSignUp";
 import LookingGlassView from "./pages/LookingGlassView";
 import NotFound from "./pages/NotFound";
 
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/internal" element={<InternalPortal />} />
               <Route path="/internal-portal" element={<InternalPortal />} />
               <Route path="/internal-login" element={<InternalLogin />} />
+              <Route path="/internal-signup" element={<InternalSignUp />} />
               <Route path="/looking-glass" element={<LookingGlassView />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
