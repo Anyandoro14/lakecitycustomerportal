@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Home, Filter, X } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Home, Filter, X, Download } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -259,6 +259,36 @@ const Reporting = () => {
     filterOfferReceived !== null || filterInitialPayment !== null || 
     filterAgreementRequested !== null || filterAgreementSignedWarwickshire !== null || 
     filterAgreementSignedClient !== null;
+
+  const exportToCSV = () => {
+    const headers = ['Stand', 'Customer', 'Category', 'Total Price', 'Monthly Payment', 'Total Paid', 'Balance', 'Progress %'];
+    const rows = soldStands.map((stand: any) => [
+      stand.standNumber,
+      stand.customerName,
+      stand.customerCategory || '',
+      stand.totalPrice,
+      stand.monthlyPayment,
+      stand.totalPaid,
+      stand.currentBalance,
+      `${stand.progressPercentage}%`
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map((cell: string) => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `lakecity-stands-report-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Report exported successfully');
+  };
 
   if (loading) {
     return (
@@ -676,7 +706,13 @@ const Reporting = () => {
         {/* Stands Overview */}
         <Card>
           <CardHeader>
-            <CardTitle>All Stands Overview</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>All Stands Overview</CardTitle>
+              <Button variant="outline" size="sm" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
