@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Save, Trash2, ArrowLeft } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Loader2, Plus, ArrowLeft, Shield, Users, Filter, X, ShieldCheck, Eye } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import {
@@ -22,25 +23,86 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { format } from "date-fns";
 
-interface User {
+interface UserRecord {
+  id: string;
+  userId: string;
   email: string;
   fullName: string;
+  accountType: string;
   role: string;
-  accessToReporting: boolean;
+  accountCreated: boolean;
+  accountCreatedDate: string | null;
+  lastPasswordReset: string | null;
+  hasReportingAccess: boolean;
+  isOverrideApprover: boolean;
+  forcePasswordChange: boolean;
+  isSuperAdmin: boolean;
+  createdAt: string;
+  isInternal: boolean;
+  standNumber?: string;
 }
+
+const accountTypeOptions = [
+  { value: 'all', label: 'All Account Types' },
+  { value: 'Customer', label: 'Customer' },
+  { value: 'Staff – Admin', label: 'Staff – Admin' },
+  { value: 'Staff – Director', label: 'Staff – Director' },
+  { value: 'Super Admin', label: 'Super Admin' },
+];
+
+const accountCreatedOptions = [
+  { value: 'all', label: 'All' },
+  { value: 'yes', label: 'Yes' },
+  { value: 'no', label: 'No' },
+];
+
+const reportingAccessOptions = [
+  { value: 'all', label: 'All' },
+  { value: 'yes', label: 'Yes' },
+  { value: 'no', label: 'No' },
+];
 
 const AccountManagement = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserRecord[]>([]);
   const [hasAccess, setHasAccess] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isDirector, setIsDirector] = useState(false);
+
+  // Filters
+  const [accountTypeFilter, setAccountTypeFilter] = useState('all');
+  const [accountCreatedFilter, setAccountCreatedFilter] = useState('all');
+  const [reportingAccessFilter, setReportingAccessFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Add user dialog
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserFullName, setNewUserFullName] = useState('');
+  const [newUserRole, setNewUserRole] = useState('admin');
+  const [addingUser, setAddingUser] = useState(false);
 
   useEffect(() => {
     checkAccess();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [users, accountTypeFilter, accountCreatedFilter, reportingAccessFilter, searchQuery]);
 
   const checkAccess = async () => {
     try {
@@ -63,6 +125,8 @@ const AccountManagement = () => {
         return;
       }
 
+      setIsSuperAdmin(data.isSuperAdmin);
+      setIsDirector(data.isDirector);
       setHasAccess(true);
       await fetchUsers();
     } catch (error: any) {
@@ -89,44 +153,154 @@ const AccountManagement = () => {
     }
   };
 
-  const saveUsers = async () => {
-    setSaving(true);
+  const applyFilters = () => {
+    let filtered = [...users];
+
+    // Account type filter
+    if (accountTypeFilter !== 'all') {
+      filtered = filtered.filter(u => u.accountType === accountTypeFilter);
+    }
+
+    // Account created filter
+    if (accountCreatedFilter !== 'all') {
+      const isCreated = accountCreatedFilter === 'yes';
+      filtered = filtered.filter(u => u.accountCreated === isCreated);
+    }
+
+    // Reporting access filter
+    if (reportingAccessFilter !== 'all') {
+      const hasAccess = reportingAccessFilter === 'yes';
+      filtered = filtered.filter(u => u.hasReportingAccess === hasAccess);
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(u => 
+        u.email.toLowerCase().includes(query) ||
+        u.fullName.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredUsers(filtered);
+  };
+
+  const clearFilters = () => {
+    setAccountTypeFilter('all');
+    setAccountCreatedFilter('all');
+    setReportingAccessFilter('all');
+    setSearchQuery('');
+  };
+
+  const hasActiveFilters = accountTypeFilter !== 'all' || 
+    accountCreatedFilter !== 'all' || 
+    reportingAccessFilter !== 'all' || 
+    searchQuery.trim() !== '';
+
+  const updateUserRole = async (userId: string, newRole: string) => {
+    if (!isSuperAdmin) {
+      toast.error("Only Super Admins can change roles");
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('manage-user-access', {
-        body: {
-          action: 'update',
-          users: users
+        body: { 
+          action: 'updateRole',
+          userData: { userId, newRole }
         }
       });
       
       if (error) throw error;
       
-      toast.success("Access control updated successfully");
+      toast.success("Role updated successfully");
+      await fetchUsers();
     } catch (error: any) {
-      console.error('Error saving users:', error);
-      toast.error("Failed to save changes");
-    } finally {
-      setSaving(false);
+      console.error('Error updating role:', error);
+      toast.error(error.message || "Failed to update role");
     }
   };
 
-  const addUser = () => {
-    setUsers([...users, {
-      email: '',
-      fullName: '',
-      role: 'Viewer',
-      accessToReporting: false
-    }]);
+  const addInternalUser = async () => {
+    if (!isSuperAdmin) {
+      toast.error("Only Super Admins can add internal users");
+      return;
+    }
+
+    if (!newUserEmail.endsWith('@lakecity.co.zw')) {
+      toast.error("Only @lakecity.co.zw emails can be added");
+      return;
+    }
+
+    setAddingUser(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-user-access', {
+        body: { 
+          action: 'addInternalUser',
+          userData: { 
+            email: newUserEmail,
+            fullName: newUserFullName,
+            role: newUserRole
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Internal user added successfully");
+      setAddDialogOpen(false);
+      setNewUserEmail('');
+      setNewUserFullName('');
+      setNewUserRole('admin');
+      await fetchUsers();
+    } catch (error: any) {
+      console.error('Error adding user:', error);
+      toast.error(error.message || "Failed to add user");
+    } finally {
+      setAddingUser(false);
+    }
   };
 
-  const removeUser = (index: number) => {
-    setUsers(users.filter((_, i) => i !== index));
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '—';
+    try {
+      return format(new Date(dateString), 'dd MMM yyyy');
+    } catch {
+      return '—';
+    }
   };
 
-  const updateUser = (index: number, field: keyof User, value: any) => {
-    const newUsers = [...users];
-    newUsers[index] = { ...newUsers[index], [field]: value };
-    setUsers(newUsers);
+  const getAccountTypeBadge = (accountType: string) => {
+    switch (accountType) {
+      case 'Super Admin':
+        return <Badge className="bg-purple-600 hover:bg-purple-700"><ShieldCheck className="h-3 w-3 mr-1" /> Super Admin</Badge>;
+      case 'Staff – Director':
+        return <Badge className="bg-blue-600 hover:bg-blue-700"><Shield className="h-3 w-3 mr-1" /> Director</Badge>;
+      case 'Staff – Admin':
+        return <Badge className="bg-teal-600 hover:bg-teal-700"><Users className="h-3 w-3 mr-1" /> Admin</Badge>;
+      case 'Customer':
+        return <Badge variant="secondary">Customer</Badge>;
+      default:
+        return <Badge variant="outline">{accountType}</Badge>;
+    }
+  };
+
+  const getRoleBadge = (role: string, isSuperAdmin: boolean) => {
+    if (isSuperAdmin) {
+      return <Badge variant="outline" className="border-purple-400 text-purple-600">super_admin</Badge>;
+    }
+    switch (role) {
+      case 'director':
+        return <Badge variant="outline" className="border-blue-400 text-blue-600">director</Badge>;
+      case 'admin':
+        return <Badge variant="outline" className="border-teal-400 text-teal-600">admin</Badge>;
+      case 'helpdesk':
+        return <Badge variant="outline" className="border-gray-400 text-gray-600">helpdesk</Badge>;
+      case 'customer':
+        return <Badge variant="outline" className="border-gray-300 text-gray-500">customer</Badge>;
+      default:
+        return <Badge variant="outline">{role}</Badge>;
+    }
   };
 
   if (loading) {
@@ -138,8 +312,20 @@ const AccountManagement = () => {
   }
 
   if (!hasAccess) {
-    return null;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        <Shield className="h-16 w-16 text-muted-foreground mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Access Restricted</h1>
+        <p className="text-muted-foreground text-center mb-4">
+          You do not have permission to access this page.
+        </p>
+        <Button onClick={() => navigate("/")}>Return to Home</Button>
+      </div>
+    );
   }
+
+  const internalUsersCount = users.filter(u => u.isInternal).length;
+  const customersCount = users.filter(u => !u.isInternal).length;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -148,7 +334,9 @@ const AccountManagement = () => {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-xl md:text-3xl font-bold">User Access Control</h1>
-            <p className="text-sm md:text-base text-primary-foreground/80">Manage reporting access permissions</p>
+            <p className="text-sm md:text-base text-primary-foreground/80">
+              Manage internal staff access and view all users
+            </p>
           </div>
           <Button
             variant="outline"
@@ -163,111 +351,289 @@ const AccountManagement = () => {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Total Users</p>
+              <p className="text-2xl font-bold">{users.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Internal Staff</p>
+              <p className="text-2xl font-bold">{internalUsersCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Customers</p>
+              <p className="text-2xl font-bold">{customersCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Filtered Results</p>
+              <p className="text-2xl font-bold">{filteredUsers.length}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex justify-between items-center">
-              <span>User Access List</span>
-              <div className="flex gap-2">
-                <Button onClick={addUser} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
-                <Button onClick={saveUsers} disabled={saving} size="sm">
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Save Changes
-                </Button>
-              </div>
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="h-5 w-5" />
+              Filters
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email Address</TableHead>
-                      <TableHead>Full Name</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Access to Reporting</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Input
-                            type="email"
-                            value={user.email}
-                            onChange={(e) => updateUser(index, 'email', e.target.value)}
-                            placeholder="user@example.com"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            value={user.fullName}
-                            onChange={(e) => updateUser(index, 'fullName', e.target.value)}
-                            placeholder="Full Name"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => updateUser(index, 'role', value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Admin">Admin</SelectItem>
-                              <SelectItem value="Viewer">Viewer</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={user.accessToReporting}
-                            onCheckedChange={(checked) => updateUser(index, 'accessToReporting', checked)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => removeUser(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <Label className="text-sm mb-2 block">Search</Label>
+                <Input
+                  placeholder="Email or name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-
-              {users.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No users added yet. Click "Add User" to create the first entry.
-                </div>
-              )}
+              <div>
+                <Label className="text-sm mb-2 block">Account Type</Label>
+                <Select value={accountTypeFilter} onValueChange={setAccountTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountTypeOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm mb-2 block">Account Created</Label>
+                <Select value={accountCreatedFilter} onValueChange={setAccountCreatedFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountCreatedOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm mb-2 block">Reporting Access</Label>
+                <Select value={reportingAccessFilter} onValueChange={setReportingAccessFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reportingAccessOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                {hasActiveFilters && (
+                  <Button variant="outline" size="sm" onClick={clearFilters} className="w-full">
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* User List */}
         <Card>
           <CardHeader>
-            <CardTitle>Instructions</CardTitle>
+            <CardTitle className="flex justify-between items-center">
+              <span>User Access List</span>
+              {isSuperAdmin && (
+                <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Internal User
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Internal User</DialogTitle>
+                      <DialogDescription>
+                        Add a new staff member to the internal portal. Only @lakecity.co.zw emails are allowed.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div>
+                        <Label>Email Address</Label>
+                        <Input
+                          type="email"
+                          placeholder="name@lakecity.co.zw"
+                          value={newUserEmail}
+                          onChange={(e) => setNewUserEmail(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Full Name</Label>
+                        <Input
+                          placeholder="Full Name"
+                          value={newUserFullName}
+                          onChange={(e) => setNewUserFullName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Role</Label>
+                        <Select value={newUserRole} onValueChange={setNewUserRole}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="director">Director</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={addInternalUser} disabled={addingUser || !newUserEmail}>
+                        {addingUser ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Add User
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p><strong>Super Admins:</strong> alex@michaeltenable.com and alex@lakecity.co.zw (cannot be changed)</p>
-            <p><strong>Admin Role:</strong> Can view all reporting data</p>
-            <p><strong>Viewer Role:</strong> Can view basic reporting data</p>
-            <p><strong>Access to Reporting:</strong> Toggle "Yes" to grant access to the Reporting page</p>
-            <p className="text-red-600"><strong>Important:</strong> Never add customer emails to this list. This is for internal staff only.</p>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email Address</TableHead>
+                    <TableHead>Full Name</TableHead>
+                    <TableHead>Account Type</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Account Created</TableHead>
+                    <TableHead>Created Date</TableHead>
+                    <TableHead>Last Password Reset</TableHead>
+                    <TableHead>Reporting Access</TableHead>
+                    {isSuperAdmin && <TableHead>Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id} className={user.isInternal ? '' : 'bg-muted/30'}>
+                      <TableCell className="font-medium">{user.email}</TableCell>
+                      <TableCell>{user.fullName || '—'}</TableCell>
+                      <TableCell>{getAccountTypeBadge(user.accountType)}</TableCell>
+                      <TableCell>{getRoleBadge(user.role, user.isSuperAdmin)}</TableCell>
+                      <TableCell>
+                        {user.accountCreated ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Yes</Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">No</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(user.accountCreatedDate)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(user.lastPasswordReset)}
+                      </TableCell>
+                      <TableCell>
+                        {user.hasReportingAccess ? (
+                          <Badge className="bg-green-600 hover:bg-green-700">Yes</Badge>
+                        ) : (
+                          <Badge variant="secondary">No</Badge>
+                        )}
+                      </TableCell>
+                      {isSuperAdmin && (
+                        <TableCell>
+                          {user.isInternal && !user.isSuperAdmin && (
+                            <Select
+                              value={user.role}
+                              onValueChange={(value) => updateUserRole(user.userId, value)}
+                            >
+                              <SelectTrigger className="w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="director">Director</SelectItem>
+                                <SelectItem value="helpdesk">Helpdesk</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {user.isSuperAdmin && (
+                            <span className="text-xs text-muted-foreground italic">Protected</span>
+                          )}
+                          {!user.isInternal && (
+                            <Button variant="ghost" size="sm" className="text-muted-foreground">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {filteredUsers.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                {hasActiveFilters 
+                  ? "No users match the current filters." 
+                  : "No users found."}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Instructions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Role Definitions & Instructions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 text-sm">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100">
+                <ShieldCheck className="h-5 w-5 text-purple-600 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-purple-800">Super Admin</p>
+                  <p className="text-purple-600">Full access to all internal pages. Can change roles and permissions. Cannot be modified.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-blue-800">Director</p>
+                  <p className="text-blue-600">Can access Reporting, User Access Management, and Looking Glass.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-teal-50 border border-teal-100">
+                <Users className="h-5 w-5 text-teal-600 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-teal-800">Admin</p>
+                  <p className="text-teal-600">Can access Internal Portal and Looking Glass only. No access to Reporting or User Management.</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-4 border-t">
+              <p className="text-red-600 text-sm">
+                <strong>Important:</strong> This page is for internal staff management only. Customer accounts are shown for visibility but cannot be modified here.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

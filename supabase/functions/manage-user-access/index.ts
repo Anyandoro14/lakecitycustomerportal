@@ -12,49 +12,6 @@ const getSuperAdmins = (): string[] => {
   return superAdminEmails.split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
 };
 
-interface GoogleSheetsResponse {
-  values?: string[][];
-}
-
-// Retry helper with exponential backoff
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 3,
-  baseDelay = 1000
-): Promise<Response> {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, options);
-      
-      if (response.status < 500) {
-        return response;
-      }
-      
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`API call failed with ${response.status}, retrying in ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      
-      return response;
-    } catch (error) {
-      lastError = error as Error;
-      
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`API call failed, retrying in ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  
-  throw lastError || new Error('Max retries exceeded');
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -71,194 +28,277 @@ serve(async (req) => {
       }
     );
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
       throw new Error('Unauthorized');
     }
 
-    // Check if user is a Super Admin
+    // Check if user is a Super Admin or Director
     const superAdmins = getSuperAdmins();
     const userEmail = user.email?.toLowerCase() || '';
     const isSuperAdmin = superAdmins.includes(userEmail);
     
-    if (!isSuperAdmin) {
-      throw new Error('Forbidden: Only Super Admins can manage user access');
-    }
-
-    console.log('Managing user access by super admin');
-
-    const { action, users } = await req.json();
-
-    const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
-    const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
-    const accessSheetId = Deno.env.get('SPREADSHEET_ID');
-
-    if (!serviceAccountEmail || !serviceAccountKey || !accessSheetId) {
-      throw new Error('Missing Google Sheets configuration');
-    }
-
-    let privateKey: string;
-    if (serviceAccountKey.trim().startsWith('{')) {
-      try {
-        const keyData = JSON.parse(serviceAccountKey);
-        privateKey = keyData.private_key;
-      } catch (e) {
-        console.error('Error parsing JSON service account key');
-        throw new Error('Invalid JSON service account key format');
-      }
-    } else {
-      privateKey = serviceAccountKey;
-      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-        privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
-      }
-    }
+    // Check if user is director from internal_users table
+    const { data: internalUser } = await supabaseClient
+      .from('internal_users')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
     
-    privateKey = privateKey.replace(/\\n/g, '\n');
-
-    const pemHeader = '-----BEGIN PRIVATE KEY-----';
-    const pemFooter = '-----END PRIVATE KEY-----';
+    const isDirector = internalUser?.role === 'director';
+    const canAccess = isSuperAdmin || isDirector;
     
-    let pemContents = privateKey;
-    if (pemContents.includes(pemHeader)) {
-      pemContents = pemContents
-        .substring(
-          pemContents.indexOf(pemHeader) + pemHeader.length,
-          pemContents.indexOf(pemFooter)
-        );
-    }
-    
-    pemContents = pemContents.replace(/[^A-Za-z0-9+/=]/g, '');
-    
-    let binaryDer: Uint8Array;
-    try {
-      const binaryString = atob(pemContents);
-      binaryDer = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        binaryDer[i] = binaryString.charCodeAt(i);
-      }
-    } catch (e) {
-      console.error('Failed to decode base64 private key');
-      throw new Error('Failed to decode private key - invalid base64 encoding');
+    if (!canAccess) {
+      throw new Error('Forbidden: Only Super Admins and Directors can access user management');
     }
 
-    const header = {
-      alg: 'RS256',
-      typ: 'JWT',
-    };
-
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-      iss: serviceAccountEmail,
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    };
-
-    const encoder = new TextEncoder();
-    const headerBase64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const payloadBase64 = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const unsignedToken = `${headerBase64}.${payloadBase64}`;
-
-    const key = await crypto.subtle.importKey(
-      'pkcs8',
-      binaryDer.buffer as ArrayBuffer,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const signature = await crypto.subtle.sign(
-      'RSASSA-PKCS1-v1_5',
-      key,
-      encoder.encode(unsignedToken)
-    );
-
-    const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
-
-    const jwt = `${unsignedToken}.${signatureBase64}`;
-
-    const tokenResponse = await fetchWithRetry('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error(`Failed to get access token: ${tokenResponse.status}`);
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
+    const { action, userData, userId } = await req.json();
 
     if (action === 'fetch') {
-      const sheetName = 'User Access Control';
-      const range = `${sheetName}!A1:D100`;
-      const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${accessSheetId}/values/${encodeURIComponent(range)}`;
+      // Fetch all internal users with their account status
+      const { data: internalUsers, error: internalError } = await supabaseAdmin
+        .from('internal_users')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      const sheetsResponse = await fetchWithRetry(sheetsUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      if (internalError) {
+        console.error('Error fetching internal users:', internalError);
+        throw new Error('Failed to fetch internal users');
+      }
+
+      // Fetch all profiles to check account creation status
+      const userIds = internalUsers?.map(u => u.user_id) || [];
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, created_at, email, full_name, stand_number')
+        .in('id', userIds);
+
+      // Get all customers (non-internal users with profiles)
+      const { data: allProfiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, full_name, stand_number, created_at')
+        .order('created_at', { ascending: false });
+
+      // Get auth users to check account created status
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+
+      // Create profile map for quick lookup
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const authUserMap = new Map(authUsers?.users?.map(u => [u.id, u]) || []);
+
+      // Get password reset tokens for last reset date
+      const { data: resetTokens } = await supabaseAdmin
+        .from('password_reset_tokens')
+        .select('user_id, created_at')
+        .order('created_at', { ascending: false });
+
+      const lastResetMap = new Map<string, string>();
+      resetTokens?.forEach(token => {
+        if (!lastResetMap.has(token.user_id)) {
+          lastResetMap.set(token.user_id, token.created_at);
+        }
       });
 
-      if (!sheetsResponse.ok) {
-        throw new Error(`Failed to fetch sheet data: ${sheetsResponse.status}`);
-      }
+      // Build comprehensive user list for internal users
+      const internalUsersList = (internalUsers || []).map(iu => {
+        const profile = profileMap.get(iu.user_id);
+        const authUser = authUserMap.get(iu.user_id);
+        const lastReset = lastResetMap.get(iu.user_id);
+        
+        // Determine account type based on role
+        let accountType = 'Staff – Admin';
+        if (superAdmins.includes(iu.email.toLowerCase())) {
+          accountType = 'Super Admin';
+        } else if (iu.role === 'director') {
+          accountType = 'Staff – Director';
+        } else if (iu.role === 'admin' || iu.role === 'helpdesk') {
+          accountType = 'Staff – Admin';
+        }
 
-      const sheetsData: GoogleSheetsResponse = await sheetsResponse.json();
-      const rows = sheetsData.values || [];
+        // Determine access to reporting based on role
+        const hasReportingAccess = ['super_admin', 'director'].includes(iu.role) || 
+          superAdmins.includes(iu.email.toLowerCase());
 
-      if (rows.length === 0) {
-        return new Response(
-          JSON.stringify({ users: [] }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        return {
+          id: iu.id,
+          userId: iu.user_id,
+          email: iu.email,
+          fullName: iu.full_name || profile?.full_name || '',
+          accountType,
+          role: iu.role,
+          accountCreated: !!authUser,
+          accountCreatedDate: authUser?.created_at || null,
+          lastPasswordReset: lastReset || null,
+          hasReportingAccess,
+          isOverrideApprover: iu.is_override_approver,
+          forcePasswordChange: iu.force_password_change,
+          isSuperAdmin: superAdmins.includes(iu.email.toLowerCase()),
+          createdAt: iu.created_at,
+          isInternal: true,
+        };
+      });
 
-      const usersList = rows.slice(1).map(row => ({
-        email: row[0] || '',
-        fullName: row[1] || '',
-        role: row[2] || 'Viewer',
-        accessToReporting: row[3]?.toLowerCase() === 'yes' || row[3] === 'true'
-      }));
+      // Build customer list from profiles (excluding internal users)
+      const internalUserIds = new Set(internalUsers?.map(u => u.user_id) || []);
+      const customersList = (allProfiles || [])
+        .filter(p => !internalUserIds.has(p.id) && p.email)
+        .map(p => {
+          const authUser = authUserMap.get(p.id);
+          const lastReset = lastResetMap.get(p.id);
 
+          return {
+            id: p.id,
+            userId: p.id,
+            email: p.email || '',
+            fullName: p.full_name || '',
+            accountType: 'Customer',
+            role: 'customer',
+            accountCreated: !!authUser,
+            accountCreatedDate: authUser?.created_at || null,
+            lastPasswordReset: lastReset || null,
+            hasReportingAccess: false,
+            isOverrideApprover: false,
+            forcePasswordChange: false,
+            isSuperAdmin: false,
+            createdAt: p.created_at,
+            isInternal: false,
+            standNumber: p.stand_number,
+          };
+        });
+
+      // Return both lists
       return new Response(
-        JSON.stringify({ users: usersList }),
+        JSON.stringify({ 
+          users: [...internalUsersList, ...customersList],
+          currentUserIsSuperAdmin: isSuperAdmin,
+          currentUserIsDirector: isDirector,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    } else if (action === 'update') {
-      const sheetName = 'User Access Control';
-      const range = `${sheetName}!A1:D${users.length + 1}`;
-      
-      const values = [
-        ['Email Address', 'Full Name', 'Role', 'Access to Reporting'],
-        ...users.map((u: any) => [
-          u.email,
-          u.fullName,
-          u.role || 'Viewer',
-          u.accessToReporting ? 'Yes' : 'No'
-        ])
-      ];
-
-      const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${accessSheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
-
-      const updateResponse = await fetchWithRetry(updateUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ values })
-      });
-
-      if (!updateResponse.ok) {
-        throw new Error(`Failed to update access control sheet: ${updateResponse.status}`);
+    } else if (action === 'updateRole') {
+      // Only Super Admins can update roles
+      if (!isSuperAdmin) {
+        throw new Error('Forbidden: Only Super Admins can update user roles');
       }
 
+      const { userId: targetUserId, newRole } = userData;
+
+      // Prevent modifying other super admins
+      const { data: targetUser } = await supabaseAdmin
+        .from('internal_users')
+        .select('email')
+        .eq('user_id', targetUserId)
+        .single();
+
+      if (targetUser && superAdmins.includes(targetUser.email.toLowerCase())) {
+        throw new Error('Cannot modify Super Admin roles');
+      }
+
+      // Validate role
+      const validRoles = ['admin', 'director', 'helpdesk'];
+      if (!validRoles.includes(newRole)) {
+        throw new Error('Invalid role');
+      }
+
+      // Update the role
+      const { error: updateError } = await supabaseAdmin
+        .from('internal_users')
+        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+
+      if (updateError) {
+        console.error('Error updating role:', updateError);
+        throw new Error('Failed to update role');
+      }
+
+      // Log the action
+      await supabaseAdmin
+        .from('audit_log')
+        .insert({
+          action: 'role_change',
+          entity_type: 'internal_user',
+          entity_id: targetUserId,
+          performed_by: user.id,
+          performed_by_email: user.email,
+          details: { newRole, previousEmail: targetUser?.email }
+        });
+
       return new Response(
-        JSON.stringify({ success: true, message: 'Access control updated successfully' }),
+        JSON.stringify({ success: true, message: 'Role updated successfully' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else if (action === 'addInternalUser') {
+      // Only Super Admins can add internal users
+      if (!isSuperAdmin) {
+        throw new Error('Forbidden: Only Super Admins can add internal users');
+      }
+
+      const { email, fullName, role } = userData;
+
+      // Validate email domain
+      if (!email.toLowerCase().endsWith('@lakecity.co.zw')) {
+        throw new Error('Only @lakecity.co.zw email addresses can be added as internal users');
+      }
+
+      // Check if user already exists
+      const { data: existingUser } = await supabaseAdmin
+        .from('internal_users')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .single();
+
+      if (existingUser) {
+        throw new Error('User already exists in the system');
+      }
+
+      // Create auth user first
+      const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: email.toLowerCase(),
+        email_confirm: true,
+        user_metadata: { full_name: fullName }
+      });
+
+      if (authError) {
+        console.error('Error creating auth user:', authError);
+        throw new Error('Failed to create user account');
+      }
+
+      // Insert into internal_users
+      const { error: insertError } = await supabaseAdmin
+        .from('internal_users')
+        .insert({
+          user_id: newAuthUser.user.id,
+          email: email.toLowerCase(),
+          full_name: fullName,
+          role: role || 'admin',
+          force_password_change: true,
+          created_by: user.id
+        });
+
+      if (insertError) {
+        console.error('Error inserting internal user:', insertError);
+        throw new Error('Failed to add internal user');
+      }
+
+      // Log the action
+      await supabaseAdmin
+        .from('audit_log')
+        .insert({
+          action: 'user_created',
+          entity_type: 'internal_user',
+          entity_id: newAuthUser.user.id,
+          performed_by: user.id,
+          performed_by_email: user.email,
+          details: { email, fullName, role }
+        });
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Internal user added successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -268,7 +308,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error managing user access:', error instanceof Error ? error.message : 'Unknown error');
     return new Response(
-      JSON.stringify({ error: 'User access management failed' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'User access management failed' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
