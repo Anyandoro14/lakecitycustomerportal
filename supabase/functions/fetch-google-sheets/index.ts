@@ -61,10 +61,10 @@ serve(async (req) => {
       // No body or invalid JSON, continue with normal flow
     }
 
-    // Get user's profile
+    // Get user's profile (include stand_number for fallback matching)
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
-      .select('email')
+      .select('email, stand_number')
       .eq('id', user.id)
       .single();
 
@@ -89,18 +89,28 @@ serve(async (req) => {
       new Set([profile.email, user.email].map(normalizeEmail).filter(Boolean)),
     );
 
-    if (candidateEmails.length === 0) {
+    // Get stand number from profile for fallback matching (for placeholder emails like stand-xxx@lakecity.portal)
+    const profileStandNumber = profile.stand_number?.toString().trim().toUpperCase() || null;
+
+    // Check if user has a placeholder email (meaning we should match by stand number instead)
+    const hasPlaceholderEmail = candidateEmails.every(e => 
+      e.endsWith('@lakecity.portal') || e.includes('placeholder')
+    );
+
+    if (candidateEmails.length === 0 && !profileStandNumber) {
       return new Response(
         JSON.stringify({ error: "User email not available" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const primaryEmail = candidateEmails[0];
+    const primaryEmail = candidateEmails[0] || 'unknown';
     console.log('Fetching data for user:', {
       authEmail: user.email,
       profileEmail: profile.email,
       candidateEmails,
+      profileStandNumber,
+      hasPlaceholderEmail,
     });
 
     // Check if this is Looking Glass mode - only allow for @lakecity.co.zw admins
@@ -369,22 +379,37 @@ serve(async (req) => {
         );
       }
     } else {
-      // Normal mode: Find ALL customer rows by matching either profile email or auth email (supports migrations)
+      // Normal mode: Find ALL customer rows by matching email OR stand number from profile
       customerRows = rows.slice(1).filter((row) => {
         const rowEmail = normalizeEmail(row[emailIndex]);
-        return rowEmail && candidateEmails.includes(rowEmail);
+        const rowStandNumber = row[standNumIndex]?.toString().trim().toUpperCase() || '';
+        
+        // Match by email if user has real email
+        if (!hasPlaceholderEmail && rowEmail && candidateEmails.includes(rowEmail)) {
+          return true;
+        }
+        
+        // Match by stand number from profile (for users with placeholder emails)
+        if (profileStandNumber && rowStandNumber === profileStandNumber) {
+          return true;
+        }
+        
+        return false;
       });
 
       if (customerRows.length === 0) {
+        const matchCriteria = hasPlaceholderEmail && profileStandNumber 
+          ? `stand number ${profileStandNumber}` 
+          : `email (${primaryEmail})`;
         return new Response(
           JSON.stringify({
-            error: `Your email (${primaryEmail}) is not authorized to view any stand. Please contact support.`,
+            error: `Your ${matchCriteria} is not authorized to view any stand. Please contact support.`,
           }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
 
-      console.log(`User ${primaryEmail} authorized for ${customerRows.length} stand(s)`);
+      console.log(`User ${primaryEmail} (stand: ${profileStandNumber || 'N/A'}) authorized for ${customerRows.length} stand(s)`);
     }
     // Map all stands to data objects
     const stands = customerRows.map(customerRow => {
