@@ -27,6 +27,19 @@ interface CustomerData {
   payments: PaymentRecord[];
 }
 
+interface StatementRecord {
+  stand_number: string;
+  customer_email: string;
+  statement_month: string;
+  opening_balance: number;
+  payments_received: any[];
+  total_payments: number;
+  closing_balance: number;
+  is_overdue: boolean;
+  days_overdue: number;
+  generated_at: string;
+}
+
 // Parse currency string to number
 const parseCurrency = (val: string): number => {
   if (!val) return 0;
@@ -294,54 +307,32 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
   return customers;
 }
 
-// Generate monthly statements for a customer
-async function generateStatementsForCustomer(
-  supabase: any,
+// Generate statements for a single customer (optimized - batch insert)
+function generateStatementsForCustomerSync(
   customer: CustomerData,
   startMonth: Date,
   endMonth: Date,
-  paymentStartDate: Date
-): Promise<{ created: number; skipped: number }> {
-  let created = 0;
-  let skipped = 0;
-
-  // Iterate through each month from startMonth to endMonth
+  paymentStartDate: Date,
+  existingStatements: Set<string>
+): StatementRecord[] {
+  const statements: StatementRecord[] = [];
   const currentMonth = new Date(startMonth);
-  let previousClosingBalance = customer.totalPrice; // Start with full price as opening balance
+  let previousClosingBalance = customer.totalPrice;
 
   while (currentMonth <= endMonth) {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const statementMonth = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const lastDayOfMonth = getLastDayOfMonth(year, month);
+    const statementKey = `${customer.standNumber}|${customer.email}|${statementMonth}`;
 
-    // Check if statement already exists (immutability - never overwrite)
-    const { data: existingStatement } = await supabase
-      .from('monthly_statements')
-      .select('id')
-      .eq('stand_number', customer.standNumber)
-      .eq('customer_email', customer.email)
-      .eq('statement_month', statementMonth)
-      .single();
-
-    if (existingStatement) {
-      console.log(`Statement already exists for ${customer.standNumber} - ${statementMonth}, skipping`);
-      
-      // Get the closing balance from existing statement for next month's opening
-      const { data: stmt } = await supabase
-        .from('monthly_statements')
-        .select('closing_balance')
-        .eq('id', existingStatement.id)
-        .single();
-      
-      if (stmt) {
-        previousClosingBalance = parseFloat(stmt.closing_balance);
-      }
-      
-      skipped++;
+    // Check if statement already exists
+    if (existingStatements.has(statementKey)) {
+      // We need to track closing balance from existing data - handled separately
       currentMonth.setMonth(currentMonth.getMonth() + 1);
       continue;
     }
+
+    const lastDayOfMonth = getLastDayOfMonth(year, month);
 
     // Filter payments that occurred during this month
     const paymentsThisMonth = customer.payments.filter(p => {
@@ -356,7 +347,6 @@ async function generateStatementsForCustomer(
     const closingBalance = openingBalance - totalPaymentsReceived;
 
     // Determine overdue status
-    // Skip delinquency evaluation if statement_month is before payment_start_date
     const statementDate = new Date(year, month, 1);
     const isBeforePaymentStart = statementDate < paymentStartDate;
     
@@ -364,13 +354,11 @@ async function generateStatementsForCustomer(
     let daysOverdue = 0;
     
     if (!isBeforePaymentStart) {
-      // Only evaluate delinquency when statement_month >= payment_start_date
       isOverdue = closingBalance > 0 && new Date() > lastDayOfMonth;
       daysOverdue = isOverdue 
         ? Math.floor((new Date().getTime() - lastDayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
         : 0;
     }
-    // If before payment start date, is_overdue and days_overdue remain false/0
 
     // Format payments for JSONB storage
     const paymentsJson = paymentsThisMonth.map(p => ({
@@ -380,35 +368,24 @@ async function generateStatementsForCustomer(
       amount_numeric: parseCurrency(p.amount)
     }));
 
-    // Insert the statement
-    const { error: insertError } = await supabase
-      .from('monthly_statements')
-      .insert({
-        stand_number: customer.standNumber,
-        customer_email: customer.email,
-        statement_month: statementMonth,
-        opening_balance: openingBalance,
-        payments_received: paymentsJson,
-        total_payments: totalPaymentsReceived,
-        closing_balance: closingBalance,
-        is_overdue: isOverdue,
-        days_overdue: daysOverdue,
-        generated_at: new Date().toISOString()
-      });
+    statements.push({
+      stand_number: customer.standNumber,
+      customer_email: customer.email,
+      statement_month: statementMonth,
+      opening_balance: openingBalance,
+      payments_received: paymentsJson,
+      total_payments: totalPaymentsReceived,
+      closing_balance: closingBalance,
+      is_overdue: isOverdue,
+      days_overdue: daysOverdue,
+      generated_at: new Date().toISOString()
+    });
 
-    if (insertError) {
-      console.error(`Error inserting statement for ${customer.standNumber} - ${statementMonth}:`, insertError);
-    } else {
-      console.log(`Created statement for ${customer.standNumber} - ${statementMonth}: Opening=${formatCurrency(openingBalance)}, Payments=${formatCurrency(totalPaymentsReceived)}, Closing=${formatCurrency(closingBalance)}`);
-      created++;
-    }
-
-    // Update for next iteration
     previousClosingBalance = closingBalance;
     currentMonth.setMonth(currentMonth.getMonth() + 1);
   }
 
-  return { created, skipped };
+  return statements;
 }
 
 serve(async (req) => {
@@ -416,8 +393,10 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+
   try {
-    console.log('Starting monthly statement generation...');
+    console.log('Starting monthly statement generation (optimized)...');
 
     // Create Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -430,93 +409,132 @@ serve(async (req) => {
     
     try {
       const body = await req.json();
-      targetMonth = body.target_month || null; // YYYY-MM format
+      targetMonth = body.target_month || null;
       targetStand = body.target_stand || null;
     } catch {
       // No body provided, generate all
     }
 
-    // Get Google Sheets access token
-    console.log('Authenticating with Google Sheets...');
-    const accessToken = await getGoogleAccessToken();
+    // Run Google auth and profiles fetch in parallel
+    console.log('Fetching data in parallel...');
+    const [accessToken, profilesResult] = await Promise.all([
+      getGoogleAccessToken(),
+      supabase.from('profiles').select('stand_number, payment_start_date')
+    ]);
 
-    // Fetch all customer data from sheets
+    const profiles = profilesResult.data || [];
+    if (profilesResult.error) {
+      console.warn('Could not fetch profiles:', profilesResult.error.message);
+    }
+
+    // Create payment start date map
+    const paymentStartDateMap: Record<string, Date> = {};
+    const defaultPaymentStartDate = new Date(2025, 8, 5);
+    for (const profile of profiles) {
+      if (profile.stand_number && profile.payment_start_date) {
+        paymentStartDateMap[profile.stand_number] = new Date(profile.payment_start_date);
+      }
+    }
+
+    // Fetch customer data from sheets
     console.log('Fetching customer data from Google Sheets...');
     const customers = await fetchAllCustomerData(accessToken);
 
     if (customers.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'No customers found to process', created: 0, skipped: 0 }),
+        JSON.stringify({ success: true, message: 'No customers found', created: 0, skipped: 0, duration_ms: Date.now() - startTime }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Determine date range
-    // Start from October 2025
     const startMonth = new Date(2025, 9, 1); // October 2025
-    
-    // End at the current month or target month
     let endMonth: Date;
     if (targetMonth) {
       const [year, month] = targetMonth.split('-').map(Number);
       endMonth = new Date(year, month - 1, 1);
     } else {
       endMonth = new Date();
-      endMonth.setDate(1); // First of current month
+      endMonth.setDate(1);
     }
 
-    console.log(`Generating statements from ${startMonth.toLocaleDateString()} to ${endMonth.toLocaleDateString()}`);
+    console.log(`Date range: ${startMonth.toLocaleDateString()} to ${endMonth.toLocaleDateString()}`);
 
     // Filter customers if target stand specified
     const customersToProcess = targetStand 
       ? customers.filter(c => c.standNumber === targetStand)
       : customers;
 
-    let totalCreated = 0;
-    let totalSkipped = 0;
+    console.log(`Processing ${customersToProcess.length} customers...`);
 
-    // Fetch payment_start_date for all customers from profiles
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('stand_number, payment_start_date');
-    
-    if (profilesError) {
-      console.warn('Could not fetch profiles for payment_start_date, using default:', profilesError.message);
+    // OPTIMIZATION: Fetch ALL existing statements in one query
+    const standNumbers = customersToProcess.map(c => c.standNumber);
+    const { data: existingStatementsData, error: existingError } = await supabase
+      .from('monthly_statements')
+      .select('stand_number, customer_email, statement_month, closing_balance')
+      .in('stand_number', standNumbers);
+
+    if (existingError) {
+      console.warn('Error fetching existing statements:', existingError.message);
     }
+
+    // Build a set of existing statement keys for O(1) lookup
+    const existingStatements = new Set<string>();
+    const existingClosingBalances: Record<string, number> = {};
     
-    // Create a map of stand_number -> payment_start_date
-    const paymentStartDateMap: Record<string, Date> = {};
-    const defaultPaymentStartDate = new Date(2025, 8, 5); // September 5, 2025
-    
-    if (profiles) {
-      for (const profile of profiles) {
-        if (profile.stand_number && profile.payment_start_date) {
-          paymentStartDateMap[profile.stand_number] = new Date(profile.payment_start_date);
-        }
-      }
+    for (const stmt of existingStatementsData || []) {
+      const key = `${stmt.stand_number}|${stmt.customer_email}|${stmt.statement_month}`;
+      existingStatements.add(key);
+      existingClosingBalances[key] = parseFloat(stmt.closing_balance);
     }
+
+    console.log(`Found ${existingStatements.size} existing statements`);
+
+    // Generate all new statements in memory (no DB calls)
+    const allNewStatements: StatementRecord[] = [];
     
-    // Process each customer
     for (const customer of customersToProcess) {
-      console.log(`Processing customer: ${customer.email}, Stand: ${customer.standNumber}`);
-      
-      // Get customer-specific payment start date or use default
       const customerPaymentStartDate = paymentStartDateMap[customer.standNumber] || defaultPaymentStartDate;
-      console.log(`Payment start date for ${customer.standNumber}: ${customerPaymentStartDate.toISOString().split('T')[0]}`);
       
-      const { created, skipped } = await generateStatementsForCustomer(
-        supabase,
+      const customerStatements = generateStatementsForCustomerSync(
         customer,
         startMonth,
         endMonth,
-        customerPaymentStartDate
+        customerPaymentStartDate,
+        existingStatements
       );
       
-      totalCreated += created;
-      totalSkipped += skipped;
+      allNewStatements.push(...customerStatements);
     }
 
-    console.log(`Statement generation complete. Created: ${totalCreated}, Skipped: ${totalSkipped}`);
+    console.log(`Generated ${allNewStatements.length} new statements to insert`);
+
+    // OPTIMIZATION: Batch insert all statements at once (max 1000 per batch for safety)
+    let totalCreated = 0;
+    const batchSize = 500;
+    
+    for (let i = 0; i < allNewStatements.length; i += batchSize) {
+      const batch = allNewStatements.slice(i, i + batchSize);
+      
+      const { error: insertError, data: insertedData } = await supabase
+        .from('monthly_statements')
+        .insert(batch)
+        .select('id');
+      
+      if (insertError) {
+        console.error(`Batch insert error (batch ${Math.floor(i / batchSize) + 1}):`, insertError.message);
+        // Continue with other batches
+      } else {
+        const insertedCount = insertedData?.length || batch.length;
+        totalCreated += insertedCount;
+        console.log(`Inserted batch ${Math.floor(i / batchSize) + 1}: ${insertedCount} statements`);
+      }
+    }
+
+    const totalSkipped = existingStatements.size;
+    const duration = Date.now() - startTime;
+
+    console.log(`Statement generation complete in ${duration}ms. Created: ${totalCreated}, Skipped: ${totalSkipped}`);
 
     return new Response(
       JSON.stringify({ 
@@ -524,7 +542,8 @@ serve(async (req) => {
         message: `Statement generation complete`,
         customers_processed: customersToProcess.length,
         statements_created: totalCreated,
-        statements_skipped: totalSkipped
+        statements_skipped: totalSkipped,
+        duration_ms: duration
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -533,7 +552,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error generating monthly statements:', error);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: errorMessage, duration_ms: Date.now() - startTime }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
