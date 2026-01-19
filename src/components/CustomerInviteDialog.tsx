@@ -19,8 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Mail, MessageSquare, Phone, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { Mail, MessageSquare, Phone, Send, Loader2, CheckCircle2, Eye, Edit3 } from "lucide-react";
+import EmailPreview from "@/components/EmailPreview";
 
 interface CustomerInviteDialogProps {
   // Controlled mode
@@ -57,6 +59,7 @@ const CustomerInviteDialog = ({
   const [customMessage, setCustomMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [activeTab, setActiveTab] = useState<"compose" | "preview">("compose");
 
   // Support both controlled and uncontrolled modes
   const isControlled = controlledOpen !== undefined;
@@ -140,7 +143,7 @@ const CustomerInviteDialog = ({
       </div>
     </DialogContent>
   ) : (
-    <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Send className="h-5 w-5 text-primary" />
@@ -177,7 +180,10 @@ const CustomerInviteDialog = ({
         {/* Channel Selection */}
         <div className="space-y-2">
           <Label>Send via</Label>
-          <Select value={channel} onValueChange={(v) => setChannel(v as any)}>
+          <Select value={channel} onValueChange={(v) => {
+            setChannel(v as any);
+            setActiveTab("compose");
+          }}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -204,29 +210,82 @@ const CustomerInviteDialog = ({
           </Select>
         </div>
 
-        {/* Message Preview / Edit */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <Label>Message</Label>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setCustomMessage("")}
-              className="text-xs"
-            >
-              Reset to default
-            </Button>
+        {/* Tabs for Compose / Preview (Email only) */}
+        {channel === "email" ? (
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="compose" className="flex items-center gap-2">
+                <Edit3 className="h-4 w-4" />
+                Compose
+              </TabsTrigger>
+              <TabsTrigger value="preview" className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Preview Email
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="compose" className="mt-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label>Message (SMS/WhatsApp only)</Label>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setCustomMessage("")}
+                    className="text-xs"
+                  >
+                    Reset to default
+                  </Button>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+                  <p className="flex items-center gap-2 mb-2">
+                    <Mail className="h-4 w-4" />
+                    <span className="font-medium text-foreground">Email uses a branded HTML template</span>
+                  </p>
+                  <p>
+                    The email invitation uses the official LakeCity branded template with your customer's name and signup link. 
+                    Switch to the "Preview Email" tab to see exactly how it will appear to the customer.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Note: The signup link will be automatically included in the email.
+                </p>
+              </div>
+            </TabsContent>
+            <TabsContent value="preview" className="mt-4">
+              <EmailPreview 
+                firstName={customer?.full_name?.split(' ')[0] || 'Valued Customer'}
+                signupUrl="https://lakecity.standledger.io/signup"
+              />
+              <p className="text-xs text-muted-foreground mt-3 text-center">
+                This is how the email will appear to {customer?.full_name || 'the customer'}
+              </p>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          /* Message Preview / Edit for SMS/WhatsApp */
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label>Message</Label>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setCustomMessage("")}
+                className="text-xs"
+              >
+                Reset to default
+              </Button>
+            </div>
+            <Textarea
+              value={customMessage || defaultMessages[channel]}
+              onChange={(e) => setCustomMessage(e.target.value)}
+              className="min-h-[200px] text-sm"
+              placeholder="Customize your invitation message..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Note: The signup link will be automatically added to the message.
+            </p>
           </div>
-          <Textarea
-            value={customMessage || defaultMessages[channel]}
-            onChange={(e) => setCustomMessage(e.target.value)}
-            className="min-h-[200px] text-sm"
-            placeholder="Customize your invitation message..."
-          />
-          <p className="text-xs text-muted-foreground">
-            Note: The signup link will be automatically added to the message.
-          </p>
-        </div>
+        )}
       </div>
 
       <DialogFooter className="flex-col sm:flex-row gap-2">
