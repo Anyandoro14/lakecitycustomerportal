@@ -40,6 +40,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import InternalNav from "@/components/InternalNav";
+import AuditDetailsCollapsible from "@/components/AuditDetailsCollapsible";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import { toast } from "sonner";
 import {
@@ -689,8 +690,8 @@ const InternalPortal = () => {
                               <Badge variant="outline">{log.action}</Badge>
                             </TableCell>
                             <TableCell className="text-sm">{log.performed_by_email}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                              {JSON.stringify(log.details)}
+                            <TableCell className="text-xs max-w-[300px]">
+                              <AuditDetailsCollapsible details={log.details} />
                             </TableCell>
                           </TableRow>
                         ))}
