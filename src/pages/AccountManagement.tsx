@@ -35,7 +35,7 @@ const AccountManagement = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
@@ -56,13 +56,14 @@ const AccountManagement = () => {
       
       if (error) throw error;
 
-      if (!data.isSuperAdmin) {
-        toast.error("Access denied. Only Super Admins can manage user access.");
+      // Check if user is Super Admin or Director (both can access user management)
+      if (!data.isSuperAdmin && !data.isDirector) {
+        toast.error("Access denied. Only Super Admins and Directors can manage user access.");
         navigate("/");
         return;
       }
 
-      setIsSuperAdmin(true);
+      setHasAccess(true);
       await fetchUsers();
     } catch (error: any) {
       console.error('Error checking access:', error);
@@ -136,7 +137,7 @@ const AccountManagement = () => {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!hasAccess) {
     return null;
   }
 

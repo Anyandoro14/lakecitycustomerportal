@@ -83,6 +83,23 @@ serve(async (req) => {
     const superAdmins = getSuperAdmins();
     const isSuperAdmin = superAdmins.includes(userEmail);
 
+    // Check if user is a Director (directors have access to reporting)
+    const directorEmails = ['alex@lakecity.co.zw', 'brenda@lakecity.co.zw', 'tapiwa@lakecity.co.zw'];
+    const isDirector = directorEmails.includes(userEmail);
+
+    // If Super Admin or Director, grant access immediately
+    if (isSuperAdmin || isDirector) {
+      return new Response(
+        JSON.stringify({
+          hasAccess: true,
+          isSuperAdmin,
+          isDirector,
+          role: isSuperAdmin ? 'Super Admin' : 'Director'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Create JWT for Google Sheets API
     const serviceAccountEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
     const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
@@ -239,13 +256,14 @@ serve(async (req) => {
       }
     }
 
-    const hasAccess = isSuperAdmin || userAccess;
+    const hasAccess = isSuperAdmin || isDirector || userAccess;
 
     return new Response(
       JSON.stringify({
         hasAccess,
         isSuperAdmin,
-        role: isSuperAdmin ? 'Super Admin' : userRole
+        isDirector,
+        role: isSuperAdmin ? 'Super Admin' : (isDirector ? 'Director' : userRole)
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

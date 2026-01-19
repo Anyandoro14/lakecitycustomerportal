@@ -44,6 +44,7 @@ const Reporting = () => {
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isDirector, setIsDirector] = useState(false);
   const [reportingData, setReportingData] = useState<any>(null);
   const [selectedStand, setSelectedStand] = useState<any>(null);
   const [selectedMonth, setSelectedMonth] = useState<any>(null);
@@ -87,6 +88,7 @@ const Reporting = () => {
 
       setHasAccess(true);
       setIsSuperAdmin(data.isSuperAdmin);
+      setIsDirector(data.isDirector || false);
       await fetchReportingData();
     } catch (error: any) {
       console.error('Error checking access:', error);
@@ -396,7 +398,7 @@ const Reporting = () => {
             <p className="text-sm md:text-base text-primary-foreground/80">LakeCity Collections Dashboard</p>
           </div>
           <div className="flex gap-2">
-            {isSuperAdmin && (
+            {(isSuperAdmin || isDirector) && (
               <Button
                 variant="secondary"
                 size="sm"

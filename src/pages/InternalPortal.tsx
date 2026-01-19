@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   UserPlus,
   Eye,
+  TrendingUp,
 } from "lucide-react";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import { toast } from "sonner";
@@ -193,8 +194,8 @@ const InternalPortal = () => {
       loadAuditLogs();
       loadKnowledgeBase();
       
-      // Load users if super admin
-      if (data.user?.role === 'super_admin') {
+      // Load users if super admin or director
+      if (data.user?.role === 'super_admin' || data.user?.role === 'director') {
         loadInternalUsers();
       }
     } catch (error: any) {
@@ -494,7 +495,7 @@ const InternalPortal = () => {
 
       <div className="max-w-7xl mx-auto p-4 md:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className={`grid ${currentUser?.role === 'super_admin' ? 'grid-cols-3 md:grid-cols-6' : 'grid-cols-2 md:grid-cols-5'} gap-2 h-auto p-1`}>
+          <TabsList className={`grid ${(currentUser?.role === 'super_admin' || currentUser?.role === 'director') ? 'grid-cols-3 md:grid-cols-8' : 'grid-cols-2 md:grid-cols-5'} gap-2 h-auto p-1`}>
             <TabsTrigger value="dashboard" className="flex items-center gap-2 py-2">
               <Home className="h-4 w-4" />
               <span className="hidden md:inline">Dashboard</span>
@@ -515,11 +516,30 @@ const InternalPortal = () => {
               <BookOpen className="h-4 w-4" />
               <span className="hidden md:inline">Knowledge</span>
             </TabsTrigger>
-            {currentUser?.role === 'super_admin' && (
-              <TabsTrigger value="users" className="flex items-center gap-2 py-2">
-                <UserCog className="h-4 w-4" />
-                <span className="hidden md:inline">Users</span>
-              </TabsTrigger>
+            {/* Director and Super Admin can access User Management and Reporting links */}
+            {(currentUser?.role === 'super_admin' || currentUser?.role === 'director') && (
+              <>
+                <TabsTrigger value="users" className="flex items-center gap-2 py-2">
+                  <UserCog className="h-4 w-4" />
+                  <span className="hidden md:inline">Users</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="reporting" 
+                  className="flex items-center gap-2 py-2"
+                  onClick={() => navigate('/reporting')}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden md:inline">Reporting</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="access-mgmt" 
+                  className="flex items-center gap-2 py-2"
+                  onClick={() => navigate('/account-management')}
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="hidden md:inline">Access Mgmt</span>
+                </TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -1069,8 +1089,8 @@ const InternalPortal = () => {
             </div>
           </TabsContent>
 
-          {/* User Management Tab - Super Admin Only */}
-          {currentUser?.role === 'super_admin' && (
+          {/* User Management Tab - Super Admin and Director Only */}
+          {(currentUser?.role === 'super_admin' || currentUser?.role === 'director') && (
             <TabsContent value="users" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -1137,6 +1157,12 @@ const InternalPortal = () => {
                                         Admin
                                       </span>
                                     </SelectItem>
+                                    <SelectItem value="director">
+                                      <span className="flex items-center gap-2">
+                                        <TrendingUp className="h-3 w-3" />
+                                        Director
+                                      </span>
+                                    </SelectItem>
                                     <SelectItem value="super_admin">
                                       <span className="flex items-center gap-2">
                                         <Crown className="h-3 w-3" />
@@ -1191,7 +1217,7 @@ const InternalPortal = () => {
                   <CardTitle className="text-lg">Role Permissions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="grid md:grid-cols-4 gap-4">
                     <div className="p-4 bg-muted rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Users className="h-5 w-5 text-muted-foreground" />
@@ -1212,8 +1238,21 @@ const InternalPortal = () => {
                       <ul className="text-sm space-y-1 text-muted-foreground">
                         <li>• All Helpdesk permissions</li>
                         <li>• Password resets</li>
-                        <li>• Manage knowledge base</li>
-                        <li>• View reports</li>
+                        <li>• Looking Glass access</li>
+                        <li className="text-red-400">• No Reporting access</li>
+                        <li className="text-red-400">• No User Management</li>
+                      </ul>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className="h-5 w-5 text-green-600" />
+                        <h3 className="font-semibold">Director</h3>
+                      </div>
+                      <ul className="text-sm space-y-1 text-muted-foreground">
+                        <li>• All Admin permissions</li>
+                        <li>• Reporting access</li>
+                        <li>• User Management access</li>
+                        <li>• Looking Glass access</li>
                       </ul>
                     </div>
                     <div className="p-4 bg-muted rounded-lg">
@@ -1222,10 +1261,9 @@ const InternalPortal = () => {
                         <h3 className="font-semibold">Super Admin</h3>
                       </div>
                       <ul className="text-sm space-y-1 text-muted-foreground">
-                        <li>• All Admin permissions</li>
-                        <li>• User management</li>
-                        <li>• Role assignments</li>
+                        <li>• All Director permissions</li>
                         <li>• System configuration</li>
+                        <li>• Full access to all features</li>
                       </ul>
                     </div>
                   </div>
