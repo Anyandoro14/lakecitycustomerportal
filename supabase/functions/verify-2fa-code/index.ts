@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -26,11 +27,63 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Phone number and code are required");
     }
 
+    console.log(`Verifying code for ${phoneNumber}`);
+
+    // First, check if this is an admin bypass code
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: bypassCode, error: bypassError } = await supabaseAdmin
+      .from('twofa_bypass_codes')
+      .select('*')
+      .eq('phone_number', phoneNumber)
+      .eq('bypass_code', code)
+      .is('used_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (bypassCode && !bypassError) {
+      console.log(`Valid admin bypass code used for ${phoneNumber}`);
+      
+      // Mark the bypass code as used
+      await supabaseAdmin
+        .from('twofa_bypass_codes')
+        .update({ used_at: new Date().toISOString() })
+        .eq('id', bypassCode.id);
+
+      // Log the bypass code usage to audit log
+      await supabaseAdmin
+        .from('audit_log')
+        .insert({
+          action: '2fa_bypass_used',
+          entity_type: 'twofa_bypass',
+          entity_id: bypassCode.stand_number,
+          performed_by: bypassCode.created_by,
+          performed_by_email: bypassCode.created_by_email,
+          details: {
+            stand_number: bypassCode.stand_number,
+            customer_name: bypassCode.customer_name,
+            phone_number_masked: phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2),
+            bypass_code_id: bypassCode.id
+          }
+        });
+
+      return new Response(
+        JSON.stringify({ verified: true, status: 'approved', bypassUsed: true }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Not a bypass code, verify with Twilio
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
       throw new Error("Twilio credentials not configured");
     }
 
-    console.log(`Verifying WhatsApp code for ${phoneNumber}`);
+    console.log(`Verifying via Twilio for ${phoneNumber}`);
 
     // Verify code using Twilio Verify API
     const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`;

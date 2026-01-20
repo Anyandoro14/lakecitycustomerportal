@@ -386,11 +386,51 @@ export type Database = {
         }
         Relationships: []
       }
+      twofa_bypass_codes: {
+        Row: {
+          bypass_code: string
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          customer_name: string | null
+          expires_at: string
+          id: string
+          phone_number: string
+          stand_number: string
+          used_at: string | null
+        }
+        Insert: {
+          bypass_code: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          customer_name?: string | null
+          expires_at?: string
+          id?: string
+          phone_number: string
+          stand_number: string
+          used_at?: string | null
+        }
+        Update: {
+          bypass_code?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          customer_name?: string | null
+          expires_at?: string
+          id?: string
+          phone_number?: string
+          stand_number?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_bypass_codes: { Args: never; Returns: undefined }
       cleanup_expired_password_reset_tokens: { Args: never; Returns: undefined }
       get_internal_role: {
         Args: { _user_id: string }

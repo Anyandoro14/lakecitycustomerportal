@@ -8,6 +8,7 @@ import InfoCards from "@/components/InfoCards";
 import PaymentSummary from "@/components/PaymentSummary";
 import DocumentsSection from "@/components/DocumentsSection";
 import PaymentHistory from "@/components/PaymentHistory";
+import TwoFABypassDialog from "@/components/TwoFABypassDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Lock, Eye, AlertTriangle } from "lucide-react";
@@ -150,6 +151,17 @@ const LookingGlassView = () => {
               </div>
               
               <p className="text-xs text-amber-600 dark:text-amber-400">All interactions are disabled in this mode.</p>
+              
+              {/* 2FA Bypass Button - Only show if customer has phone number */}
+              {standData?.phoneNumber && (
+                <div className="pt-2 border-t border-amber-200 dark:border-amber-700">
+                  <TwoFABypassDialog
+                    phoneNumber={standData.phoneNumber}
+                    standNumber={customer.standNumber}
+                    customerName={customer.customerName}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
