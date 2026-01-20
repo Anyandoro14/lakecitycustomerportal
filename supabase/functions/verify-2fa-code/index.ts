@@ -39,18 +39,25 @@ const handler = async (req: Request): Promise<Response> => {
       .select('*')
       .eq('phone_number', phoneNumber)
       .eq('bypass_code', code)
-      .is('used_at', null)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 
-    if (bypassCode && !bypassError) {
-      console.log(`Valid admin bypass code used for ${phoneNumber}`);
+    // Check if bypass code exists and is valid (either unused OR reusable)
+    const isValidBypass = bypassCode && !bypassError && (
+      bypassCode.used_at === null || bypassCode.is_reusable === true
+    );
+
+    if (isValidBypass) {
+      const isReusable = bypassCode.is_reusable === true;
+      console.log(`Valid ${isReusable ? 'reusable' : 'single-use'} bypass code used for ${phoneNumber}`);
       
-      // Mark the bypass code as used
-      await supabaseAdmin
-        .from('twofa_bypass_codes')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', bypassCode.id);
+      // Only mark as used if it's NOT a reusable code
+      if (!isReusable) {
+        await supabaseAdmin
+          .from('twofa_bypass_codes')
+          .update({ used_at: new Date().toISOString() })
+          .eq('id', bypassCode.id);
+      }
 
       // Log the bypass code usage to audit log
       await supabaseAdmin
@@ -65,12 +72,13 @@ const handler = async (req: Request): Promise<Response> => {
             stand_number: bypassCode.stand_number,
             customer_name: bypassCode.customer_name,
             phone_number_masked: phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2),
-            bypass_code_id: bypassCode.id
+            bypass_code_id: bypassCode.id,
+            is_reusable: isReusable
           }
         });
 
       return new Response(
-        JSON.stringify({ verified: true, status: 'approved', bypassUsed: true }),
+        JSON.stringify({ verified: true, status: 'approved', bypassUsed: true, isReusable }),
         {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders },

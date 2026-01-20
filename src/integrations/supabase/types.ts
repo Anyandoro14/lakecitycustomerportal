@@ -395,6 +395,7 @@ export type Database = {
           customer_name: string | null
           expires_at: string
           id: string
+          is_reusable: boolean
           phone_number: string
           stand_number: string
           used_at: string | null
@@ -407,6 +408,7 @@ export type Database = {
           customer_name?: string | null
           expires_at?: string
           id?: string
+          is_reusable?: boolean
           phone_number: string
           stand_number: string
           used_at?: string | null
@@ -419,6 +421,7 @@ export type Database = {
           customer_name?: string | null
           expires_at?: string
           id?: string
+          is_reusable?: boolean
           phone_number?: string
           stand_number?: string
           used_at?: string | null

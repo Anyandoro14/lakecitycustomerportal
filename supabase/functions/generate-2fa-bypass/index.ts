@@ -10,6 +10,7 @@ interface GenerateBypassRequest {
   phoneNumber: string;
   standNumber: string;
   customerName?: string;
+  durationWeeks?: number; // 0 = 5 minutes (quick), 1-4 = weeks (reusable)
 }
 
 const generateBypassCode = (): string => {
@@ -57,16 +58,30 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Unauthorized: Only internal staff can generate bypass codes');
     }
 
-    const { phoneNumber, standNumber, customerName }: GenerateBypassRequest = await req.json();
+    const { phoneNumber, standNumber, customerName, durationWeeks = 0 }: GenerateBypassRequest = await req.json();
 
     if (!phoneNumber || !standNumber) {
       throw new Error('Phone number and stand number are required');
     }
 
-    console.log(`Admin ${internalUser.email} generating bypass code for stand ${standNumber}`);
+    // Validate duration (0 = 5 min quick, 1-4 = weeks)
+    const validDuration = Math.min(Math.max(0, durationWeeks), 4);
+    const isReusable = validDuration > 0;
+
+    console.log(`Admin ${internalUser.email} generating ${isReusable ? `${validDuration}-week reusable` : '5-minute'} bypass code for stand ${standNumber}`);
 
     // Generate the bypass code
     const bypassCode = generateBypassCode();
+
+    // Calculate expiry
+    let expiresAt: Date;
+    if (isReusable) {
+      // Weeks duration
+      expiresAt = new Date(Date.now() + validDuration * 7 * 24 * 60 * 60 * 1000);
+    } else {
+      // 5 minutes
+      expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    }
 
     // Delete any existing unused bypass codes for this phone number
     await supabaseAdmin
@@ -84,7 +99,9 @@ const handler = async (req: Request): Promise<Response> => {
         bypass_code: bypassCode,
         created_by: user.id,
         created_by_email: internalUser.email,
-        customer_name: customerName || null
+        customer_name: customerName || null,
+        expires_at: expiresAt.toISOString(),
+        is_reusable: isReusable
       });
 
     if (insertError) {
@@ -104,17 +121,22 @@ const handler = async (req: Request): Promise<Response> => {
         details: {
           stand_number: standNumber,
           customer_name: customerName,
-          phone_number_masked: phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2)
+          phone_number_masked: phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2),
+          duration_type: isReusable ? `${validDuration} week(s)` : '5 minutes',
+          is_reusable: isReusable,
+          expires_at: expiresAt.toISOString()
         }
       });
 
-    console.log(`Bypass code generated successfully for stand ${standNumber}`);
+    console.log(`Bypass code generated successfully for stand ${standNumber}, expires: ${expiresAt.toISOString()}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         bypassCode,
-        expiresInMinutes: 5
+        isReusable,
+        expiresAt: expiresAt.toISOString(),
+        durationWeeks: validDuration
       }),
       {
         status: 200,
