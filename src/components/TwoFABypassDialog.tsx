@@ -17,9 +17,10 @@ interface TwoFABypassDialogProps {
   phoneNumber: string;
   standNumber: string;
   customerName?: string;
+  trigger?: React.ReactNode;
 }
 
-const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName }: TwoFABypassDialogProps) => {
+const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: TwoFABypassDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bypassCode, setBypassCode] = useState<string | null>(null);
@@ -76,10 +77,12 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName }: TwoFABypa
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Key className="h-4 w-4" />
-          Generate 2FA Bypass
-        </Button>
+        {trigger || (
+          <Button variant="outline" size="sm" className="gap-2">
+            <Key className="h-4 w-4" />
+            Generate 2FA Bypass
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

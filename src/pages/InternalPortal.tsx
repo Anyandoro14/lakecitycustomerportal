@@ -38,10 +38,12 @@ import {
   UserPlus,
   Eye,
   TrendingUp,
+  ShieldAlert,
 } from "lucide-react";
 import InternalNav from "@/components/InternalNav";
 import AuditDetailsCollapsible from "@/components/AuditDetailsCollapsible";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
+import TwoFABypassDialog from "@/components/TwoFABypassDialog";
 import { toast } from "sonner";
 import {
   Table,
@@ -856,6 +858,17 @@ const InternalPortal = () => {
                           <Key className="h-4 w-4 mr-2" />
                           Reset Password
                         </Button>
+                        <TwoFABypassDialog
+                          standNumber={selectedCustomer.stand_number}
+                          customerName={selectedCustomer.full_name}
+                          phoneNumber={selectedCustomer.phone_number}
+                          trigger={
+                            <Button size="sm" variant="outline" className="text-amber-600 border-amber-300 hover:bg-amber-50">
+                              <ShieldAlert className="h-4 w-4 mr-2" />
+                              2FA Bypass
+                            </Button>
+                          }
+                        />
                       </div>
                     </CardContent>
                   </Card>
