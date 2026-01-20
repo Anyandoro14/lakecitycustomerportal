@@ -476,11 +476,11 @@ serve(async (req) => {
       }
       
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
-      const totalPaid = customerRow[totalPaidCol] || '$0.00';
+      const sheetTotalPaid = customerRow[totalPaidCol] || '$0.00';
       const currentBalance = customerRow[currentBalanceCol] || '$0.00';
       const paymentProgress = customerRow[paymentProgressCol] || '0%';
       
-      console.log(`Stand ${standNumber}: Total Paid (col ${totalPaidCol}) = ${totalPaid}, Current Balance (col ${currentBalanceCol}) = ${currentBalance}, Progress (col ${paymentProgressCol}) = ${paymentProgress}`);
+      console.log(`Stand ${standNumber}: Sheet Total Paid (col ${totalPaidCol}) = ${sheetTotalPaid}, Current Balance (col ${currentBalanceCol}) = ${currentBalance}, Progress (col ${paymentProgressCol}) = ${paymentProgress}`);
       
       // Extract payment columns and build payment history
       const paymentColumns = [];
@@ -544,7 +544,16 @@ serve(async (req) => {
         }
       }
       
-      console.log(`Stand ${standNumber}: Total payments sum = ${totalPaymentsSum}, Last payment index = ${lastPaymentIndex}`);
+      // Format calculated total for display - this is the authoritative sum of all payment cells
+      const calculatedTotalPaid = `$${totalPaymentsSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      
+      // Log both values to identify discrepancies between sheet formula and calculated sum
+      const sheetTotalNum = parseFloat(sheetTotalPaid.toString().replace(/[$,]/g, '')) || 0;
+      if (Math.abs(sheetTotalNum - totalPaymentsSum) > 0.01) {
+        console.warn(`Stand ${standNumber}: DISCREPANCY - Sheet says ${sheetTotalPaid} (${sheetTotalNum}) but calculated sum is ${calculatedTotalPaid} (${totalPaymentsSum})`);
+      }
+      
+      console.log(`Stand ${standNumber}: Calculated total = ${calculatedTotalPaid}, Sheet total = ${sheetTotalPaid}, Last payment index = ${lastPaymentIndex}`);
       
       // OVERPAYMENT LOGIC: Calculate how many instalments are covered by total payments
       // coveredMonths = floor(totalPaymentsSum / monthlyPaymentAmount)
@@ -634,11 +643,10 @@ serve(async (req) => {
       if (!isNaN(progressNum) && progressNum >= 0) {
         progressPercentage = Math.round(progressNum);
       } else {
-        // Fallback: calculate from total paid and current balance
-        const totalPaidNum = parseFloat(totalPaid.toString().replace(/[$,]/g, '')) || 0;
+        // Fallback: calculate from calculated total paid and current balance
         const balanceNum = parseFloat(currentBalance.toString().replace(/[$,]/g, '')) || 0;
-        const totalAmountDue = totalPaidNum + balanceNum;
-        progressPercentage = totalAmountDue > 0 ? Math.round((totalPaidNum / totalAmountDue) * 100) : 0;
+        const totalAmountDue = totalPaymentsSum + balanceNum;
+        progressPercentage = totalAmountDue > 0 ? Math.round((totalPaymentsSum / totalAmountDue) * 100) : 0;
       }
       
       console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);
@@ -673,7 +681,7 @@ serve(async (req) => {
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
         nextDueDate: nextPaymentDue,
-        totalPaid: totalPaid,
+        totalPaid: calculatedTotalPaid, // Use calculated sum, not sheet formula (which may be stale/incorrect)
         progressPercentage: progressPercentage,
         paymentHistory: paymentHistory,
         agreementSignedByWarwickshire: agreementSignedByWarwickshire,
