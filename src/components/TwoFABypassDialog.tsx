@@ -9,9 +9,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Key, Copy, Check, Loader2, Shield } from "lucide-react";
+import { Key, Copy, Check, Loader2, Shield, Clock, CalendarDays } from "lucide-react";
+import { format } from "date-fns";
 
 interface TwoFABypassDialogProps {
   phoneNumber: string;
@@ -25,12 +34,20 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
   const [loading, setLoading] = useState(false);
   const [bypassCode, setBypassCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [durationWeeks, setDurationWeeks] = useState<string>("0"); // "0" = 5 min, "1"-"4" = weeks
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [isReusable, setIsReusable] = useState(false);
 
   const handleGenerateCode = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-2fa-bypass', {
-        body: { phoneNumber, standNumber, customerName }
+        body: { 
+          phoneNumber, 
+          standNumber, 
+          customerName,
+          durationWeeks: parseInt(durationWeeks)
+        }
       });
 
       if (error) throw error;
@@ -40,6 +57,8 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
       }
 
       setBypassCode(data.bypassCode);
+      setExpiresAt(data.expiresAt);
+      setIsReusable(data.isReusable);
       toast.success("Bypass code generated successfully");
     } catch (error: any) {
       toast.error(error.message || "Failed to generate bypass code");
@@ -67,12 +86,24 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
     setTimeout(() => {
       setBypassCode(null);
       setCopied(false);
+      setExpiresAt(null);
+      setIsReusable(false);
+      setDurationWeeks("0");
     }, 300);
   };
 
   const maskedPhone = phoneNumber 
     ? phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2)
     : 'Unknown';
+
+  const formatExpiry = () => {
+    if (!expiresAt) return '';
+    const date = new Date(expiresAt);
+    if (isReusable) {
+      return format(date, "d MMM yyyy 'at' HH:mm");
+    }
+    return '5 minutes from now';
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -91,7 +122,7 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
             2FA Bypass Code
           </DialogTitle>
           <DialogDescription>
-            Generate a one-time bypass code for customers who cannot receive SMS/WhatsApp verification.
+            Generate a bypass code for customers who cannot receive SMS/WhatsApp verification.
           </DialogDescription>
         </DialogHeader>
         
@@ -120,9 +151,21 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
                 <p className="text-3xl font-mono font-bold tracking-widest text-primary">
                   {bypassCode}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Expires in 5 minutes
-                </p>
+                <div className="flex items-center justify-center gap-1.5 mt-2">
+                  {isReusable ? (
+                    <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {isReusable ? `Valid until ${formatExpiry()}` : 'Expires in 5 minutes'}
+                  </p>
+                </div>
+                {isReusable && (
+                  <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">
+                    ✓ Reusable code - works for multiple logins
+                  </p>
+                )}
               </div>
               
               <Button 
@@ -149,13 +192,74 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
               </p>
             </div>
           ) : (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-sm text-amber-800 dark:text-amber-200">
-              <p className="font-medium mb-1">Important:</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>This code is valid for 5 minutes only</li>
-                <li>It can only be used once</li>
-                <li>This action is logged for security audit</li>
-              </ul>
+            <div className="space-y-4">
+              {/* Duration selector */}
+              <div className="space-y-2">
+                <Label htmlFor="duration">Code Duration</Label>
+                <Select value={durationWeeks} onValueChange={setDurationWeeks}>
+                  <SelectTrigger id="duration">
+                    <SelectValue placeholder="Select duration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        <span>Quick (5 minutes, single-use)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="1">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>1 Week (reusable)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="2">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>2 Weeks (reusable)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="3">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>3 Weeks (reusable)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="4">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>4 Weeks (reusable)</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className={`rounded-lg p-4 text-sm border ${
+                durationWeeks === "0" 
+                  ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200"
+                  : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200"
+              }`}>
+                <p className="font-medium mb-1">
+                  {durationWeeks === "0" ? "Quick Code:" : "Long-term Code:"}
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  {durationWeeks === "0" ? (
+                    <>
+                      <li>Valid for 5 minutes only</li>
+                      <li>Can only be used once</li>
+                      <li>Best for immediate assistance</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Valid for {durationWeeks} week{durationWeeks !== "1" ? "s" : ""}</li>
+                      <li>Reusable for multiple logins</li>
+                      <li>Best for customers with ongoing SMS issues</li>
+                    </>
+                  )}
+                  <li>This action is logged for security audit</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
