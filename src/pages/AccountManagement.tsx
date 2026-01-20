@@ -392,6 +392,7 @@ const AccountManagement = () => {
                   placeholder="Email or name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-12"
                 />
               </div>
               <div>

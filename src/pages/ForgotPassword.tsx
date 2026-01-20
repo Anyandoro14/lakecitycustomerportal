@@ -237,7 +237,7 @@ const ForgotPassword = () => {
   // Success screen
   if (step === 'success') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
@@ -249,7 +249,7 @@ const ForgotPassword = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/login")} className="w-full">
+            <Button onClick={() => navigate("/login")} className="w-full h-12 text-base">
               Go to Login
             </Button>
           </CardContent>
@@ -261,7 +261,7 @@ const ForgotPassword = () => {
   // Verify step - enter code and new password
   if (step === 'verify') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Reset Your Password</CardTitle>
@@ -277,6 +277,7 @@ const ForgotPassword = () => {
                 <Input
                   id="code"
                   type="text"
+                  inputMode="numeric"
                   placeholder="Enter 6-digit code"
                   value={verificationCode}
                   onChange={(e) => {
@@ -286,6 +287,7 @@ const ForgotPassword = () => {
                   maxLength={6}
                   required
                   disabled={loading}
+                  className="h-12 text-lg text-center tracking-widest"
                 />
               </div>
 
@@ -340,7 +342,7 @@ const ForgotPassword = () => {
                       setError("");
                     }}
                     required
-                    className="pr-10"
+                    className="h-12 pr-10"
                     disabled={loading}
                   />
                   <button
@@ -380,7 +382,7 @@ const ForgotPassword = () => {
                       setError("");
                     }}
                     required
-                    className={`pr-10 ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
+                    className={`h-12 pr-10 ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
                     disabled={loading}
                   />
                   <button
@@ -411,7 +413,7 @@ const ForgotPassword = () => {
 
               <Button 
                 type="submit" 
-                className="w-full" 
+                className="w-full h-12 text-base" 
                 disabled={loading || verificationCode.length !== 6 || !isPasswordValid || !passwordsMatch}
               >
                 {loading ? "Resetting Password..." : "Reset Password"}
@@ -420,7 +422,7 @@ const ForgotPassword = () => {
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full"
+                className="w-full h-12"
                 onClick={handleStartOver}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
