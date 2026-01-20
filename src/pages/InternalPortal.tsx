@@ -808,7 +808,7 @@ const InternalPortal = () => {
                           <p className="font-medium">{selectedCustomer.payment_start_date}</p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2 pt-4">
+                      <div className="flex flex-wrap gap-2 pt-4 border-t mt-4">
                         {/* Looking Glass Button - View as Customer */}
                         <Button 
                           size="sm" 
