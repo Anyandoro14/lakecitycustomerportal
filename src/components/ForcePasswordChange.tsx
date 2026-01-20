@@ -108,6 +108,7 @@ const ForcePasswordChange = ({ userId, userEmail, onPasswordChanged }: ForcePass
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 minLength={8}
+                className="h-12"
               />
             </div>
             <div className="space-y-2">
@@ -120,6 +121,7 @@ const ForcePasswordChange = ({ userId, userEmail, onPasswordChanged }: ForcePass
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={8}
+                className="h-12"
               />
             </div>
             <p className="text-xs text-muted-foreground">

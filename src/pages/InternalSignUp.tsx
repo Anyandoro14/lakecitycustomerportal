@@ -105,6 +105,7 @@ const InternalSignUp = () => {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
+                className="h-12"
               />
             </div>
             <div className="space-y-2">
@@ -116,6 +117,7 @@ const InternalSignUp = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="h-12"
               />
             </div>
             <div className="space-y-2">
@@ -128,6 +130,7 @@ const InternalSignUp = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
+                className="h-12"
               />
             </div>
             <div className="space-y-2">
@@ -140,6 +143,7 @@ const InternalSignUp = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={8}
+                className="h-12"
               />
             </div>
             <Button 

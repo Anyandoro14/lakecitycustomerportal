@@ -197,6 +197,7 @@ const InternalLogin = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  className="h-12"
                 />
               </div>
               <div className="space-y-2">
@@ -208,6 +209,7 @@ const InternalLogin = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="h-12"
                 />
               </div>
               <Button 
