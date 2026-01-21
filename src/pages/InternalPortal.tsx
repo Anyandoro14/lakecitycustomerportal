@@ -44,6 +44,7 @@ import InternalNav from "@/components/InternalNav";
 import AuditDetailsCollapsible from "@/components/AuditDetailsCollapsible";
 import CustomerInviteDialog from "@/components/CustomerInviteDialog";
 import TwoFABypassDialog from "@/components/TwoFABypassDialog";
+import ConversationsInbox from "@/components/crm/ConversationsInbox";
 import { toast } from "sonner";
 import {
   Table,
@@ -987,58 +988,12 @@ const InternalPortal = () => {
             </Card>
           </TabsContent>
 
-          {/* Messaging Tab */}
+          {/* Messaging Tab - CRM Inbox */}
           <TabsContent value="messaging" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Send WhatsApp / SMS
-                </CardTitle>
-                <CardDescription>Contact customers via WhatsApp or SMS</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Message Type</Label>
-                    <Select value={messageType} onValueChange={(v: "sms" | "whatsapp") => setMessageType(v)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                        <SelectItem value="sms">SMS</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Recipient Phone Number</Label>
-                    <Input
-                      placeholder="e.g., +263771234567"
-                      value={messageRecipient}
-                      onChange={(e) => setMessageRecipient(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label>Message</Label>
-                  <Textarea
-                    placeholder="Type your message here..."
-                    value={messageContent}
-                    onChange={(e) => setMessageContent(e.target.value)}
-                    rows={4}
-                  />
-                </div>
-                <Button onClick={handleSendMessage} disabled={sendingMessage || !messageRecipient.trim() || !messageContent.trim()}>
-                  {sendingMessage ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  Send {messageType === "whatsapp" ? "WhatsApp" : "SMS"}
-                </Button>
-              </CardContent>
-            </Card>
+            <ConversationsInbox 
+              currentUserId={currentUser?.id}
+              currentUserEmail={currentUser?.email}
+            />
           </TabsContent>
 
           {/* Knowledge Base Tab */}

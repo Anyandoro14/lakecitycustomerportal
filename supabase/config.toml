@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.send-internal-welcome]
 verify_jwt = false
+
+[functions.crm-conversations]
+verify_jwt = false
