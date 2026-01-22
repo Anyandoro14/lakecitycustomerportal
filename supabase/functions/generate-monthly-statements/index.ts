@@ -449,11 +449,13 @@ serve(async (req) => {
     // Parse request body for optional parameters
     let targetMonth: string | null = null;
     let targetStand: string | null = null;
+    let refreshMode: boolean = false;
     
     try {
       const body = await req.json();
       targetMonth = body.target_month || null;
       targetStand = body.target_stand || null;
+      refreshMode = body.refresh === true; // If true, update existing statements
     } catch {
       // No body provided, generate all
     }
@@ -532,6 +534,22 @@ serve(async (req) => {
     }
 
     console.log(`Found ${existingStatements.size} existing statements`);
+
+    // In refresh mode, delete existing statements for target stands so they can be regenerated
+    if (refreshMode && standNumbers.length > 0) {
+      console.log(`Refresh mode: deleting existing statements for ${standNumbers.length} stands...`);
+      const { error: deleteError } = await supabase
+        .from('monthly_statements')
+        .delete()
+        .in('stand_number', standNumbers);
+      
+      if (deleteError) {
+        console.error('Error deleting existing statements:', deleteError.message);
+      } else {
+        existingStatements.clear(); // Clear the set since we deleted them
+        console.log('Existing statements deleted for refresh');
+      }
+    }
 
     // Generate all new statements in memory (no DB calls)
     const allNewStatements: StatementRecord[] = [];
