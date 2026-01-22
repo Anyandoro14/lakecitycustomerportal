@@ -35,10 +35,11 @@ const MonthlyStatements = () => {
   const [showHistory, setShowHistory] = useState(true);
 
   useEffect(() => {
-    fetchStatements();
+    refreshAndFetchStatements();
   }, []);
 
-  const fetchStatements = async () => {
+  // Refresh statements from sheet data, then fetch from database
+  const refreshAndFetchStatements = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -46,15 +47,26 @@ const MonthlyStatements = () => {
         return;
       }
 
-      // Fetch customer name from profile
+      // Get user's stand number from profile
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, stand_number")
         .eq("id", session.user.id)
         .maybeSingle();
 
       if (profile?.full_name) {
         setCustomerName(profile.full_name);
+      }
+
+      // If we have a stand number, refresh statements from the latest sheet data
+      if (profile?.stand_number) {
+        console.log("Refreshing statements for stand:", profile.stand_number);
+        await supabase.functions.invoke("generate-monthly-statements", {
+          body: {
+            target_stand: profile.stand_number,
+            refresh: true, // This triggers update of existing statements
+          },
+        });
       }
 
       // Fetch all statements for this user from the database
