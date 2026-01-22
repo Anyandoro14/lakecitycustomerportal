@@ -316,6 +316,8 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
 }
 
 // Generate statements for a single customer (optimized - batch insert)
+// UPDATED: Uses currentBalance from sheet (Column AZ) as source of truth for the latest statement
+// Previous months work backwards from there
 function generateStatementsForCustomerSync(
   customer: CustomerData,
   startMonth: Date,
@@ -324,36 +326,66 @@ function generateStatementsForCustomerSync(
   existingStatements: Set<string>
 ): StatementRecord[] {
   const statements: StatementRecord[] = [];
-  const currentMonth = new Date(startMonth);
-  let previousClosingBalance = customer.totalPrice;
-
-  while (currentMonth <= endMonth) {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const statementMonth = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const statementKey = `${customer.standNumber}|${customer.email}|${statementMonth}`;
-
-    // Check if statement already exists
-    if (existingStatements.has(statementKey)) {
-      // We need to track closing balance from existing data - handled separately
-      currentMonth.setMonth(currentMonth.getMonth() + 1);
-      continue;
+  
+  // Build monthly payment map: month -> total payments in that month
+  const monthlyPaymentsMap: Record<string, { payments: PaymentRecord[], total: number }> = {};
+  let totalPaymentsAll = 0;
+  
+  for (const payment of customer.payments) {
+    const paymentDate = parsePaymentDate(payment.date);
+    if (!paymentDate) continue;
+    
+    const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}-01`;
+    if (!monthlyPaymentsMap[monthKey]) {
+      monthlyPaymentsMap[monthKey] = { payments: [], total: 0 };
     }
-
+    const paymentAmount = parseCurrency(payment.amount);
+    monthlyPaymentsMap[monthKey].payments.push(payment);
+    monthlyPaymentsMap[monthKey].total += paymentAmount;
+    totalPaymentsAll += paymentAmount;
+  }
+  
+  // Use sheet's currentBalance (Column AZ) as the authoritative closing balance for the MOST RECENT month
+  // Then work backwards to calculate opening balances for previous months
+  // closingBalance = previousClosingBalance - payments
+  // So: openingBalance = closingBalance + payments
+  
+  // First, collect all months we need to generate (that don't already exist)
+  const monthsToGenerate: string[] = [];
+  const tempMonth = new Date(startMonth);
+  while (tempMonth <= endMonth) {
+    const statementMonth = `${tempMonth.getFullYear()}-${String(tempMonth.getMonth() + 1).padStart(2, '0')}-01`;
+    const statementKey = `${customer.standNumber}|${customer.email}|${statementMonth}`;
+    if (!existingStatements.has(statementKey)) {
+      monthsToGenerate.push(statementMonth);
+    }
+    tempMonth.setMonth(tempMonth.getMonth() + 1);
+  }
+  
+  if (monthsToGenerate.length === 0) {
+    return [];
+  }
+  
+  // Sort months in descending order to work backwards from the current balance
+  monthsToGenerate.sort((a, b) => b.localeCompare(a));
+  
+  // Start with the sheet's current balance as the closing balance of the most recent month
+  let closingBalance = customer.currentBalance;
+  
+  for (const statementMonth of monthsToGenerate) {
+    const [yearStr, monthStr] = statementMonth.split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr) - 1;
     const lastDayOfMonth = getLastDayOfMonth(year, month);
-
-    // Filter payments that occurred during this month
-    const paymentsThisMonth = customer.payments.filter(p => {
-      const paymentDate = parsePaymentDate(p.date);
-      if (!paymentDate) return false;
-      return paymentDate.getFullYear() === year && paymentDate.getMonth() === month;
-    });
-
-    // Calculate totals
-    const openingBalance = previousClosingBalance;
-    const totalPaymentsReceived = paymentsThisMonth.reduce((sum, p) => sum + parseCurrency(p.amount), 0);
-    const closingBalance = openingBalance - totalPaymentsReceived;
-
+    
+    // Get payments for this month
+    const monthData = monthlyPaymentsMap[statementMonth] || { payments: [], total: 0 };
+    const totalPaymentsReceived = monthData.total;
+    
+    // Opening balance = closing balance + payments made this month
+    // (working backwards: if we ended with X and paid Y during the month, we started with X + Y)
+    const openingBalance = closingBalance + totalPaymentsReceived;
+    
     // Determine overdue status
     const statementDate = new Date(year, month, 1);
     const isBeforePaymentStart = statementDate < paymentStartDate;
@@ -367,15 +399,15 @@ function generateStatementsForCustomerSync(
         ? Math.floor((new Date().getTime() - lastDayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
         : 0;
     }
-
+    
     // Format payments for JSONB storage
-    const paymentsJson = paymentsThisMonth.map(p => ({
+    const paymentsJson = monthData.payments.map(p => ({
       date: p.date,
       amount: p.amount,
       installment_period: p.installment_period,
       amount_numeric: parseCurrency(p.amount)
     }));
-
+    
     statements.push({
       stand_number: customer.standNumber,
       customer_email: customer.email,
@@ -388,11 +420,14 @@ function generateStatementsForCustomerSync(
       days_overdue: daysOverdue,
       generated_at: new Date().toISOString()
     });
-
-    previousClosingBalance = closingBalance;
-    currentMonth.setMonth(currentMonth.getMonth() + 1);
+    
+    // Move to previous month: the opening balance of this month becomes the closing balance of the previous month
+    closingBalance = openingBalance;
   }
-
+  
+  // Statements were built in reverse order, sort them chronologically for insertion
+  statements.sort((a, b) => a.statement_month.localeCompare(b.statement_month));
+  
   return statements;
 }
 
