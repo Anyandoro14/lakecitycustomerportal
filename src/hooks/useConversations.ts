@@ -54,6 +54,13 @@ export interface ConversationFilters {
   search?: string;
 }
 
+interface CreateConversationParams {
+  standNumber?: string;
+  phone?: string;
+  email?: string;
+  customerName?: string;
+}
+
 interface UseConversationsResult {
   conversations: Conversation[];
   loading: boolean;
@@ -72,6 +79,7 @@ interface UseConversationsResult {
   assignConversation: (userId: string | null) => Promise<boolean>;
   linkToStand: (standNumber: string) => Promise<boolean>;
   markAsRead: () => Promise<void>;
+  createConversation: (params: CreateConversationParams) => Promise<Conversation | null>;
 }
 
 export function useConversations(currentUserId?: string): UseConversationsResult {
@@ -301,6 +309,35 @@ export function useConversations(currentUserId?: string): UseConversationsResult
     }
   };
 
+  const createConversation = async (params: CreateConversationParams): Promise<Conversation | null> => {
+    try {
+      const { data, error: createError } = await supabase.functions.invoke("crm-conversations", {
+        body: {
+          action: "create-or-find",
+          standNumber: params.standNumber,
+          phone: params.phone,
+          email: params.email,
+          customerName: params.customerName,
+        },
+      });
+
+      if (createError) throw createError;
+      
+      const conversation = data?.conversation;
+      if (conversation) {
+        await fetchConversations();
+        setSelectedConversation(conversation);
+        toast.success(data.created ? "Conversation created" : "Existing conversation found");
+        return conversation;
+      }
+      return null;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create conversation";
+      toast.error(message);
+      return null;
+    }
+  };
+
   return {
     conversations,
     loading,
@@ -319,5 +356,6 @@ export function useConversations(currentUserId?: string): UseConversationsResult
     assignConversation,
     linkToStand,
     markAsRead,
+    createConversation,
   };
 }

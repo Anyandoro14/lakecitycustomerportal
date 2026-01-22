@@ -30,6 +30,7 @@ export default function ConversationsInbox({
     assignConversation,
     linkToStand,
     markAsRead,
+    createConversation,
   } = useConversations(currentUserId);
 
   // Mark as read when selecting a conversation
@@ -51,6 +52,7 @@ export default function ConversationsInbox({
           filters={filters}
           onFiltersChange={setFilters}
           onRefresh={refetch}
+          onCreateConversation={createConversation}
         />
       </div>
 

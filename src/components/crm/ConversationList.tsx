@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,6 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Search,
   MessageSquare,
@@ -19,10 +29,19 @@ import {
   RefreshCw,
   AlertCircle,
   User,
+  Plus,
+  MapPin,
 } from "lucide-react";
 import { Conversation, ConversationFilters } from "@/hooks/useConversations";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+
+interface CreateConversationParams {
+  standNumber?: string;
+  phone?: string;
+  email?: string;
+  customerName?: string;
+}
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -32,6 +51,7 @@ interface ConversationListProps {
   filters: ConversationFilters;
   onFiltersChange: (filters: ConversationFilters) => void;
   onRefresh: () => void;
+  onCreateConversation: (params: CreateConversationParams) => Promise<Conversation | null>;
 }
 
 const statusColors: Record<string, string> = {
@@ -62,13 +82,41 @@ export default function ConversationList({
   filters,
   onFiltersChange,
   onRefresh,
+  onCreateConversation,
 }: ConversationListProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState(filters.search || "");
+  const [showNewDialog, setShowNewDialog] = useState(false);
+  const [newStandNumber, setNewStandNumber] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
     onFiltersChange({ ...filters, search: value || undefined });
+  };
+
+  const handleCreateConversation = async () => {
+    if (!newStandNumber && !newPhone && !newEmail) return;
+    
+    setCreating(true);
+    const result = await onCreateConversation({
+      standNumber: newStandNumber || undefined,
+      phone: newPhone || undefined,
+      email: newEmail || undefined,
+      customerName: newCustomerName || undefined,
+    });
+    setCreating(false);
+
+    if (result) {
+      setShowNewDialog(false);
+      setNewStandNumber("");
+      setNewPhone("");
+      setNewEmail("");
+      setNewCustomerName("");
+    }
   };
 
   return (
@@ -78,6 +126,79 @@ export default function ConversationList({
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">Conversations</h2>
           <div className="flex gap-1">
+            <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" title="New conversation">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Start New Conversation</DialogTitle>
+                  <DialogDescription>
+                    Enter at least one identifier to find or create a conversation.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      Stand Number
+                    </Label>
+                    <Input
+                      placeholder="e.g., 3228"
+                      value={newStandNumber}
+                      onChange={(e) => setNewStandNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      Phone Number
+                    </Label>
+                    <Input
+                      placeholder="e.g., +263771234567"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      Email Address
+                    </Label>
+                    <Input
+                      type="email"
+                      placeholder="customer@email.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      Customer Name (optional)
+                    </Label>
+                    <Input
+                      placeholder="e.g., John Doe"
+                      value={newCustomerName}
+                      onChange={(e) => setNewCustomerName(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowNewDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateConversation}
+                    disabled={creating || (!newStandNumber && !newPhone && !newEmail)}
+                  >
+                    {creating ? "Creating..." : "Start Conversation"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Button
               variant="ghost"
               size="icon"
