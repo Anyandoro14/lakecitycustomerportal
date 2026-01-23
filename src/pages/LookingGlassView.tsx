@@ -4,6 +4,7 @@ import { useLookingGlass } from "@/contexts/LookingGlassContext";
 import LookingGlassBanner from "@/components/LookingGlassBanner";
 import CustomerHeader from "@/components/CustomerHeader";
 import CustomerOverview from "@/components/CustomerOverview";
+import PricingTiles from "@/components/PricingTiles";
 import InfoCards from "@/components/InfoCards";
 import PaymentSummary from "@/components/PaymentSummary";
 import DocumentsSection from "@/components/DocumentsSection";
@@ -182,6 +183,15 @@ const LookingGlassView = () => {
                   standNumber={standData.standNumber}
                   allStands={[standData]}
                   onStandChange={() => {}}
+                />
+              </div>
+
+              {/* Pricing Tiles - Disabled state */}
+              <div className="pointer-events-none">
+                <PricingTiles
+                  totalPrice={standData.totalPrice}
+                  deposit={standData.deposit}
+                  isVatInclusive={standData.vatInclusive}
                 />
               </div>
 
