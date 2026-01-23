@@ -24,7 +24,7 @@ const PricingTiles = ({ totalPrice, deposit, isVatInclusive }: PricingTilesProps
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {/* Total Price Tile - slightly more prominent */}
       <Card className="p-4 shadow-sm bg-card">
-        <h3 className="text-xs font-semibold text-foreground mb-2">Total Price</h3>
+        <h3 className="text-xs font-semibold text-foreground mb-2">Purchase Price</h3>
         <p className="text-xl font-bold text-primary break-words leading-tight">
           {formattedTotalPrice || "—"}
         </p>
