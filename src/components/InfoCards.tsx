@@ -109,13 +109,13 @@ const InfoCards = ({
         </Card>
 
         <Card className="p-4 shadow-sm">
-          <h3 className="text-xs font-semibold text-foreground mb-2">Current Balance</h3>
-          <p className="text-lg font-bold text-primary break-words leading-tight">{formattedBalance}</p>
+          <h3 className="text-xs font-semibold text-foreground mb-2">Total Paid</h3>
+          <p className="text-lg font-bold text-primary break-words leading-tight">{formattedTotalPaid}</p>
         </Card>
 
         <Card className="p-4 shadow-sm">
-          <h3 className="text-xs font-semibold text-foreground mb-2">Total Paid</h3>
-          <p className="text-lg font-bold text-primary break-words leading-tight">{formattedTotalPaid}</p>
+          <h3 className="text-xs font-semibold text-foreground mb-2">Current Balance</h3>
+          <p className="text-lg font-bold text-primary break-words leading-tight">{formattedBalance}</p>
         </Card>
       </div>
     </div>
