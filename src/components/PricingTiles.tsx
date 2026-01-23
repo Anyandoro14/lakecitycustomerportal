@@ -13,8 +13,8 @@ const PricingTiles = ({ totalPrice, deposit, isVatInclusive }: PricingTilesProps
 
   // Determine VAT text
   const getVatText = () => {
-    if (isVatInclusive === true) return "Inclusive of VAT (15%)";
-    if (isVatInclusive === false) return "Exclusive of VAT (15%)";
+    if (isVatInclusive === true) return "Inclusive of VAT";
+    if (isVatInclusive === false) return "Exclusive of VAT";
     return null;
   };
 
