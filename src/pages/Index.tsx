@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerHeader from "@/components/CustomerHeader";
 import CustomerOverview from "@/components/CustomerOverview";
+import PricingTiles from "@/components/PricingTiles";
 import InfoCards from "@/components/InfoCards";
 import PaymentSummary from "@/components/PaymentSummary";
 import DocumentsSection from "@/components/DocumentsSection";
@@ -163,6 +164,12 @@ const Index = () => {
           standNumber={selectedStand.standNumber}
           allStands={allStands}
           onStandChange={setSelectedStand}
+        />
+
+        <PricingTiles
+          totalPrice={selectedStand.totalPrice}
+          deposit={selectedStand.deposit}
+          isVatInclusive={selectedStand.isVatInclusive}
         />
 
         <InfoCards 

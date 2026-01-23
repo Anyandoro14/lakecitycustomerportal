@@ -349,6 +349,8 @@ serve(async (req) => {
     const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
     const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
     const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
+    // VAT indicator - look for columns that might indicate VAT inclusion/exclusion
+    const vatInclusiveIndex = headers.findIndex(h => h && (h.toString().toLowerCase().includes('vat') || h.toString().toLowerCase().includes('inclusive')));
     
     if (standNumIndex === -1) {
       return new Response(
@@ -427,6 +429,21 @@ serve(async (req) => {
       // Get phone/contact number
       const phoneNumber = phoneIndex !== -1 ? (customerRow[phoneIndex]?.toString().trim() || '') : '';
       const fullName = `${firstName} ${lastName}`.trim();
+      
+      // Get Total Price and Deposit
+      const totalPrice = totalPriceIndex !== -1 ? (customerRow[totalPriceIndex]?.toString().trim() || '') : '';
+      const deposit = depositIndex !== -1 ? (customerRow[depositIndex]?.toString().trim() || '') : '';
+      
+      // Determine VAT status - check if there's a VAT indicator column, otherwise default to null
+      let isVatInclusive: boolean | null = null;
+      if (vatInclusiveIndex !== -1) {
+        const vatValue = customerRow[vatInclusiveIndex]?.toString().toLowerCase().trim() || '';
+        if (vatValue.includes('inclusive') || vatValue.includes('incl') || vatValue === 'yes' || vatValue === 'true') {
+          isVatInclusive = true;
+        } else if (vatValue.includes('exclusive') || vatValue.includes('excl') || vatValue === 'no' || vatValue === 'false') {
+          isVatInclusive = false;
+        }
+      }
 
       // Get the start date for this customer from the sheet
       const startDateStr = startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '';
@@ -687,6 +704,9 @@ serve(async (req) => {
         agreementSignedByWarwickshire: agreementSignedByWarwickshire,
         agreementSignedByClient: agreementSignedByClient,
         agreementOfSaleFile: agreementOfSaleFile,
+        totalPrice: totalPrice, // Total Price from Collection Schedule
+        deposit: deposit, // Deposit amount from Collection Schedule
+        isVatInclusive: isVatInclusive, // VAT indicator: true=inclusive, false=exclusive, null=unknown
       };
     });
 
