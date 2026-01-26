@@ -27,6 +27,7 @@ const InternalLogin = lazy(() => import("./pages/InternalLogin"));
 const InternalSignUp = lazy(() => import("./pages/InternalSignUp"));
 const LookingGlassView = lazy(() => import("./pages/LookingGlassView"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const CustomerSupportGuide = lazy(() => import("./pages/CustomerSupportGuide"));
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ const App = () => (
                 <Route path="/internal-login" element={<InternalLogin />} />
                 <Route path="/internal-signup" element={<InternalSignUp />} />
                 <Route path="/looking-glass" element={<LookingGlassView />} />
+                <Route path="/support-guide" element={<CustomerSupportGuide />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
