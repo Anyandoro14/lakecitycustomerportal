@@ -1,9 +1,54 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 const CustomerSupportGuide = () => {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
   useEffect(() => {
     document.title = "LakeCity Customer Support Guide";
-  }, []);
+    
+    const checkAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        navigate("/internal-login");
+        return;
+      }
+
+      // Check if user is an internal user
+      const { data: internalUser } = await supabase
+        .from("internal_users")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!internalUser) {
+        navigate("/");
+        return;
+      }
+
+      setIsAuthorized(true);
+      setIsLoading(false);
+    };
+
+    checkAccess();
+  }, [navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-white text-gray-900 p-8 max-w-4xl mx-auto print:p-4">
