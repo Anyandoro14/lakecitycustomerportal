@@ -135,15 +135,24 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateLoginForm()) return;
+    console.log('[Login] Form submitted with stand number:', loginStandNumber, 'Length:', loginStandNumber.length);
     
+    if (!validateLoginForm()) {
+      console.log('[Login] Validation failed, errors:', errors);
+      return;
+    }
+    
+    console.log('[Login] Validation passed, proceeding with login...');
     setLoading(true);
 
     try {
+      console.log('[Login] Calling lookup-stand-email for:', loginStandNumber.trim());
       // Look up the user's email by stand number via edge function (bypasses RLS)
       const { data: lookupData, error: lookupError } = await supabase.functions.invoke('lookup-stand-email', {
         body: { standNumber: loginStandNumber.trim() }
       });
+
+      console.log('[Login] Lookup response:', { lookupData, lookupError });
 
       if (lookupError) throw lookupError;
       
