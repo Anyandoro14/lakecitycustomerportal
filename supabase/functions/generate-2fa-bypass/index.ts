@@ -10,7 +10,7 @@ interface GenerateBypassRequest {
   phoneNumber: string;
   standNumber: string;
   customerName?: string;
-  durationWeeks?: number; // 0 = 5 minutes (quick), 1-4 = weeks (reusable)
+  durationWeeks?: number; // 0 = 5 minutes (quick), 1-4 = weeks (reusable), -1 = permanent
 }
 
 const generateBypassCode = (): string => {
@@ -64,18 +64,23 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Phone number and stand number are required');
     }
 
-    // Validate duration (0 = 5 min quick, 1-4 = weeks)
-    const validDuration = Math.min(Math.max(0, durationWeeks), 4);
-    const isReusable = validDuration > 0;
+    // Validate duration (0 = 5 min quick, 1-4 = weeks, -1 = permanent)
+    const isPermanent = durationWeeks === -1;
+    const validDuration = isPermanent ? -1 : Math.min(Math.max(0, durationWeeks), 4);
+    const isReusable = validDuration > 0 || isPermanent;
 
-    console.log(`Admin ${internalUser.email} generating ${isReusable ? `${validDuration}-week reusable` : '5-minute'} bypass code for stand ${standNumber}`);
+    const durationLabel = isPermanent ? 'permanent' : (isReusable ? `${validDuration}-week reusable` : '5-minute');
+    console.log(`Admin ${internalUser.email} generating ${durationLabel} bypass code for stand ${standNumber}`);
 
     // Generate the bypass code
     const bypassCode = generateBypassCode();
 
     // Calculate expiry
     let expiresAt: Date;
-    if (isReusable) {
+    if (isPermanent) {
+      // 10 years (effectively permanent)
+      expiresAt = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000);
+    } else if (isReusable) {
       // Weeks duration
       expiresAt = new Date(Date.now() + validDuration * 7 * 24 * 60 * 60 * 1000);
     } else {
@@ -122,8 +127,9 @@ const handler = async (req: Request): Promise<Response> => {
           stand_number: standNumber,
           customer_name: customerName,
           phone_number_masked: phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2),
-          duration_type: isReusable ? `${validDuration} week(s)` : '5 minutes',
+          duration_type: isPermanent ? 'permanent' : (isReusable ? `${validDuration} week(s)` : '5 minutes'),
           is_reusable: isReusable,
+          is_permanent: isPermanent,
           expires_at: expiresAt.toISOString()
         }
       });

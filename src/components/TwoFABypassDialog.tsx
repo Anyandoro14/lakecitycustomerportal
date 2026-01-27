@@ -34,7 +34,7 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
   const [loading, setLoading] = useState(false);
   const [bypassCode, setBypassCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [durationWeeks, setDurationWeeks] = useState<string>("0"); // "0" = 5 min, "1"-"4" = weeks
+  const [durationWeeks, setDurationWeeks] = useState<string>("0"); // "0" = 5 min, "1"-"4" = weeks, "-1" = permanent
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [isReusable, setIsReusable] = useState(false);
 
@@ -99,6 +99,12 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
   const formatExpiry = () => {
     if (!expiresAt) return '';
     const date = new Date(expiresAt);
+    // Check if it's a permanent code (more than 5 years from now)
+    const fiveYearsFromNow = new Date();
+    fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
+    if (date > fiveYearsFromNow) {
+      return 'Permanent (never expires)';
+    }
     if (isReusable) {
       return format(date, "d MMM yyyy 'at' HH:mm");
     }
@@ -158,7 +164,7 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
                     <Clock className="h-3 w-3 text-muted-foreground" />
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {isReusable ? `Valid until ${formatExpiry()}` : 'Expires in 5 minutes'}
+                    {isReusable ? (durationWeeks === "-1" ? 'Permanent - never expires' : `Valid until ${formatExpiry()}`) : 'Expires in 5 minutes'}
                   </p>
                 </div>
                 {isReusable && (
@@ -231,6 +237,12 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
                         <span>4 Weeks (reusable)</span>
                       </div>
                     </SelectItem>
+                    <SelectItem value="-1">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-red-500" />
+                        <span>Permanent (never expires)</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -238,10 +250,12 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
               <div className={`rounded-lg p-4 text-sm border ${
                 durationWeeks === "0" 
                   ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200"
+                  : durationWeeks === "-1"
+                  ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200"
                   : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200"
               }`}>
                 <p className="font-medium mb-1">
-                  {durationWeeks === "0" ? "Quick Code:" : "Long-term Code:"}
+                  {durationWeeks === "0" ? "Quick Code:" : durationWeeks === "-1" ? "Permanent Code:" : "Long-term Code:"}
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-xs">
                   {durationWeeks === "0" ? (
@@ -249,6 +263,13 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
                       <li>Valid for 5 minutes only</li>
                       <li>Can only be used once</li>
                       <li>Best for immediate assistance</li>
+                    </>
+                  ) : durationWeeks === "-1" ? (
+                    <>
+                      <li>Never expires - permanent bypass</li>
+                      <li>Reusable for unlimited logins</li>
+                      <li>For customers in blocked regions (e.g., Tanzania)</li>
+                      <li className="text-red-600 dark:text-red-400 font-medium">⚠️ Use only when SMS delivery is permanently unavailable</li>
                     </>
                   ) : (
                     <>
