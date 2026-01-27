@@ -448,15 +448,32 @@ const Reporting = () => {
     return null;
   }
 
-  // Prepare chart data with year indicators
-  const monthlyChartData = yearFilteredMonthlyTotals.map((m: any) => ({
-    month: `${m.monthName.substring(0, 3)} ${m.year.substring(2)}`,
-    fullMonth: `${m.monthName} ${m.year}`,
-    expected: m.expected,
-    received: m.received,
-    percentage: parseFloat(m.percentage),
-    variance: m.received - m.expected
-  }));
+  // Prepare chart data with year indicators and trend calculation
+  const monthlyChartData = yearFilteredMonthlyTotals.map((m: any, index: number, arr: any[]) => {
+    // Calculate moving average trend (3-month rolling average of collection rate)
+    let trend = null;
+    if (index >= 2) {
+      const last3 = arr.slice(index - 2, index + 1);
+      const avgRate = last3.reduce((sum: number, item: any) => sum + parseFloat(item.percentage), 0) / 3;
+      trend = avgRate;
+    } else if (index === 1) {
+      const last2 = arr.slice(0, index + 1);
+      const avgRate = last2.reduce((sum: number, item: any) => sum + parseFloat(item.percentage), 0) / 2;
+      trend = avgRate;
+    } else {
+      trend = parseFloat(m.percentage);
+    }
+    
+    return {
+      month: `${m.monthName.substring(0, 3)} ${m.year.substring(2)}`,
+      fullMonth: `${m.monthName} ${m.year}`,
+      expected: m.expected,
+      received: m.received,
+      percentage: parseFloat(m.percentage),
+      variance: m.received - m.expected,
+      trend: trend
+    };
+  });
 
   // Get last 3 months for summary tiles
   const today = new Date();
@@ -1081,7 +1098,7 @@ const Reporting = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Monthly Collections: Expected vs Received</CardTitle>
+              <CardTitle>Monthly Collections: Forecast vs Collected vs Trend</CardTitle>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Year" />
@@ -1101,50 +1118,79 @@ const Reporting = () => {
                 <ComposedChart data={monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                  <YAxis yAxisId="left" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
                   <Tooltip 
-                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    formatter={(value: number, name: string) => {
+                      if (name === 'Trend') return [`${value.toFixed(1)}%`, name];
+                      return [formatCurrency(value), name];
+                    }}
                     labelFormatter={(label) => {
                       const item = monthlyChartData.find(d => d.month === label);
                       return item?.fullMonth || label;
                     }}
                   />
                   <Legend />
-                  <Area type="monotone" dataKey="expected" fill="#e2e8f0" stroke="#94a3b8" name="Forecast" />
-                  <Bar dataKey="received" fill="#22c55e" name="Collected" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="expected" fill="#94a3b8" name="Forecast" radius={[4, 4, 0, 0]} opacity={0.6} />
+                  <Bar yAxisId="left" dataKey="received" fill="#22c55e" name="Collected" radius={[4, 4, 0, 0]} />
+                  <Line yAxisId="right" type="monotone" dataKey="trend" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Trend" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        {/* Monthly Performance Chart */}
+        {/* Monthly Performance Chart - Collection Rate as % of Expected */}
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Collection Rate (%)</CardTitle>
+            <CardTitle>Monthly Collection Rate (% of Expected)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyChartData}>
+                <ComposedChart data={monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 200]} tickFormatter={(v) => `${v}%`} />
+                  <YAxis domain={[0, 'auto']} tickFormatter={(v) => `${v}%`} />
                   <Tooltip 
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Collection Rate']}
+                    formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
                     labelFormatter={(label) => {
                       const item = monthlyChartData.find(d => d.month === label);
                       return item?.fullMonth || label;
                     }}
                   />
+                  <Legend />
+                  {/* Reference line at 100% to show expected target */}
                   <Bar 
                     dataKey="percentage" 
-                    fill="#22c55e" 
-                    name="Collection %" 
+                    name="Collection Rate" 
                     radius={[4, 4, 0, 0]}
+                    fill="#3b82f6"
                   />
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="trend" 
+                    stroke="#f97316" 
+                    strokeWidth={2} 
+                    dot={{ r: 3, fill: '#f97316' }} 
+                    name="3-Month Trend"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
+            </div>
+            <div className="flex items-center justify-center gap-6 mt-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-[#3b82f6]" />
+                <span>Actual collection % of expected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-[#f97316]" />
+                <span>Rolling 3-month trend</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 border-t-2 border-dashed border-muted-foreground" />
+                <span>100% = On target</span>
+              </div>
             </div>
           </CardContent>
         </Card>
