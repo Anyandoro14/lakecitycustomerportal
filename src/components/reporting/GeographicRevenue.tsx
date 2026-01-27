@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -16,7 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Globe, Info } from "lucide-react";
+import { Globe, Info, X } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -42,6 +43,8 @@ interface GeographicRevenueProps {
   stands: Stand[];
   monthColumns: string[];
   onCountryFilter?: (countryCode: string) => void;
+  selectedCountryCode?: string | null;
+  onClearFilter?: () => void;
 }
 
 // Phone dial code to ISO country code mapping
@@ -148,7 +151,7 @@ const normalizeCountryCode = (rawCode: string): string => {
   return 'UNKNOWN';
 };
 
-const GeographicRevenue = ({ stands, monthColumns, onCountryFilter }: GeographicRevenueProps) => {
+const GeographicRevenue = ({ stands, monthColumns, onCountryFilter, selectedCountryCode, onClearFilter }: GeographicRevenueProps) => {
   const soldStands = useMemo(() => stands.filter(s => !s.isUnsold), [stands]);
 
   // Parse month column to Date
@@ -276,9 +279,35 @@ const GeographicRevenue = ({ stands, monthColumns, onCountryFilter }: Geographic
               <CardTitle className="text-lg flex items-center gap-2">
                 <Globe className="h-5 w-5" />
                 Revenue by Geography
+                {selectedCountryCode && (
+                  <Badge variant="secondary" className="ml-2 gap-1">
+                    Filtered: {selectedCountryCode}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClearFilter?.();
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription className="mt-1">
-                Customer diaspora breakdown · {geoData.length} countries
+                Customer diaspora breakdown · {geoData.length} {geoData.length === 1 ? 'country' : 'countries'}
+                {selectedCountryCode && (
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="h-auto p-0 ml-2 text-primary"
+                    onClick={onClearFilter}
+                  >
+                    Show all countries
+                  </Button>
+                )}
               </CardDescription>
             </div>
             <div className="flex gap-4 text-xs">
