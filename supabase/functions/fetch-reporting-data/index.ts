@@ -226,6 +226,7 @@ serve(async (req) => {
     const firstNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('first name'));
     const lastNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('last name'));
     const emailIdx = headerRow.findIndex(h => h?.toLowerCase().includes('email'));
+    const countryCodeIdx = 3; // Column D (0-indexed: A=0, B=1, C=2, D=3)
     const customerCategoryIdx = 5; // Column F (0-indexed: A=0, B=1, C=2, D=3, E=4, F=5)
     const totalPriceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total price'));
     const totalPaidIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total paid'));
@@ -265,6 +266,7 @@ serve(async (req) => {
       const firstName = row[firstNameIdx] || '';
       const lastName = row[lastNameIdx] || '';
       const email = row[emailIdx] || '';
+      const countryCode = (row[countryCodeIdx] || '').toUpperCase().trim();
       const customerCategory = row[customerCategoryIdx] || '';
       const totalPrice = row[totalPriceIdx] || '0';
       const totalPaid = row[totalPaidIdx] || '0';
@@ -370,6 +372,7 @@ serve(async (req) => {
         firstName,
         lastName,
         email,
+        countryCode,
         customerCategory,
         totalPrice,
         priceNumeric,
