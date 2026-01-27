@@ -50,6 +50,35 @@ import {
 import ExecutiveRevenueSummary from "@/components/reporting/ExecutiveRevenueSummary";
 import GeographicRevenue from "@/components/reporting/GeographicRevenue";
 import RevenueTrendChart from "@/components/reporting/RevenueTrendChart";
+import { normalizeCountryCode } from "@/lib/country";
+
+// Price range definitions (module-scope so memo deps stay stable)
+const PRICE_RANGES = [
+  { label: "$10,000 - $15,000", min: 10000, max: 15000 },
+  { label: "$15,001 - $25,000", min: 15001, max: 25000 },
+  { label: "$25,001 - $50,000", min: 25001, max: 50000 },
+  { label: "$50,001 - $75,000", min: 50001, max: 75000 },
+  { label: "$75,001 - $100,000", min: 75001, max: 100000 },
+  { label: "$100,001+", min: 100001, max: Infinity },
+];
+
+// Payment status filter options (module-scope so memo deps stay stable)
+const PAYMENT_STATUS_OPTIONS = [
+  { label: "All Overdue", value: "overdue_any", minDays: 1, maxDays: Infinity, type: "overdue" },
+  { label: "3+ days", value: "overdue_3", minDays: 3, maxDays: Infinity, type: "overdue" },
+  { label: "7+ days", value: "overdue_7", minDays: 7, maxDays: Infinity, type: "overdue" },
+  { label: "14+ days", value: "overdue_14", minDays: 14, maxDays: Infinity, type: "overdue" },
+  { label: "21+ days", value: "overdue_21", minDays: 21, maxDays: Infinity, type: "overdue" },
+  { label: "30+ days", value: "overdue_30", minDays: 30, maxDays: Infinity, type: "overdue" },
+  { label: "90+ days", value: "overdue_90", minDays: 90, maxDays: Infinity, type: "overdue" },
+  { label: "180+ days", value: "overdue_180", minDays: 180, maxDays: Infinity, type: "overdue" },
+  { label: "All Prepaid", value: "prepaid_any", minDays: 1, maxDays: Infinity, type: "prepaid" },
+  { label: "3+ days", value: "prepaid_3", minDays: 3, maxDays: Infinity, type: "prepaid" },
+  { label: "7+ days", value: "prepaid_7", minDays: 7, maxDays: Infinity, type: "prepaid" },
+  { label: "14+ days", value: "prepaid_14", minDays: 14, maxDays: Infinity, type: "prepaid" },
+  { label: "30+ days", value: "prepaid_30", minDays: 30, maxDays: Infinity, type: "prepaid" },
+  { label: "90+ days", value: "prepaid_90", minDays: 90, maxDays: Infinity, type: "prepaid" },
+];
 
 const Reporting = () => {
   const navigate = useNavigate();
@@ -144,33 +173,9 @@ const Reporting = () => {
     }
   };
 
-  // Price range definitions
-  const priceRanges = [
-    { label: "$10,000 - $15,000", min: 10000, max: 15000 },
-    { label: "$15,001 - $25,000", min: 15001, max: 25000 },
-    { label: "$25,001 - $50,000", min: 25001, max: 50000 },
-    { label: "$50,001 - $75,000", min: 50001, max: 75000 },
-    { label: "$75,001 - $100,000", min: 75001, max: 100000 },
-    { label: "$100,001+", min: 100001, max: Infinity },
-  ];
-  
-  // Payment status filter options with better labels
-  const paymentStatusOptions = [
-    { label: "All Overdue", value: "overdue_any", minDays: 1, maxDays: Infinity, type: "overdue" },
-    { label: "3+ days", value: "overdue_3", minDays: 3, maxDays: Infinity, type: "overdue" },
-    { label: "7+ days", value: "overdue_7", minDays: 7, maxDays: Infinity, type: "overdue" },
-    { label: "14+ days", value: "overdue_14", minDays: 14, maxDays: Infinity, type: "overdue" },
-    { label: "21+ days", value: "overdue_21", minDays: 21, maxDays: Infinity, type: "overdue" },
-    { label: "30+ days", value: "overdue_30", minDays: 30, maxDays: Infinity, type: "overdue" },
-    { label: "90+ days", value: "overdue_90", minDays: 90, maxDays: Infinity, type: "overdue" },
-    { label: "180+ days", value: "overdue_180", minDays: 180, maxDays: Infinity, type: "overdue" },
-    { label: "All Prepaid", value: "prepaid_any", minDays: 1, maxDays: Infinity, type: "prepaid" },
-    { label: "3+ days", value: "prepaid_3", minDays: 3, maxDays: Infinity, type: "prepaid" },
-    { label: "7+ days", value: "prepaid_7", minDays: 7, maxDays: Infinity, type: "prepaid" },
-    { label: "14+ days", value: "prepaid_14", minDays: 14, maxDays: Infinity, type: "prepaid" },
-    { label: "30+ days", value: "prepaid_30", minDays: 30, maxDays: Infinity, type: "prepaid" },
-    { label: "90+ days", value: "prepaid_90", minDays: 90, maxDays: Infinity, type: "prepaid" },
-  ];
+  // Use module-scope constants (stable references)
+  const priceRanges = PRICE_RANGES;
+  const paymentStatusOptions = PAYMENT_STATUS_OPTIONS;
   
   // Get unique customer categories
   const uniqueCategories = useMemo(() => {
@@ -231,11 +236,11 @@ const Reporting = () => {
         if (!inRange) return false;
       }
       
-      // Country code filter
+      // Country code filter (match Geography report normalization)
       if (selectedCountryCode) {
-        const standCountry = (stand.countryCode || '').toUpperCase().trim();
-        if (selectedCountryCode === 'UNKNOWN') {
-          if (standCountry && standCountry !== '') return false;
+        const standCountry = normalizeCountryCode(stand.countryCode || "");
+        if (selectedCountryCode === "UNKNOWN") {
+          if (standCountry !== "UNKNOWN") return false;
         } else {
           if (standCountry !== selectedCountryCode) return false;
         }
@@ -260,7 +265,20 @@ const Reporting = () => {
       
       return true;
     });
-  }, [reportingData?.stands, selectedCategories, selectedPriceRanges, filterOfferReceived, filterInitialPayment, filterAgreementRequested, filterAgreementSignedWarwickshire, filterAgreementSignedClient, paymentStatusFilter]);
+  }, [
+    reportingData?.stands,
+    selectedCategories,
+    selectedPriceRanges,
+    selectedCountryCode,
+    filterOfferReceived,
+    filterInitialPayment,
+    filterAgreementRequested,
+    filterAgreementSignedWarwickshire,
+    filterAgreementSignedClient,
+    paymentStatusFilter,
+    priceRanges,
+    paymentStatusOptions,
+  ]);
   
   const soldStands = useMemo(() => filteredStands.filter((s: any) => !s.isUnsold), [filteredStands]);
   const unsoldStands = useMemo(() => filteredStands.filter((s: any) => s.isUnsold), [filteredStands]);
