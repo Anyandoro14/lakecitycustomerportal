@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download, UserCheck, UserX } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
@@ -47,9 +47,11 @@ const Reporting = () => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isDirector, setIsDirector] = useState(false);
   const [reportingData, setReportingData] = useState<any>(null);
+  const [registrationStats, setRegistrationStats] = useState<any>(null);
   const [selectedStand, setSelectedStand] = useState<any>(null);
   const [selectedMonth, setSelectedMonth] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showUnregisteredList, setShowUnregisteredList] = useState(false);
   
   // Filter states
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -90,7 +92,10 @@ const Reporting = () => {
       setHasAccess(true);
       setIsSuperAdmin(data.isSuperAdmin);
       setIsDirector(data.isDirector || false);
-      await fetchReportingData();
+      await Promise.all([
+        fetchReportingData(),
+        fetchRegistrationStats()
+      ]);
     } catch (error: any) {
       console.error('Error checking access:', error);
       toast.error("Failed to verify access");
@@ -110,6 +115,19 @@ const Reporting = () => {
     } catch (error: any) {
       console.error('Error fetching reporting data:', error);
       toast.error("Failed to load reporting data");
+    }
+  };
+
+  const fetchRegistrationStats = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-registration-stats');
+      
+      if (error) throw error;
+      
+      setRegistrationStats(data);
+    } catch (error: any) {
+      console.error('Error fetching registration stats:', error);
+      // Don't show error toast - registration stats are supplementary
     }
   };
 
@@ -673,6 +691,137 @@ const Reporting = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Registration Statistics */}
+        {registrationStats && (
+          <Card className="border-2 border-primary/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-primary" />
+                  Customer Registration Statistics
+                </CardTitle>
+                {registrationStats.unregisteredList?.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowUnregisteredList(!showUnregisteredList)}
+                  >
+                    {showUnregisteredList ? 'Hide' : 'Show'} Unregistered ({registrationStats.unregisteredCustomers})
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Overall Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-muted/50 rounded-lg p-4 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Total Customers</p>
+                  <p className="text-2xl font-bold">{registrationStats.totalCustomers}</p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Registered</p>
+                  <p className="text-2xl font-bold text-green-600">{registrationStats.registeredCustomers}</p>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Not Registered</p>
+                  <p className="text-2xl font-bold text-red-600">{registrationStats.unregisteredCustomers}</p>
+                </div>
+                <div className="bg-primary/10 rounded-lg p-4 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Registration Rate</p>
+                  <p className="text-2xl font-bold text-primary">{registrationStats.registrationPercentage}%</p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Registration Progress</span>
+                  <span className="font-medium">{registrationStats.registrationPercentage}% Complete</span>
+                </div>
+                <div className="h-3 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500"
+                    style={{ width: `${registrationStats.registrationPercentage}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* By Category Chart */}
+              {registrationStats.byCategory?.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-3">Registration by Category</h4>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={registrationStats.byCategory.slice(0, 8)} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" />
+                        <YAxis dataKey="category" type="category" width={120} tick={{ fontSize: 12 }} />
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-background border rounded-lg p-3 shadow-lg">
+                                  <p className="font-medium">{data.category}</p>
+                                  <p className="text-sm text-green-600">Registered: {data.registered}</p>
+                                  <p className="text-sm text-red-600">Not Registered: {data.unregistered}</p>
+                                  <p className="text-sm text-muted-foreground">Rate: {data.percentage}%</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="registered" stackId="a" fill="#22c55e" name="Registered" />
+                        <Bar dataKey="unregistered" stackId="a" fill="#ef4444" name="Not Registered" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Unregistered List */}
+              {showUnregisteredList && registrationStats.unregisteredList?.length > 0 && (
+                <div className="border rounded-lg">
+                  <div className="bg-muted/50 px-4 py-2 border-b">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <UserX className="h-4 w-4 text-red-500" />
+                      Unregistered Customers ({registrationStats.unregisteredList.length})
+                    </h4>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-24">Stand</TableHead>
+                          <TableHead>Customer Name</TableHead>
+                          <TableHead>Category</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {registrationStats.unregisteredList.slice(0, 50).map((customer: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-mono text-sm">{customer.standNumber}</TableCell>
+                            <TableCell>{customer.customerName}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{customer.category}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {registrationStats.unregisteredList.length > 50 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Showing first 50 of {registrationStats.unregisteredList.length} unregistered customers
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Monthly Collection Tiles */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
