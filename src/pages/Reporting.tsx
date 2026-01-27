@@ -3,26 +3,26 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download, UserCheck, UserX } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download, UserCheck, UserX, Calendar, AlertTriangle, CheckCircle, BarChart3, Target } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   LineChart,
   Line,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ComposedChart,
+  Area,
 } from "recharts";
 import {
   Dialog,
@@ -39,6 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 const Reporting = () => {
   const navigate = useNavigate();
@@ -49,7 +50,6 @@ const Reporting = () => {
   const [reportingData, setReportingData] = useState<any>(null);
   const [registrationStats, setRegistrationStats] = useState<any>(null);
   const [selectedStand, setSelectedStand] = useState<any>(null);
-  const [selectedMonth, setSelectedMonth] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showUnregisteredList, setShowUnregisteredList] = useState(false);
   
@@ -64,6 +64,9 @@ const Reporting = () => {
   
   // Payment status filter
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string | null>(null);
+  
+  // Year filter for monthly data
+  const [selectedYear, setSelectedYear] = useState<string>("all");
 
   useEffect(() => {
     checkAccess();
@@ -127,7 +130,6 @@ const Reporting = () => {
       setRegistrationStats(data);
     } catch (error: any) {
       console.error('Error fetching registration stats:', error);
-      // Don't show error toast - registration stats are supplementary
     }
   };
 
@@ -141,26 +143,25 @@ const Reporting = () => {
     { label: "$100,001+", min: 100001, max: Infinity },
   ];
   
-  // Payment status filter options
+  // Payment status filter options with better labels
   const paymentStatusOptions = [
     { label: "All Overdue", value: "overdue_any", minDays: 1, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 3+ days", value: "overdue_3", minDays: 3, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 7+ days", value: "overdue_7", minDays: 7, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 14+ days", value: "overdue_14", minDays: 14, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 21+ days", value: "overdue_21", minDays: 21, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 30+ days", value: "overdue_30", minDays: 30, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 90+ days", value: "overdue_90", minDays: 90, maxDays: Infinity, type: "overdue" },
-    { label: "Overdue 180+ days", value: "overdue_180", minDays: 180, maxDays: Infinity, type: "overdue" },
-    { label: "Prepaid 3+ days", value: "prepaid_3", minDays: 3, maxDays: Infinity, type: "prepaid" },
-    { label: "Prepaid 7+ days", value: "prepaid_7", minDays: 7, maxDays: Infinity, type: "prepaid" },
-    { label: "Prepaid 14+ days", value: "prepaid_14", minDays: 14, maxDays: Infinity, type: "prepaid" },
-    { label: "Prepaid 21+ days", value: "prepaid_21", minDays: 21, maxDays: Infinity, type: "prepaid" },
-    { label: "Prepaid 30+ days", value: "prepaid_30", minDays: 30, maxDays: Infinity, type: "prepaid" },
-    { label: "Prepaid 90+ days", value: "prepaid_90", minDays: 90, maxDays: Infinity, type: "prepaid" },
-    { label: "Prepaid 180+ days", value: "prepaid_180", minDays: 180, maxDays: Infinity, type: "prepaid" },
+    { label: "3+ days", value: "overdue_3", minDays: 3, maxDays: Infinity, type: "overdue" },
+    { label: "7+ days", value: "overdue_7", minDays: 7, maxDays: Infinity, type: "overdue" },
+    { label: "14+ days", value: "overdue_14", minDays: 14, maxDays: Infinity, type: "overdue" },
+    { label: "21+ days", value: "overdue_21", minDays: 21, maxDays: Infinity, type: "overdue" },
+    { label: "30+ days", value: "overdue_30", minDays: 30, maxDays: Infinity, type: "overdue" },
+    { label: "90+ days", value: "overdue_90", minDays: 90, maxDays: Infinity, type: "overdue" },
+    { label: "180+ days", value: "overdue_180", minDays: 180, maxDays: Infinity, type: "overdue" },
+    { label: "All Prepaid", value: "prepaid_any", minDays: 1, maxDays: Infinity, type: "prepaid" },
+    { label: "3+ days", value: "prepaid_3", minDays: 3, maxDays: Infinity, type: "prepaid" },
+    { label: "7+ days", value: "prepaid_7", minDays: 7, maxDays: Infinity, type: "prepaid" },
+    { label: "14+ days", value: "prepaid_14", minDays: 14, maxDays: Infinity, type: "prepaid" },
+    { label: "30+ days", value: "prepaid_30", minDays: 30, maxDays: Infinity, type: "prepaid" },
+    { label: "90+ days", value: "prepaid_90", minDays: 90, maxDays: Infinity, type: "prepaid" },
   ];
   
-  // Get unique customer categories - safe to call even when reportingData is null
+  // Get unique customer categories
   const uniqueCategories = useMemo(() => {
     if (!reportingData?.stands) return [];
     const categories = new Set<string>();
@@ -171,21 +172,29 @@ const Reporting = () => {
     });
     return Array.from(categories).sort();
   }, [reportingData?.stands]);
+
+  // Get unique years from monthly data
+  const availableYears = useMemo(() => {
+    if (!reportingData?.monthlyTotals) return [];
+    const years = new Set<string>();
+    reportingData.monthlyTotals.forEach((m: any) => {
+      const match = m.month.match(/(\d{4})$/);
+      if (match) years.add(match[1]);
+    });
+    return Array.from(years).sort().reverse();
+  }, [reportingData?.monthlyTotals]);
   
-  // Apply filters - safe to call even when reportingData is null
+  // Apply filters
   const filteredStands = useMemo(() => {
     if (!reportingData?.stands) return [];
     
     return reportingData.stands.filter((stand: any) => {
-      // Skip unsold stands from filtering
       if (stand.isUnsold) return true;
       
-      // Category filter
       if (selectedCategories.length > 0) {
         if (!selectedCategories.includes(stand.customerCategory)) return false;
       }
       
-      // Price range filter
       if (selectedPriceRanges.length > 0) {
         const inRange = selectedPriceRanges.some(rangeLabel => {
           const range = priceRanges.find(r => r.label === rangeLabel);
@@ -195,14 +204,12 @@ const Reporting = () => {
         if (!inRange) return false;
       }
       
-      // Boolean filters
       if (filterOfferReceived !== null && stand.offerReceived !== filterOfferReceived) return false;
       if (filterInitialPayment !== null && stand.initialPaymentCompleted !== filterInitialPayment) return false;
       if (filterAgreementRequested !== null && stand.agreementRequested !== filterAgreementRequested) return false;
       if (filterAgreementSignedWarwickshire !== null && stand.agreementSignedWarwickshire !== filterAgreementSignedWarwickshire) return false;
       if (filterAgreementSignedClient !== null && stand.agreementSignedClient !== filterAgreementSignedClient) return false;
       
-      // Payment status filter (overdue/prepaid)
       if (paymentStatusFilter) {
         const filterOption = paymentStatusOptions.find(opt => opt.value === paymentStatusFilter);
         if (filterOption) {
@@ -221,33 +228,44 @@ const Reporting = () => {
   const soldStands = useMemo(() => filteredStands.filter((s: any) => !s.isUnsold), [filteredStands]);
   const unsoldStands = useMemo(() => filteredStands.filter((s: any) => s.isUnsold), [filteredStands]);
   
-  // Log filtering results for debugging
-  console.log('Reporting filters:', {
-    categories: selectedCategories,
-    priceRanges: selectedPriceRanges.length,
-    offerReceived: filterOfferReceived,
-    initialPayment: filterInitialPayment,
-    agreementRequested: filterAgreementRequested,
-    agreementSignedW: filterAgreementSignedWarwickshire,
-    agreementSignedC: filterAgreementSignedClient,
-    totalStands: reportingData?.stands?.length || 0,
-    filteredCount: filteredStands.length,
-    soldCount: soldStands.length
-  });
-  
-  // Log filtering results for debugging
-  console.log('Reporting filters:', {
-    categories: selectedCategories,
-    priceRanges: selectedPriceRanges.length,
-    offerReceived: filterOfferReceived,
-    initialPayment: filterInitialPayment,
-    agreementRequested: filterAgreementRequested,
-    agreementSignedW: filterAgreementSignedWarwickshire,
-    agreementSignedC: filterAgreementSignedClient,
-    totalStands: reportingData?.stands?.length || 0,
-    filteredStands: filteredStands.length,
-    soldStands: soldStands.length
-  });
+  // Calculate overdue and prepaid counts for summary tiles
+  const overdueStats = useMemo(() => {
+    if (!reportingData?.stands) return { total: 0, byDays: {} };
+    const soldOnly = reportingData.stands.filter((s: any) => !s.isUnsold);
+    const overdue = soldOnly.filter((s: any) => s.daysOverdue > 0);
+    
+    return {
+      total: overdue.length,
+      byDays: {
+        3: overdue.filter((s: any) => s.daysOverdue >= 3).length,
+        7: overdue.filter((s: any) => s.daysOverdue >= 7).length,
+        14: overdue.filter((s: any) => s.daysOverdue >= 14).length,
+        30: overdue.filter((s: any) => s.daysOverdue >= 30).length,
+        90: overdue.filter((s: any) => s.daysOverdue >= 90).length,
+      },
+      totalAmount: overdue.reduce((sum: number, s: any) => {
+        const balance = parseFloat(s.currentBalance.replace(/[$,]/g, '')) || 0;
+        return sum + balance;
+      }, 0)
+    };
+  }, [reportingData?.stands]);
+
+  const prepaidStats = useMemo(() => {
+    if (!reportingData?.stands) return { total: 0, byDays: {} };
+    const soldOnly = reportingData.stands.filter((s: any) => !s.isUnsold);
+    const prepaid = soldOnly.filter((s: any) => s.prepaidDays > 0);
+    
+    return {
+      total: prepaid.length,
+      byDays: {
+        3: prepaid.filter((s: any) => s.prepaidDays >= 3).length,
+        7: prepaid.filter((s: any) => s.prepaidDays >= 7).length,
+        14: prepaid.filter((s: any) => s.prepaidDays >= 14).length,
+        30: prepaid.filter((s: any) => s.prepaidDays >= 30).length,
+        90: prepaid.filter((s: any) => s.prepaidDays >= 90).length,
+      }
+    };
+  }, [reportingData?.stands]);
   
   // Recalculate summary based on filtered data
   const filteredSummary = useMemo(() => {
@@ -267,38 +285,89 @@ const Reporting = () => {
     }, 0);
     
     return {
-      totalExpected: `$${totalExpected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      totalReceived: `$${totalReceived.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      totalOutstanding: `$${totalOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      totalExpected,
+      totalReceived,
+      totalOutstanding,
       collectionPercentage: totalExpected > 0 ? ((totalReceived / totalExpected) * 100).toFixed(2) : '0',
     };
   }, [soldStands]);
   
-  // Recalculate monthly totals based on filtered stands
+  // Recalculate monthly totals based on filtered stands with proper year grouping
   const filteredMonthlyTotals = useMemo(() => {
-    const monthlyData: { [month: string]: { expected: number; received: number; count: number } } = {};
+    const monthlyData: { [key: string]: { expected: number; received: number; count: number; year: string; monthIndex: number; monthName: string } } = {};
     
     soldStands.forEach((stand: any) => {
       const monthlyPaymentAmount = parseFloat(stand.monthlyPayment.replace(/[$,]/g, '')) || 0;
       
       stand.payments.forEach((payment: any) => {
-        if (!monthlyData[payment.month]) {
-          monthlyData[payment.month] = { expected: 0, received: 0, count: 0 };
+        // Parse the full date like "5 November 2025"
+        const match = payment.month.match(/\d+\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+        if (!match) return;
+        
+        const monthName = match[1];
+        const year = match[2];
+        const key = `${monthName} ${year}`;
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const monthIndex = monthNames.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
+        
+        if (!monthlyData[key]) {
+          monthlyData[key] = { expected: 0, received: 0, count: 0, year, monthIndex, monthName };
         }
-        monthlyData[payment.month].received += payment.amountNumeric;
-        monthlyData[payment.month].expected += monthlyPaymentAmount;
-        monthlyData[payment.month].count += 1;
+        monthlyData[key].received += payment.amountNumeric;
+        monthlyData[key].expected += monthlyPaymentAmount;
+        monthlyData[key].count += 1;
       });
     });
     
-    return Object.entries(monthlyData).map(([month, data]) => ({
-      month,
-      expected: data.expected,
-      received: data.received,
-      percentage: data.expected > 0 ? ((data.received / data.expected) * 100).toFixed(2) : '0',
-      count: data.count
-    }));
+    // Sort by date
+    return Object.entries(monthlyData)
+      .map(([key, data]) => ({
+        month: key,
+        ...data,
+        percentage: data.expected > 0 ? ((data.received / data.expected) * 100).toFixed(2) : '0',
+      }))
+      .sort((a, b) => {
+        if (a.year !== b.year) return parseInt(a.year) - parseInt(b.year);
+        return a.monthIndex - b.monthIndex;
+      });
   }, [soldStands]);
+
+  // Filter monthly totals by selected year
+  const yearFilteredMonthlyTotals = useMemo(() => {
+    if (selectedYear === "all") return filteredMonthlyTotals;
+    return filteredMonthlyTotals.filter(m => m.year === selectedYear);
+  }, [filteredMonthlyTotals, selectedYear]);
+
+  // Calculate trends by customer category
+  const categoryTrends = useMemo(() => {
+    if (!reportingData?.stands) return [];
+    
+    const categoryData: { [category: string]: { received: number; expected: number; outstanding: number; count: number } } = {};
+    
+    soldStands.forEach((stand: any) => {
+      const category = stand.customerCategory || 'Uncategorized';
+      if (!categoryData[category]) {
+        categoryData[category] = { received: 0, expected: 0, outstanding: 0, count: 0 };
+      }
+      
+      const price = parseFloat(stand.totalPrice.replace(/[$,]/g, '')) || 0;
+      const paid = parseFloat(stand.totalPaid.replace(/[$,]/g, '')) || 0;
+      const balance = parseFloat(stand.currentBalance.replace(/[$,]/g, '')) || 0;
+      
+      categoryData[category].expected += price;
+      categoryData[category].received += paid;
+      categoryData[category].outstanding += balance;
+      categoryData[category].count += 1;
+    });
+    
+    return Object.entries(categoryData)
+      .map(([category, data]) => ({
+        category,
+        ...data,
+        collectionRate: data.expected > 0 ? ((data.received / data.expected) * 100).toFixed(1) : '0',
+      }))
+      .sort((a, b) => b.received - a.received);
+  }, [soldStands, reportingData?.stands]);
   
   const clearAllFilters = () => {
     setSelectedCategories([]);
@@ -348,6 +417,25 @@ const Reporting = () => {
     toast.success('Report exported successfully');
   };
 
+  // Quick filter handlers for interactive tiles
+  const applyQuickFilter = (type: 'overdue' | 'prepaid', days?: number) => {
+    clearAllFilters();
+    if (type === 'overdue') {
+      setPaymentStatusFilter(days ? `overdue_${days}` : 'overdue_any');
+    } else {
+      setPaymentStatusFilter(days ? `prepaid_${days}` : 'prepaid_any');
+    }
+  };
+
+  const applyCategoryFilter = (category: string) => {
+    clearAllFilters();
+    setSelectedCategories([category]);
+  };
+
+  const formatCurrency = (value: number) => {
+    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -360,52 +448,50 @@ const Reporting = () => {
     return null;
   }
 
-  const { monthlyTotals, monthColumns } = reportingData;
-
-  // Prepare chart data from filtered monthly totals
-  const monthlyChartData = filteredMonthlyTotals.map((m: any) => ({
-    month: m.month.split(' ')[1], // Extract month name
+  // Prepare chart data with year indicators
+  const monthlyChartData = yearFilteredMonthlyTotals.map((m: any) => ({
+    month: `${m.monthName.substring(0, 3)} ${m.year.substring(2)}`,
+    fullMonth: `${m.monthName} ${m.year}`,
     expected: m.expected,
     received: m.received,
-    percentage: parseFloat(m.percentage)
+    percentage: parseFloat(m.percentage),
+    variance: m.received - m.expected
   }));
 
-  // Get current month and 2 previous months based on today's date
+  // Get last 3 months for summary tiles
   const today = new Date();
-  const getLast3Months = () => {
+  const getLast3MonthsData = () => {
     const months = [];
-    for (let i = 0; i < 4; i++) { // Get 4 months to calculate deltas
+    for (let i = 0; i < 4; i++) {
       const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'long' });
       const year = date.getFullYear();
       
-      // Find matching data from filteredMonthlyTotals
-      const monthData = filteredMonthlyTotals.find((m: any) => {
-        const dataMonth = m.month.split(' ')[1];
-        const dataYear = m.month.split(' ')[2];
-        return dataMonth === monthName && dataYear === year.toString();
-      });
+      const monthData = filteredMonthlyTotals.find((m: any) => 
+        m.monthName === monthName && m.year === year.toString()
+      );
       
       months.push({
-        month: `${monthName} ${year}`,
-        received: monthData ? monthData.received : 0
+        month: monthName,
+        year: year.toString(),
+        fullLabel: `${monthName} ${year}`,
+        received: monthData ? monthData.received : 0,
+        expected: monthData ? monthData.expected : 0
       });
     }
     return months;
   };
   
-  const last4Months = getLast3Months();
-  const last3Months = last4Months.slice(0, 3).map((month: any, idx: number) => {
+  const last4Months = getLast3MonthsData();
+  const last3MonthsDisplay = last4Months.slice(0, 3).map((month: any, idx: number) => {
     const previousMonth = last4Months[idx + 1];
     const delta = previousMonth ? month.received - previousMonth.received : null;
     return {
       ...month,
       delta,
-      previousMonthName: previousMonth ? previousMonth.month.split(' ')[0] : null
+      previousMonthName: previousMonth ? previousMonth.month : null
     };
-  }).reverse(); // Reverse to show chronologically from oldest to newest
-
-  const COLORS = ['#10b981', '#ef4444', '#f59e0b'];
+  }).reverse();
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -432,6 +518,9 @@ const Reporting = () => {
               <CardTitle className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
                 Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-2">Active</Badge>
+                )}
               </CardTitle>
               <div className="flex gap-2">
                 {hasActiveFilters && (
@@ -507,18 +596,39 @@ const Reporting = () => {
               {/* Payment Status Filter */}
               <div>
                 <Label className="text-sm font-semibold mb-3 block">Payment Status</Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {paymentStatusOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={paymentStatusFilter === option.value ? "default" : "outline"}
-                      size="sm"
-                      className={`text-xs ${option.type === 'overdue' ? 'border-red-200 hover:border-red-400' : 'border-green-200 hover:border-green-400'} ${paymentStatusFilter === option.value ? (option.type === 'overdue' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700') : ''}`}
-                      onClick={() => setPaymentStatusFilter(paymentStatusFilter === option.value ? null : option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Overdue</p>
+                    <div className="flex flex-wrap gap-2">
+                      {paymentStatusOptions.filter(o => o.type === 'overdue').map((option) => (
+                        <Button
+                          key={option.value}
+                          variant={paymentStatusFilter === option.value ? "default" : "outline"}
+                          size="sm"
+                          className={`text-xs ${paymentStatusFilter === option.value ? 'bg-destructive hover:bg-destructive/90' : 'border-destructive/30 text-destructive hover:bg-destructive/10'}`}
+                          onClick={() => setPaymentStatusFilter(paymentStatusFilter === option.value ? null : option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Prepaid</p>
+                    <div className="flex flex-wrap gap-2">
+                      {paymentStatusOptions.filter(o => o.type === 'prepaid').map((option) => (
+                        <Button
+                          key={option.value}
+                          variant={paymentStatusFilter === option.value ? "default" : "outline"}
+                          size="sm"
+                          className={`text-xs ${paymentStatusFilter === option.value ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}`}
+                          onClick={() => setPaymentStatusFilter(paymentStatusFilter === option.value ? null : option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -631,62 +741,136 @@ const Reporting = () => {
           )}
         </Card>
         
-        {/* Summary Cards */}
+        {/* Summary Warning */}
         {soldStands.length === 0 && hasActiveFilters && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
             <p className="text-yellow-800 font-medium">No stands match your current filters</p>
             <p className="text-yellow-700 text-sm mt-1">
-              Try clearing some filters, especially the Agreement Status filters. When all status filters are set to "Yes", 
-              only stands with ALL statuses checked will be included.
+              Try clearing some filters to see more results.
             </p>
           </div>
         )}
         
+        {/* Main Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => clearAllFilters()}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expected</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Total Expected (Forecast)
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-primary" />
-                <p className="text-xl md:text-2xl font-bold">{filteredSummary.totalExpected}</p>
-              </div>
+              <p className="text-xl md:text-2xl font-bold">{formatCurrency(filteredSummary.totalExpected)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{soldStands.length} active stands</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow border-green-200" onClick={() => clearAllFilters()}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Received</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-600" />
-                <p className="text-xl md:text-2xl font-bold text-green-600">{filteredSummary.totalReceived}</p>
+                Revenue Collected
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl md:text-2xl font-bold text-green-600">{formatCurrency(filteredSummary.totalReceived)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {filteredSummary.collectionPercentage}% of forecast
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:shadow-md transition-shadow border-red-200" onClick={() => applyQuickFilter('overdue')}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-destructive" />
+                Outstanding Balance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl md:text-2xl font-bold text-destructive">{formatCurrency(filteredSummary.totalOutstanding)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {overdueStats.total} accounts overdue
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => clearAllFilters()}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Collection Rate
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl md:text-2xl font-bold">{filteredSummary.collectionPercentage}%</p>
+              <Progress value={parseFloat(filteredSummary.collectionPercentage)} className="mt-2 h-2" />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Interactive Status Tiles */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Overdue Summary Tile */}
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Payments Overdue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-2 mb-4">
+                <p className="text-3xl font-bold text-destructive">{overdueStats.total}</p>
+                <p className="text-sm text-muted-foreground">accounts</p>
+                <p className="text-lg font-semibold text-destructive ml-auto">
+                  {formatCurrency(overdueStats.totalAmount)}
+                </p>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {[3, 7, 14, 30, 90].map((days) => (
+                  <Button
+                    key={days}
+                    variant={paymentStatusFilter === `overdue_${days}` ? "default" : "outline"}
+                    size="sm"
+                    className={`text-xs flex-col h-auto py-2 ${paymentStatusFilter === `overdue_${days}` ? 'bg-destructive' : 'border-destructive/30 hover:bg-destructive/10'}`}
+                    onClick={() => applyQuickFilter('overdue', days)}
+                  >
+                    <span className="text-lg font-bold">{overdueStats.byDays[days as keyof typeof overdueStats.byDays]}</span>
+                    <span className="text-[10px]">{days}+ days</span>
+                  </Button>
+                ))}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Prepaid Summary Tile */}
+          <Card className="border-green-200">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-green-600">
+                <CheckCircle className="h-5 w-5" />
+                Payments Ahead
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-600" />
-                <p className="text-xl md:text-2xl font-bold text-red-600">{filteredSummary.totalOutstanding}</p>
+              <div className="flex items-baseline gap-2 mb-4">
+                <p className="text-3xl font-bold text-green-600">{prepaidStats.total}</p>
+                <p className="text-sm text-muted-foreground">accounts</p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Collection Rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                <p className="text-xl md:text-2xl font-bold">{filteredSummary.collectionPercentage}%</p>
+              <div className="grid grid-cols-5 gap-2">
+                {[3, 7, 14, 30, 90].map((days) => (
+                  <Button
+                    key={days}
+                    variant={paymentStatusFilter === `prepaid_${days}` ? "default" : "outline"}
+                    size="sm"
+                    className={`text-xs flex-col h-auto py-2 ${paymentStatusFilter === `prepaid_${days}` ? 'bg-green-600' : 'border-green-300 hover:bg-green-50'}`}
+                    onClick={() => applyQuickFilter('prepaid', days)}
+                  >
+                    <span className="text-lg font-bold">{prepaidStats.byDays[days as keyof typeof prepaidStats.byDays]}</span>
+                    <span className="text-[10px]">{days}+ days</span>
+                  </Button>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -713,7 +897,6 @@ const Reporting = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Overall Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-muted/50 rounded-lg p-4 text-center">
                   <p className="text-sm text-muted-foreground mb-1">Total Customers</p>
@@ -725,7 +908,7 @@ const Reporting = () => {
                 </div>
                 <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 text-center">
                   <p className="text-sm text-muted-foreground mb-1">Not Registered</p>
-                  <p className="text-2xl font-bold text-red-600">{registrationStats.unregisteredCustomers}</p>
+                  <p className="text-2xl font-bold text-destructive">{registrationStats.unregisteredCustomers}</p>
                 </div>
                 <div className="bg-primary/10 rounded-lg p-4 text-center">
                   <p className="text-sm text-muted-foreground mb-1">Registration Rate</p>
@@ -733,21 +916,14 @@ const Reporting = () => {
                 </div>
               </div>
 
-              {/* Progress Bar */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Registration Progress</span>
                   <span className="font-medium">{registrationStats.registrationPercentage}% Complete</span>
                 </div>
-                <div className="h-3 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500"
-                    style={{ width: `${registrationStats.registrationPercentage}%` }}
-                  />
-                </div>
+                <Progress value={registrationStats.registrationPercentage} className="h-3" />
               </div>
 
-              {/* By Category Chart */}
               {registrationStats.byCategory?.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-3">Registration by Category</h4>
@@ -765,7 +941,7 @@ const Reporting = () => {
                                 <div className="bg-background border rounded-lg p-3 shadow-lg">
                                   <p className="font-medium">{data.category}</p>
                                   <p className="text-sm text-green-600">Registered: {data.registered}</p>
-                                  <p className="text-sm text-red-600">Not Registered: {data.unregistered}</p>
+                                  <p className="text-sm text-destructive">Not Registered: {data.unregistered}</p>
                                   <p className="text-sm text-muted-foreground">Rate: {data.percentage}%</p>
                                 </div>
                               );
@@ -781,12 +957,11 @@ const Reporting = () => {
                 </div>
               )}
 
-              {/* Unregistered List */}
               {showUnregisteredList && registrationStats.unregisteredList?.length > 0 && (
                 <div className="border rounded-lg">
                   <div className="bg-muted/50 px-4 py-2 border-b">
                     <h4 className="text-sm font-medium flex items-center gap-2">
-                      <UserX className="h-4 w-4 text-red-500" />
+                      <UserX className="h-4 w-4 text-destructive" />
                       Unregistered Customers ({registrationStats.unregisteredList.length})
                     </h4>
                   </div>
@@ -823,72 +998,151 @@ const Reporting = () => {
           </Card>
         )}
 
-        {/* Monthly Collection Tiles */}
+        {/* Monthly Collection Tiles with Year */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {last3Months.map((monthData: any, idx: number) => {
-            const formattedAmount = `$${monthData.received.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            const currentMonthName = monthData.month.split(' ')[0];
+          {last3MonthsDisplay.map((monthData: any, idx: number) => {
+            const collectionRate = monthData.expected > 0 
+              ? ((monthData.received / monthData.expected) * 100).toFixed(1)
+              : '0';
             
             return (
-              <Card key={idx}>
+              <Card key={idx} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Collected in {monthData.month}
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    {monthData.fullLabel}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="h-4 w-4 text-green-600" />
-                    <p className="text-xl md:text-2xl font-bold text-green-600">{formattedAmount}</p>
+                  <div className="space-y-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Collected</span>
+                      <span className="text-xl font-bold text-green-600">{formatCurrency(monthData.received)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Expected</span>
+                      <span className="text-sm text-muted-foreground">{formatCurrency(monthData.expected)}</span>
+                    </div>
+                    <Progress value={parseFloat(collectionRate)} className="h-2" />
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{collectionRate}% collected</span>
+                      {monthData.delta !== null && (
+                        <span className={monthData.delta >= 0 ? 'text-green-600' : 'text-destructive'}>
+                          {monthData.delta >= 0 ? '+' : ''}{formatCurrency(monthData.delta)} vs {monthData.previousMonthName}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {monthData.delta !== null && (
-                    <p className={`text-xs ${monthData.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${Math.abs(monthData.delta).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {monthData.delta >= 0 ? 'increase' : 'decrease'} from {monthData.previousMonthName}
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             );
           })}
         </div>
 
-        {/* Monthly Collections Trend */}
+        {/* Category Trends */}
+        {categoryTrends.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Collections by Customer Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {categoryTrends.slice(0, 8).map((cat: any) => (
+                  <div 
+                    key={cat.category} 
+                    className="flex items-center gap-4 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => applyCategoryFilter(cat.category)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium truncate">{cat.category}</span>
+                        <Badge variant="outline" className="ml-2">{cat.count} stands</Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-green-600">Collected: {formatCurrency(cat.received)}</span>
+                        <span className="text-muted-foreground">Outstanding: {formatCurrency(cat.outstanding)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right min-w-[80px]">
+                      <p className="text-lg font-bold">{cat.collectionRate}%</p>
+                      <p className="text-xs text-muted-foreground">Rate</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Monthly Collections Trend with Year Filter */}
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Collections Trend</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Monthly Collections: Expected vs Received</CardTitle>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyChartData}>
+                <ComposedChart data={monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                  <Tooltip 
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    labelFormatter={(label) => {
+                      const item = monthlyChartData.find(d => d.month === label);
+                      return item?.fullMonth || label;
+                    }}
+                  />
                   <Legend />
-                  <Line type="monotone" dataKey="expected" stroke="#94a3b8" strokeWidth={2} name="Expected" />
-                  <Line type="monotone" dataKey="received" stroke="#10b981" strokeWidth={2} name="Received" />
-                </LineChart>
+                  <Area type="monotone" dataKey="expected" fill="#e2e8f0" stroke="#94a3b8" name="Forecast" />
+                  <Bar dataKey="received" fill="#22c55e" name="Collected" radius={[4, 4, 0, 0]} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        {/* Monthly Performance Bars */}
+        {/* Monthly Performance Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Collection Performance</CardTitle>
+            <CardTitle>Monthly Collection Rate (%)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="percentage" fill="#10b981" name="Collection %" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis domain={[0, 200]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip 
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Collection Rate']}
+                    labelFormatter={(label) => {
+                      const item = monthlyChartData.find(d => d.month === label);
+                      return item?.fullMonth || label;
+                    }}
+                  />
+                  <Bar 
+                    dataKey="percentage" 
+                    fill="#22c55e" 
+                    name="Collection %" 
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -899,7 +1153,7 @@ const Reporting = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>All Stands Overview</CardTitle>
+              <CardTitle>All Stands Overview ({soldStands.length})</CardTitle>
               <Button variant="outline" size="sm" onClick={exportToCSV}>
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
@@ -913,6 +1167,7 @@ const Reporting = () => {
                   <TableRow>
                     <TableHead>Stand</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Monthly Payment</TableHead>
                     <TableHead>Total Paid</TableHead>
                     <TableHead>Balance</TableHead>
@@ -922,13 +1177,16 @@ const Reporting = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {soldStands.map((stand: any) => (
+                  {soldStands.slice(0, 50).map((stand: any) => (
                     <TableRow key={stand.standNumber}>
                       <TableCell className="font-medium">{stand.standNumber}</TableCell>
                       <TableCell>{stand.customerName}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{stand.customerCategory || '-'}</Badge>
+                      </TableCell>
                       <TableCell>{stand.monthlyPayment}</TableCell>
                       <TableCell className="text-green-600">{stand.totalPaid}</TableCell>
-                      <TableCell className="text-red-600">{stand.currentBalance}</TableCell>
+                      <TableCell className="text-destructive">{stand.currentBalance}</TableCell>
                       <TableCell>
                         <Badge variant={stand.progressPercentage > 75 ? "default" : stand.progressPercentage > 50 ? "secondary" : "destructive"}>
                           {stand.progressPercentage}%
@@ -960,6 +1218,11 @@ const Reporting = () => {
                   ))}
                 </TableBody>
               </Table>
+              {soldStands.length > 50 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Showing first 50 of {soldStands.length} stands. Use filters to narrow results.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -993,7 +1256,7 @@ const Reporting = () => {
           </DialogHeader>
           {selectedStand && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Price</p>
                   <p className="text-lg font-semibold">{selectedStand.totalPrice}</p>
@@ -1004,11 +1267,22 @@ const Reporting = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Balance</p>
-                  <p className="text-lg font-semibold text-red-600">{selectedStand.currentBalance}</p>
+                  <p className="text-lg font-semibold text-destructive">{selectedStand.currentBalance}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Progress</p>
                   <p className="text-lg font-semibold">{selectedStand.progressPercentage}%</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Category</p>
+                  <p className="font-medium">{selectedStand.customerCategory || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Monthly Payment</p>
+                  <p className="font-medium">{selectedStand.monthlyPayment}</p>
                 </div>
               </div>
 
