@@ -137,12 +137,40 @@ const SignUp = () => {
         body: { standNumber: standNumber.trim(), phoneNumber: phoneNumber.trim() }
       });
 
-      if (error) throw error;
+      // Handle edge function errors (including 409 for existing accounts)
+      if (error) {
+        // Try to parse the error context for structured response
+        const errorContext = error.context;
+        let errorBody: any = null;
+        
+        try {
+          // The edge function returns JSON even on error responses
+          if (errorContext && typeof errorContext.json === 'function') {
+            errorBody = await errorContext.json();
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        
+        // Check if this is an "account already exists" error
+        if (errorBody?.existingAccount) {
+          toast({
+            title: "Account already exists",
+            description: "An account already exists for this stand number. Please login instead.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Use the structured error message if available
+        const errorMessage = errorBody?.error || error.message || "Verification failed";
+        throw new Error(errorMessage);
+      }
       
       if (!data.valid) {
         if (data.existingAccount) {
           toast({
-            title: "Account exists",
+            title: "Account already exists",
             description: "An account already exists for this stand number. Please login instead.",
             variant: "destructive",
           });
