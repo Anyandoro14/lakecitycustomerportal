@@ -853,7 +853,10 @@ const InternalPortal = () => {
                           Send Message
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => {
-                          setResetEmail(selectedCustomer.email);
+                          // Pre-fill ALL available fields for password reset
+                          setResetEmail(selectedCustomer.email || "");
+                          setResetStandNumber(selectedCustomer.stand_number || "");
+                          setResetPhone(selectedCustomer.phone_number || "");
                           setShowResetDialog(true);
                         }}>
                           <Key className="h-4 w-4 mr-2" />
