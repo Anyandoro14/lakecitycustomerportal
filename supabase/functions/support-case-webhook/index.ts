@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
       first_name,
       last_name,
       email,
+      stand_number,
       whatsapp_number,
       issue_type,
       sub_issue,
@@ -28,10 +29,10 @@ Deno.serve(async (req) => {
     // Log the support case for internal tracking
     console.log(`[Support Case Webhook] New case created: ${case_number}`);
     console.log(`[Support Case Webhook] Customer: ${first_name} ${last_name} (${email})`);
+    console.log(`[Support Case Webhook] Stand Number: ${stand_number || 'Not provided'}`);
     console.log(`[Support Case Webhook] Issue: ${issue_type} - ${sub_issue}`);
     console.log(`[Support Case Webhook] WhatsApp: ${whatsapp_number || 'Not provided'}`);
     console.log(`[Support Case Webhook] Contact Method: ${preferred_contact_method}`);
-    console.log(`[Support Case Webhook] Description: ${description}`);
 
     // Forward to Make.com webhook with flat fields
     try {
@@ -46,6 +47,7 @@ Deno.serve(async (req) => {
       params.append("full_name", fullName);
       params.append("email", email || "");
       params.append("customer_email", email || ""); // Duplicate for clarity
+      params.append("stand_number", stand_number || "");
       params.append("whatsapp_number", whatsapp_number || "");
       params.append("issue_type", issue_type || "");
       params.append("sub_issue", sub_issue || "");

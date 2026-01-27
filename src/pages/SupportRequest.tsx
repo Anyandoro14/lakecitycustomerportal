@@ -74,6 +74,7 @@ const SupportRequest = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [standNumber, setStandNumber] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [issueType, setIssueType] = useState("");
   const [subIssue, setSubIssue] = useState("");
@@ -101,10 +102,10 @@ const SupportRequest = () => {
       // Get user email
       setEmail(user.email || "");
 
-      // Get profile data for full name
+      // Get profile data for full name, phone, and stand number
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, phone_number')
+        .select('full_name, phone_number, stand_number')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -116,6 +117,10 @@ const SupportRequest = () => {
       
       if (profile?.phone_number) {
         setWhatsappNumber(profile.phone_number);
+      }
+      
+      if (profile?.stand_number) {
+        setStandNumber(profile.stand_number);
       }
     } catch (error) {
       console.error('Error loading user data');
@@ -207,6 +212,7 @@ const SupportRequest = () => {
             first_name: firstName,
             last_name: lastName,
             email,
+            stand_number: standNumber || null,
             whatsapp_number: whatsappNumber || null,
             issue_type: issueType,
             sub_issue: subIssue,
