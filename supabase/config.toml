@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.crm-conversations]
 verify_jwt = false
+
+[functions.incoming-message-webhook]
+verify_jwt = false
