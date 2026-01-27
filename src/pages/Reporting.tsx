@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download, UserCheck, UserX, Calendar, AlertTriangle, CheckCircle, BarChart3, Target } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, Filter, X, Download, UserCheck, UserX, Calendar, AlertTriangle, CheckCircle, BarChart3, Target, Globe, Info } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -40,6 +41,15 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import ExecutiveRevenueSummary from "@/components/reporting/ExecutiveRevenueSummary";
+import GeographicRevenue from "@/components/reporting/GeographicRevenue";
+import RevenueTrendChart from "@/components/reporting/RevenueTrendChart";
 
 const Reporting = () => {
   const navigate = useNavigate();
@@ -56,6 +66,7 @@ const Reporting = () => {
   // Filter states
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([]);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [filterOfferReceived, setFilterOfferReceived] = useState<boolean | null>(null);
   const [filterInitialPayment, setFilterInitialPayment] = useState<boolean | null>(null);
   const [filterAgreementRequested, setFilterAgreementRequested] = useState<boolean | null>(null);
@@ -202,6 +213,16 @@ const Reporting = () => {
           return stand.priceNumeric >= range.min && stand.priceNumeric <= range.max;
         });
         if (!inRange) return false;
+      }
+      
+      // Country code filter
+      if (selectedCountryCode) {
+        const standCountry = (stand.countryCode || '').toUpperCase().trim();
+        if (selectedCountryCode === 'UNKNOWN') {
+          if (standCountry && standCountry !== '') return false;
+        } else {
+          if (standCountry !== selectedCountryCode) return false;
+        }
       }
       
       if (filterOfferReceived !== null && stand.offerReceived !== filterOfferReceived) return false;
@@ -372,6 +393,7 @@ const Reporting = () => {
   const clearAllFilters = () => {
     setSelectedCategories([]);
     setSelectedPriceRanges([]);
+    setSelectedCountryCode(null);
     setFilterOfferReceived(null);
     setFilterInitialPayment(null);
     setFilterAgreementRequested(null);
@@ -381,15 +403,22 @@ const Reporting = () => {
   };
   
   const hasActiveFilters = selectedCategories.length > 0 || selectedPriceRanges.length > 0 || 
+    selectedCountryCode !== null ||
     filterOfferReceived !== null || filterInitialPayment !== null || 
     filterAgreementRequested !== null || filterAgreementSignedWarwickshire !== null || 
     filterAgreementSignedClient !== null || paymentStatusFilter !== null;
 
+  const applyCountryFilter = (countryCode: string) => {
+    clearAllFilters();
+    setSelectedCountryCode(countryCode);
+  };
+
   const exportToCSV = () => {
-    const headers = ['Stand', 'Customer', 'Category', 'Total Price', 'Monthly Payment', 'Total Paid', 'Balance', 'Progress %', 'Days Overdue', 'Days Prepaid'];
+    const headers = ['Stand', 'Customer', 'Country', 'Category', 'Total Price', 'Monthly Payment', 'Total Paid', 'Balance', 'Progress %', 'Days Overdue', 'Days Prepaid'];
     const rows = soldStands.map((stand: any) => [
       stand.standNumber,
       stand.customerName,
+      stand.countryCode || '',
       stand.customerCategory || '',
       stand.totalPrice,
       stand.monthlyPayment,
@@ -827,6 +856,49 @@ const Reporting = () => {
           </Card>
         </div>
 
+        {/* Executive 90-Day Revenue Summary */}
+        {reportingData?.monthColumns && (
+          <ExecutiveRevenueSummary 
+            stands={soldStands} 
+            monthColumns={reportingData.monthColumns}
+          />
+        )}
+
+        {/* Geographic Revenue Breakdown */}
+        {reportingData?.monthColumns && (
+          <GeographicRevenue 
+            stands={soldStands} 
+            monthColumns={reportingData.monthColumns}
+            onCountryFilter={applyCountryFilter}
+          />
+        )}
+
+        {/* Revenue Trend Chart */}
+        {reportingData?.monthColumns && (
+          <RevenueTrendChart 
+            stands={soldStands} 
+            monthColumns={reportingData.monthColumns}
+          />
+        )}
+
+        {/* Country Filter Active Indicator */}
+        {selectedCountryCode && (
+          <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
+            <Globe className="h-4 w-4 text-blue-600" />
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              Filtering by country: <strong>{selectedCountryCode}</strong>
+            </span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="ml-auto h-6 px-2"
+              onClick={() => setSelectedCountryCode(null)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
         {/* Interactive Status Tiles */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Overdue Summary Tile */}
@@ -1213,6 +1285,7 @@ const Reporting = () => {
                   <TableRow>
                     <TableHead>Stand</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Country</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Monthly Payment</TableHead>
                     <TableHead>Total Paid</TableHead>
@@ -1228,9 +1301,24 @@ const Reporting = () => {
                       <TableCell className="font-medium">{stand.standNumber}</TableCell>
                       <TableCell>{stand.customerName}</TableCell>
                       <TableCell>
+                        {stand.countryCode ? (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs cursor-pointer hover:bg-muted"
+                            onClick={() => applyCountryFilter(stand.countryCode)}
+                          >
+                            {stand.countryCode}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <Badge variant="outline" className="text-xs">{stand.customerCategory || '-'}</Badge>
                       </TableCell>
                       <TableCell>{stand.monthlyPayment}</TableCell>
+                      <TableCell className="text-green-600">{stand.totalPaid}</TableCell>
+                      <TableCell className="text-destructive">{stand.currentBalance}</TableCell>
                       <TableCell className="text-green-600">{stand.totalPaid}</TableCell>
                       <TableCell className="text-destructive">{stand.currentBalance}</TableCell>
                       <TableCell>
