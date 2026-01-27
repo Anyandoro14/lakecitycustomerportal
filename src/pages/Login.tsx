@@ -26,6 +26,7 @@ const Login = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [deliveryBlocked, setDeliveryBlocked] = useState(false);
   
   // Resend 2FA state
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -144,6 +145,7 @@ const Login = () => {
     
     console.log('[Login] Validation passed, proceeding with login...');
     setLoading(true);
+    setDeliveryBlocked(false);
 
     try {
       console.log('[Login] Calling lookup-stand-email for:', loginStandNumber.trim());
@@ -194,16 +196,27 @@ const Login = () => {
           setResendAttempts(0);
           setResendCooldown(0);
           
-          // Send 2FA code
-          await sendVerificationCode(profile.phone_number);
-          
-          // Start cooldown after initial send
-          startCooldownTimer();
+          // Send 2FA code.
+          // If delivery is blocked (common for some regions), still allow the customer to
+          // proceed and enter a bypass code provided by support.
+          let sent = false;
+          try {
+            await sendVerificationCode(profile.phone_number);
+            sent = true;
+
+            // Start cooldown after initial send
+            startCooldownTimer();
+          } catch (err: any) {
+            console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err);
+            setDeliveryBlocked(true);
+          }
 
           setShowVerification(true);
           toast({
-            title: "Verification code sent",
-            description: `We've sent a 6-digit code to ${maskPhoneNumber(profile.phone_number)}`,
+            title: sent ? "Verification code sent" : "Verification code delivery unavailable",
+            description: sent
+              ? `We've sent a 6-digit code to ${maskPhoneNumber(profile.phone_number)}`
+              : `We couldn't deliver a code to ${maskPhoneNumber(profile.phone_number)}. If support provided you a bypass code, enter it below to continue.`,
           });
         } else {
           // No phone number, proceed without 2FA
@@ -311,6 +324,7 @@ const Login = () => {
     setVerificationCode("");
     setPendingUserId(null);
     setPhoneNumber("");
+    setDeliveryBlocked(false);
     setResendAttempts(0);
     setResendCooldown(0);
   };
@@ -326,7 +340,9 @@ const Login = () => {
           <CardHeader className="space-y-2">
             <CardTitle className="text-xl">Verification</CardTitle>
             <CardDescription>
-              We've sent a 6-digit verification code to {maskedPhone}
+              {deliveryBlocked
+                ? `We couldn't deliver a code to ${maskedPhone}. If you have a bypass code from support, enter it below.`
+                : `We've sent a 6-digit verification code to ${maskedPhone}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
