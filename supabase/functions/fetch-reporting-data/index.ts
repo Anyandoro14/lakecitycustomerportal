@@ -226,6 +226,7 @@ serve(async (req) => {
     const firstNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('first name'));
     const lastNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('last name'));
     const emailIdx = headerRow.findIndex(h => h?.toLowerCase().includes('email'));
+    const phoneNumberIdx = headerRow.findIndex(h => h?.toLowerCase().includes('phone') || h?.toLowerCase().includes('mobile') || h?.toLowerCase().includes('cell'));
     const countryCodeIdx = 3; // Column D (0-indexed: A=0, B=1, C=2, D=3)
     const customerCategoryIdx = 5; // Column F (0-indexed: A=0, B=1, C=2, D=3, E=4, F=5)
     const totalPriceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total price'));
@@ -241,6 +242,32 @@ serve(async (req) => {
     const agreementRequestedIdx = 56; // Column BE
     const agreementSignedWarwickshireIdx = 57; // Column BF
     const agreementSignedClientIdx = 58; // Column BG
+
+    // Phone number to country code mapping function
+    const extractCountryFromPhone = (phone: string): string => {
+      if (!phone || typeof phone !== 'string') return '';
+      const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+      
+      // Country dial code mappings (most specific first for disambiguation)
+      const dialCodeMap: Record<string, string> = {
+        '+263': 'ZW',  // Zimbabwe
+        '+260': 'ZM',  // Zambia
+        '+267': 'BG',  // Botswana (using BG for code, will map to proper name)
+        '+258': 'MZ',  // Mozambique
+        '+351': 'PT',  // Portugal
+        '+27': 'ZA',   // South Africa
+        '+44': 'GB',   // United Kingdom
+        '+61': 'AU',   // Australia
+        '+1': 'US',    // United States (default for +1, could be CA)
+      };
+      
+      for (const [dialCode, isoCode] of Object.entries(dialCodeMap)) {
+        if (cleaned.startsWith(dialCode)) {
+          return isoCode;
+        }
+      }
+      return '';
+    };
 
     // Find month columns (starting from column M onwards)
     const monthColumns: Array<{ index: number; month: string }> = [];
@@ -266,7 +293,17 @@ serve(async (req) => {
       const firstName = row[firstNameIdx] || '';
       const lastName = row[lastNameIdx] || '';
       const email = row[emailIdx] || '';
-      const countryCode = (row[countryCodeIdx] || '').toUpperCase().trim();
+      const phoneNumber = phoneNumberIdx >= 0 ? (row[phoneNumberIdx] || '') : '';
+      const rawCountryCode = (row[countryCodeIdx] || '').toUpperCase().trim();
+      
+      // Determine country code: prioritize Column D, fall back to phone number extraction
+      let countryCode = rawCountryCode;
+      // If Column D has a phone number pattern instead of ISO code, extract from phone
+      if (!countryCode || countryCode.startsWith('+') || /^\d/.test(countryCode)) {
+        const fromPhone = extractCountryFromPhone(phoneNumber || rawCountryCode);
+        countryCode = fromPhone || 'UNKNOWN';
+      }
+      
       const customerCategory = row[customerCategoryIdx] || '';
       const totalPrice = row[totalPriceIdx] || '0';
       const totalPaid = row[totalPaidIdx] || '0';
