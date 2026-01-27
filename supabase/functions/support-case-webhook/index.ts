@@ -35,12 +35,17 @@ Deno.serve(async (req) => {
 
     // Forward to Make.com webhook with flat fields
     try {
+      // Build combined full_name for easier output
+      const fullName = [first_name, last_name].filter(Boolean).join(" ") || "Unknown";
+      
       // Build URL with query parameters for Make.com to parse individually
       const params = new URLSearchParams();
       params.append("case_number", case_number || "");
       params.append("first_name", first_name || "");
       params.append("last_name", last_name || "");
+      params.append("full_name", fullName);
       params.append("email", email || "");
+      params.append("customer_email", email || ""); // Duplicate for clarity
       params.append("whatsapp_number", whatsapp_number || "");
       params.append("issue_type", issue_type || "");
       params.append("sub_issue", sub_issue || "");
