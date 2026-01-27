@@ -301,6 +301,77 @@ serve(async (req) => {
         JSON.stringify({ success: true, message: 'Internal user added successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } else if (action === 'deleteCustomer') {
+      // Only Super Admins can delete customers
+      if (!isSuperAdmin) {
+        throw new Error('Forbidden: Only Super Admins can delete customers');
+      }
+
+      const targetUserId = userId;
+      if (!targetUserId) {
+        throw new Error('User ID is required');
+      }
+
+      // Prevent deleting internal users through this action
+      const { data: internalCheck } = await supabaseAdmin
+        .from('internal_users')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .single();
+
+      if (internalCheck) {
+        throw new Error('Cannot delete internal users through this action');
+      }
+
+      // Get customer info for audit log
+      const { data: customerProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('email, stand_number, full_name')
+        .eq('id', targetUserId)
+        .single();
+
+      // Delete bypass codes for this user's stand
+      if (customerProfile?.stand_number) {
+        await supabaseAdmin
+          .from('twofa_bypass_codes')
+          .delete()
+          .eq('stand_number', customerProfile.stand_number);
+      }
+
+      // Delete the profile (this should cascade or be handled)
+      await supabaseAdmin
+        .from('profiles')
+        .delete()
+        .eq('id', targetUserId);
+
+      // Delete the auth user
+      const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+
+      if (deleteAuthError) {
+        console.error('Error deleting auth user:', deleteAuthError);
+        throw new Error('Failed to delete user account');
+      }
+
+      // Log the action
+      await supabaseAdmin
+        .from('audit_log')
+        .insert({
+          action: 'customer_deleted',
+          entity_type: 'customer',
+          entity_id: targetUserId,
+          performed_by: user.id,
+          performed_by_email: user.email,
+          details: { 
+            email: customerProfile?.email,
+            standNumber: customerProfile?.stand_number,
+            fullName: customerProfile?.full_name
+          }
+        });
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Customer account deleted successfully' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     throw new Error('Invalid action');
