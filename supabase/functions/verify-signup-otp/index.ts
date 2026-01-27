@@ -119,16 +119,104 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
+// Helper: Update Column BK to mark account as registered
+async function markAccountRegistered(
+  standNumber: string,
+  accessToken: string
+): Promise<boolean> {
+  try {
+    const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+    if (!spreadsheetId) {
+      console.log('Spreadsheet ID not configured, skipping BK update');
+      return false;
+    }
+
+    // Fetch spreadsheet metadata
+    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metadataResponse = await fetch(metadataUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!metadataResponse.ok) {
+      console.error('Failed to fetch spreadsheet metadata for BK update');
+      return false;
+    }
+
+    const metadata = await metadataResponse.json();
+    const sheets = metadata.sheets || [];
+    const sheetTitle = sheets.length > 0 ? sheets[0].properties.title : 'Sheet1';
+
+    // Fetch Column B (Stand Numbers) to find the row
+    const range = encodeURIComponent(`${sheetTitle}!B:B`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch stand numbers for BK update');
+      return false;
+    }
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    // Find the row with matching stand number
+    const normalizedStand = standNumber.trim().toUpperCase();
+    let rowIndex = -1;
+
+    for (let i = 1; i < rows.length; i++) {
+      const rowStand = rows[i]?.[0]?.toString().trim().toUpperCase() || '';
+      if (rowStand === normalizedStand) {
+        rowIndex = i + 1; // Sheets are 1-indexed
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      console.log(`Stand ${standNumber} not found in spreadsheet for BK update`);
+      return false;
+    }
+
+    // Update Column BK (column index 63) for this row
+    const cellRange = `${sheetTitle}!BK${rowIndex}`;
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
+    
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        values: [["TRUE"]]
+      })
+    });
+
+    if (updateResponse.ok) {
+      console.log(`Successfully marked Column BK as TRUE for stand ${standNumber} (row ${rowIndex})`);
+      return true;
+    } else {
+      console.error('Failed to update Column BK:', await updateResponse.text());
+      return false;
+    }
+  } catch (error) {
+    console.error('Error updating Column BK:', error);
+    return false;
+  }
+}
+
 // Helper: Sync email to Collection Schedule if conditions match
 async function syncEmailToSheet(
   standNumber: string, 
   phoneNumber: string, 
-  email: string
+  email: string,
+  accessToken: string
 ): Promise<{ synced: boolean; customerName?: string; customerCategory?: string }> {
   try {
     console.log(`Checking if email sync conditions are met for stand ${standNumber}`);
     
-    const accessToken = await getGoogleAccessToken();
     const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
     
     if (!spreadsheetId) {
@@ -419,21 +507,36 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log('User signed in after OTP verification');
 
-    // ==================== EMAIL SYNC & ACTIVATION NOTIFICATION ====================
+    // ==================== EMAIL SYNC, BK UPDATE & ACTIVATION NOTIFICATION ====================
     // These are additive, non-blocking operations - failures don't affect the user
     
     let syncResult: { synced: boolean; customerName?: string; customerCategory?: string } = { synced: false };
     const emailProvided: boolean = !!(email && !email.includes('@lakecity.portal'));
     
     if (standNumber) {
-      // Attempt email sync only if all conditions are met
-      if (emailProvided) {
+      try {
+        // Get Google access token once for all sheet operations
+        const accessToken = await getGoogleAccessToken();
+        
+        // Mark account as registered in Column BK
         try {
-          syncResult = await syncEmailToSheet(standNumber, trimmedPhone, email);
-          console.log(`Email sync result for ${standNumber}: synced=${syncResult.synced}`);
-        } catch (syncError) {
-          console.error('Email sync error (non-blocking):', syncError);
+          const bkUpdated = await markAccountRegistered(standNumber, accessToken);
+          console.log(`Column BK update for ${standNumber}: ${bkUpdated ? 'SUCCESS' : 'SKIPPED'}`);
+        } catch (bkError) {
+          console.error('Column BK update error (non-blocking):', bkError);
         }
+        
+        // Attempt email sync only if all conditions are met
+        if (emailProvided) {
+          try {
+            syncResult = await syncEmailToSheet(standNumber, trimmedPhone, email, accessToken);
+            console.log(`Email sync result for ${standNumber}: synced=${syncResult.synced}`);
+          } catch (syncError) {
+            console.error('Email sync error (non-blocking):', syncError);
+          }
+        }
+      } catch (tokenError) {
+        console.error('Failed to get Google access token (non-blocking):', tokenError);
       }
 
       // Send activation notification (always, even if sync fails)
