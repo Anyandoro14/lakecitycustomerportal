@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { normalizeCountryCode } from "@/lib/country";
 import {
   Table,
   TableBody,
@@ -46,19 +47,6 @@ interface GeographicRevenueProps {
   selectedCountryCode?: string | null;
   onClearFilter?: () => void;
 }
-
-// Phone dial code to ISO country code mapping
-const DIAL_CODE_TO_ISO: Record<string, string> = {
-  '+1': 'US',      // United States / Canada (default to US)
-  '+27': 'ZA',     // South Africa
-  '+44': 'GB',     // United Kingdom
-  '+61': 'AU',     // Australia
-  '+263': 'ZW',    // Zimbabwe
-  '+260': 'ZM',    // Zambia
-  '+267': 'BW',    // Botswana
-  '+258': 'MZ',    // Mozambique
-  '+351': 'PT',    // Portugal
-};
 
 // ISO code to full country name mapping
 const COUNTRY_NAMES: Record<string, string> = {
@@ -118,38 +106,7 @@ const COUNTRY_COLORS: Record<string, string> = {
   'DEFAULT': '#94a3b8',
 };
 
-/**
- * Normalize country code - handles phone numbers being passed as country codes
- * and maps them to proper ISO codes
- */
-const normalizeCountryCode = (rawCode: string): string => {
-  if (!rawCode) return 'UNKNOWN';
-  
-  const cleaned = rawCode.toUpperCase().trim();
-  
-  // If it's already a valid ISO code, return it
-  if (COUNTRY_NAMES[cleaned]) {
-    return cleaned;
-  }
-  
-  // If it looks like a phone number, extract country code
-  if (cleaned.startsWith('+') || /^\d/.test(cleaned)) {
-    const phoneClean = cleaned.replace(/[\s\-\(\)]/g, '');
-    
-    // Check dial codes (most specific first)
-    const sortedDialCodes = Object.keys(DIAL_CODE_TO_ISO).sort((a, b) => b.length - a.length);
-    for (const dialCode of sortedDialCodes) {
-      if (phoneClean.startsWith(dialCode.replace('+', ''))) {
-        return DIAL_CODE_TO_ISO[dialCode];
-      }
-      if (phoneClean.startsWith(dialCode)) {
-        return DIAL_CODE_TO_ISO[dialCode];
-      }
-    }
-  }
-  
-  return 'UNKNOWN';
-};
+// normalizeCountryCode is shared in src/lib/country.ts
 
 const GeographicRevenue = ({ stands, monthColumns, onCountryFilter, selectedCountryCode, onClearFilter }: GeographicRevenueProps) => {
   const soldStands = useMemo(() => stands.filter(s => !s.isUnsold), [stands]);
