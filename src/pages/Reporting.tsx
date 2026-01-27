@@ -184,16 +184,32 @@ const Reporting = () => {
     return Array.from(categories).sort();
   }, [reportingData?.stands]);
 
-  // Get unique years from monthly data
+  // Get unique years from the calculated monthly totals (actual payment data)
+  // This ensures years only appear if there's actual payment data for them
   const availableYears = useMemo(() => {
-    if (!reportingData?.monthlyTotals) return [];
     const years = new Set<string>();
-    reportingData.monthlyTotals.forEach((m: any) => {
-      const match = m.month.match(/(\d{4})$/);
-      if (match) years.add(match[1]);
-    });
+    
+    // First, get years from filteredMonthlyTotals (actual payment data)
+    if (reportingData?.stands) {
+      reportingData.stands.forEach((stand: any) => {
+        if (stand.isUnsold) return;
+        stand.payments?.forEach((payment: any) => {
+          const match = payment.month?.match(/(\d{4})$/);
+          if (match) years.add(match[1]);
+        });
+      });
+    }
+    
+    // Fallback to monthlyTotals from API if no stands data
+    if (years.size === 0 && reportingData?.monthlyTotals) {
+      reportingData.monthlyTotals.forEach((m: any) => {
+        const match = m.month?.match(/(\d{4})$/);
+        if (match) years.add(match[1]);
+      });
+    }
+    
     return Array.from(years).sort().reverse();
-  }, [reportingData?.monthlyTotals]);
+  }, [reportingData?.stands, reportingData?.monthlyTotals]);
   
   // Apply filters
   const filteredStands = useMemo(() => {
