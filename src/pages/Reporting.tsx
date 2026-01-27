@@ -1201,30 +1201,44 @@ const Reporting = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={monthlyChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="left" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
-                  <Tooltip 
-                    formatter={(value: number, name: string) => {
-                      if (name === 'Trend') return [`${value.toFixed(1)}%`, name];
-                      return [formatCurrency(value), name];
-                    }}
-                    labelFormatter={(label) => {
-                      const item = monthlyChartData.find(d => d.month === label);
-                      return item?.fullMonth || label;
-                    }}
-                  />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="expected" fill="#94a3b8" name="Forecast" radius={[4, 4, 0, 0]} opacity={0.6} />
-                  <Bar yAxisId="left" dataKey="received" fill="#22c55e" name="Collected" radius={[4, 4, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="trend" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Trend" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            {monthlyChartData.length === 0 ? (
+              <div className="h-80 flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No payment data available</p>
+                  <p className="text-sm mt-1">
+                    {selectedYear !== "all" 
+                      ? `No payments recorded for ${selectedYear}. Try selecting "All Years".`
+                      : "Payment data will appear here once transactions are recorded."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={monthlyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="left" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
+                    <Tooltip 
+                      formatter={(value: number, name: string) => {
+                        if (name === 'Trend') return [`${value.toFixed(1)}%`, name];
+                        return [formatCurrency(value), name];
+                      }}
+                      labelFormatter={(label) => {
+                        const item = monthlyChartData.find(d => d.month === label);
+                        return item?.fullMonth || label;
+                      }}
+                    />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="expected" fill="#94a3b8" name="Forecast" radius={[4, 4, 0, 0]} opacity={0.6} />
+                    <Bar yAxisId="left" dataKey="received" fill="#22c55e" name="Collected" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="trend" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Trend" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1234,52 +1248,63 @@ const Reporting = () => {
             <CardTitle>Monthly Collection Rate (% of Expected)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={monthlyChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 'auto']} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip 
-                    formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
-                    labelFormatter={(label) => {
-                      const item = monthlyChartData.find(d => d.month === label);
-                      return item?.fullMonth || label;
-                    }}
-                  />
-                  <Legend />
-                  {/* Reference line at 100% to show expected target */}
-                  <Bar 
-                    dataKey="percentage" 
-                    name="Collection Rate" 
-                    radius={[4, 4, 0, 0]}
-                    fill="#3b82f6"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="trend" 
-                    stroke="#f97316" 
-                    strokeWidth={2} 
-                    dot={{ r: 3, fill: '#f97316' }} 
-                    name="3-Month Trend"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-center gap-6 mt-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-[#3b82f6]" />
-                <span>Actual collection % of expected</span>
+            {monthlyChartData.length === 0 ? (
+              <div className="h-80 flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No collection data available</p>
+                  <p className="text-sm mt-1">Collection rate will appear here once payments are recorded.</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-[#f97316]" />
-                <span>Rolling 3-month trend</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 border-t-2 border-dashed border-muted-foreground" />
-                <span>100% = On target</span>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={monthlyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis domain={[0, 'auto']} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip 
+                        formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
+                        labelFormatter={(label) => {
+                          const item = monthlyChartData.find(d => d.month === label);
+                          return item?.fullMonth || label;
+                        }}
+                      />
+                      <Legend />
+                      <Bar 
+                        dataKey="percentage" 
+                        name="Collection Rate" 
+                        radius={[4, 4, 0, 0]}
+                        fill="#3b82f6"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="trend" 
+                        stroke="#f97316" 
+                        strokeWidth={2} 
+                        dot={{ r: 3, fill: '#f97316' }} 
+                        name="3-Month Trend"
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center justify-center gap-6 mt-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-[#3b82f6]" />
+                    <span>Actual collection % of expected</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-[#f97316]" />
+                    <span>Rolling 3-month trend</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 border-t-2 border-dashed border-muted-foreground" />
+                    <span>100% = On target</span>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
