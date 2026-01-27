@@ -64,7 +64,7 @@ const RevenueTrendChart = ({ stands, monthColumns }: RevenueTrendChartProps) => 
     };
   };
 
-  // Build monthly data
+  // Build monthly data - always show 3 years (36 months) starting from 2025
   const chartData = useMemo((): MonthlyDataPoint[] => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -73,35 +73,51 @@ const RevenueTrendChart = ({ stands, monthColumns }: RevenueTrendChartProps) => 
 
     const monthlyData: Record<string, MonthlyDataPoint> = {};
 
-    // First, set up expected amounts per month
+    // Define 3-year range: start from January 2025, end 36 months later
+    const startYear = 2025;
+    const startMonth = 0; // January
+    const totalMonths = 36; // 3 years
+
+    // Pre-populate all 36 months in the range
+    for (let i = 0; i < totalMonths; i++) {
+      const date = new Date(startYear, startMonth + i, 5);
+      const year = date.getFullYear().toString();
+      const monthIndex = date.getMonth();
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const monthName = monthNames[monthIndex];
+      const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+
+      const isPast = date < new Date(currentYear, currentMonth, 1);
+      const isCurrent = date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      const isFuture = !isPast && !isCurrent;
+
+      monthlyData[monthKey] = {
+        monthKey,
+        monthLabel: `${monthName.substring(0, 3)} '${year.substring(2)}`,
+        fullLabel: `${monthName} ${year}`,
+        date,
+        actual: 0,
+        expected: 0,
+        isPast,
+        isCurrent,
+        isFuture,
+      };
+    }
+
+    // Add expected amounts from month columns that fall within our range
     monthColumns.forEach(monthCol => {
       const parsed = parseMonthColumn(monthCol);
       if (!parsed) return;
 
       const monthKey = `${parsed.year}-${String(parsed.date.getMonth() + 1).padStart(2, '0')}`;
-      const isPast = parsed.date < new Date(currentYear, currentMonth, 1);
-      const isCurrent = parsed.date.getMonth() === currentMonth && parsed.date.getFullYear() === currentYear;
-      const isFuture = !isPast && !isCurrent;
-
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = {
-          monthKey,
-          monthLabel: `${parsed.monthName.substring(0, 3)} '${parsed.year.substring(2)}`,
-          fullLabel: `${parsed.monthName} ${parsed.year}`,
-          date: parsed.date,
-          actual: 0,
-          expected: 0,
-          isPast,
-          isCurrent,
-          isFuture,
-        };
+      
+      // Only add if this month is in our 3-year range
+      if (monthlyData[monthKey]) {
+        soldStands.forEach(stand => {
+          const monthlyPaymentAmount = parseFloat(stand.monthlyPayment.replace(/[$,]/g, '')) || 0;
+          monthlyData[monthKey].expected += monthlyPaymentAmount;
+        });
       }
-
-      // Add expected from all sold stands for this month
-      soldStands.forEach(stand => {
-        const monthlyPaymentAmount = parseFloat(stand.monthlyPayment.replace(/[$,]/g, '')) || 0;
-        monthlyData[monthKey].expected += monthlyPaymentAmount;
-      });
     });
 
     // Add actual payments received
@@ -118,10 +134,9 @@ const RevenueTrendChart = ({ stands, monthColumns }: RevenueTrendChartProps) => 
       });
     });
 
-    // Sort by date and return
+    // Sort by date and return all 36 months
     return Object.values(monthlyData)
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .slice(-18); // Last 18 months for trend visibility
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [soldStands, monthColumns]);
 
   const formatCurrency = (value: number) => {
