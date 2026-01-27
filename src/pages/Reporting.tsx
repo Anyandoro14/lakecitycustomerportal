@@ -886,6 +886,8 @@ const Reporting = () => {
             stands={soldStands} 
             monthColumns={reportingData.monthColumns}
             onCountryFilter={applyCountryFilter}
+            selectedCountryCode={selectedCountryCode}
+            onClearFilter={() => setSelectedCountryCode(null)}
           />
         )}
 
