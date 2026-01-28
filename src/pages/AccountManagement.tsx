@@ -103,6 +103,11 @@ const AccountManagement = () => {
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [newPhoneNumber, setNewPhoneNumber] = useState('');
   const [updatingPhone, setUpdatingPhone] = useState(false);
+  const [phoneValidationError, setPhoneValidationError] = useState<{
+    message: string;
+    sheetPhoneNumber?: string;
+    instruction?: string;
+  } | null>(null);
 
   useEffect(() => {
     checkAccess();
@@ -272,7 +277,15 @@ const AccountManagement = () => {
   const openEditPhoneDialog = (user: UserRecord) => {
     setEditingUser(user);
     setNewPhoneNumber(user.phoneNumber || '');
+    setPhoneValidationError(null);
     setEditPhoneDialogOpen(true);
+  };
+
+  const closeEditPhoneDialog = () => {
+    setEditPhoneDialogOpen(false);
+    setEditingUser(null);
+    setNewPhoneNumber('');
+    setPhoneValidationError(null);
   };
 
   const updatePhoneNumber = async () => {
@@ -287,6 +300,8 @@ const AccountManagement = () => {
     }
 
     setUpdatingPhone(true);
+    setPhoneValidationError(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke('manage-user-access', {
         body: { 
@@ -298,16 +313,36 @@ const AccountManagement = () => {
         }
       });
       
+      // Check for validation errors in the response
+      if (data?.validationError) {
+        setPhoneValidationError({
+          message: data.message || 'Phone number does not match Collection Schedule',
+          sheetPhoneNumber: data.details?.sheetPhoneNumber,
+          instruction: data.details?.instruction
+        });
+        return;
+      }
+      
       if (error) throw error;
       
-      toast.success(`Phone number updated for ${editingUser.standNumber || editingUser.email}`);
-      setEditPhoneDialogOpen(false);
-      setEditingUser(null);
-      setNewPhoneNumber('');
+      toast.success(`Phone number updated for Stand ${editingUser.standNumber || editingUser.email}`);
+      closeEditPhoneDialog();
       await fetchUsers();
     } catch (error: any) {
       console.error('Error updating phone number:', error);
-      toast.error(error.message || "Failed to update phone number");
+      
+      // Try to parse error message for validation details
+      let errorMessage = error.message || "Failed to update phone number";
+      
+      // Check if error contains validation details
+      if (errorMessage.includes('Collection Schedule')) {
+        setPhoneValidationError({
+          message: errorMessage,
+          instruction: 'Please update the Collection Schedule first, then enter the same number here.'
+        });
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setUpdatingPhone(false);
     }
@@ -562,43 +597,81 @@ const AccountManagement = () => {
               )}
 
               {/* Edit Phone Number Dialog */}
-              <Dialog open={editPhoneDialogOpen} onOpenChange={setEditPhoneDialogOpen}>
-                <DialogContent>
+              <Dialog open={editPhoneDialogOpen} onOpenChange={(open) => !open && closeEditPhoneDialog()}>
+                <DialogContent className="max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Edit Phone Number</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Phone className="h-5 w-5" />
+                      Edit Phone Number
+                    </DialogTitle>
                     <DialogDescription>
                       Update the phone number for {editingUser?.standNumber ? `Stand ${editingUser.standNumber}` : editingUser?.email}.
-                      Use international format (e.g., +18452757810).
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
+                  
+                  {/* Important Notice */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                    <p className="font-semibold text-amber-800 mb-1">⚠️ Important: Update Collection Schedule First</p>
+                    <p className="text-amber-700">
+                      The phone number you enter must <strong>exactly match</strong> what is in the Collection Schedule spreadsheet. 
+                      Please update the spreadsheet first, then enter the same number here.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 py-2">
                     <div>
-                      <Label>Current Phone Number</Label>
-                      <p className="text-sm text-muted-foreground font-mono py-2">
+                      <Label className="text-muted-foreground">Current Portal Phone Number</Label>
+                      <p className="text-sm font-mono py-1 px-2 bg-muted rounded">
                         {editingUser?.phoneNumber || 'Not set'}
                       </p>
                     </div>
+                    
                     <div>
-                      <Label>New Phone Number</Label>
+                      <Label htmlFor="new-phone">New Phone Number (from Collection Schedule)</Label>
                       <Input
+                        id="new-phone"
                         type="tel"
                         placeholder="+18452757810"
                         value={newPhoneNumber}
-                        onChange={(e) => setNewPhoneNumber(e.target.value)}
-                        className="font-mono"
+                        onChange={(e) => {
+                          setNewPhoneNumber(e.target.value);
+                          setPhoneValidationError(null); // Clear error on input change
+                        }}
+                        className={`font-mono ${phoneValidationError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Include country code (e.g., +1 for US, +263 for Zimbabwe)
+                        Use international format with country code (e.g., +1 for US, +263 for Zimbabwe)
                       </p>
                     </div>
+
+                    {/* Validation Error Display */}
+                    {phoneValidationError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="font-semibold text-red-800 text-sm mb-1">❌ Validation Failed</p>
+                        <p className="text-red-700 text-sm">{phoneValidationError.message}</p>
+                        {phoneValidationError.sheetPhoneNumber && (
+                          <div className="mt-2 p-2 bg-white rounded border border-red-100">
+                            <p className="text-xs text-muted-foreground">Phone number in Collection Schedule:</p>
+                            <p className="font-mono text-sm font-semibold text-red-800">{phoneValidationError.sheetPhoneNumber}</p>
+                          </div>
+                        )}
+                        {phoneValidationError.instruction && (
+                          <p className="text-xs text-red-600 mt-2 italic">{phoneValidationError.instruction}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setEditPhoneDialogOpen(false)}>
+                  
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={closeEditPhoneDialog}>
                       Cancel
                     </Button>
-                    <Button onClick={updatePhoneNumber} disabled={updatingPhone || !newPhoneNumber.trim()}>
+                    <Button 
+                      onClick={updatePhoneNumber} 
+                      disabled={updatingPhone || !newPhoneNumber.trim()}
+                    >
                       {updatingPhone ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Update Phone
+                      Validate & Update
                     </Button>
                   </DialogFooter>
                 </DialogContent>

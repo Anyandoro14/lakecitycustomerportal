@@ -316,11 +316,12 @@ serve(async (req) => {
 
       // Validate phone number format (basic validation)
       const phoneRegex = /^\+?[1-9]\d{6,14}$/;
-      if (!phoneRegex.test(newPhoneNumber.replace(/\s/g, ''))) {
+      const cleanedPhone = newPhoneNumber.replace(/\s/g, '');
+      if (!phoneRegex.test(cleanedPhone)) {
         throw new Error('Invalid phone number format. Please use international format (e.g., +18452757810)');
       }
 
-      // Get current profile info for audit log
+      // Get current profile info
       const { data: currentProfile } = await supabaseAdmin
         .from('profiles')
         .select('email, stand_number, phone_number')
@@ -331,11 +332,161 @@ serve(async (req) => {
         throw new Error('Customer profile not found');
       }
 
-      // Update the phone number
+      if (!currentProfile.stand_number) {
+        throw new Error('Customer does not have a stand number assigned');
+      }
+
+      // CRITICAL: Validate against Google Sheet - the Collection Schedule is the authoritative source
+      const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+      const clientEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL');
+      const privateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
+
+      if (!spreadsheetId || !clientEmail || !privateKey) {
+        throw new Error('Google Sheets configuration is missing');
+      }
+
+      // Get Google access token
+      const getAccessToken = async () => {
+        const header = { alg: 'RS256', typ: 'JWT' };
+        const now = Math.floor(Date.now() / 1000);
+        const claim = {
+          iss: clientEmail,
+          scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+          aud: 'https://oauth2.googleapis.com/token',
+          exp: now + 3600,
+          iat: now
+        };
+
+        const encoder = new TextEncoder();
+        const toBase64Url = (data: Uint8Array) => btoa(String.fromCharCode(...data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        
+        const headerB64 = toBase64Url(encoder.encode(JSON.stringify(header)));
+        const claimB64 = toBase64Url(encoder.encode(JSON.stringify(claim)));
+        const signatureInput = `${headerB64}.${claimB64}`;
+
+        let cleanKey = privateKey;
+        if (!cleanKey.includes('-----BEGIN')) {
+          cleanKey = `-----BEGIN PRIVATE KEY-----\n${cleanKey}\n-----END PRIVATE KEY-----`;
+        }
+
+        const pemContent = cleanKey.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n|\r/g, '');
+        const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
+        
+        const cryptoKey = await crypto.subtle.importKey(
+          'pkcs8',
+          binaryKey,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+
+        const signature = await crypto.subtle.sign(
+          'RSASSA-PKCS1-v1_5',
+          cryptoKey,
+          encoder.encode(signatureInput)
+        );
+
+        const jwt = `${signatureInput}.${toBase64Url(new Uint8Array(signature))}`;
+
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+        });
+
+        const tokenData = await tokenResponse.json();
+        return tokenData.access_token;
+      };
+
+      const accessToken = await getAccessToken();
+      
+      // Fetch the Collection Schedule to find the stand's authoritative phone number
+      const sheetName = 'Collection Schedule 1';
+      const range = `'${sheetName}'!A:BL`;
+      const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+      
+      const sheetsResponse = await fetch(sheetsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      if (!sheetsResponse.ok) {
+        const errorText = await sheetsResponse.text();
+        console.error('Google Sheets API error:', errorText);
+        throw new Error('Failed to fetch Collection Schedule data for validation');
+      }
+
+      const sheetsData = await sheetsResponse.json();
+      const rows = sheetsData.values || [];
+
+      if (rows.length < 2) {
+        throw new Error('Collection Schedule is empty or missing headers');
+      }
+
+      // Find column indices from header row
+      const headerRow = rows[0].map((h: string) => h?.toString().toLowerCase().trim() || '');
+      const standIndex = headerRow.findIndex((h: string) => h === 'stand number' || h === 'stand' || h === 'stand no');
+      const phoneIndex = headerRow.findIndex((h: string) => h === 'phone number' || h === 'phone' || h === 'contact number' || h === 'contact' || h === 'tel');
+
+      if (standIndex === -1) {
+        throw new Error('Stand Number column not found in Collection Schedule');
+      }
+
+      if (phoneIndex === -1) {
+        throw new Error('Phone Number column not found in Collection Schedule');
+      }
+
+      // Find the customer's row by stand number
+      let sheetPhoneNumber: string | null = null;
+      const normalizeStand = (s: string) => s?.toString().replace(/\s+/g, '').toLowerCase() || '';
+      const targetStand = normalizeStand(currentProfile.stand_number);
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const rowStand = normalizeStand(row[standIndex] || '');
+        
+        if (rowStand === targetStand) {
+          sheetPhoneNumber = row[phoneIndex]?.toString().trim() || null;
+          break;
+        }
+      }
+
+      if (!sheetPhoneNumber) {
+        throw new Error(`Stand ${currentProfile.stand_number} not found in Collection Schedule, or phone number is empty. Please update the Collection Schedule first.`);
+      }
+
+      // Normalize phone numbers for comparison
+      const normalizePhone = (phone: string): string => {
+        return phone.replace(/[\s\-\(\)\.]/g, '').replace(/^00/, '+');
+      };
+
+      const normalizedSheetPhone = normalizePhone(sheetPhoneNumber);
+      const normalizedNewPhone = normalizePhone(cleanedPhone);
+
+      // STRICT MATCH: The new phone number must match exactly what's in the Collection Schedule
+      if (normalizedSheetPhone !== normalizedNewPhone) {
+        console.log(`Phone mismatch for stand ${currentProfile.stand_number}: Sheet has "${sheetPhoneNumber}" (normalized: ${normalizedSheetPhone}), user entered "${newPhoneNumber}" (normalized: ${normalizedNewPhone})`);
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Phone number does not match Collection Schedule',
+            validationError: true,
+            message: `The phone number must match exactly what is in the Collection Schedule.`,
+            details: {
+              standNumber: currentProfile.stand_number,
+              sheetPhoneNumber: sheetPhoneNumber,
+              enteredPhoneNumber: newPhoneNumber.trim(),
+              instruction: 'Please update the Collection Schedule first, then enter the same number here.'
+            }
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Phone matches the sheet - proceed with update
       const { error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({ 
-          phone_number: newPhoneNumber.trim(),
+          phone_number: normalizedSheetPhone, // Use the normalized sheet phone for consistency
           updated_at: new Date().toISOString()
         })
         .eq('id', targetUserId);
@@ -358,14 +509,23 @@ serve(async (req) => {
             standNumber: currentProfile.stand_number,
             email: currentProfile.email,
             previousPhoneNumber: currentProfile.phone_number,
-            newPhoneNumber: newPhoneNumber.trim()
+            newPhoneNumber: normalizedSheetPhone,
+            sheetPhoneNumber: sheetPhoneNumber,
+            validatedAgainstSheet: true
           }
         });
 
-      console.log(`Phone number updated for stand ${currentProfile.stand_number}: ${currentProfile.phone_number} -> ${newPhoneNumber}`);
+      console.log(`Phone number updated for stand ${currentProfile.stand_number}: ${currentProfile.phone_number} -> ${normalizedSheetPhone} (validated against sheet)`);
 
       return new Response(
-        JSON.stringify({ success: true, message: 'Phone number updated successfully' }),
+        JSON.stringify({ 
+          success: true, 
+          message: 'Phone number updated successfully',
+          details: {
+            standNumber: currentProfile.stand_number,
+            newPhoneNumber: normalizedSheetPhone
+          }
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else if (action === 'deleteCustomer') {
