@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Shield, Users, Filter, X, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Plus, Shield, Users, Filter, X, ShieldCheck, Eye, Phone, Pencil } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
@@ -53,6 +53,7 @@ interface UserRecord {
   createdAt: string;
   isInternal: boolean;
   standNumber?: string;
+  phoneNumber?: string | null;
 }
 
 const accountTypeOptions = [
@@ -96,6 +97,12 @@ const AccountManagement = () => {
   const [newUserFullName, setNewUserFullName] = useState('');
   const [newUserRole, setNewUserRole] = useState('admin');
   const [addingUser, setAddingUser] = useState(false);
+
+  // Edit phone dialog
+  const [editPhoneDialogOpen, setEditPhoneDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [updatingPhone, setUpdatingPhone] = useState(false);
 
   useEffect(() => {
     checkAccess();
@@ -259,6 +266,50 @@ const AccountManagement = () => {
       toast.error(error.message || "Failed to add user");
     } finally {
       setAddingUser(false);
+    }
+  };
+
+  const openEditPhoneDialog = (user: UserRecord) => {
+    setEditingUser(user);
+    setNewPhoneNumber(user.phoneNumber || '');
+    setEditPhoneDialogOpen(true);
+  };
+
+  const updatePhoneNumber = async () => {
+    if (!isSuperAdmin || !editingUser) {
+      toast.error("Only Super Admins can update phone numbers");
+      return;
+    }
+
+    if (!newPhoneNumber.trim()) {
+      toast.error("Phone number is required");
+      return;
+    }
+
+    setUpdatingPhone(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-user-access', {
+        body: { 
+          action: 'updatePhoneNumber',
+          userData: { 
+            userId: editingUser.userId,
+            newPhoneNumber: newPhoneNumber.trim()
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Phone number updated for ${editingUser.standNumber || editingUser.email}`);
+      setEditPhoneDialogOpen(false);
+      setEditingUser(null);
+      setNewPhoneNumber('');
+      await fetchUsers();
+    } catch (error: any) {
+      console.error('Error updating phone number:', error);
+      toast.error(error.message || "Failed to update phone number");
+    } finally {
+      setUpdatingPhone(false);
     }
   };
 
@@ -509,6 +560,49 @@ const AccountManagement = () => {
                   </DialogContent>
                 </Dialog>
               )}
+
+              {/* Edit Phone Number Dialog */}
+              <Dialog open={editPhoneDialogOpen} onOpenChange={setEditPhoneDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Phone Number</DialogTitle>
+                    <DialogDescription>
+                      Update the phone number for {editingUser?.standNumber ? `Stand ${editingUser.standNumber}` : editingUser?.email}.
+                      Use international format (e.g., +18452757810).
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <Label>Current Phone Number</Label>
+                      <p className="text-sm text-muted-foreground font-mono py-2">
+                        {editingUser?.phoneNumber || 'Not set'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label>New Phone Number</Label>
+                      <Input
+                        type="tel"
+                        placeholder="+18452757810"
+                        value={newPhoneNumber}
+                        onChange={(e) => setNewPhoneNumber(e.target.value)}
+                        className="font-mono"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Include country code (e.g., +1 for US, +263 for Zimbabwe)
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setEditPhoneDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={updatePhoneNumber} disabled={updatingPhone || !newPhoneNumber.trim()}>
+                      {updatingPhone ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Update Phone
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -519,6 +613,7 @@ const AccountManagement = () => {
                     <TableHead>Email Address</TableHead>
                     <TableHead>Full Name</TableHead>
                     <TableHead>Stand Number</TableHead>
+                    <TableHead>Phone Number</TableHead>
                     <TableHead>Account Type</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Account Created</TableHead>
@@ -536,6 +631,24 @@ const AccountManagement = () => {
                       <TableCell>
                         {user.standNumber ? (
                           <Badge variant="outline" className="font-mono text-xs">{user.standNumber}</Badge>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {!user.isInternal ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-mono">{user.phoneNumber || '—'}</span>
+                            {isSuperAdmin && user.phoneNumber && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => openEditPhoneDialog(user)}
+                                title="Edit phone number"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         ) : '—'}
                       </TableCell>
                       <TableCell>{getAccountTypeBadge(user.accountType)}</TableCell>
@@ -562,29 +675,42 @@ const AccountManagement = () => {
                       </TableCell>
                       {isSuperAdmin && (
                         <TableCell>
-                          {user.isInternal && !user.isSuperAdmin && (
-                            <Select
-                              value={user.role}
-                              onValueChange={(value) => updateUserRole(user.userId, value)}
-                            >
-                              <SelectTrigger className="w-28">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="director">Director</SelectItem>
-                                <SelectItem value="helpdesk">Helpdesk</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                          {user.isSuperAdmin && (
-                            <span className="text-xs text-muted-foreground italic">Protected</span>
-                          )}
-                          {!user.isInternal && (
-                            <Button variant="ghost" size="sm" className="text-muted-foreground">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {user.isInternal && !user.isSuperAdmin && (
+                              <Select
+                                value={user.role}
+                                onValueChange={(value) => updateUserRole(user.userId, value)}
+                              >
+                                <SelectTrigger className="w-28">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  <SelectItem value="director">Director</SelectItem>
+                                  <SelectItem value="helpdesk">Helpdesk</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                            {user.isSuperAdmin && (
+                              <span className="text-xs text-muted-foreground italic">Protected</span>
+                            )}
+                            {!user.isInternal && (
+                              <div className="flex items-center gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-muted-foreground h-8 w-8 p-0"
+                                  onClick={() => openEditPhoneDialog(user)}
+                                  title="Edit phone number"
+                                >
+                                  <Phone className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-muted-foreground h-8 w-8 p-0">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
