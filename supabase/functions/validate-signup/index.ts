@@ -306,6 +306,9 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Check phone column if it exists (optional validation)
+    // IMPORTANT: Store the authoritative sheet phone number to return later
+    let authoritativePhoneNumber = trimmedPhone; // Default to user input if no sheet phone
+    
     if (phoneIndex !== -1) {
       // Normalize phone numbers for comparison
       const normalizePhone = (phone: string): string => {
@@ -318,7 +321,7 @@ const handler = async (req: Request): Promise<Response> => {
         const normalizedSheetPhone = normalizePhone(sheetPhone);
         const normalizedInputPhone = normalizePhone(trimmedPhone);
 
-        // Check if phone numbers match (allowing for some flexibility)
+        // Check if phone numbers match (allowing for some flexibility in input)
         const phonesMatch = normalizedSheetPhone.endsWith(normalizedInputPhone.slice(-9)) || 
                            normalizedInputPhone.endsWith(normalizedSheetPhone.slice(-9)) ||
                            normalizedSheetPhone === normalizedInputPhone;
@@ -333,6 +336,11 @@ const handler = async (req: Request): Promise<Response> => {
             { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
+        
+        // CRITICAL FIX: Use the authoritative sheet phone number, not user input
+        // This prevents storing incorrectly formatted phone numbers in the profile
+        authoritativePhoneNumber = normalizedSheetPhone;
+        console.log(`Using authoritative sheet phone: ${authoritativePhoneNumber} (user entered: ${trimmedPhone})`);
       }
     } else {
       console.log('Phone column not found in spreadsheet - skipping phone validation');
@@ -341,13 +349,13 @@ const handler = async (req: Request): Promise<Response> => {
     // Get email if available (optional)
     const email = emailIndex !== -1 ? customerRow[emailIndex]?.toString().trim() : null;
 
-    console.log(`Validation successful for stand: ${trimmedStand}`);
+    console.log(`Validation successful for stand: ${trimmedStand}, authoritative phone: ${authoritativePhoneNumber}`);
 
     return new Response(
       JSON.stringify({ 
         valid: true,
         standNumber: trimmedStand,
-        phoneNumber: trimmedPhone,
+        phoneNumber: authoritativePhoneNumber, // Return the authoritative sheet phone, not user input
         email: email || null, // Pass email for account creation if available
         message: "Stand number and phone number verified successfully"
       }),
