@@ -81,7 +81,7 @@ serve(async (req) => {
       // Get all customers (non-internal users with profiles)
       const { data: allProfiles } = await supabaseAdmin
         .from('profiles')
-        .select('id, email, full_name, stand_number, created_at')
+        .select('id, email, full_name, stand_number, phone_number, created_at')
         .order('created_at', { ascending: false });
 
       // Get auth users to check account created status
@@ -168,6 +168,7 @@ serve(async (req) => {
             createdAt: p.created_at,
             isInternal: false,
             standNumber: p.stand_number,
+            phoneNumber: p.phone_number || null,
           };
         });
 
@@ -299,6 +300,72 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, message: 'Internal user added successfully' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else if (action === 'updatePhoneNumber') {
+      // Only Super Admins can update phone numbers
+      if (!isSuperAdmin) {
+        throw new Error('Forbidden: Only Super Admins can update customer phone numbers');
+      }
+
+      const { userId: targetUserId, newPhoneNumber } = userData;
+      
+      if (!targetUserId || !newPhoneNumber) {
+        throw new Error('User ID and new phone number are required');
+      }
+
+      // Validate phone number format (basic validation)
+      const phoneRegex = /^\+?[1-9]\d{6,14}$/;
+      if (!phoneRegex.test(newPhoneNumber.replace(/\s/g, ''))) {
+        throw new Error('Invalid phone number format. Please use international format (e.g., +18452757810)');
+      }
+
+      // Get current profile info for audit log
+      const { data: currentProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('email, stand_number, phone_number')
+        .eq('id', targetUserId)
+        .single();
+
+      if (!currentProfile) {
+        throw new Error('Customer profile not found');
+      }
+
+      // Update the phone number
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ 
+          phone_number: newPhoneNumber.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', targetUserId);
+
+      if (updateError) {
+        console.error('Error updating phone number:', updateError);
+        throw new Error('Failed to update phone number');
+      }
+
+      // Log the action
+      await supabaseAdmin
+        .from('audit_log')
+        .insert({
+          action: 'phone_number_updated',
+          entity_type: 'customer',
+          entity_id: targetUserId,
+          performed_by: user.id,
+          performed_by_email: user.email,
+          details: { 
+            standNumber: currentProfile.stand_number,
+            email: currentProfile.email,
+            previousPhoneNumber: currentProfile.phone_number,
+            newPhoneNumber: newPhoneNumber.trim()
+          }
+        });
+
+      console.log(`Phone number updated for stand ${currentProfile.stand_number}: ${currentProfile.phone_number} -> ${newPhoneNumber}`);
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Phone number updated successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else if (action === 'deleteCustomer') {
