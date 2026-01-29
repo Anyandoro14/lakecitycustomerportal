@@ -79,17 +79,23 @@ serve(async (req) => {
         .in('id', userIds);
 
       // Get all customers (non-internal users with profiles)
-      const { data: allProfiles } = await supabaseAdmin
+      const { data: allProfiles, error: allProfilesError } = await supabaseAdmin
         .from('profiles')
         .select('id, email, full_name, stand_number, phone_number, created_at')
         .order('created_at', { ascending: false });
 
-      // Get auth users to check account created status
-      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+      if (allProfilesError) {
+        console.error('Error fetching all profiles:', allProfilesError);
+      }
+      console.log(`Fetched ${allProfiles?.length || 0} total profiles`);
+
+      // Get auth users to check account created status - paginate to get all users
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
 
       // Create profile map for quick lookup
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
       const authUserMap = new Map(authUsers?.users?.map(u => [u.id, u]) || []);
+      console.log(`Auth users map has ${authUserMap.size} entries`);
 
       // Get password reset tokens for last reset date
       const { data: resetTokens } = await supabaseAdmin
@@ -145,7 +151,10 @@ serve(async (req) => {
 
       // Build customer list from profiles (excluding internal users)
       const internalUserIds = new Set(internalUsers?.map(u => u.user_id) || []);
+      console.log(`Internal user IDs to exclude: ${Array.from(internalUserIds).join(', ')}`);
+      
       const customersList = (allProfiles || [])
+        .filter(p => !internalUserIds.has(p.id) && p.email)
         .filter(p => !internalUserIds.has(p.id) && p.email)
         .map(p => {
           const authUser = authUserMap.get(p.id);
@@ -172,7 +181,10 @@ serve(async (req) => {
           };
         });
 
+      console.log(`Built ${customersList.length} customers`);
+
       // Return both lists
+      console.log(`Returning ${internalUsersList.length} internal users and ${customersList.length} customers`);
       return new Response(
         JSON.stringify({ 
           users: [...internalUsersList, ...customersList],
