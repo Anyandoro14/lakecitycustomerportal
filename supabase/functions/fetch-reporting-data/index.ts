@@ -248,22 +248,34 @@ serve(async (req) => {
       if (!phone || typeof phone !== 'string') return '';
       const cleaned = phone.replace(/[\s\-\(\)]/g, '');
       
-      // Country dial code mappings (most specific first for disambiguation)
+      // Country dial code mappings (sorted longest first for proper matching)
       const dialCodeMap: Record<string, string> = {
         '+263': 'ZW',  // Zimbabwe
         '+260': 'ZM',  // Zambia
-        '+267': 'BG',  // Botswana (using BG for code, will map to proper name)
+        '+267': 'BW',  // Botswana
         '+258': 'MZ',  // Mozambique
         '+351': 'PT',  // Portugal
+        '+353': 'IE',  // Ireland
+        '+971': 'AE',  // United Arab Emirates
+        '+65': 'SG',   // Singapore
+        '+852': 'HK',  // Hong Kong
+        '+64': 'NZ',   // New Zealand
+        '+49': 'DE',   // Germany
+        '+33': 'FR',   // France
+        '+31': 'NL',   // Netherlands
         '+27': 'ZA',   // South Africa
         '+44': 'GB',   // United Kingdom
         '+61': 'AU',   // Australia
         '+1': 'US',    // United States (default for +1, could be CA)
       };
       
-      for (const [dialCode, isoCode] of Object.entries(dialCodeMap)) {
-        if (cleaned.startsWith(dialCode)) {
-          return isoCode;
+      // Sort by dial code length (longest first) to match most specific
+      const sortedDialCodes = Object.keys(dialCodeMap).sort((a, b) => b.length - a.length);
+      
+      for (const dialCode of sortedDialCodes) {
+        const noPlus = dialCode.replace('+', '');
+        if (cleaned.startsWith(dialCode) || cleaned.startsWith(noPlus)) {
+          return dialCodeMap[dialCode];
         }
       }
       return '';
