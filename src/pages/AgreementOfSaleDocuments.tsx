@@ -26,7 +26,18 @@ const AgreementOfSaleDocuments = () => {
       if (error) throw error;
 
       if (data?.stands?.length > 0) {
-        setStandData(data.stands[0]);
+        const stand = data.stands[0];
+        console.log('Agreement of Sale - Stand data:', {
+          standNumber: stand.standNumber,
+          hasAgreementFile: !!stand.agreementOfSaleFile,
+          agreementFileValue: stand.agreementOfSaleFile,
+          signedByWarwickshire: stand.agreementSignedByWarwickshire,
+          signedByClient: stand.agreementSignedByClient
+        });
+        setStandData(stand);
+      } else {
+        console.warn('Agreement of Sale - No stand data returned');
+        toast.error("No stand data found for your account");
       }
     } catch (error) {
       console.error('Failed to fetch stand data:', error);
