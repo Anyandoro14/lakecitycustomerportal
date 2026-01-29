@@ -316,6 +316,11 @@ serve(async (req) => {
         countryCode = fromPhone || 'UNKNOWN';
       }
       
+      // Log UNKNOWN entries for debugging
+      if (countryCode === 'UNKNOWN') {
+        console.log(`[UNKNOWN] Stand ${standNumber}: Column D="${rawCountryCode}", Phone="${phoneNumber}"`);
+      }
+      
       const customerCategory = row[customerCategoryIdx] || '';
       const totalPrice = row[totalPriceIdx] || '0';
       const totalPaid = row[totalPaidIdx] || '0';
