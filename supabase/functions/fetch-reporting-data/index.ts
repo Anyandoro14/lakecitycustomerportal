@@ -254,8 +254,13 @@ serve(async (req) => {
         '+260': 'ZM',  // Zambia
         '+267': 'BW',  // Botswana
         '+258': 'MZ',  // Mozambique
+        '+254': 'KE',  // Kenya
+        '+251': 'ET',  // Ethiopia
+        '+234': 'NG',  // Nigeria
+        '+233': 'GH',  // Ghana
         '+351': 'PT',  // Portugal
         '+353': 'IE',  // Ireland
+        '+966': 'SA',  // Saudi Arabia
         '+971': 'AE',  // United Arab Emirates
         '+65': 'SG',   // Singapore
         '+852': 'HK',  // Hong Kong
