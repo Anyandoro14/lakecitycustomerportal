@@ -11,12 +11,18 @@ const DIAL_CODE_TO_ISO: Record<string, string> = {
   "+260": "ZM", // Zambia
   "+267": "BW", // Botswana
   "+258": "MZ", // Mozambique
+  "+254": "KE", // Kenya
+  "+251": "ET", // Ethiopia
+  "+234": "NG", // Nigeria
+  "+233": "GH", // Ghana
+  "+20": "EG", // Egypt
   "+351": "PT", // Portugal
   "+353": "IE", // Ireland
+  "+966": "SA", // Saudi Arabia
+  "+971": "AE", // United Arab Emirates
   "+49": "DE", // Germany
   "+33": "FR", // France
   "+31": "NL", // Netherlands
-  "+971": "AE", // United Arab Emirates
   "+65": "SG", // Singapore
   "+852": "HK", // Hong Kong
   "+86": "CN", // China
@@ -35,10 +41,6 @@ const DIAL_CODE_TO_ISO: Record<string, string> = {
   "+48": "PL", // Poland
   "+55": "BR", // Brazil
   "+52": "MX", // Mexico
-  "+254": "KE", // Kenya
-  "+234": "NG", // Nigeria
-  "+233": "GH", // Ghana
-  "+20": "EG", // Egypt
 };
 
 // Minimal allowlist so we don't accidentally "normalize" arbitrary strings.
@@ -82,6 +84,8 @@ const KNOWN_ISO: Record<string, true> = {
   NG: true,
   GH: true,
   EG: true,
+  SA: true,  // Saudi Arabia
+  ET: true,  // Ethiopia
   UNKNOWN: true,
 };
 
