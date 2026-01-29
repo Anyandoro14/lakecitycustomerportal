@@ -15,6 +15,18 @@ interface PaymentRecord {
   date: string;
   amount: string;
   installment_period: string;
+  reference?: string;
+  payment_method?: string;
+}
+
+// Extended receipt record from Receipts_Intake
+interface ReceiptRecord {
+  intake_id: string;
+  stand_number: string;
+  payment_date: string;
+  payment_amount: number;
+  payment_method: string;
+  reference: string;
 }
 
 interface CustomerData {
@@ -164,6 +176,120 @@ async function getGoogleAccessToken(): Promise<string> {
 
   const { access_token } = await tokenResponse.json();
   return access_token;
+}
+
+// Fetch itemized receipts from Receipts_Intake sheet
+async function fetchItemizedReceipts(accessToken: string): Promise<Map<string, ReceiptRecord[]>> {
+  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    console.log('No SPREADSHEET_ID for receipts fetch');
+    return new Map();
+  }
+
+  try {
+    // Get metadata to find Receipts_Intake sheet
+    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metadataResponse = await fetch(metadataUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!metadataResponse.ok) {
+      console.log('Could not fetch metadata for receipts');
+      return new Map();
+    }
+
+    const metadata = await metadataResponse.json();
+    const sheets = metadata.sheets || [];
+    const receiptsSheet = sheets.find((s: any) => s.properties.title === 'Receipts_Intake');
+
+    if (!receiptsSheet) {
+      console.log('Receipts_Intake sheet not found - using column-based dates for statements');
+      return new Map();
+    }
+
+    const sheetTitle = receiptsSheet.properties.title;
+    console.log(`Fetching itemized receipts from: "${sheetTitle}"`);
+
+    // Fetch all receipts
+    const range = encodeURIComponent(`${sheetTitle}!A:L`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      console.log('Could not fetch Receipts_Intake data');
+      return new Map();
+    }
+
+    const data: GoogleSheetsResponse = await response.json();
+    const rows = data.values || [];
+    
+    console.log(`Fetched ${rows.length} receipt rows for statements`);
+
+    if (rows.length < 2) {
+      return new Map();
+    }
+
+    // Column indices for Receipts_Intake
+    const COL_INTAKE_ID = 0;
+    const COL_STAND_NUMBER = 2;
+    const COL_PAYMENT_DATE = 4;
+    const COL_PAYMENT_AMOUNT = 5;
+    const COL_PAYMENT_METHOD = 6;
+    const COL_REFERENCE = 7;
+    const COL_INTAKE_STATUS = 10;
+
+    // Build map of stand_number -> receipts (only Posted receipts)
+    const receiptsMap = new Map<string, ReceiptRecord[]>();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const standNumber = row[COL_STAND_NUMBER]?.toString().trim().toUpperCase() || '';
+      const intakeStatus = row[COL_INTAKE_STATUS]?.toString().trim() || '';
+      
+      // Only include Posted receipts
+      if (!standNumber) continue;
+      if (intakeStatus !== 'Posted') continue;
+      
+      const paymentAmount = parseCurrency(row[COL_PAYMENT_AMOUNT]?.toString() || '');
+      if (paymentAmount <= 0) continue;
+
+      const receipt: ReceiptRecord = {
+        intake_id: row[COL_INTAKE_ID]?.toString().trim() || `ROW_${i + 1}`,
+        stand_number: standNumber,
+        payment_date: row[COL_PAYMENT_DATE]?.toString().trim() || '',
+        payment_amount: paymentAmount,
+        payment_method: row[COL_PAYMENT_METHOD]?.toString().trim() || '',
+        reference: row[COL_REFERENCE]?.toString().trim() || ''
+      };
+
+      if (!receiptsMap.has(standNumber)) {
+        receiptsMap.set(standNumber, []);
+      }
+      receiptsMap.get(standNumber)!.push(receipt);
+    }
+
+    // Sort receipts by payment date (oldest first for statement generation)
+    for (const [stand, receipts] of receiptsMap) {
+      receipts.sort((a, b) => {
+        const dateA = new Date(a.payment_date);
+        const dateB = new Date(b.payment_date);
+        if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+        if (isNaN(dateA.getTime())) return 1;
+        if (isNaN(dateB.getTime())) return -1;
+        return dateA.getTime() - dateB.getTime(); // Oldest first
+      });
+    }
+
+    console.log(`Built itemized receipts map for ${receiptsMap.size} stands`);
+    return receiptsMap;
+
+  } catch (error) {
+    console.error('Error fetching itemized receipts:', error);
+    return new Map();
+  }
 }
 
 // Fetch all customer data from Google Sheets
@@ -318,31 +444,56 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
 // Generate statements for a single customer (optimized - batch insert)
 // UPDATED: Uses currentBalance from sheet (Column AZ) as source of truth for the latest statement
 // Previous months work backwards from there
+// ENHANCED: Uses itemized receipts for actual payment dates when available
 function generateStatementsForCustomerSync(
   customer: CustomerData,
   startMonth: Date,
   endMonth: Date,
   paymentStartDate: Date,
-  existingStatements: Set<string>
+  existingStatements: Set<string>,
+  itemizedReceipts: ReceiptRecord[]
 ): StatementRecord[] {
   const statements: StatementRecord[] = [];
   
-  // Build monthly payment map: month -> total payments in that month
-  const monthlyPaymentsMap: Record<string, { payments: PaymentRecord[], total: number }> = {};
+  // Build monthly payment map using ITEMIZED RECEIPTS if available (preferred)
+  // This provides actual receipt dates instead of column-position dates
+  const monthlyPaymentsMap: Record<string, { payments: PaymentRecord[], receipts: ReceiptRecord[], total: number }> = {};
   let totalPaymentsAll = 0;
   
-  for (const payment of customer.payments) {
-    const paymentDate = parsePaymentDate(payment.date);
-    if (!paymentDate) continue;
+  if (itemizedReceipts.length > 0) {
+    // Use itemized receipts from Receipts_Intake (preferred - has actual dates)
+    console.log(`Using ${itemizedReceipts.length} itemized receipts for statement generation`);
     
-    const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}-01`;
-    if (!monthlyPaymentsMap[monthKey]) {
-      monthlyPaymentsMap[monthKey] = { payments: [], total: 0 };
+    for (const receipt of itemizedReceipts) {
+      const paymentDate = parsePaymentDate(receipt.payment_date);
+      if (!paymentDate) continue;
+      
+      const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}-01`;
+      if (!monthlyPaymentsMap[monthKey]) {
+        monthlyPaymentsMap[monthKey] = { payments: [], receipts: [], total: 0 };
+      }
+      
+      monthlyPaymentsMap[monthKey].receipts.push(receipt);
+      monthlyPaymentsMap[monthKey].total += receipt.payment_amount;
+      totalPaymentsAll += receipt.payment_amount;
     }
-    const paymentAmount = parseCurrency(payment.amount);
-    monthlyPaymentsMap[monthKey].payments.push(payment);
-    monthlyPaymentsMap[monthKey].total += paymentAmount;
-    totalPaymentsAll += paymentAmount;
+  } else {
+    // Fallback: Use column-based payments from Collection Schedule
+    console.log(`Using column-based payments for statement generation (no itemized receipts)`);
+    
+    for (const payment of customer.payments) {
+      const paymentDate = parsePaymentDate(payment.date);
+      if (!paymentDate) continue;
+      
+      const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}-01`;
+      if (!monthlyPaymentsMap[monthKey]) {
+        monthlyPaymentsMap[monthKey] = { payments: [], receipts: [], total: 0 };
+      }
+      const paymentAmount = parseCurrency(payment.amount);
+      monthlyPaymentsMap[monthKey].payments.push(payment);
+      monthlyPaymentsMap[monthKey].total += paymentAmount;
+      totalPaymentsAll += paymentAmount;
+    }
   }
   
   // Use sheet's currentBalance (Column AZ) as the authoritative closing balance for the MOST RECENT month
@@ -400,13 +551,28 @@ function generateStatementsForCustomerSync(
         : 0;
     }
     
-    // Format payments for JSONB storage
-    const paymentsJson = monthData.payments.map(p => ({
-      date: p.date,
-      amount: p.amount,
-      installment_period: p.installment_period,
-      amount_numeric: parseCurrency(p.amount)
-    }));
+    // Format payments for JSONB storage - include itemized receipts with actual dates
+    let paymentsJson: any[];
+    
+    if (monthData.receipts.length > 0) {
+      // Use itemized receipts (has actual receipt dates, reference, payment method)
+      paymentsJson = monthData.receipts.map(r => ({
+        date: r.payment_date,
+        amount: `$${r.payment_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        installment_period: `${new Date(r.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}`,
+        amount_numeric: r.payment_amount,
+        reference: r.reference || undefined,
+        payment_method: r.payment_method || undefined
+      }));
+    } else {
+      // Fallback to column-based payments
+      paymentsJson = monthData.payments.map(p => ({
+        date: p.date,
+        amount: p.amount,
+        installment_period: p.installment_period,
+        amount_numeric: parseCurrency(p.amount)
+      }));
+    }
     
     statements.push({
       stand_number: customer.standNumber,
@@ -481,9 +647,12 @@ serve(async (req) => {
       }
     }
 
-    // Fetch customer data from sheets
-    console.log('Fetching customer data from Google Sheets...');
-    const customers = await fetchAllCustomerData(accessToken);
+    // Fetch customer data and itemized receipts from sheets in parallel
+    console.log('Fetching customer data and itemized receipts from Google Sheets...');
+    const [customers, itemizedReceiptsMap] = await Promise.all([
+      fetchAllCustomerData(accessToken),
+      fetchItemizedReceipts(accessToken)
+    ]);
 
     if (customers.length === 0) {
       return new Response(
@@ -557,12 +726,17 @@ serve(async (req) => {
     for (const customer of customersToProcess) {
       const customerPaymentStartDate = paymentStartDateMap[customer.standNumber] || defaultPaymentStartDate;
       
+      // Get itemized receipts for this customer
+      const standKey = customer.standNumber.toUpperCase();
+      const customerReceipts = itemizedReceiptsMap.get(standKey) || [];
+      
       const customerStatements = generateStatementsForCustomerSync(
         customer,
         startMonth,
         endMonth,
         customerPaymentStartDate,
-        existingStatements
+        existingStatements,
+        customerReceipts
       );
       
       allNewStatements.push(...customerStatements);

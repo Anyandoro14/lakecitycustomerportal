@@ -542,7 +542,35 @@ async function fetchAndValidateReceipts(
   return { approved, rejected };
 }
 
+// Parse a date string to Date object (handles various formats)
+function parseReceiptDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// Get the column index for a given month
+// Column M (12) = September 2025, N (13) = October 2025, etc.
+function getMonthColumnIndex(paymentDate: Date, baseDate: Date, paymentColumnStart: number, paymentColumnEnd: number): number {
+  // Calculate months difference from base date (September 2025 = Column M = index 12)
+  const baseYear = baseDate.getFullYear();
+  const baseMonth = baseDate.getMonth();
+  const payYear = paymentDate.getFullYear();
+  const payMonth = paymentDate.getMonth();
+  
+  const monthsDiff = (payYear - baseYear) * 12 + (payMonth - baseMonth);
+  const targetColumn = paymentColumnStart + monthsDiff;
+  
+  // Ensure we're within the valid payment column range
+  if (targetColumn < paymentColumnStart || targetColumn > paymentColumnEnd) {
+    return -1; // Out of range
+  }
+  
+  return targetColumn;
+}
+
 // Post approved receipts to the Collection Schedule
+// ENHANCED: Supports monthly aggregation - adds to existing cell value if payment falls in same month
 async function postReceiptsToCollectionSchedule(
   accessToken: string,
   approvedReceipts: ApprovedReceipt[],
@@ -551,6 +579,7 @@ async function postReceiptsToCollectionSchedule(
     rows: string[][];
     standRowMap: Map<string, number>;
     paymentColumnStart: number;
+    headerRow: string[];
   }
 ): Promise<PostedReceipt[]> {
   const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
@@ -559,10 +588,25 @@ async function postReceiptsToCollectionSchedule(
   }
 
   const posted: PostedReceipt[] = [];
+  const paymentColumnEnd = 48; // Column AW
   
-  // Track columns we've already posted to for each row (to handle multiple receipts for same stand)
-  const postedColumnsPerRow = new Map<number, Set<number>>();
-
+  // Parse the base date from the first payment column header (Column M)
+  // This is the reference point for calculating which column corresponds to which month
+  let baseDate = new Date(2025, 8, 5); // Default: September 5, 2025
+  const firstPaymentHeader = scheduleData.headerRow[scheduleData.paymentColumnStart];
+  if (firstPaymentHeader) {
+    const parsedHeaderDate = new Date(firstPaymentHeader);
+    if (!isNaN(parsedHeaderDate.getTime())) {
+      baseDate = parsedHeaderDate;
+    }
+  }
+  console.log(`Base date for payment columns: ${baseDate.toLocaleDateString()}`);
+  
+  // Track cell updates for each stand/column combination
+  // Map of "row-col" -> { existingValue, newValue }
+  const cellUpdates = new Map<string, { rowNum: number; col: number; currentValue: number; addedAmount: number }>();
+  
+  // Group receipts by stand and month for proper aggregation
   for (const receipt of approvedReceipts) {
     const rowNum = scheduleData.standRowMap.get(receipt.stand_number);
     if (!rowNum) {
@@ -570,47 +614,89 @@ async function postReceiptsToCollectionSchedule(
       continue;
     }
 
-    console.log(`Processing stand ${receipt.stand_number}, row ${rowNum}`);
+    console.log(`Processing stand ${receipt.stand_number}, row ${rowNum}, payment_date: ${receipt.payment_date}`);
 
-    // Find the next empty payment cell in the row
-    // Payments are in columns M (12) through AW (48) - sequential, not interleaved
-    const rowData = scheduleData.rows[rowNum - 1] || [];
-    let targetColumn = -1;
+    // Parse the receipt's payment date to determine which month it belongs to
+    const paymentDate = parseReceiptDate(receipt.payment_date);
+    let targetColumn: number;
     
-    // Get columns already posted to in this run for this row
-    const alreadyPostedCols = postedColumnsPerRow.get(rowNum) || new Set<number>();
-
-    console.log(`Scanning payment columns from M (12) through AW (48)...`);
-    console.log(`Row data length: ${rowData.length}, already posted to columns in this run: ${Array.from(alreadyPostedCols).map(c => columnIndexToLetter(c)).join(', ') || 'none'}`);
-
-    // Scan all payment columns from M (12) to AW (48)
-    for (let col = 12; col <= 48; col++) {
-      // Skip columns we already posted to in this batch
-      if (alreadyPostedCols.has(col)) {
-        console.log(`Column ${columnIndexToLetter(col)} (${col}): SKIPPED (already posted in this run)`);
-        continue;
-      }
+    if (paymentDate) {
+      // Receipt has a valid date - find the corresponding month column
+      targetColumn = getMonthColumnIndex(paymentDate, baseDate, scheduleData.paymentColumnStart, paymentColumnEnd);
       
-      const cellValue = rowData[col]?.toString().trim() || '';
-      console.log(`Column ${columnIndexToLetter(col)} (${col}): "${cellValue}"`);
-      if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
-        targetColumn = col;
-        console.log(`Found empty payment cell at column ${columnIndexToLetter(col)}`);
-        break;
+      if (targetColumn === -1) {
+        // Date is outside the range of payment columns - fallback to next empty cell
+        console.log(`[FALLBACK] Payment date ${receipt.payment_date} is outside column range, using next empty cell`);
+        targetColumn = findNextEmptyColumn(scheduleData.rows[rowNum - 1] || [], scheduleData.paymentColumnStart, paymentColumnEnd, cellUpdates, rowNum);
+      } else {
+        console.log(`[MAPPED] Payment date ${receipt.payment_date} maps to column ${columnIndexToLetter(targetColumn)} (month: ${paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })})`);
       }
+    } else {
+      // No valid date - use next empty cell (existing behavior)
+      console.log(`[FALLBACK] No valid payment date for ${receipt.intake_id}, using next empty cell`);
+      targetColumn = findNextEmptyColumn(scheduleData.rows[rowNum - 1] || [], scheduleData.paymentColumnStart, paymentColumnEnd, cellUpdates, rowNum);
     }
 
     if (targetColumn === -1) {
-      console.log(`[SKIP] No empty payment cell for stand ${receipt.stand_number} (columns M-AW full)`);
+      console.log(`[SKIP] No valid target column for stand ${receipt.stand_number}`);
       continue;
     }
 
-    const columnLetter = columnIndexToLetter(targetColumn);
-    const cellRange = `${scheduleData.sheetTitle}!${columnLetter}${rowNum}`;
+    const cellKey = `${rowNum}-${targetColumn}`;
+    const rowData = scheduleData.rows[rowNum - 1] || [];
+    
+    // Get existing value in the cell
+    let existingValue = 0;
+    if (cellUpdates.has(cellKey)) {
+      // We've already processed this cell in this batch
+      const update = cellUpdates.get(cellKey)!;
+      existingValue = update.currentValue + update.addedAmount;
+    } else {
+      // Check the actual sheet value
+      const cellValueStr = rowData[targetColumn]?.toString().trim() || '';
+      if (cellValueStr && cellValueStr !== '0' && cellValueStr !== '$0' && cellValueStr !== '$0.00') {
+        existingValue = parseCurrency(cellValueStr);
+      }
+    }
 
-    console.log(`[POSTING] ${receipt.intake_id}: $${receipt.payment_amount} -> ${cellRange}`);
+    // Calculate new total (existing + new receipt)
+    const newTotal = existingValue + receipt.payment_amount;
+    
+    console.log(`[AGGREGATION] ${receipt.intake_id}: Existing=${existingValue}, Adding=${receipt.payment_amount}, NewTotal=${newTotal}`);
 
-    // Write the payment amount to the cell
+    // Track this update
+    if (cellUpdates.has(cellKey)) {
+      const update = cellUpdates.get(cellKey)!;
+      update.addedAmount += receipt.payment_amount;
+    } else {
+      cellUpdates.set(cellKey, {
+        rowNum,
+        col: targetColumn,
+        currentValue: existingValue > 0 ? existingValue : 0,
+        addedAmount: receipt.payment_amount
+      });
+    }
+
+    // Record for return value - will update with actual posted column after writing
+    posted.push({
+      intake_id: receipt.intake_id,
+      stand_number: receipt.stand_number,
+      payment_amount: receipt.payment_amount,
+      posted_to_column: columnIndexToLetter(targetColumn),
+      posted_to_row: rowNum
+    });
+  }
+
+  // Now write all the aggregated values to the sheet
+  console.log(`Writing ${cellUpdates.size} cell updates to sheet...`);
+  
+  for (const [cellKey, update] of cellUpdates) {
+    const finalValue = update.currentValue + update.addedAmount;
+    const columnLetter = columnIndexToLetter(update.col);
+    const cellRange = `${scheduleData.sheetTitle}!${columnLetter}${update.rowNum}`;
+
+    console.log(`[POSTING] ${cellRange}: ${update.currentValue} + ${update.addedAmount} = ${finalValue}`);
+
     const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
     
     const updateResponse = await fetch(updateUrl, {
@@ -620,34 +706,43 @@ async function postReceiptsToCollectionSchedule(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        values: [[receipt.payment_amount]]
+        values: [[finalValue]]
       }),
     });
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      console.error(`[ERROR] Failed to post ${receipt.intake_id}: ${errorText}`);
-      continue;
+      console.error(`[ERROR] Failed to update ${cellRange}: ${errorText}`);
+    } else {
+      console.log(`[SUCCESS] Updated ${cellRange} to ${finalValue}`);
     }
-
-    console.log(`[SUCCESS] Posted ${receipt.intake_id} to ${cellRange}`);
-    
-    // Mark this column as used for this row so subsequent receipts for same stand go to next column
-    if (!postedColumnsPerRow.has(rowNum)) {
-      postedColumnsPerRow.set(rowNum, new Set<number>());
-    }
-    postedColumnsPerRow.get(rowNum)!.add(targetColumn);
-    
-    posted.push({
-      intake_id: receipt.intake_id,
-      stand_number: receipt.stand_number,
-      payment_amount: receipt.payment_amount,
-      posted_to_column: columnLetter,
-      posted_to_row: rowNum
-    });
   }
 
   return posted;
+}
+
+// Helper function to find next empty column (fallback for receipts without valid dates)
+function findNextEmptyColumn(
+  rowData: string[],
+  paymentColumnStart: number,
+  paymentColumnEnd: number,
+  cellUpdates: Map<string, { rowNum: number; col: number; currentValue: number; addedAmount: number }>,
+  rowNum: number
+): number {
+  for (let col = paymentColumnStart; col <= paymentColumnEnd; col++) {
+    const cellKey = `${rowNum}-${col}`;
+    
+    // Skip if we already have pending updates for this cell
+    if (cellUpdates.has(cellKey)) {
+      continue;
+    }
+    
+    const cellValue = rowData[col]?.toString().trim() || '';
+    if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
+      return col;
+    }
+  }
+  return -1; // No empty column found
 }
 
 // Mark receipts as "Posted" in the Receipts_Intake sheet
