@@ -710,7 +710,7 @@ const AccountManagement = () => {
                         {!user.isInternal ? (
                           <div className="flex items-center gap-1">
                             <span className="text-sm font-mono">{user.phoneNumber || '—'}</span>
-                            {isSuperAdmin && user.phoneNumber && (
+                            {isSuperAdmin && (
                               <Button
                                 variant="ghost"
                                 size="sm"
