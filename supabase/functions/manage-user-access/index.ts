@@ -357,7 +357,7 @@ serve(async (req) => {
         throw new Error('Google Sheets configuration is missing');
       }
 
-      // Get Google access token
+      // Get Google access token - handle both JSON and raw private key formats
       const getAccessToken = async () => {
         const header = { alg: 'RS256', typ: 'JWT' };
         const now = Math.floor(Date.now() / 1000);
@@ -376,17 +376,55 @@ serve(async (req) => {
         const claimB64 = toBase64Url(encoder.encode(JSON.stringify(claim)));
         const signatureInput = `${headerB64}.${claimB64}`;
 
-        let cleanKey = privateKey;
-        if (!cleanKey.includes('-----BEGIN')) {
-          cleanKey = `-----BEGIN PRIVATE KEY-----\n${cleanKey}\n-----END PRIVATE KEY-----`;
+        // Handle both raw private key and JSON service account key formats
+        let actualPrivateKey: string;
+        if (privateKey.trim().startsWith('{')) {
+          try {
+            const keyData = JSON.parse(privateKey);
+            actualPrivateKey = keyData.private_key;
+          } catch (e) {
+            console.error('Error parsing JSON service account key');
+            throw new Error('Invalid JSON service account key format');
+          }
+        } else {
+          actualPrivateKey = privateKey;
+          if (!actualPrivateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+            actualPrivateKey = `-----BEGIN PRIVATE KEY-----\n${actualPrivateKey}\n-----END PRIVATE KEY-----`;
+          }
         }
+        
+        // Replace escaped newlines with actual newlines
+        actualPrivateKey = actualPrivateKey.replace(/\\n/g, '\n');
 
-        const pemContent = cleanKey.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n|\r/g, '');
-        const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
+        const pemHeader = '-----BEGIN PRIVATE KEY-----';
+        const pemFooter = '-----END PRIVATE KEY-----';
+        
+        let pemContents = actualPrivateKey;
+        if (pemContents.includes(pemHeader)) {
+          pemContents = pemContents.substring(
+            pemContents.indexOf(pemHeader) + pemHeader.length,
+            pemContents.indexOf(pemFooter)
+          );
+        }
+        
+        // Remove all whitespace and non-base64 characters
+        pemContents = pemContents.replace(/[^A-Za-z0-9+/=]/g, '');
+        
+        let binaryKey: Uint8Array;
+        try {
+          const binaryString = atob(pemContents);
+          binaryKey = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            binaryKey[i] = binaryString.charCodeAt(i);
+          }
+        } catch (e) {
+          console.error('Failed to decode base64 private key');
+          throw new Error('Failed to decode private key - invalid base64 encoding');
+        }
         
         const cryptoKey = await crypto.subtle.importKey(
           'pkcs8',
-          binaryKey,
+          binaryKey.buffer as ArrayBuffer,
           { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
           false,
           ['sign']
