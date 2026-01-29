@@ -4,6 +4,8 @@ import { History } from "lucide-react";
 interface PaymentHistoryItem {
   date: string;
   amount: string;
+  reference?: string;
+  payment_method?: string;
 }
 
 interface PaymentHistoryProps {
@@ -40,7 +42,10 @@ const PaymentHistory = ({ payments }: PaymentHistoryProps) => {
                     year: 'numeric'
                   })}
                 </div>
-                <div className="text-xs text-muted-foreground">Payment</div>
+                <div className="text-xs text-muted-foreground">
+                  {payment.reference ? `Ref: ${payment.reference}` : 'Payment'}
+                  {payment.payment_method && ` • ${payment.payment_method}`}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-sm font-medium text-foreground">

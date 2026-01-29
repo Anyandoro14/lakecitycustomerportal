@@ -11,6 +11,147 @@ interface GoogleSheetsResponse {
   values: string[][];
 }
 
+// Interface for individual receipt records from Receipts_Intake
+interface ReceiptRecord {
+  intake_id: string;
+  timestamp: string;
+  stand_number: string;
+  customer_name: string;
+  payment_date: string;
+  payment_amount: number;
+  payment_method: string;
+  reference: string;
+  intake_status: string;
+}
+
+// Parse currency string to number
+const parseCurrencyValue = (val: string): number => {
+  if (!val) return 0;
+  const cleaned = val.toString().replace(/[$,\s]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+// Fetch posted receipts from Receipts_Intake sheet for a list of stand numbers
+async function fetchPostedReceipts(accessToken: string, standNumbers: string[]): Promise<Map<string, ReceiptRecord[]>> {
+  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    console.log('No SPREADSHEET_ID for receipts fetch');
+    return new Map();
+  }
+
+  try {
+    // Get metadata to find Receipts_Intake sheet
+    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metadataResponse = await fetch(metadataUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!metadataResponse.ok) {
+      console.log('Could not fetch metadata for receipts');
+      return new Map();
+    }
+
+    const metadata = await metadataResponse.json();
+    const sheets = metadata.sheets || [];
+    const receiptsSheet = sheets.find((s: any) => s.properties.title === 'Receipts_Intake');
+
+    if (!receiptsSheet) {
+      console.log('Receipts_Intake sheet not found - falling back to column-based dates');
+      return new Map();
+    }
+
+    const sheetTitle = receiptsSheet.properties.title;
+    console.log(`Fetching receipts from: "${sheetTitle}"`);
+
+    // Fetch all receipts
+    const range = encodeURIComponent(`${sheetTitle}!A:L`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      console.log('Could not fetch Receipts_Intake data');
+      return new Map();
+    }
+
+    const data: GoogleSheetsResponse = await response.json();
+    const rows = data.values || [];
+    
+    console.log(`Fetched ${rows.length} receipt rows`);
+
+    if (rows.length < 2) {
+      return new Map();
+    }
+
+    // Column indices for Receipts_Intake
+    const COL_INTAKE_ID = 0;
+    const COL_TIMESTAMP = 1;
+    const COL_STAND_NUMBER = 2;
+    const COL_CUSTOMER_NAME = 3;
+    const COL_PAYMENT_DATE = 4;
+    const COL_PAYMENT_AMOUNT = 5;
+    const COL_PAYMENT_METHOD = 6;
+    const COL_REFERENCE = 7;
+    const COL_INTAKE_STATUS = 10;
+
+    // Build map of stand_number -> receipts (only Posted receipts)
+    const receiptsMap = new Map<string, ReceiptRecord[]>();
+    const standNumberSet = new Set(standNumbers.map(s => s.toUpperCase()));
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const standNumber = row[COL_STAND_NUMBER]?.toString().trim().toUpperCase() || '';
+      const intakeStatus = row[COL_INTAKE_STATUS]?.toString().trim() || '';
+      
+      // Only include Posted receipts for stands we're interested in
+      if (!standNumberSet.has(standNumber)) continue;
+      if (intakeStatus !== 'Posted') continue;
+      
+      const paymentAmount = parseCurrencyValue(row[COL_PAYMENT_AMOUNT]?.toString() || '');
+      if (paymentAmount <= 0) continue;
+
+      const receipt: ReceiptRecord = {
+        intake_id: row[COL_INTAKE_ID]?.toString().trim() || `ROW_${i + 1}`,
+        timestamp: row[COL_TIMESTAMP]?.toString().trim() || '',
+        stand_number: standNumber,
+        customer_name: row[COL_CUSTOMER_NAME]?.toString().trim() || '',
+        payment_date: row[COL_PAYMENT_DATE]?.toString().trim() || '',
+        payment_amount: paymentAmount,
+        payment_method: row[COL_PAYMENT_METHOD]?.toString().trim() || '',
+        reference: row[COL_REFERENCE]?.toString().trim() || '',
+        intake_status: intakeStatus
+      };
+
+      if (!receiptsMap.has(standNumber)) {
+        receiptsMap.set(standNumber, []);
+      }
+      receiptsMap.get(standNumber)!.push(receipt);
+    }
+
+    // Sort receipts by payment date (most recent first)
+    for (const [stand, receipts] of receiptsMap) {
+      receipts.sort((a, b) => {
+        const dateA = new Date(a.payment_date);
+        const dateB = new Date(b.payment_date);
+        if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+        if (isNaN(dateA.getTime())) return 1;
+        if (isNaN(dateB.getTime())) return -1;
+        return dateB.getTime() - dateA.getTime(); // Most recent first
+      });
+    }
+
+    console.log(`Built receipts map for ${receiptsMap.size} stands`);
+    return receiptsMap;
+
+  } catch (error) {
+    console.error('Error fetching receipts:', error);
+    return new Map();
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -415,6 +556,14 @@ serve(async (req) => {
 
       console.log(`User ${primaryEmail} (stand: ${profileStandNumber || 'N/A'}) authorized for ${customerRows.length} stand(s)`);
     }
+
+    // Fetch itemized receipts from Receipts_Intake for payment history
+    // This provides actual receipt dates instead of column-position-based dates
+    const standNumbersList = customerRows.map(row => row[standNumIndex]?.toString().trim().toUpperCase() || '').filter(Boolean);
+    console.log(`Fetching receipts for ${standNumbersList.length} stand(s)...`);
+    const receiptsMap = await fetchPostedReceipts(access_token, standNumbersList);
+    console.log(`Receipts found for ${receiptsMap.size} stand(s)`);
+
     // Map all stands to data objects
     const stands = customerRows.map(customerRow => {
       const standNumber = customerRow[standNumIndex];
@@ -501,6 +650,7 @@ serve(async (req) => {
       
       // Extract payment columns and build payment history
       const paymentColumns = [];
+      // Extended payment history type that includes reference and method for itemized receipts
       const paymentHistory: Array<{
         date: string;
         amount: string;
@@ -508,6 +658,8 @@ serve(async (req) => {
         interest: string;
         vat: string;
         total: string;
+        reference?: string;
+        payment_method?: string;
       }> = [];
       
       for (let i = paymentStartCol; i <= paymentEndCol; i++) {
@@ -533,6 +685,7 @@ serve(async (req) => {
       
       console.log(`Stand ${standNumber}: Processing ${paymentColumns.length} payment columns`);
       
+      // Calculate totals from Collection Schedule columns (source of truth for balances)
       for (let i = 0; i < paymentColumns.length; i++) {
         if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
           const paymentValue = parseCurrencyToNumber(paymentColumns[i].toString());
@@ -541,23 +694,81 @@ serve(async (req) => {
           lastPaymentAmount = paymentColumns[i].toString();
           lastPaymentIndex = i;
           
-          // Calculate date using base payment date from header row
+          // Calculate date using base payment date from header row (fallback)
           const monthsFromStart = i;
           const paymentDate = new Date(basePaymentDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+      }
+
+      // Build payment history from ITEMIZED RECEIPTS if available (preferred)
+      // This shows actual receipt dates, not column-position dates
+      const standKey = standNumber.toString().trim().toUpperCase();
+      const itemizedReceipts = receiptsMap.get(standKey) || [];
+      
+      if (itemizedReceipts.length > 0) {
+        console.log(`Stand ${standNumber}: Using ${itemizedReceipts.length} itemized receipts for payment history`);
+        
+        for (const receipt of itemizedReceipts) {
+          // Parse the actual receipt date
+          let displayDate = receipt.payment_date;
+          try {
+            const receiptDate = new Date(receipt.payment_date);
+            if (!isNaN(receiptDate.getTime())) {
+              displayDate = receiptDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            }
+          } catch (e) {
+            // Keep original string if parsing fails
+          }
           
-          // Add to payment history
+          const amountStr = `$${receipt.payment_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          
           paymentHistory.push({
-            date: lastPaymentDate,
-            amount: paymentColumns[i].toString(),
-            principal: paymentColumns[i].toString(), // For now, full amount goes to principal
-            interest: '$0.00', // Will be calculated from separate sheet later
-            vat: '$0.00', // Will be calculated from separate sheet later
-            total: paymentColumns[i].toString()
+            date: displayDate,
+            amount: amountStr,
+            principal: amountStr,
+            interest: '$0.00',
+            vat: '$0.00',
+            total: amountStr,
+            reference: receipt.reference || undefined,
+            payment_method: receipt.payment_method || undefined
           });
-          
-          console.log(`Stand ${standNumber}: Payment at index ${i} = ${paymentColumns[i]} (${paymentValue}), Date: ${lastPaymentDate}`);
+        }
+        
+        // Update lastPaymentDate to the actual most recent receipt date
+        if (itemizedReceipts.length > 0) {
+          const mostRecent = itemizedReceipts[0]; // Already sorted most recent first
+          try {
+            const receiptDate = new Date(mostRecent.payment_date);
+            if (!isNaN(receiptDate.getTime())) {
+              lastPaymentDate = receiptDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            }
+          } catch (e) {
+            // Keep column-based date as fallback
+          }
+        }
+      } else {
+        // Fallback: Build payment history from Collection Schedule columns
+        // This is the legacy behavior for stands without receipts in Receipts_Intake
+        console.log(`Stand ${standNumber}: No itemized receipts found, using column-based payment history`);
+        
+        for (let i = 0; i < paymentColumns.length; i++) {
+          if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
+            const monthsFromStart = i;
+            const paymentDate = new Date(basePaymentDate);
+            paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
+            const dateStr = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            paymentHistory.push({
+              date: dateStr,
+              amount: paymentColumns[i].toString(),
+              principal: paymentColumns[i].toString(),
+              interest: '$0.00',
+              vat: '$0.00',
+              total: paymentColumns[i].toString()
+            });
+          }
         }
       }
       
