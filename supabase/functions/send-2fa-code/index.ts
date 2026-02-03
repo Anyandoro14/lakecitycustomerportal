@@ -11,6 +11,7 @@ const corsHeaders = {
 
 interface SendCodeRequest {
   phoneNumber: string;
+  channel?: 'whatsapp' | 'sms';
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -19,7 +20,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { phoneNumber }: SendCodeRequest = await req.json();
+    const { phoneNumber, channel = 'whatsapp' }: SendCodeRequest = await req.json();
 
     if (!phoneNumber) {
       throw new Error("Phone number is required");
@@ -29,9 +30,11 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Twilio credentials not configured");
     }
 
-    console.log(`Sending WhatsApp verification code to ${phoneNumber}`);
+    // Validate channel
+    const validChannel = channel === 'sms' ? 'sms' : 'whatsapp';
+    console.log(`Sending ${validChannel.toUpperCase()} verification code to ${phoneNumber}`);
 
-    // Send verification code using Twilio Verify API via WhatsApp channel
+    // Send verification code using Twilio Verify API
     const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/Verifications`;
     
     const response = await fetch(url, {
@@ -42,7 +45,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: new URLSearchParams({
         To: phoneNumber,
-        Channel: 'whatsapp'
+        Channel: validChannel
       })
     });
 
