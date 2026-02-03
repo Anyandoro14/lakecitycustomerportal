@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, MessageCircle, Phone } from "lucide-react";
 import { 
   verificationCodeSchema,
   standNumberSchema,
@@ -27,6 +27,8 @@ const Login = () => {
   const [verificationCode, setVerificationCode] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [deliveryBlocked, setDeliveryBlocked] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [showChannelSelection, setShowChannelSelection] = useState(false);
   
   // Resend 2FA state
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -119,10 +121,10 @@ const Login = () => {
     }
   };
 
-  const sendVerificationCode = async (phone: string): Promise<boolean> => {
+  const sendVerificationCode = async (phone: string, channel: 'whatsapp' | 'sms' = 'whatsapp'): Promise<boolean> => {
     try {
       const { error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
-        body: { phoneNumber: phone }
+        body: { phoneNumber: phone, channel }
       });
 
       if (verifyError) throw verifyError;
@@ -196,28 +198,8 @@ const Login = () => {
           setResendAttempts(0);
           setResendCooldown(0);
           
-          // Send 2FA code.
-          // If delivery is blocked (common for some regions), still allow the customer to
-          // proceed and enter a bypass code provided by support.
-          let sent = false;
-          try {
-            await sendVerificationCode(profile.phone_number);
-            sent = true;
-
-            // Start cooldown after initial send
-            startCooldownTimer();
-          } catch (err: any) {
-            console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err);
-            setDeliveryBlocked(true);
-          }
-
-          setShowVerification(true);
-          toast({
-            title: sent ? "Verification code sent" : "Verification code delivery unavailable",
-            description: sent
-              ? `We've sent a 6-digit code to ${maskPhoneNumber(profile.phone_number)}`
-              : `We couldn't deliver a code to ${maskPhoneNumber(profile.phone_number)}. If support provided you a bypass code, enter it below to continue.`,
-          });
+          // Show channel selection screen
+          setShowChannelSelection(true);
         } else {
           // No phone number, proceed without 2FA
           navigate("/");
@@ -234,6 +216,39 @@ const Login = () => {
     }
   };
 
+  const handleChannelSelect = async (channel: 'whatsapp' | 'sms') => {
+    setSelectedChannel(channel);
+    setLoading(true);
+    setDeliveryBlocked(false);
+
+    try {
+      await sendVerificationCode(phoneNumber, channel);
+      
+      // Start cooldown after initial send
+      startCooldownTimer();
+      
+      setShowChannelSelection(false);
+      setShowVerification(true);
+      
+      toast({
+        title: "Verification code sent",
+        description: `We've sent a 6-digit code via ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} to ${maskPhoneNumber(phoneNumber)}`,
+      });
+    } catch (err: any) {
+      console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err);
+      setDeliveryBlocked(true);
+      setShowChannelSelection(false);
+      setShowVerification(true);
+      
+      toast({
+        title: "Verification code delivery unavailable",
+        description: `We couldn't deliver a code to ${maskPhoneNumber(phoneNumber)}. If support provided you a bypass code, enter it below to continue.`,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResendCode = async () => {
     if (resendCooldown > 0 || resendAttempts >= MAX_RESEND_ATTEMPTS || isResending) {
       return;
@@ -242,7 +257,7 @@ const Login = () => {
     setIsResending(true);
 
     try {
-      await sendVerificationCode(phoneNumber);
+      await sendVerificationCode(phoneNumber, selectedChannel);
       
       setResendAttempts((prev) => prev + 1);
       startCooldownTimer();
@@ -321,17 +336,86 @@ const Login = () => {
     }
     
     setShowVerification(false);
+    setShowChannelSelection(false);
     setVerificationCode("");
     setPendingUserId(null);
     setPhoneNumber("");
     setDeliveryBlocked(false);
     setResendAttempts(0);
     setResendCooldown(0);
+    setSelectedChannel('whatsapp');
   };
 
   const maskedPhone = maskPhoneNumber(phoneNumber);
   const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
   const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
+
+  // Channel selection screen
+  if (showChannelSelection) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-xl">Choose Verification Method</CardTitle>
+            <CardDescription>
+              How would you like to receive your verification code?
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              We'll send a 6-digit code to {maskedPhone}
+            </p>
+            
+            <div className="grid gap-3">
+              <Button
+                variant="outline"
+                className="h-16 flex items-center justify-start gap-4 px-4"
+                onClick={() => handleChannelSelect('whatsapp')}
+                disabled={loading}
+              >
+                <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <MessageCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium">WhatsApp</div>
+                  <div className="text-sm text-muted-foreground">Receive code via WhatsApp message</div>
+                </div>
+              </Button>
+              
+              <Button
+                variant="outline"
+                className="h-16 flex items-center justify-start gap-4 px-4"
+                onClick={() => handleChannelSelect('sms')}
+                disabled={loading}
+              >
+                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium">SMS</div>
+                  <div className="text-sm text-muted-foreground">Receive code via text message</div>
+                </div>
+              </Button>
+            </div>
+            
+            {loading && (
+              <p className="text-sm text-muted-foreground text-center">Sending code...</p>
+            )}
+            
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full h-12"
+              onClick={handleBackToLogin}
+              disabled={loading}
+            >
+              Back to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (showVerification) {
     return (
