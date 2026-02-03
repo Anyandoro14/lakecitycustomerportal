@@ -56,10 +56,35 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(data.message || 'Failed to send verification code');
     }
 
-    console.log('Verification code sent successfully:', data.sid);
+    // Twilio Verify can silently fall back to SMS if WhatsApp is unavailable for the destination,
+    // sender configuration is missing/misconfigured, or regional availability is impacted.
+    // Log a sanitized summary so we can confirm which channel Twilio actually used.
+    const sendAttempts = Array.isArray((data as any)?.send_code_attempts)
+      ? (data as any).send_code_attempts.map((a: any) => ({
+          channel: a?.channel,
+          time: a?.time,
+          attempt_sid: a?.attempt_sid,
+          error_code: a?.error_code,
+        }))
+      : undefined;
+
+    console.log('Verification code accepted by Twilio:', {
+      sid: (data as any)?.sid,
+      requestedChannel: validChannel,
+      twilioChannel: (data as any)?.channel,
+      status: (data as any)?.status,
+      send_code_attempts: sendAttempts,
+    });
 
     return new Response(
-      JSON.stringify({ success: true, sid: data.sid }),
+      JSON.stringify({
+        success: true,
+        sid: (data as any)?.sid,
+        requestedChannel: validChannel,
+        twilioChannel: (data as any)?.channel,
+        status: (data as any)?.status,
+        sendCodeAttempts: sendAttempts,
+      }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
