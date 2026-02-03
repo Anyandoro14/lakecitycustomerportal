@@ -28,6 +28,7 @@ const Login = () => {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [deliveryBlocked, setDeliveryBlocked] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [actualDeliveryChannel, setActualDeliveryChannel] = useState<'whatsapp' | 'sms' | null>(null);
   const [showChannelSelection, setShowChannelSelection] = useState(false);
   
   // Resend 2FA state
@@ -121,14 +122,29 @@ const Login = () => {
     }
   };
 
-  const sendVerificationCode = async (phone: string, channel: 'whatsapp' | 'sms' = 'whatsapp'): Promise<boolean> => {
+  const sendVerificationCode = async (phone: string, channel: 'whatsapp' | 'sms' = 'whatsapp'): Promise<{ success: boolean; actualChannel: 'whatsapp' | 'sms' }> => {
     try {
-      const { error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
+      const { data, error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
         body: { phoneNumber: phone, channel }
       });
 
       if (verifyError) throw verifyError;
-      return true;
+      
+      // Determine actual channel from Twilio's send_code_attempts
+      // If all attempts show 'sms', Twilio fell back to SMS
+      let actualChannel: 'whatsapp' | 'sms' = channel;
+      if (data?.sendCodeAttempts && Array.isArray(data.sendCodeAttempts)) {
+        const lastAttempt = data.sendCodeAttempts[data.sendCodeAttempts.length - 1];
+        if (lastAttempt?.channel === 'sms') {
+          actualChannel = 'sms';
+        } else if (lastAttempt?.channel === 'whatsapp') {
+          actualChannel = 'whatsapp';
+        }
+      }
+      
+      console.log('[2FA] Requested:', channel, 'Actual delivery:', actualChannel, 'Attempts:', data?.sendCodeAttempts);
+      
+      return { success: true, actualChannel };
     } catch (error: any) {
       console.error("Failed to send verification code:", error);
       throw error;
@@ -220,9 +236,13 @@ const Login = () => {
     setSelectedChannel(channel);
     setLoading(true);
     setDeliveryBlocked(false);
+    setActualDeliveryChannel(null);
 
     try {
-      await sendVerificationCode(phoneNumber, channel);
+      const { actualChannel } = await sendVerificationCode(phoneNumber, channel);
+      
+      // Track the actual delivery channel
+      setActualDeliveryChannel(actualChannel);
       
       // Start cooldown after initial send
       startCooldownTimer();
@@ -230,10 +250,18 @@ const Login = () => {
       setShowChannelSelection(false);
       setShowVerification(true);
       
-      toast({
-        title: "Verification code sent",
-        description: `We've sent a 6-digit code via ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} to ${maskPhoneNumber(phoneNumber)}`,
-      });
+      // Show appropriate message based on whether fallback occurred
+      if (actualChannel !== channel) {
+        toast({
+          title: "Verification code sent via SMS",
+          description: `WhatsApp delivery wasn't available for your number. Your code was sent via SMS to ${maskPhoneNumber(phoneNumber)}`,
+        });
+      } else {
+        toast({
+          title: "Verification code sent",
+          description: `We've sent a 6-digit code via ${actualChannel === 'whatsapp' ? 'WhatsApp' : 'SMS'} to ${maskPhoneNumber(phoneNumber)}`,
+        });
+      }
     } catch (err: any) {
       console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err);
       setDeliveryBlocked(true);
@@ -257,14 +285,18 @@ const Login = () => {
     setIsResending(true);
 
     try {
-      await sendVerificationCode(phoneNumber, selectedChannel);
+      const { actualChannel } = await sendVerificationCode(phoneNumber, selectedChannel);
+      
+      // Update actual delivery channel in case it changed
+      setActualDeliveryChannel(actualChannel);
       
       setResendAttempts((prev) => prev + 1);
       startCooldownTimer();
       
+      const channelName = actualChannel === 'whatsapp' ? 'WhatsApp' : 'SMS';
       toast({
         title: "New code sent",
-        description: `A new verification code has been sent to ${maskPhoneNumber(phoneNumber)}`,
+        description: `A new verification code has been sent via ${channelName} to ${maskPhoneNumber(phoneNumber)}`,
       });
     } catch (error: any) {
       toast({
@@ -344,6 +376,7 @@ const Login = () => {
     setResendAttempts(0);
     setResendCooldown(0);
     setSelectedChannel('whatsapp');
+    setActualDeliveryChannel(null);
   };
 
   const maskedPhone = maskPhoneNumber(phoneNumber);
@@ -426,7 +459,9 @@ const Login = () => {
             <CardDescription>
               {deliveryBlocked
                 ? `We couldn't deliver a code to ${maskedPhone}. If you have a bypass code from support, enter it below.`
-                : `We've sent a 6-digit verification code to ${maskedPhone}`}
+                : actualDeliveryChannel && actualDeliveryChannel !== selectedChannel
+                  ? `Your code was sent via SMS to ${maskedPhone} (WhatsApp was unavailable for your number)`
+                  : `We've sent a 6-digit verification code via ${actualDeliveryChannel === 'whatsapp' ? 'WhatsApp' : 'SMS'} to ${maskedPhone}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
