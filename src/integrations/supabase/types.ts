@@ -563,6 +563,7 @@ export type Database = {
           id: string
           payment_start_date: string
           phone_number: string | null
+          phone_number_2: string | null
           stand_number: string | null
           updated_at: string
         }
@@ -573,6 +574,7 @@ export type Database = {
           id: string
           payment_start_date?: string
           phone_number?: string | null
+          phone_number_2?: string | null
           stand_number?: string | null
           updated_at?: string
         }
@@ -583,6 +585,7 @@ export type Database = {
           id?: string
           payment_start_date?: string
           phone_number?: string | null
+          phone_number_2?: string | null
           stand_number?: string | null
           updated_at?: string
         }

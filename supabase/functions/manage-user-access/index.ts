@@ -81,7 +81,7 @@ serve(async (req) => {
       // Get all customers (non-internal users with profiles)
       const { data: allProfiles, error: allProfilesError } = await supabaseAdmin
         .from('profiles')
-        .select('id, email, full_name, stand_number, phone_number, created_at')
+        .select('id, email, full_name, stand_number, phone_number, phone_number_2, created_at')
         .order('created_at', { ascending: false });
 
       if (allProfilesError) {
@@ -178,6 +178,7 @@ serve(async (req) => {
             isInternal: false,
             standNumber: p.stand_number,
             phoneNumber: p.phone_number || null,
+            phoneNumber2: p.phone_number_2 || null,
           };
         });
 
@@ -574,6 +575,85 @@ serve(async (req) => {
           details: {
             standNumber: currentProfile.stand_number,
             newPhoneNumber: normalizedSheetPhone
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else if (action === 'updatePhoneNumber2') {
+      // Only Super Admins can update secondary phone numbers
+      if (!isSuperAdmin) {
+        throw new Error('Forbidden: Only Super Admins can update customer phone numbers');
+      }
+
+      const { userId: targetUserId, newPhoneNumber2 } = userData;
+      
+      if (!targetUserId) {
+        throw new Error('User ID is required');
+      }
+
+      // Get current profile info
+      const { data: currentProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('email, stand_number, phone_number_2')
+        .eq('id', targetUserId)
+        .single();
+
+      if (!currentProfile) {
+        throw new Error('Customer profile not found');
+      }
+
+      // Secondary phone doesn't require sheet validation - it's a convenience number
+      // Just validate format if provided
+      let normalizedPhone2: string | null = null;
+      if (newPhoneNumber2 && newPhoneNumber2.trim()) {
+        const phoneRegex = /^\+?[1-9]\d{6,14}$/;
+        const cleanedPhone = newPhoneNumber2.replace(/\s/g, '');
+        if (!phoneRegex.test(cleanedPhone)) {
+          throw new Error('Invalid phone number format. Please use international format (e.g., +18452757810)');
+        }
+        normalizedPhone2 = cleanedPhone;
+      }
+
+      // Update the secondary phone number
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ 
+          phone_number_2: normalizedPhone2,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', targetUserId);
+
+      if (updateError) {
+        console.error('Error updating secondary phone number:', updateError);
+        throw new Error('Failed to update secondary phone number');
+      }
+
+      // Log the action
+      await supabaseAdmin
+        .from('audit_log')
+        .insert({
+          action: 'secondary_phone_number_updated',
+          entity_type: 'customer',
+          entity_id: targetUserId,
+          performed_by: user.id,
+          performed_by_email: user.email,
+          details: { 
+            standNumber: currentProfile.stand_number,
+            email: currentProfile.email,
+            previousPhoneNumber2: currentProfile.phone_number_2,
+            newPhoneNumber2: normalizedPhone2
+          }
+        });
+
+      console.log(`Secondary phone number updated for stand ${currentProfile.stand_number}: ${currentProfile.phone_number_2} -> ${normalizedPhone2}`);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Secondary phone number updated successfully',
+          details: {
+            standNumber: currentProfile.stand_number,
+            newPhoneNumber2: normalizedPhone2
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

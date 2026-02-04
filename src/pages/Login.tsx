@@ -24,6 +24,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]); // All available phone numbers
+  const [showPhoneSelection, setShowPhoneSelection] = useState(false); // New state for phone selection
   const [verificationCode, setVerificationCode] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [deliveryBlocked, setDeliveryBlocked] = useState(false);
@@ -196,26 +198,37 @@ const Login = () => {
         // Sync the stand number to the user's profile
         await syncStandNumberToProfile(data.user.id, lookupData.standNumber || loginStandNumber.trim());
 
-        // Get phone number for 2FA (now we're authenticated, RLS allows it)
+        // Get phone numbers for 2FA (now we're authenticated, RLS allows it)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('phone_number')
+          .select('phone_number, phone_number_2')
           .eq('id', data.user.id)
           .maybeSingle();
 
-        if (profile?.phone_number) {
+        // Build list of available phone numbers
+        const availablePhones: string[] = [];
+        if (profile?.phone_number) availablePhones.push(profile.phone_number);
+        if (profile?.phone_number_2) availablePhones.push(profile.phone_number_2);
+
+        if (availablePhones.length > 0) {
           // Sign out immediately - user must complete 2FA to get a valid session
           await supabase.auth.signOut();
           
           setPendingUserId(data.user.id);
-          setPhoneNumber(profile.phone_number);
+          setPhoneNumbers(availablePhones);
           
           // Reset resend state for new login attempt
           setResendAttempts(0);
           setResendCooldown(0);
           
-          // Show channel selection screen
-          setShowChannelSelection(true);
+          if (availablePhones.length === 1) {
+            // Only one phone number - go directly to channel selection
+            setPhoneNumber(availablePhones[0]);
+            setShowChannelSelection(true);
+          } else {
+            // Multiple phone numbers - show phone selection first
+            setShowPhoneSelection(true);
+          }
         } else {
           // No phone number, proceed without 2FA
           navigate("/");
@@ -369,9 +382,11 @@ const Login = () => {
     
     setShowVerification(false);
     setShowChannelSelection(false);
+    setShowPhoneSelection(false);
     setVerificationCode("");
     setPendingUserId(null);
     setPhoneNumber("");
+    setPhoneNumbers([]);
     setDeliveryBlocked(false);
     setResendAttempts(0);
     setResendCooldown(0);
@@ -379,9 +394,66 @@ const Login = () => {
     setActualDeliveryChannel(null);
   };
 
+  const handlePhoneSelect = (phone: string) => {
+    setPhoneNumber(phone);
+    setShowPhoneSelection(false);
+    setShowChannelSelection(true);
+  };
+
   const maskedPhone = maskPhoneNumber(phoneNumber);
   const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
   const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
+
+  // Phone number selection screen (when user has multiple phone numbers)
+  if (showPhoneSelection) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-xl">Select Phone Number</CardTitle>
+            <CardDescription>
+              Which phone number would you like to use for verification?
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
+              {phoneNumbers.map((phone, index) => (
+                <Button
+                  key={phone}
+                  variant="outline"
+                  className="h-16 flex items-center justify-start gap-4 px-4"
+                  onClick={() => handlePhoneSelect(phone)}
+                  disabled={loading}
+                >
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Phone className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-medium">
+                      {index === 0 ? 'Primary Number' : 'Secondary Number'}
+                    </div>
+                    <div className="text-sm text-muted-foreground font-mono">
+                      {maskPhoneNumber(phone)}
+                    </div>
+                  </div>
+                </Button>
+              ))}
+            </div>
+            
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full h-12"
+              onClick={handleBackToLogin}
+              disabled={loading}
+            >
+              Back to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Channel selection screen
   if (showChannelSelection) {
