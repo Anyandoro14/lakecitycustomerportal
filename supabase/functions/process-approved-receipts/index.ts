@@ -522,13 +522,14 @@ async function fetchAndValidateReceipts(
       continue;
     }
 
-    console.log(`[APPROVED] Row ${rowNum}: Stand ${standNumber}, Amount $${paymentAmount}`);
+    const paymentDateRaw = row[COL_PAYMENT_DATE]?.toString().trim() || '';
+    console.log(`[APPROVED] Row ${rowNum}: Stand ${standNumber}, Amount $${paymentAmount}, Payment Date: "${paymentDateRaw}"`);
     approved.push({
       intake_id: intakeId,
       timestamp: row[COL_TIMESTAMP]?.toString().trim() || '',
       stand_number: standNumber,
       customer_name: row[COL_CUSTOMER_NAME]?.toString().trim() || '',
-      payment_date: row[COL_PAYMENT_DATE]?.toString().trim() || '',
+      payment_date: paymentDateRaw,
       payment_amount: paymentAmount,
       payment_method: row[COL_PAYMENT_METHOD]?.toString().trim() || '',
       reference: row[COL_REFERENCE]?.toString().trim() || '',
@@ -545,8 +546,62 @@ async function fetchAndValidateReceipts(
 // Parse a date string to Date object (handles various formats)
 function parseReceiptDate(dateStr: string): Date | null {
   if (!dateStr) return null;
-  const parsed = new Date(dateStr);
-  return isNaN(parsed.getTime()) ? null : parsed;
+  
+  const trimmed = dateStr.trim();
+  
+  // Try standard Date parsing first (handles ISO format and most standard formats)
+  let parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  
+  // Try DD/MM/YYYY or DD-MM-YYYY format (common in spreadsheets)
+  const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const day = parseInt(ddmmyyyyMatch[1], 10);
+    const month = parseInt(ddmmyyyyMatch[2], 10) - 1; // 0-indexed month
+    const year = parseInt(ddmmyyyyMatch[3], 10);
+    parsed = new Date(year, month, day);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  
+  // Try MM/DD/YYYY or MM-DD-YYYY format
+  const mmddyyyyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (mmddyyyyMatch) {
+    const month = parseInt(mmddyyyyMatch[1], 10) - 1;
+    const day = parseInt(mmddyyyyMatch[2], 10);
+    const year = parseInt(mmddyyyyMatch[3], 10);
+    // Only use this if the day value seems like a valid day
+    if (day <= 31 && month <= 11) {
+      parsed = new Date(year, month, day);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  }
+  
+  // Try YYYY-MM-DD format
+  const yyyymmddMatch = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const year = parseInt(yyyymmddMatch[1], 10);
+    const month = parseInt(yyyymmddMatch[2], 10) - 1;
+    const day = parseInt(yyyymmddMatch[3], 10);
+    parsed = new Date(year, month, day);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  
+  // Try "Month Day, Year" or "Day Month Year" formats
+  parsed = new Date(Date.parse(trimmed));
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  
+  console.log(`[DATE PARSE FAILED] Could not parse date: "${dateStr}"`);
+  return null;
 }
 
 // Get the column index for a given month
