@@ -64,18 +64,27 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('email, phone_number')
+      .select('email, phone_number, phone_number_2')
       .eq('stand_number', trimmedStand)
       .maybeSingle();
 
     // If found in profiles, return it
     if (profile?.email) {
       console.log(`Found account in profiles for stand number: ${trimmedStand}`);
+      
+      // Build array of available phone numbers
+      const phoneNumbers: string[] = [];
+      if (profile.phone_number) phoneNumbers.push(profile.phone_number);
+      if (profile.phone_number_2) phoneNumbers.push(profile.phone_number_2);
+      
       return new Response(
         JSON.stringify({ 
           found: true,
           email: profile.email,
-          hasPhone: !!profile.phone_number
+          hasPhone: phoneNumbers.length > 0,
+          phoneNumbers: phoneNumbers,
+          phoneNumber: profile.phone_number || null,
+          phoneNumber2: profile.phone_number_2 || null,
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
@@ -252,16 +261,24 @@ const handler = async (req: Request): Promise<Response> => {
     // Check if user exists in auth by looking up their profile by email
     const { data: existingProfile } = await supabaseAdmin
       .from('profiles')
-      .select('phone_number')
+      .select('phone_number, phone_number_2')
       .eq('email', email)
       .maybeSingle();
+
+    // Build array of available phone numbers
+    const phoneNumbers: string[] = [];
+    if (existingProfile?.phone_number) phoneNumbers.push(existingProfile.phone_number);
+    if (existingProfile?.phone_number_2) phoneNumbers.push(existingProfile.phone_number_2);
 
     return new Response(
       JSON.stringify({ 
         found: true,
         email: email,
         standNumber: trimmedStand, // Return the stand number for syncing to profile
-        hasPhone: !!existingProfile?.phone_number
+        hasPhone: phoneNumbers.length > 0,
+        phoneNumbers: phoneNumbers,
+        phoneNumber: existingProfile?.phone_number || null,
+        phoneNumber2: existingProfile?.phone_number_2 || null,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

@@ -54,6 +54,7 @@ interface UserRecord {
   isInternal: boolean;
   standNumber?: string;
   phoneNumber?: string | null;
+  phoneNumber2?: string | null;
 }
 
 const accountTypeOptions = [
@@ -102,6 +103,8 @@ const AccountManagement = () => {
   const [editPhoneDialogOpen, setEditPhoneDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [newPhoneNumber2, setNewPhoneNumber2] = useState('');
+  const [editingPhoneField, setEditingPhoneField] = useState<'primary' | 'secondary'>('primary');
   const [updatingPhone, setUpdatingPhone] = useState(false);
   const [phoneValidationError, setPhoneValidationError] = useState<{
     message: string;
@@ -274,9 +277,14 @@ const AccountManagement = () => {
     }
   };
 
-  const openEditPhoneDialog = (user: UserRecord) => {
+  const openEditPhoneDialog = (user: UserRecord, field: 'primary' | 'secondary' = 'primary') => {
     setEditingUser(user);
-    setNewPhoneNumber(user.phoneNumber || '');
+    setEditingPhoneField(field);
+    if (field === 'primary') {
+      setNewPhoneNumber(user.phoneNumber || '');
+    } else {
+      setNewPhoneNumber2(user.phoneNumber2 || '');
+    }
     setPhoneValidationError(null);
     setEditPhoneDialogOpen(true);
   };
@@ -285,6 +293,8 @@ const AccountManagement = () => {
     setEditPhoneDialogOpen(false);
     setEditingUser(null);
     setNewPhoneNumber('');
+    setNewPhoneNumber2('');
+    setEditingPhoneField('primary');
     setPhoneValidationError(null);
   };
 
@@ -294,7 +304,35 @@ const AccountManagement = () => {
       return;
     }
 
-    if (!newPhoneNumber.trim()) {
+    const phoneToUpdate = editingPhoneField === 'primary' ? newPhoneNumber : newPhoneNumber2;
+    
+    if (!phoneToUpdate.trim()) {
+      // If clearing secondary phone, allow it
+      if (editingPhoneField === 'secondary') {
+        setUpdatingPhone(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('manage-user-access', {
+            body: { 
+              action: 'updatePhoneNumber2',
+              userData: { 
+                userId: editingUser.userId,
+                newPhoneNumber2: ''
+              }
+            }
+          });
+          
+          if (error) throw error;
+          
+          toast.success(`Secondary phone number removed for Stand ${editingUser.standNumber || editingUser.email}`);
+          closeEditPhoneDialog();
+          await fetchUsers();
+        } catch (error: any) {
+          toast.error(error.message || "Failed to remove phone number");
+        } finally {
+          setUpdatingPhone(false);
+        }
+        return;
+      }
       toast.error("Phone number is required");
       return;
     }
@@ -303,13 +341,15 @@ const AccountManagement = () => {
     setPhoneValidationError(null);
     
     try {
+      const action = editingPhoneField === 'primary' ? 'updatePhoneNumber' : 'updatePhoneNumber2';
+      const payload = editingPhoneField === 'primary' 
+        ? { userId: editingUser.userId, newPhoneNumber: phoneToUpdate.trim() }
+        : { userId: editingUser.userId, newPhoneNumber2: phoneToUpdate.trim() };
+      
       const { data, error } = await supabase.functions.invoke('manage-user-access', {
         body: { 
-          action: 'updatePhoneNumber',
-          userData: { 
-            userId: editingUser.userId,
-            newPhoneNumber: newPhoneNumber.trim()
-          }
+          action,
+          userData: payload
         }
       });
       
@@ -325,7 +365,8 @@ const AccountManagement = () => {
       
       if (error) throw error;
       
-      toast.success(`Phone number updated for Stand ${editingUser.standNumber || editingUser.email}`);
+      const phoneLabel = editingPhoneField === 'primary' ? 'Primary' : 'Secondary';
+      toast.success(`${phoneLabel} phone number updated for Stand ${editingUser.standNumber || editingUser.email}`);
       closeEditPhoneDialog();
       await fetchUsers();
     } catch (error: any) {
@@ -602,65 +643,106 @@ const AccountManagement = () => {
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                       <Phone className="h-5 w-5" />
-                      Edit Phone Number
+                      Edit {editingPhoneField === 'primary' ? 'Primary' : 'Secondary'} Phone Number
                     </DialogTitle>
                     <DialogDescription>
                       Update the phone number for {editingUser?.standNumber ? `Stand ${editingUser.standNumber}` : editingUser?.email}.
                     </DialogDescription>
                   </DialogHeader>
                   
-                  {/* Important Notice */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
-                    <p className="font-semibold text-amber-800 mb-1">⚠️ Important: Update Collection Schedule First</p>
-                    <p className="text-amber-700">
-                      The phone number you enter must <strong>exactly match</strong> what is in the Collection Schedule spreadsheet. 
-                      Please update the spreadsheet first, then enter the same number here.
-                    </p>
-                  </div>
+                  {editingPhoneField === 'primary' ? (
+                    <>
+                      {/* Important Notice for Primary */}
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                        <p className="font-semibold text-amber-800 mb-1">⚠️ Important: Update Collection Schedule First</p>
+                        <p className="text-amber-700">
+                          The primary phone number must <strong>exactly match</strong> what is in the Collection Schedule spreadsheet. 
+                          Please update the spreadsheet first, then enter the same number here.
+                        </p>
+                      </div>
 
-                  <div className="space-y-4 py-2">
-                    <div>
-                      <Label className="text-muted-foreground">Current Portal Phone Number</Label>
-                      <p className="text-sm font-mono py-1 px-2 bg-muted rounded">
-                        {editingUser?.phoneNumber || 'Not set'}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="new-phone">New Phone Number (from Collection Schedule)</Label>
-                      <Input
-                        id="new-phone"
-                        type="tel"
-                        placeholder="+18452757810"
-                        value={newPhoneNumber}
-                        onChange={(e) => {
-                          setNewPhoneNumber(e.target.value);
-                          setPhoneValidationError(null); // Clear error on input change
-                        }}
-                        className={`font-mono ${phoneValidationError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Use international format with country code (e.g., +1 for US, +263 for Zimbabwe)
-                      </p>
-                    </div>
+                      <div className="space-y-4 py-2">
+                        <div>
+                          <Label className="text-muted-foreground">Current Primary Phone Number</Label>
+                          <p className="text-sm font-mono py-1 px-2 bg-muted rounded">
+                            {editingUser?.phoneNumber || 'Not set'}
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="new-phone">New Phone Number (from Collection Schedule)</Label>
+                          <Input
+                            id="new-phone"
+                            type="tel"
+                            placeholder="+18452757810"
+                            value={newPhoneNumber}
+                            onChange={(e) => {
+                              setNewPhoneNumber(e.target.value);
+                              setPhoneValidationError(null);
+                            }}
+                            className={`font-mono ${phoneValidationError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Use international format with country code (e.g., +1 for US, +263 for Zimbabwe)
+                          </p>
+                        </div>
 
-                    {/* Validation Error Display */}
-                    {phoneValidationError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <p className="font-semibold text-red-800 text-sm mb-1">❌ Validation Failed</p>
-                        <p className="text-red-700 text-sm">{phoneValidationError.message}</p>
-                        {phoneValidationError.sheetPhoneNumber && (
-                          <div className="mt-2 p-2 bg-white rounded border border-red-100">
-                            <p className="text-xs text-muted-foreground">Phone number in Collection Schedule:</p>
-                            <p className="font-mono text-sm font-semibold text-red-800">{phoneValidationError.sheetPhoneNumber}</p>
+                        {phoneValidationError && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="font-semibold text-red-800 text-sm mb-1">❌ Validation Failed</p>
+                            <p className="text-red-700 text-sm">{phoneValidationError.message}</p>
+                            {phoneValidationError.sheetPhoneNumber && (
+                              <div className="mt-2 p-2 bg-white rounded border border-red-100">
+                                <p className="text-xs text-muted-foreground">Phone number in Collection Schedule:</p>
+                                <p className="font-mono text-sm font-semibold text-red-800">{phoneValidationError.sheetPhoneNumber}</p>
+                              </div>
+                            )}
+                            {phoneValidationError.instruction && (
+                              <p className="text-xs text-red-600 mt-2 italic">{phoneValidationError.instruction}</p>
+                            )}
                           </div>
                         )}
-                        {phoneValidationError.instruction && (
-                          <p className="text-xs text-red-600 mt-2 italic">{phoneValidationError.instruction}</p>
-                        )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Info Notice for Secondary */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                        <p className="font-semibold text-blue-800 mb-1">ℹ️ Secondary Phone Number</p>
+                        <p className="text-blue-700">
+                          This is an additional phone number for 2FA. It does not need to match the Collection Schedule.
+                          Leave empty to remove the secondary number.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4 py-2">
+                        <div>
+                          <Label className="text-muted-foreground">Current Secondary Phone Number</Label>
+                          <p className="text-sm font-mono py-1 px-2 bg-muted rounded">
+                            {editingUser?.phoneNumber2 || 'Not set'}
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="new-phone-2">Secondary Phone Number</Label>
+                          <Input
+                            id="new-phone-2"
+                            type="tel"
+                            placeholder="+18452757810 (or leave empty to remove)"
+                            value={newPhoneNumber2}
+                            onChange={(e) => {
+                              setNewPhoneNumber2(e.target.value);
+                              setPhoneValidationError(null);
+                            }}
+                            className="font-mono"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Use international format with country code
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   
                   <DialogFooter className="gap-2 sm:gap-0">
                     <Button variant="outline" onClick={closeEditPhoneDialog}>
@@ -668,10 +750,10 @@ const AccountManagement = () => {
                     </Button>
                     <Button 
                       onClick={updatePhoneNumber} 
-                      disabled={updatingPhone || !newPhoneNumber.trim()}
+                      disabled={updatingPhone || (editingPhoneField === 'primary' && !newPhoneNumber.trim())}
                     >
                       {updatingPhone ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Validate & Update
+                      {editingPhoneField === 'primary' ? 'Validate & Update' : 'Update'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -686,7 +768,8 @@ const AccountManagement = () => {
                     <TableHead>Email Address</TableHead>
                     <TableHead>Full Name</TableHead>
                     <TableHead>Stand Number</TableHead>
-                    <TableHead>Phone Number</TableHead>
+                    <TableHead>Primary Phone</TableHead>
+                    <TableHead>Secondary Phone</TableHead>
                     <TableHead>Account Type</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Account Created</TableHead>
@@ -715,8 +798,26 @@ const AccountManagement = () => {
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0"
-                                onClick={() => openEditPhoneDialog(user)}
-                                title="Edit phone number"
+                                onClick={() => openEditPhoneDialog(user, 'primary')}
+                                title="Edit primary phone number"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {!user.isInternal ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-mono">{user.phoneNumber2 || '—'}</span>
+                            {isSuperAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => openEditPhoneDialog(user, 'secondary')}
+                                title="Edit secondary phone number"
                               >
                                 <Pencil className="h-3 w-3" />
                               </Button>
