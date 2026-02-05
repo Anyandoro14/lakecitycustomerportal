@@ -91,6 +91,7 @@ const AccountManagement = () => {
   const [accountCreatedFilter, setAccountCreatedFilter] = useState('all');
   const [reportingAccessFilter, setReportingAccessFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [standNumberFilter, setStandNumberFilter] = useState('');
 
   // Add user dialog
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -189,6 +190,14 @@ const AccountManagement = () => {
       filtered = filtered.filter(u => u.hasReportingAccess === hasAccess);
     }
 
+    // Stand number filter
+    if (standNumberFilter.trim()) {
+      const standQuery = standNumberFilter.toLowerCase().trim();
+      filtered = filtered.filter(u => 
+        u.standNumber?.toLowerCase().includes(standQuery)
+      );
+    }
+
     // Search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -206,12 +215,14 @@ const AccountManagement = () => {
     setAccountCreatedFilter('all');
     setReportingAccessFilter('all');
     setSearchQuery('');
+    setStandNumberFilter('');
   };
 
   const hasActiveFilters = accountTypeFilter !== 'all' || 
     accountCreatedFilter !== 'all' || 
     reportingAccessFilter !== 'all' || 
-    searchQuery.trim() !== '';
+    searchQuery.trim() !== '' ||
+    standNumberFilter.trim() !== '';
 
   const updateUserRole = async (userId: string, newRole: string) => {
     if (!isSuperAdmin) {
@@ -519,6 +530,15 @@ const AccountManagement = () => {
                   placeholder="Email or name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+              <div>
+                <Label className="text-sm mb-2 block">Stand Number</Label>
+                <Input
+                  placeholder="e.g. 1234"
+                  value={standNumberFilter}
+                  onChange={(e) => setStandNumberFilter(e.target.value)}
                   className="h-12"
                 />
               </div>
