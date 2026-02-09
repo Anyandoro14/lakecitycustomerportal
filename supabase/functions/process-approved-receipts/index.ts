@@ -13,7 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
  * MANDATORY APPROVAL CONDITIONS (ALL must be true):
  * 1. Column C (Stand_Number): Must be present and match existing stand in Collection Schedule
  * 2. Column F (Payment_Amount): Must contain a valid numeric value > 0
- * 3. Column K (Intake_Status): Must read EXACTLY "Approved" (case-sensitive)
+ * 3. Column K (Intake_Status): Must read "Approved" (case-insensitive)
  * 
  * If ANY condition is not met, the receipt is IGNORED entirely and must not
  * affect any balances.
@@ -501,8 +501,8 @@ async function fetchAndValidateReceipts(
       rejectionReasons.push(`Payment Amount must be > 0 (got: "${paymentAmountStr}")`);
     }
 
-    // CONDITION 3: Status must be exactly "Approved"
-    if (intakeStatus !== 'Approved') {
+    // CONDITION 3: Status must be "Approved" (case-insensitive)
+    if (intakeStatus.toLowerCase() !== 'approved') {
       if (!intakeStatus) {
         rejectionReasons.push('Approval Status (Column K) is missing');
       } else {
