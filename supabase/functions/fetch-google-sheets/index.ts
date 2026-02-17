@@ -710,6 +710,22 @@ serve(async (req) => {
       if (itemizedReceipts.length > 0) {
         console.log(`Stand ${standNumber}: Using ${itemizedReceipts.length} itemized receipts for payment history`);
         
+        // Add deposit as first payment history entry if present
+        const depositAmountForHistory = parseCurrencyToNumber(deposit);
+        if (depositAmountForHistory > 0) {
+          const depositAmountStr = `$${depositAmountForHistory.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          paymentHistory.push({
+            date: 'Deposit',
+            amount: depositAmountStr,
+            principal: depositAmountStr,
+            interest: '$0.00',
+            vat: '$0.00',
+            total: depositAmountStr,
+            reference: 'Initial Deposit',
+            payment_method: 'Deposit'
+          });
+        }
+        
         for (const receipt of itemizedReceipts) {
           // Parse the actual receipt date
           let displayDate = receipt.payment_date;
@@ -753,6 +769,22 @@ serve(async (req) => {
         // This is the legacy behavior for stands without receipts in Receipts_Intake
         console.log(`Stand ${standNumber}: No itemized receipts found, using column-based payment history`);
         
+        // Add deposit as first payment history entry if present
+        const depositAmountForHistory = parseCurrencyToNumber(deposit);
+        if (depositAmountForHistory > 0) {
+          const depositAmountStr = `$${depositAmountForHistory.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          paymentHistory.push({
+            date: 'Deposit',
+            amount: depositAmountStr,
+            principal: depositAmountStr,
+            interest: '$0.00',
+            vat: '$0.00',
+            total: depositAmountStr,
+            reference: 'Initial Deposit',
+            payment_method: 'Deposit'
+          });
+        }
+        
         for (let i = 0; i < paymentColumns.length; i++) {
           if (paymentColumns[i] && paymentColumns[i].toString().trim() !== '') {
             const monthsFromStart = i;
@@ -783,18 +815,31 @@ serve(async (req) => {
       
       console.log(`Stand ${standNumber}: Calculated total = ${calculatedTotalPaid}, Sheet total = ${sheetTotalPaid}, Last payment index = ${lastPaymentIndex}`);
       
+      // DEPOSIT TREATMENT: Column H deposit counts as Payment #1 in the contract sequence.
+      // It increments payment sequencing but is NOT added to totalPaymentsSum (which tracks
+      // monthly column payments M-AW only, and currentBalance from AZ is the balance source of truth).
+      const depositAmount = parseCurrencyToNumber(deposit);
+      const hasVerifiedDeposit = depositAmount > 0;
+      
+      console.log(`Stand ${standNumber}: Deposit (Column H) = ${deposit} = ${depositAmount}, hasVerifiedDeposit = ${hasVerifiedDeposit}`);
+      
       // OVERPAYMENT LOGIC: Calculate how many instalments are covered by total payments
-      // coveredMonths = floor(totalPaymentsSum / monthlyPaymentAmount)
-      // remainingBalance = totalPaymentsSum % monthlyPaymentAmount
+      // The deposit covers 1 "payment slot" in the sequence, so we add it to the
+      // effective total for sequencing purposes only.
+      // coveredMonths = floor(effectiveTotal / monthlyPaymentAmount)
+      // remainingBalance = effectiveTotal % monthlyPaymentAmount
       let coveredMonths = 0;
       let remainingBalance = 0;
       
+      // For sequencing: deposit + all monthly payments
+      const effectiveTotalForSequencing = totalPaymentsSum + (hasVerifiedDeposit ? depositAmount : 0);
+      
       if (monthlyPaymentAmount > 0) {
-        coveredMonths = Math.floor(totalPaymentsSum / monthlyPaymentAmount);
-        remainingBalance = totalPaymentsSum % monthlyPaymentAmount;
+        coveredMonths = Math.floor(effectiveTotalForSequencing / monthlyPaymentAmount);
+        remainingBalance = effectiveTotalForSequencing % monthlyPaymentAmount;
       }
       
-      console.log(`Stand ${standNumber}: Covered months = ${coveredMonths}, Remaining balance toward next = ${remainingBalance}`);
+      console.log(`Stand ${standNumber}: Effective total for sequencing = ${effectiveTotalForSequencing}, Covered months = ${coveredMonths}, Remaining balance toward next = ${remainingBalance}`);
       
       // Calculate next payment based on covered months (not last filled cell)
       // CRITICAL: Respect Payment Start Date (Column L) - no payment due before this date
