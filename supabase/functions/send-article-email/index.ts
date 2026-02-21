@@ -81,7 +81,8 @@ Deno.serve(async (req) => {
     <body style="margin:0;padding:20px 0;background-color:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
       <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
         <div style="background:#0B3D2E;padding:32px 40px;text-align:center;">
-          <img src="https://gumkxjeahojrcaqnosyz.supabase.co/storage/v1/object/public/email-assets/logo-wordmark-white.svg?v=1" height="36" alt="LakeCity" style="margin:0 auto;" />
+          <img src="https://gumkxjeahojrcaqnosyz.supabase.co/storage/v1/object/public/email-assets/logo-icon-512.png?v=1" height="48" alt="LakeCity" style="margin:0 auto;display:block;" />
+          <p style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:3px;margin:12px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">LAKECITY</p>
           <hr style="height:3px;width:60px;background:#6BAB8F;margin:20px auto 0;border:none;border-radius:2px;" />
         </div>
         <div style="padding:36px 32px;">
