@@ -500,7 +500,7 @@ const InternalPortal = () => {
             </div>
           </div>
           {/* Navigation row */}
-          <div className="mt-2 -mb-1 flex items-center justify-between">
+          <div className="mt-1 flex items-center justify-between">
             <InternalNav 
               isSuperAdmin={currentUser?.role === 'super_admin'}
               isDirector={currentUser?.role === 'director'}
