@@ -31,6 +31,7 @@ const CustomerSupportGuide = lazy(() => import("./pages/CustomerSupportGuide"));
 const CustomerUpdate = lazy(() => import("./pages/CustomerUpdate"));
 const Updates = lazy(() => import("./pages/Updates"));
 const ArticleFeedbackDashboard = lazy(() => import("./pages/ArticleFeedbackDashboard"));
+const CollectionsCommandCenter = lazy(() => import("./pages/CollectionsCommandCenter"));
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ const App = () => (
                 <Route path="/customer-update" element={<CustomerUpdate />} />
                 <Route path="/updates" element={<Updates />} />
                 <Route path="/article-feedback" element={<ArticleFeedbackDashboard />} />
+                <Route path="/collections" element={<CollectionsCommandCenter />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

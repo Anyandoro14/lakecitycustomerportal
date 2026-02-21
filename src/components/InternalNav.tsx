@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Newspaper,
   MessageSquare,
+  Landmark,
 } from "lucide-react";
 
 interface InternalNavProps {
@@ -31,6 +32,7 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
 
   // Determine current page from route if not provided
   const activePage = currentPage || (() => {
+    if (location.pathname.includes('collections')) return 'collections';
     if (location.pathname.includes('reporting')) return 'reporting';
     if (location.pathname.includes('account-management')) return 'access';
     if (location.pathname.includes('looking-glass')) return 'looking-glass';
@@ -46,6 +48,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       icon: Shield,
       path: '/internal-portal',
       visible: true, // All internal users can access
+    },
+    {
+      id: 'collections',
+      label: 'Collections',
+      icon: Landmark,
+      path: '/collections',
+      visible: isSuperAdmin || isDirector,
     },
     {
       id: 'reporting',
