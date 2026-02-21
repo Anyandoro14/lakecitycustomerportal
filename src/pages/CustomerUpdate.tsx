@@ -91,7 +91,7 @@ const CustomerUpdate = () => {
           <h2 className="text-lg font-semibold border-b pb-2 mb-4">System Update — February 2026</h2>
 
           <p className="text-sm leading-relaxed mb-4">
-            We've made improvements to how your account information is calculated and displayed. Here's what changed:
+            Thank you to everyone who reached out with questions about their account details — we heard you, and we're grateful for the feedback. Based on what you told us, we've made meaningful improvements to how your account information is calculated and displayed. Here's what's new:
           </p>
 
           <div className="space-y-4 text-sm">
