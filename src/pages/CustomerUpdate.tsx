@@ -64,6 +64,13 @@ const CustomerUpdate = () => {
             </div>
 
             <div>
+              <h3 className="font-semibold">🧾 Receipts &amp; Processing</h3>
+              <p className="text-muted-foreground">
+                Please allow up to 2 business days for your payment to reflect on the portal. In the meantime, you will receive an email receipt from our accounting team at the time of your payment. The processing time allows us to ensure accuracy and quality management of your data.
+              </p>
+            </div>
+
+            <div>
               <h3 className="font-semibold">📄 Monthly Statements</h3>
               <p className="text-muted-foreground">
                 Statements are generated at the end of each month and become available in the first week of the following month. Each statement shows your opening balance, payments received during that month, and closing balance. You can view and download any previous month's statement at any time.
