@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.send-article-feedback-notification]
 verify_jwt = false
+
+[functions.collections-ai-outreach]
+verify_jwt = false

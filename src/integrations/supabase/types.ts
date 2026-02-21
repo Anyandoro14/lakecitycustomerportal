@@ -212,6 +212,84 @@ export type Database = {
         }
         Relationships: []
       }
+      collections_notes: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          follow_up_date: string | null
+          id: string
+          note_type: string
+          stand_number: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          follow_up_date?: string | null
+          id?: string
+          note_type?: string
+          stand_number: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          follow_up_date?: string | null
+          id?: string
+          note_type?: string
+          stand_number?: string
+        }
+        Relationships: []
+      }
+      collections_outreach: {
+        Row: {
+          channel: string
+          created_at: string
+          customer_name: string | null
+          delivery_status: string | null
+          id: string
+          message_body: string
+          outreach_type: string
+          provider_message_id: string | null
+          sent_by: string | null
+          sent_by_email: string | null
+          stand_number: string
+          tone: string | null
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          customer_name?: string | null
+          delivery_status?: string | null
+          id?: string
+          message_body: string
+          outreach_type: string
+          provider_message_id?: string | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          stand_number: string
+          tone?: string | null
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          customer_name?: string | null
+          delivery_status?: string | null
+          id?: string
+          message_body?: string
+          outreach_type?: string
+          provider_message_id?: string | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          stand_number?: string
+          tone?: string | null
+        }
+        Relationships: []
+      }
       contact_stand_mappings: {
         Row: {
           contact_identifier: string

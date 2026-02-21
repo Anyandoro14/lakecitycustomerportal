@@ -24,10 +24,15 @@ import {
   Calendar,
   ShieldAlert,
   RefreshCw,
+  Sparkles,
+  MessageSquare,
+  History,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
+import OutreachDialog from "@/components/collections/OutreachDialog";
+import TimelinePanel from "@/components/collections/TimelinePanel";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +67,15 @@ const CollectionsCommandCenter = () => {
   const [isDirector, setIsDirector] = useState(false);
   const [reportingData, setReportingData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Outreach dialog state
+  const [outreachOpen, setOutreachOpen] = useState(false);
+  const [outreachStand, setOutreachStand] = useState<any>(null);
+  const [outreachType, setOutreachType] = useState<"reminder" | "follow_up" | "escalation">("reminder");
+
+  // Timeline panel state
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineStand, setTimelineStand] = useState<any>(null);
 
   useEffect(() => {
     checkAccessAndLoad();
@@ -115,6 +129,19 @@ const CollectionsCommandCenter = () => {
     toast.success("Data refreshed");
   };
 
+  // ── outreach handlers ─────────────────────────────────────────────────
+
+  const openOutreach = (stand: any, type: "reminder" | "follow_up" | "escalation") => {
+    setOutreachStand(stand);
+    setOutreachType(type);
+    setOutreachOpen(true);
+  };
+
+  const openTimeline = (stand: any) => {
+    setTimelineStand(stand);
+    setTimelineOpen(true);
+  };
+
   // ── derived data ─────────────────────────────────────────────────────────
 
   const soldStands = useMemo(
@@ -122,29 +149,18 @@ const CollectionsCommandCenter = () => {
     [reportingData]
   );
 
-  // Current month name (e.g. "February")
   const currentMonthName = new Date().toLocaleString("en-US", { month: "long" });
   const currentYear = new Date().getFullYear();
 
-  // Summary metrics
   const metrics = useMemo(() => {
     if (!soldStands.length)
       return {
-        expectedThisMonth: 0,
-        collectedThisMonth: 0,
-        collectionPct: 0,
-        standardOutstanding: 0,
-        extensionOutstanding: 0,
-        totalOverdue: 0,
-        highRisk: 0,
+        expectedThisMonth: 0, collectedThisMonth: 0, collectionPct: 0,
+        standardOutstanding: 0, extensionOutstanding: 0, totalOverdue: 0, highRisk: 0,
       };
 
-    let expectedThisMonth = 0;
-    let collectedThisMonth = 0;
-    let standardOutstanding = 0;
-    let extensionOutstanding = 0;
-    let totalOverdue = 0;
-    let highRisk = 0;
+    let expectedThisMonth = 0, collectedThisMonth = 0, standardOutstanding = 0,
+      extensionOutstanding = 0, totalOverdue = 0, highRisk = 0;
 
     soldStands.forEach((s: any) => {
       const monthly = parseCurrency(s.monthlyPayment);
@@ -154,55 +170,36 @@ const CollectionsCommandCenter = () => {
 
       expectedThisMonth += monthly;
 
-      // Check if paid this month
       const thisMonthPayment = (s.payments || []).find((p: any) => {
         const m = p.month?.match(
           /\d+\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i
         );
         return m && m[1] === currentMonthName && parseInt(m[2]) === currentYear;
       });
-      if (thisMonthPayment) {
-        collectedThisMonth += thisMonthPayment.amountNumeric || 0;
-      }
+      if (thisMonthPayment) collectedThisMonth += thisMonthPayment.amountNumeric || 0;
 
-      if (isExtension) {
-        extensionOutstanding += balance;
-      } else {
-        standardOutstanding += balance;
-      }
+      if (isExtension) extensionOutstanding += balance;
+      else standardOutstanding += balance;
 
       if ((s.daysOverdue || 0) > 0) totalOverdue++;
       if ((s.daysOverdue || 0) >= 30) highRisk++;
     });
 
     return {
-      expectedThisMonth,
-      collectedThisMonth,
+      expectedThisMonth, collectedThisMonth,
       collectionPct: expectedThisMonth > 0 ? (collectedThisMonth / expectedThisMonth) * 100 : 0,
-      standardOutstanding,
-      extensionOutstanding,
-      totalOverdue,
-      highRisk,
+      standardOutstanding, extensionOutstanding, totalOverdue, highRisk,
     };
   }, [soldStands, currentMonthName, currentYear]);
 
-  // Section 1 – Due Today: accounts whose next payment date is today
   const dueToday = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     return soldStands
       .filter((s: any) => {
-        // Due today = daysOverdue === 0 and account isn't prepaid
-        // Alternatively, the payment is due on the 5th of this month
-        const dayOfMonth = today.getDate();
         const isPastDue = (s.daysOverdue || 0) > 0;
         const isPrepaid = (s.prepaidDays || 0) > 0;
-        // Due today means: it's the 5th and not yet paid this month, or daysOverdue === 0 and no prepaid
         return !isPrepaid && !isPastDue;
       })
       .map((s: any) => {
-        // Calculate days since last payment
         let daysSinceLastPayment = 0;
         const payments = s.payments || [];
         if (payments.length > 0) {
@@ -220,7 +217,6 @@ const CollectionsCommandCenter = () => {
       });
   }, [soldStands]);
 
-  // Section 2 – Overdue (sorted by days overdue desc)
   const overdueAccounts = useMemo(
     () =>
       soldStands
@@ -229,7 +225,6 @@ const CollectionsCommandCenter = () => {
     [soldStands]
   );
 
-  // Section 3 – Extension accounts
   const extensionAccounts = useMemo(
     () =>
       soldStands.filter((s: any) =>
@@ -237,16 +232,6 @@ const CollectionsCommandCenter = () => {
       ),
     [soldStands]
   );
-
-  // ── send reminder (placeholder) ──────────────────────────────────────────
-
-  const handleSendReminder = (stand: any) => {
-    toast.info(`Reminder queued for ${stand.customerName || stand.standNumber}`);
-  };
-
-  const handleEscalate = (stand: any) => {
-    toast.info(`Escalation initiated for ${stand.customerName || stand.standNumber}`);
-  };
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -284,7 +269,6 @@ const CollectionsCommandCenter = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-8">
-        {/* Page Title */}
         <div>
           <h1 className="text-2xl font-bold text-foreground">Collections Command Center</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -294,37 +278,17 @@ const CollectionsCommandCenter = () => {
 
         {/* ── Summary Metrics ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <MetricCard icon={DollarSign} label="Expected This Month" value={fmt(metrics.expectedThisMonth)} />
+          <MetricCard icon={TrendingUp} label="Collected" value={fmt(metrics.collectedThisMonth)} accent="text-emerald-600" />
           <MetricCard
-            icon={DollarSign}
-            label="Expected This Month"
-            value={fmt(metrics.expectedThisMonth)}
-          />
-          <MetricCard
-            icon={TrendingUp}
-            label="Collected"
-            value={fmt(metrics.collectedThisMonth)}
-            accent="text-emerald-600"
-          />
-          <MetricCard
-            icon={ChevronUp}
-            label="Collection %"
+            icon={ChevronUp} label="Collection %"
             value={`${metrics.collectionPct.toFixed(1)}%`}
             accent={metrics.collectionPct >= 80 ? "text-emerald-600" : metrics.collectionPct >= 50 ? "text-orange-500" : "text-destructive"}
           />
           <MetricCard icon={Users} label="Standard Outstanding" value={fmt(metrics.standardOutstanding)} />
           <MetricCard icon={Calendar} label="Extension Outstanding" value={fmt(metrics.extensionOutstanding)} />
-          <MetricCard
-            icon={AlertTriangle}
-            label="Total Overdue"
-            value={String(metrics.totalOverdue)}
-            accent="text-destructive"
-          />
-          <MetricCard
-            icon={ShieldAlert}
-            label="High Risk (30+ days)"
-            value={String(metrics.highRisk)}
-            accent="text-red-900"
-          />
+          <MetricCard icon={AlertTriangle} label="Total Overdue" value={String(metrics.totalOverdue)} accent="text-destructive" />
+          <MetricCard icon={ShieldAlert} label="High Risk (30+ days)" value={String(metrics.highRisk)} accent="text-red-900" />
         </div>
 
         {/* ── Section 1: Due Today ─────────────────────────────────────── */}
@@ -347,7 +311,7 @@ const CollectionsCommandCenter = () => {
                       <TableHead className="text-right">Monthly Installment</TableHead>
                       <TableHead className="text-right">Days Since Last Payment</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -375,10 +339,15 @@ const CollectionsCommandCenter = () => {
                             <Badge className="bg-muted text-muted-foreground text-xs">Due</Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button size="sm" variant="outline" onClick={() => handleSendReminder(s)}>
-                              <Send className="h-3 w-3 mr-1" />
-                              Remind
-                            </Button>
+                            <div className="flex gap-1 justify-end">
+                              <Button size="sm" variant="outline" onClick={() => openOutreach(s, "reminder")}>
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                Remind
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => openTimeline(s)} title="Timeline">
+                                <History className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -408,50 +377,45 @@ const CollectionsCommandCenter = () => {
                       <TableHead>Client Name</TableHead>
                       <TableHead className="text-right">Amount Outstanding</TableHead>
                       <TableHead className="text-right">Days Overdue</TableHead>
-                      <TableHead>Last Contact</TableHead>
-                      <TableHead>Last Response</TableHead>
                       <TableHead>Escalation</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {overdueAccounts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                           No overdue accounts 🎉
                         </TableCell>
                       </TableRow>
                     ) : (
                       overdueAccounts.map((s: any) => {
                         const severity = overdueSeverity(s.daysOverdue || 0);
+                        const days = s.daysOverdue || 0;
                         return (
-                          <TableRow key={s.standNumber} className={overdueRowClass(s.daysOverdue || 0)}>
+                          <TableRow key={s.standNumber} className={overdueRowClass(days)}>
                             <TableCell className="font-medium">{s.standNumber}</TableCell>
                             <TableCell>{s.customerName || "—"}</TableCell>
                             <TableCell className="text-right font-mono">
                               {fmt(parseCurrency(s.currentBalance))}
                             </TableCell>
-                            <TableCell className="text-right font-bold">{s.daysOverdue}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">—</TableCell>
+                            <TableCell className="text-right font-bold">{days}</TableCell>
                             <TableCell>
                               <Badge className={`${severity.className} text-xs`}>{severity.label}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex gap-1 justify-end">
-                                <Button size="sm" variant="outline" onClick={() => handleSendReminder(s)}>
-                                  <Send className="h-3 w-3 mr-1" />
-                                  Follow Up
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openOutreach(s, days >= 10 ? "escalation" : "follow_up")}
+                                >
+                                  <Sparkles className="h-3 w-3 mr-1" />
+                                  {days >= 10 ? "Escalate" : "Follow Up"}
                                 </Button>
-                                {(s.daysOverdue || 0) >= 10 && (
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => handleEscalate(s)}
-                                  >
-                                    Escalate
-                                  </Button>
-                                )}
+                                <Button size="sm" variant="ghost" onClick={() => openTimeline(s)} title="Timeline">
+                                  <History className="h-3 w-3" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -485,12 +449,13 @@ const CollectionsCommandCenter = () => {
                       <TableHead className="text-right">Balance</TableHead>
                       <TableHead className="text-right">Days Overdue / Ahead</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {extensionAccounts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                           No extension accounts
                         </TableCell>
                       </TableRow>
@@ -528,6 +493,19 @@ const CollectionsCommandCenter = () => {
                                 <Badge className="bg-muted text-muted-foreground text-xs">Current</Badge>
                               )}
                             </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-1 justify-end">
+                                {isOverdue && (
+                                  <Button size="sm" variant="outline" onClick={() => openOutreach(s, "reminder")}>
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    Remind
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="ghost" onClick={() => openTimeline(s)} title="Timeline">
+                                  <History className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         );
                       })
@@ -541,6 +519,21 @@ const CollectionsCommandCenter = () => {
       </main>
 
       <BottomNav />
+
+      {/* Outreach Dialog */}
+      <OutreachDialog
+        open={outreachOpen}
+        onOpenChange={setOutreachOpen}
+        stand={outreachStand}
+        defaultType={outreachType}
+      />
+
+      {/* Timeline Panel */}
+      <TimelinePanel
+        open={timelineOpen}
+        onOpenChange={setTimelineOpen}
+        stand={timelineStand}
+      />
     </div>
   );
 };
