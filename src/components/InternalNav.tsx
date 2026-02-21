@@ -77,6 +77,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       path: '/article-feedback',
       visible: true, // All internal users
     },
+    {
+      id: 'collections-guide',
+      label: 'Collections Guide',
+      icon: Newspaper,
+      path: '/collections-guide',
+      visible: isSuperAdmin || isDirector,
+    },
   ];
 
   const visibleItems = navItems.filter(item => item.visible);
