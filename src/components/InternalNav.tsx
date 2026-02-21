@@ -133,7 +133,7 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
         variant="outline"
         size="sm"
         onClick={() => navigate("/")}
-        className="hidden md:flex bg-primary-foreground/15 text-primary-foreground border-primary-foreground/30 hover:bg-primary-foreground/25 font-medium"
+        className="hidden md:flex bg-white text-primary border-white/80 hover:bg-white/90 font-semibold"
       >
         <Home className="h-4 w-4 mr-2" />
         Home
