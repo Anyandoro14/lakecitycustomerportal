@@ -14,6 +14,168 @@ export type Database = {
   }
   public: {
     Tables: {
+      article_broadcasts: {
+        Row: {
+          article_id: string
+          broadcast_type: string
+          created_at: string
+          id: string
+          recipient_count: number | null
+          sent_by: string | null
+          sent_by_email: string | null
+          status: string
+        }
+        Insert: {
+          article_id: string
+          broadcast_type?: string
+          created_at?: string
+          id?: string
+          recipient_count?: number | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          status?: string
+        }
+        Update: {
+          article_id?: string
+          broadcast_type?: string
+          created_at?: string
+          id?: string
+          recipient_count?: number | null
+          sent_by?: string | null
+          sent_by_email?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_broadcasts_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      article_feedback: {
+        Row: {
+          article_id: string
+          comment: string
+          created_at: string
+          customer_name: string | null
+          id: string
+          stand_number: string | null
+          user_id: string | null
+        }
+        Insert: {
+          article_id: string
+          comment: string
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          stand_number?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          article_id?: string
+          comment?: string
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          stand_number?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_feedback_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      article_read_status: {
+        Row: {
+          article_id: string
+          created_at: string
+          dismissed_ribbon: boolean
+          id: string
+          is_read: boolean
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          dismissed_ribbon?: boolean
+          id?: string
+          is_read?: boolean
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          dismissed_ribbon?: boolean
+          id?: string
+          is_read?: boolean
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_read_status_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      articles: {
+        Row: {
+          author_email: string
+          author_name: string | null
+          category: string
+          content: string
+          created_at: string
+          excerpt: string | null
+          id: string
+          is_published: boolean
+          published_at: string | null
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_email: string
+          author_name?: string | null
+          category?: string
+          content: string
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          is_published?: boolean
+          published_at?: string | null
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_email?: string
+          author_name?: string | null
+          category?: string
+          content?: string
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          is_published?: boolean
+          published_at?: string | null
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
