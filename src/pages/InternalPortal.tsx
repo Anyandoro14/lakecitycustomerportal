@@ -475,30 +475,43 @@ const InternalPortal = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-primary text-primary-foreground sticky top-0 z-50 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <Shield className="h-6 w-6" />
-            <div>
-              <h1 className="text-lg font-bold">LakeCity Internal Portal</h1>
-              <p className="text-xs text-primary-foreground/70">Helpdesk & Admin</p>
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3 shrink-0">
+              <Shield className="h-6 w-6 hidden sm:block" />
+              <div>
+                <h1 className="text-lg font-bold leading-tight">LakeCity Internal Portal</h1>
+                <p className="text-xs text-primary-foreground/70">Helpdesk & Admin</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden lg:flex items-center gap-2 mr-2">
+                <div className="text-right">
+                  <p className="text-sm font-medium truncate max-w-[140px]">{currentUser?.full_name || currentUser?.email}</p>
+                  <Badge variant="secondary" className="text-xs">
+                    {currentUser?.role}
+                    {currentUser?.is_override_approver && " • Approver"}
+                  </Badge>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-primary-foreground hover:bg-primary-foreground/10 shrink-0">
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          {/* Navigation row */}
+          <div className="mt-2 -mb-1 flex items-center justify-between">
             <InternalNav 
               isSuperAdmin={currentUser?.role === 'super_admin'}
               isDirector={currentUser?.role === 'director'}
               currentPage="portal"
             />
-            <div className="text-right hidden lg:block">
-              <p className="text-sm font-medium">{currentUser?.full_name || currentUser?.email}</p>
-              <Badge variant="secondary" className="text-xs">
+            <div className="lg:hidden text-right">
+              <p className="text-xs font-medium text-primary-foreground/80 truncate max-w-[120px]">{currentUser?.full_name || currentUser?.email}</p>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 {currentUser?.role}
-                {currentUser?.is_override_approver && " • Approver"}
               </Badge>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-primary-foreground">
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </header>
