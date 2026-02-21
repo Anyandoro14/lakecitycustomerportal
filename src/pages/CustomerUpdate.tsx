@@ -66,7 +66,7 @@ const CustomerUpdate = () => {
             <div>
               <h3 className="font-semibold">📄 Monthly Statements</h3>
               <p className="text-muted-foreground">
-                Access and download your monthly account statements showing opening balance, payments received during the month, and closing balance.
+                Statements are generated at the end of each month and become available in the first week of the following month. Each statement shows your opening balance, payments received during that month, and closing balance. You can view and download any previous month's statement at any time.
               </p>
             </div>
 
