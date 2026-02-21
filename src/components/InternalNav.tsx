@@ -74,6 +74,17 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
 
   return (
     <div className="flex items-center gap-2">
+      {/* Home button (far left on desktop) */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => navigate("/")}
+        className="hidden md:flex bg-white text-primary border-white/80 hover:bg-white/90 font-semibold"
+      >
+        <Home className="h-4 w-4 mr-2" />
+        Home
+      </Button>
+
       {/* Desktop Navigation */}
       <div className="hidden md:flex items-center gap-2">
         {visibleItems.map((item) => (
@@ -127,17 +138,6 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      {/* Home button (always visible on desktop) */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => navigate("/")}
-        className="hidden md:flex bg-white text-primary border-white/80 hover:bg-white/90 font-semibold"
-      >
-        <Home className="h-4 w-4 mr-2" />
-        Home
-      </Button>
     </div>
   );
 };
