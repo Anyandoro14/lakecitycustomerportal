@@ -33,13 +33,12 @@ export const CustomerInvitationEmail = ({
         {/* Header with Logo */}
         <Section style={header}>
           <Img
-            src="https://gumkxjeahojrcaqnosyz.supabase.co/storage/v1/object/public/email-assets/logo-icon-512.png?v=1"
-            width="48"
-            height="48"
+            src="https://gumkxjeahojrcaqnosyz.supabase.co/storage/v1/object/public/email-assets/logo-wordmark-white.png?v=1"
+            width="180"
+            height="36"
             alt="LakeCity"
             style={logo}
           />
-          <Text style={logoText}>LAKECITY</Text>
           <Hr style={headerAccent} />
         </Section>
 
