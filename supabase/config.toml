@@ -83,3 +83,9 @@ verify_jwt = false
 
 [functions.incoming-message-webhook]
 verify_jwt = false
+
+[functions.send-article-email]
+verify_jwt = false
+
+[functions.send-article-feedback-notification]
+verify_jwt = false

@@ -29,6 +29,8 @@ const LookingGlassView = lazy(() => import("./pages/LookingGlassView"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const CustomerSupportGuide = lazy(() => import("./pages/CustomerSupportGuide"));
 const CustomerUpdate = lazy(() => import("./pages/CustomerUpdate"));
+const Updates = lazy(() => import("./pages/Updates"));
+const ArticleFeedbackDashboard = lazy(() => import("./pages/ArticleFeedbackDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -69,6 +71,8 @@ const App = () => (
                 <Route path="/looking-glass" element={<LookingGlassView />} />
                 <Route path="/support-guide" element={<CustomerSupportGuide />} />
                 <Route path="/customer-update" element={<CustomerUpdate />} />
+                <Route path="/updates" element={<Updates />} />
+                <Route path="/article-feedback" element={<ArticleFeedbackDashboard />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

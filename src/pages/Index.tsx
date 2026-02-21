@@ -9,7 +9,9 @@ import DocumentsSection from "@/components/DocumentsSection";
 import PaymentHistory from "@/components/PaymentHistory";
 import BottomNav from "@/components/BottomNav";
 import OnboardingWizard from "@/components/OnboardingWizard";
+import ArticleRibbon from "@/components/articles/ArticleRibbon";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useArticles } from "@/hooks/useArticles";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ const Index = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { needsOnboarding, loading: onboardingLoading, markComplete } = useOnboarding();
+  const { getUnreadArticles, dismissRibbon } = useArticles();
 
   // Session timeout hook
   useSessionTimeout();
@@ -153,8 +156,13 @@ const Index = () => {
     );
   }
 
+  const unreadArticles = getUnreadArticles();
+
   return (
     <div className="min-h-screen bg-background pb-24">
+      {unreadArticles.length > 0 && (
+        <ArticleRibbon articles={unreadArticles} onDismiss={dismissRibbon} />
+      )}
       <CustomerHeader />
       
       <main className="max-w-md mx-auto px-4 py-4 space-y-4">

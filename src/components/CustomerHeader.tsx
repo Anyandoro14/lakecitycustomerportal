@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Menu, Home, FileText, CreditCard, Settings, HelpCircle, LogOut } from "lucide-react";
+import { Menu, Home, FileText, CreditCard, Settings, HelpCircle, LogOut, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,6 +61,7 @@ const CustomerHeader = () => {
   // Customer-only menu items - removed Reporting and Account Management
   const menuItems = [
     { icon: Home, label: "Home", path: "/" },
+    { icon: Newspaper, label: "Updates", path: "/updates" },
     { icon: CreditCard, label: "Monthly Statements", path: "/monthly-statements" },
     { icon: FileText, label: "Agreement of Sale", path: "/agreement-of-sale" },
     { icon: Settings, label: "Settings", path: "/settings" },

@@ -14,7 +14,9 @@ import {
   Eye, 
   Menu,
   Shield,
-  ChevronDown
+  ChevronDown,
+  Newspaper,
+  MessageSquare,
 } from "lucide-react";
 
 interface InternalNavProps {
@@ -53,11 +55,18 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       visible: isSuperAdmin || isDirector, // Only Super Admin and Director
     },
     {
-      id: 'access',
-      label: 'User Access',
-      icon: Users,
-      path: '/account-management',
-      visible: isSuperAdmin || isDirector, // Only Super Admin and Director
+      id: 'articles',
+      label: 'Articles',
+      icon: Newspaper,
+      path: '/updates',
+      visible: true, // All internal users
+    },
+    {
+      id: 'feedback',
+      label: 'Feedback',
+      icon: MessageSquare,
+      path: '/article-feedback',
+      visible: true, // All internal users
     },
   ];
 
