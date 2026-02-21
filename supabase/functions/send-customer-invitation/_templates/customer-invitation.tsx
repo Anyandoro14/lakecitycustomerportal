@@ -33,12 +33,13 @@ export const CustomerInvitationEmail = ({
         {/* Header with Logo */}
         <Section style={header}>
           <Img
-            src="https://lakecitycustomerportal.lovable.app/logo-wordmark-white.svg"
-            width="180"
-            height="40"
+            src="https://gumkxjeahojrcaqnosyz.supabase.co/storage/v1/object/public/email-assets/logo-icon-512.png?v=1"
+            width="48"
+            height="48"
             alt="LakeCity"
             style={logo}
           />
+          <Text style={logoText}>LAKECITY</Text>
           <Hr style={headerAccent} />
         </Section>
 
@@ -147,6 +148,16 @@ const header = {
 
 const logo = {
   margin: '0 auto',
+  display: 'block' as const,
+}
+
+const logoText = {
+  color: '#FFFFFF',
+  fontSize: '20px',
+  fontWeight: '700' as const,
+  letterSpacing: '3px',
+  margin: '12px 0 0',
+  textAlign: 'center' as const,
 }
 
 const headerAccent = {
