@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -36,6 +36,17 @@ const OutreachDialog = ({ open, onOpenChange, stand, defaultType }: OutreachDial
   const [recipient, setRecipient] = useState("");
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Auto-populate recipient from collection schedule data when dialog opens or channel changes
+  useEffect(() => {
+    if (open && stand) {
+      if (channel === "email") {
+        setRecipient(stand.email || "");
+      } else {
+        setRecipient(stand.phoneNumber || "");
+      }
+    }
+  }, [open, stand, channel]);
 
   const handleGenerate = async () => {
     setGenerating(true);

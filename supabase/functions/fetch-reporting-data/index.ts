@@ -431,6 +431,7 @@ serve(async (req) => {
         firstName,
         lastName,
         email,
+        phoneNumber,
         countryCode,
         customerCategory,
         totalPrice,
