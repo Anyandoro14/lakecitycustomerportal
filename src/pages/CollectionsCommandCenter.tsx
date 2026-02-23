@@ -27,7 +27,17 @@ import {
   Sparkles,
   MessageSquare,
   History,
+  Search,
+  X,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import BottomNav from "@/components/BottomNav";
 import InternalNav from "@/components/InternalNav";
 import { toast } from "sonner";
@@ -67,6 +77,10 @@ const CollectionsCommandCenter = () => {
   const [isDirector, setIsDirector] = useState(false);
   const [reportingData, setReportingData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [escalationFilter, setEscalationFilter] = useState<string>("all");
 
   // Outreach dialog state
   const [outreachOpen, setOutreachOpen] = useState(false);
@@ -233,6 +247,38 @@ const CollectionsCommandCenter = () => {
     [soldStands]
   );
 
+  // ── filter logic ──────────────────────────────────────────────────────────
+  const matchesFilter = (s: any) => {
+    const query = searchQuery.toLowerCase().trim();
+    const days = s.daysOverdue || 0;
+    const severity = overdueSeverity(days).label.toLowerCase();
+
+    // Text search: stand number or name
+    if (query) {
+      const standMatch = (s.standNumber || "").toLowerCase().includes(query);
+      const nameMatch = (s.customerName || "").toLowerCase().includes(query);
+      const daysMatch = String(days).includes(query);
+      if (!standMatch && !nameMatch && !daysMatch) return false;
+    }
+
+    // Escalation filter
+    if (escalationFilter !== "all") {
+      if (escalationFilter === "critical" && days < 30) return false;
+      if (escalationFilter === "high" && (days < 10 || days >= 30)) return false;
+      if (escalationFilter === "medium" && (days < 4 || days >= 10)) return false;
+      if (escalationFilter === "low" && (days < 1 || days >= 4)) return false;
+      if (escalationFilter === "current" && days > 0) return false;
+    }
+
+    return true;
+  };
+
+  const filteredDueToday = useMemo(() => dueToday.filter(matchesFilter), [dueToday, searchQuery, escalationFilter]);
+  const filteredOverdue = useMemo(() => overdueAccounts.filter(matchesFilter), [overdueAccounts, searchQuery, escalationFilter]);
+  const filteredExtension = useMemo(() => extensionAccounts.filter(matchesFilter), [extensionAccounts, searchQuery, escalationFilter]);
+
+  const hasActiveFilters = searchQuery !== "" || escalationFilter !== "all";
+
   // ── render ────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -276,6 +322,52 @@ const CollectionsCommandCenter = () => {
           </p>
         </div>
 
+        {/* ── Filter Bar ───────────────────────────────────────────────── */}
+        <Card className="p-3">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="relative flex-1 w-full sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by stand number, name, or days..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Select value={escalationFilter} onValueChange={setEscalationFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Escalation level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                <SelectItem value="critical">Critical (30+ days)</SelectItem>
+                <SelectItem value="high">High (10-29 days)</SelectItem>
+                <SelectItem value="medium">Medium (4-9 days)</SelectItem>
+                <SelectItem value="low">Low (1-3 days)</SelectItem>
+                <SelectItem value="current">Current</SelectItem>
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSearchQuery(""); setEscalationFilter("all"); }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </Card>
+
         {/* ── Summary Metrics ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <MetricCard icon={DollarSign} label="Expected This Month" value={fmt(metrics.expectedThisMonth)} />
@@ -296,7 +388,7 @@ const CollectionsCommandCenter = () => {
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Due Today</h2>
-            <Badge variant="secondary" className="ml-auto">{dueToday.length} accounts</Badge>
+            <Badge variant="secondary" className="ml-auto">{filteredDueToday.length} accounts</Badge>
           </div>
 
           <Card>
@@ -315,14 +407,14 @@ const CollectionsCommandCenter = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dueToday.length === 0 ? (
+                    {filteredDueToday.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                          No accounts due today
+                          {hasActiveFilters ? "No matching accounts" : "No accounts due today"}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      dueToday.map((s: any) => (
+                      filteredDueToday.map((s: any) => (
                         <TableRow key={s.standNumber}>
                           <TableCell className="font-medium">{s.standNumber}</TableCell>
                           <TableCell>{s.customerName || "—"}</TableCell>
@@ -364,7 +456,7 @@ const CollectionsCommandCenter = () => {
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             <h2 className="text-lg font-semibold text-foreground">Overdue</h2>
-            <Badge variant="destructive" className="ml-auto">{overdueAccounts.length} accounts</Badge>
+            <Badge variant="destructive" className="ml-auto">{filteredOverdue.length} accounts</Badge>
           </div>
 
           <Card>
@@ -382,14 +474,14 @@ const CollectionsCommandCenter = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {overdueAccounts.length === 0 ? (
+                    {filteredOverdue.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          No overdue accounts 🎉
+                          {hasActiveFilters ? "No matching accounts" : "No overdue accounts 🎉"}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      overdueAccounts.map((s: any) => {
+                      filteredOverdue.map((s: any) => {
                         const severity = overdueSeverity(s.daysOverdue || 0);
                         const days = s.daysOverdue || 0;
                         return (
@@ -434,7 +526,7 @@ const CollectionsCommandCenter = () => {
           <div className="flex items-center gap-2 mb-3">
             <Calendar className="h-5 w-5 text-secondary" />
             <h2 className="text-lg font-semibold text-foreground">Extension Accounts</h2>
-            <Badge variant="secondary" className="ml-auto">{extensionAccounts.length} accounts</Badge>
+            <Badge variant="secondary" className="ml-auto">{filteredExtension.length} accounts</Badge>
           </div>
 
           <Card>
@@ -453,14 +545,14 @@ const CollectionsCommandCenter = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {extensionAccounts.length === 0 ? (
+                    {filteredExtension.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                          No extension accounts
+                          {hasActiveFilters ? "No matching accounts" : "No extension accounts"}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      extensionAccounts.map((s: any) => {
+                      filteredExtension.map((s: any) => {
                         const isOverdue = (s.daysOverdue || 0) > 0;
                         const isPrepaid = (s.prepaidDays || 0) > 0;
                         return (
