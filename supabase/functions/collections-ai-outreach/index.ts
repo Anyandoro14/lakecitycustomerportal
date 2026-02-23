@@ -155,8 +155,8 @@ async function handleSend(body: any, userId: string, userEmail: string) {
   if (channel === 'sms' || channel === 'whatsapp') {
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-    const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
     const twilioWhatsApp = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
+    const messagingServiceSid = Deno.env.get('TWILIO_MESSAGING_SERVICE_SID');
 
     if (!accountSid || !authToken) {
       return new Response(JSON.stringify({ error: 'Twilio not configured' }), {
@@ -168,8 +168,24 @@ async function handleSend(body: any, userId: string, userEmail: string) {
     if (formattedPhone.startsWith('0')) formattedPhone = '+263' + formattedPhone.substring(1);
     else if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone;
 
-    const from = channel === 'whatsapp' ? `whatsapp:${twilioWhatsApp}` : twilioPhone!;
     const to = channel === 'whatsapp' ? `whatsapp:${formattedPhone}` : formattedPhone;
+
+    // Build request params: use MessagingServiceSid for SMS, direct From for WhatsApp
+    const params: Record<string, string> = { To: to, Body: message };
+    if (channel === 'whatsapp') {
+      params.From = `whatsapp:${twilioWhatsApp}`;
+    } else if (messagingServiceSid) {
+      params.MessagingServiceSid = messagingServiceSid;
+    } else {
+      // Fallback to phone number if no messaging service
+      const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
+      if (!twilioPhone) {
+        return new Response(JSON.stringify({ error: 'SMS sender not configured. Set TWILIO_MESSAGING_SERVICE_SID or TWILIO_PHONE_NUMBER.' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      params.From = twilioPhone;
+    }
 
     const twilioResp = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -179,7 +195,7 @@ async function handleSend(body: any, userId: string, userEmail: string) {
           Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({ From: from, To: to, Body: message }),
+        body: new URLSearchParams(params),
       }
     );
 
