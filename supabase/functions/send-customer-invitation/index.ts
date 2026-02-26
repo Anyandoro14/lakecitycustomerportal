@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import React from 'https://esm.sh/react@18.3.1';
 import { Resend } from 'https://esm.sh/resend@4.0.0';
 import { render } from 'https://esm.sh/@react-email/render@0.0.12?deps=react@18.3.1,react-dom@18.3.1';
@@ -51,17 +51,17 @@ Deno.serve(async (req) => {
     );
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
-    if (claimsError || !claimsData?.claims) {
+    if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = claimsData.claims.sub as string;
-    const userEmail = claimsData.claims.email as string;
+    const userId = user.id;
+    const userEmail = user.email || '';
 
     // Verify internal user
     if (!userEmail?.toLowerCase().endsWith('@lakecity.co.zw')) {

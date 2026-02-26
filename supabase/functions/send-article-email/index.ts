@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'https://esm.sh/resend@4.0.0';
 
 const corsHeaders = {
@@ -24,12 +24,12 @@ Deno.serve(async (req) => {
     );
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const userEmail = claimsData.claims.email as string;
+    const userEmail = user.email || '';
 
     // Only internal users can send
     if (!userEmail?.toLowerCase().endsWith('@lakecity.co.zw')) {
