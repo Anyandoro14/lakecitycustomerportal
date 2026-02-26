@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
           ${customIntro ? `<p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 20px;">${customIntro}</p><hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0;" />` : ''}
           ${contentHtml}
           <div style="text-align:center;margin:32px 0 16px;">
-            <a href="https://lakecitycustomerportal.lovable.app/updates" style="background:#0B3D2E;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;">Read on Portal</a>
+            <a href="https://standledger.io/updates" style="background:#0B3D2E;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;">Read on Portal</a>
           </div>
         </div>
         <div style="background:#0B3D2E;padding:20px 32px;text-align:center;">
