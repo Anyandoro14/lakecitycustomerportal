@@ -295,7 +295,7 @@ const PaymentGatewayProposal = () => {
           <div>
             <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">Lake City Development</h2>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              <strong>Lake City Development (Pvt) Ltd</strong> is a Zimbabwean land development company that sells 
+              <strong>Warwickshire Pvt Ltd</strong> is a Zimbabwean land development company that sells 
               residential stands on a <strong>36-month instalment basis</strong>. Customers purchase land and make 
               fixed monthly payments (typically <strong>$400 – $2,500 USD</strong>) until the stand is fully paid off, 
               at which point the Agreement of Sale is finalised.
@@ -644,7 +644,7 @@ const PaymentGatewayProposal = () => {
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
           <div className="flex flex-wrap items-center justify-center gap-4 text-white/40 text-sm">
-            <span>Lake City Development (Pvt) Ltd</span>
+            <span>Warwickshire Pvt Ltd</span>
             <span>•</span>
             <span>Harare, Zimbabwe</span>
             <span>•</span>
