@@ -276,7 +276,6 @@ const PaymentGatewayProposal = () => {
 
       <main className="max-w-6xl mx-auto px-6 py-16">
         {/* ── About Lake City ── */}
-        <SectionDivider label="About Lake City" />
 
         <div className="grid md:grid-cols-2 gap-12 items-start mb-16">
           <div>
@@ -353,7 +352,6 @@ const PaymentGatewayProposal = () => {
         </div>
 
         {/* ── Platform Overview ── */}
-        <SectionDivider label="Platform Overview" />
         
         <div className="grid md:grid-cols-2 gap-12 items-start">
           <div>
@@ -412,7 +410,6 @@ const PaymentGatewayProposal = () => {
         </div>
 
         {/* ── Integration Points ── */}
-        <SectionDivider label="Integration Points" />
 
         <div className="mb-12">
           <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">Where Payments Fit In</h2>
@@ -454,7 +451,6 @@ const PaymentGatewayProposal = () => {
         </div>
 
         {/* ── Checkout Experience Mockup ── */}
-        <SectionDivider label="Checkout Experience" />
         
         <div className="grid md:grid-cols-2 gap-12 items-center mb-8">
           <div>
@@ -492,7 +488,6 @@ const PaymentGatewayProposal = () => {
         </div>
 
         {/* ── Phased Approach ── */}
-        <SectionDivider label="Phased Approach" />
 
         <div className="text-center mb-12">
           <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Implementation Roadmap</h2>
