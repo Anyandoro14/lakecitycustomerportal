@@ -321,23 +321,23 @@ const PaymentGatewayProposal = () => {
               </h3>
               <div className="space-y-2">
                 {[
-                  { flag: "🇬🇧", country: "United Kingdom", stands: 29 },
-                  { flag: "🇿🇼", country: "Zimbabwe", stands: 13 },
-                  { flag: "🇺🇸", country: "United States", stands: 11 },
-                  { flag: "🇦🇺", country: "Australia", stands: 6 },
-                  { flag: "🇿🇦", country: "South Africa", stands: 3 },
-                  { flag: "🇦🇪", country: "UAE", stands: 2 },
-                  { flag: "🇿🇲", country: "Zambia", stands: 2 },
-                  { flag: "🇳🇿", country: "New Zealand", stands: 1 },
-                  { flag: "🇪🇹", country: "Ethiopia", stands: 1 },
-                  { flag: "🇸🇦", country: "Saudi Arabia", stands: 1 },
+                  { flag: "🇬🇧", country: "United Kingdom", pct: 41 },
+                  { flag: "🇿🇼", country: "Zimbabwe", pct: 19 },
+                  { flag: "🇺🇸", country: "United States", pct: 16 },
+                  { flag: "🇦🇺", country: "Australia", pct: 9 },
+                  { flag: "🇿🇦", country: "South Africa", pct: 4 },
+                  { flag: "🇦🇪", country: "UAE", pct: 3 },
+                  { flag: "🇿🇲", country: "Zambia", pct: 3 },
+                  { flag: "🇳🇿", country: "New Zealand", pct: 1 },
+                  { flag: "🇪🇹", country: "Ethiopia", pct: 1 },
+                  { flag: "🇸🇦", country: "Saudi Arabia", pct: 1 },
                 ].map((loc) => (
                   <div key={loc.country} className="flex items-center justify-between py-1.5 border-b border-[hsl(160,10%,90%)] last:border-0">
                     <div className="flex items-center gap-2">
                       <span className="text-base shrink-0">{loc.flag}</span>
                       <span className="text-sm font-medium text-[hsl(160,70%,15%)]">{loc.country}</span>
                     </div>
-                    <span className="text-sm font-semibold text-[hsl(160,70%,15%)]">{loc.stands} stands</span>
+                    <span className="text-sm font-semibold text-[hsl(160,70%,15%)]">{loc.pct}%</span>
                   </div>
                 ))}
               </div>
