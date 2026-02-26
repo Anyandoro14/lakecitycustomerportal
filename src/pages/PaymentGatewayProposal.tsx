@@ -283,11 +283,11 @@ const PaymentGatewayProposal = () => {
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
               <strong>Lake City Development (Pvt) Ltd</strong> is a Zimbabwean land development company that sells 
               residential stands on a <strong>36-month instalment basis</strong>. Customers purchase land and make 
-              fixed monthly payments (typically <strong>$50 – $500 USD</strong>) until the stand is fully paid off, 
+              fixed monthly payments (typically <strong>$400 – $2,500 USD</strong>) until the stand is fully paid off, 
               at which point the Agreement of Sale is finalised.
             </p>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
-              The company currently manages <strong>70 active customer accounts</strong> across multiple 
+              The company currently manages <strong>69 active customer accounts</strong> across multiple 
               development phases, with all financial records maintained via a centralised payment ledger. 
               StandLedger is the proprietary customer portal that gives buyers real-time visibility into 
               their balances, statements, and documents.
@@ -308,10 +308,10 @@ const PaymentGatewayProposal = () => {
               </h3>
               <ul className="space-y-2.5 text-base text-[hsl(160,70%,15%)]/60">
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Individual land buyers (not corporate)</li>
-                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Monthly instalment payments of $50 – $500</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Monthly instalment payments of $400 – $2,500</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />36-month payment plans (average)</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mobile-first users, primarily smartphone access</li>
-                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mix of local and diaspora customers</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mix of local (29%) and diaspora (71%) customers</li>
               </ul>
             </div>
 
