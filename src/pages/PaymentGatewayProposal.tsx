@@ -4,19 +4,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
-
-const ACCESS_PASSWORD = "LC$tand#G8way!2026zw";
+import { supabase } from "@/integrations/supabase/client";
 
 /* ─────────────────── Password Gate ─────────────────── */
 const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
   const [pw, setPw] = useState("");
   const [error, setError] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pw === ACCESS_PASSWORD) onUnlock();
-    else setError(true);
+    setLoading(true);
+    setError(false);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("verify-proposal-access", {
+        body: { password: pw },
+      });
+      if (fnError || !data?.valid) {
+        setError(true);
+      } else {
+        onUnlock();
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,8 +60,8 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
               </button>
             </div>
             {error && <p className="text-red-400 text-xs mb-3">Incorrect password. Please try again.</p>}
-            <Button type="submit" className="w-full h-12 bg-white text-[hsl(160,70%,15%)] hover:bg-white/90 font-semibold text-sm">
-              <Shield className="w-4 h-4 mr-2" /> Unlock Document
+            <Button type="submit" disabled={loading} className="w-full h-12 bg-white text-[hsl(160,70%,15%)] hover:bg-white/90 font-semibold text-sm">
+              <Shield className="w-4 h-4 mr-2" /> {loading ? "Verifying…" : "Unlock Document"}
             </Button>
           </div>
         </form>
