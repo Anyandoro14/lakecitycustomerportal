@@ -395,7 +395,7 @@ const PaymentGatewayProposal = () => {
             </p>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
               Built on a modern React/TypeScript stack with a serverless backend, StandLedger is designed 
-              as a progressive web app (PWA) optimised for mobile-first usage in the Zimbabwean market.
+              as a progressive web app (PWA) optimised for mobile-first usage in the Zimbabwean diaspora market.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <StatCard icon={Users} value="70" label="Active Customers" />
