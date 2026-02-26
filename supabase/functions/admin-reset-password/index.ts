@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,13 +106,13 @@ Deno.serve(async (req) => {
     if (authHeader?.startsWith("Bearer ")) {
       try {
         const token = authHeader.replace("Bearer ", "");
-        const { data: claimsData } = await supabaseAdmin.auth.getClaims(token);
-        if (claimsData?.claims) {
-          performedBy = claimsData.claims.sub as string;
-          performedByEmail = claimsData.claims.email as string;
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        if (user) {
+          performedBy = user.id;
+          performedByEmail = user.email || null;
         }
       } catch (e) {
-        console.error("Error getting claims:", e);
+        console.error("Error getting user:", e);
       }
     }
 
