@@ -29,7 +29,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const displayName = fullName || email.split('@')[0];
-    const loginUrl = "https://lakecitycustomerportal.lovable.app/internal-login";
+    const loginUrl = "https://standledger.io/internal-login";
 
     const emailResponse = await resend.emails.send({
       from: "LakeCity <noreply@noreply.lakecity.co.zw>",

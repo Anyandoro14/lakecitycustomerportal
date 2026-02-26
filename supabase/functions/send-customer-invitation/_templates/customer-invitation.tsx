@@ -105,7 +105,7 @@ export const CustomerInvitationEmail = ({
         <Hr style={divider} />
         <Section style={footer}>
           <Img
-            src="https://lakecitycustomerportal.lovable.app/logo-monogram-white.svg"
+            src="https://standledger.io/logo-monogram-white.svg"
             width="40"
             height="40"
             alt="LakeCity"
