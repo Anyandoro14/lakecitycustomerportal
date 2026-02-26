@@ -321,7 +321,7 @@ const PaymentGatewayProposal = () => {
                 <Users className="w-4 h-4" /> Customer Profile
               </h3>
               <ul className="space-y-2.5 text-base text-[hsl(160,70%,15%)]/60">
-                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Individual land buyers (not corporate)</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Individual land buyers</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Monthly instalment payments of $400 – $2,500</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />36-month payment plans (average)</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mobile-first users, primarily smartphone access</li>
