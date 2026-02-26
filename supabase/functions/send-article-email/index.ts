@@ -114,9 +114,20 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Google Sheets not configured for broadcast' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Parse the service account key
-      const key = JSON.parse(serviceAccountKey);
+      // Parse the service account key - handle both JSON and raw PEM formats
+      let privateKey: string;
+      try {
+        const key = JSON.parse(serviceAccountKey);
+        privateKey = key.private_key;
+      } catch {
+        // Secret is stored as raw PEM key, not JSON
+        privateKey = serviceAccountKey;
+      }
       
+      if (!privateKey) {
+        return new Response(JSON.stringify({ error: 'Invalid service account key configuration' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       // Create JWT for Google API
       const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
       const now = Math.floor(Date.now() / 1000);
@@ -129,7 +140,7 @@ Deno.serve(async (req) => {
       }));
 
       // Import the private key
-      const pemContent = key.private_key
+      const pemContent = privateKey
         .replace(/-----BEGIN PRIVATE KEY-----/g, '')
         .replace(/-----END PRIVATE KEY-----/g, '')
         .replace(/\s/g, '');
