@@ -390,8 +390,7 @@ const PaymentGatewayProposal = () => {
           <div>
             <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">What is StandLedger?</h2>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
-              StandLedger is a proprietary customer portal built for <strong>Lake City Development (Pvt) Ltd</strong>, 
-              a Zimbabwean land development company. The platform gives customers real-time visibility into their 
+              StandLedger is a proprietary customer portal built for <strong>land developers accepting payments from diaspora customers</strong>. The platform gives customers real-time visibility into their 
               land purchase agreements, payment schedules, balances, and account documents.
             </p>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
