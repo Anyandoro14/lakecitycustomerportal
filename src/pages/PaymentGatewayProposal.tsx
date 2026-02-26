@@ -93,12 +93,12 @@ const PhaseCard = ({ phase, title, subtitle, items, color, active }: {
       </div>
       <div>
         <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">{title}</h3>
-        <p className="text-sm text-[hsl(160,70%,15%)]/50 mt-0.5">{subtitle}</p>
+        <p className="text-base text-[hsl(160,70%,15%)]/50 mt-0.5">{subtitle}</p>
       </div>
     </div>
     <ul className="space-y-3">
       {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-3 text-sm text-[hsl(160,70%,15%)]/70">
+        <li key={i} className="flex items-start gap-3 text-base text-[hsl(160,70%,15%)]/70">
           <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
           <span>{item}</span>
         </li>
@@ -256,19 +256,19 @@ const PaymentGatewayProposal = () => {
           <div className="flex items-center gap-3 mb-8">
             <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert" />
             <span className="text-white/30 text-xl">×</span>
-            <span className="text-white/60 text-sm font-medium tracking-wide">Payment Gateway Partner</span>
+            <span className="text-white/60 text-base font-medium tracking-wide">Payment Gateway Partner</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold text-white leading-tight max-w-3xl">
             Payment Gateway<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">Integration Proposal</span>
           </h1>
-          <p className="text-white/50 text-lg mt-6 max-w-2xl leading-relaxed">
+          <p className="text-white/50 text-xl mt-6 max-w-2xl leading-relaxed">
             A phased approach to enabling seamless land instalment payments for 500+ customers in Zimbabwe, 
             processing transactions up to $999 per payment.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
             {["Confidential", "February 2026", "v1.0"].map((tag) => (
-              <span key={tag} className="bg-white/10 border border-white/10 text-white/70 text-xs font-medium px-4 py-1.5 rounded-full">{tag}</span>
+              <span key={tag} className="bg-white/10 border border-white/10 text-white/70 text-sm font-medium px-4 py-1.5 rounded-full">{tag}</span>
             ))}
           </div>
         </div>
@@ -281,12 +281,12 @@ const PaymentGatewayProposal = () => {
         <div className="grid md:grid-cols-2 gap-12 items-start">
           <div>
             <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">What is StandLedger?</h2>
-            <p className="text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
               StandLedger is a proprietary customer portal built for <strong>Lake City Development (Pvt) Ltd</strong>, 
               a Zimbabwean land development company. The platform gives customers real-time visibility into their 
               land purchase agreements, payment schedules, balances, and account documents.
             </p>
-            <p className="text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
               Built on a modern React/TypeScript stack with a serverless backend, StandLedger is designed 
               as a progressive web app (PWA) optimised for mobile-first usage in the Zimbabwean market.
             </p>
@@ -298,8 +298,8 @@ const PaymentGatewayProposal = () => {
             </div>
           </div>
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-5">
-              <h3 className="text-sm font-bold text-[hsl(160,70%,15%)] mb-3 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
+              <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
                 <Zap className="w-4 h-4" /> Tech Stack
               </h3>
               <div className="space-y-2">
@@ -312,18 +312,18 @@ const PaymentGatewayProposal = () => {
                   ["Data Sync", "Google Sheets API for payment ledger"],
                   ["Mobile", "Progressive Web App (PWA)"],
                 ].map(([k, v]) => (
-                  <div key={k} className="flex items-start gap-3 text-sm">
-                    <span className="font-semibold text-[hsl(160,70%,15%)] w-20 shrink-0">{k}</span>
-                    <span className="text-[hsl(160,70%,15%)]/50">{v}</span>
+                  <div key={k} className="flex items-start gap-3 text-base">
+                    <span className="font-semibold text-[hsl(160,70%,15%)] w-24 shrink-0">{k}</span>
+                    <span className="text-[hsl(160,70%,15%)]/60">{v}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-5">
-              <h3 className="text-sm font-bold text-[hsl(160,70%,15%)] mb-3 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
+              <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
                 <Shield className="w-4 h-4" /> Security Model
               </h3>
-              <ul className="space-y-2 text-sm text-[hsl(160,70%,15%)]/60">
+              <ul className="space-y-2.5 text-base text-[hsl(160,70%,15%)]/60">
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Row-Level Security on all tables</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />SMS-based 2FA for customer login</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Session timeout & token management</li>
@@ -339,7 +339,7 @@ const PaymentGatewayProposal = () => {
 
         <div className="mb-12">
           <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">Where Payments Fit In</h2>
-          <p className="text-[hsl(160,70%,15%)]/60 leading-relaxed max-w-3xl mb-8">
+          <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed max-w-3xl mb-8">
             The customer journey naturally creates multiple moments where a <strong>"Pay Now"</strong> call-to-action 
             delivers maximum value. Below are the key screens where a payment button would be surfaced.
           </p>
@@ -366,7 +366,7 @@ const PaymentGatewayProposal = () => {
                 <div className="h-2 bg-gradient-to-r from-[hsl(160,70%,15%)] to-emerald-400" />
                 <CardContent className="p-6">
                   <h3 className="font-bold text-[hsl(160,70%,15%)] mb-2">{item.title}</h3>
-                  <p className="text-sm text-[hsl(160,70%,15%)]/50 leading-relaxed mb-4">{item.desc}</p>
+                  <p className="text-base text-[hsl(160,70%,15%)]/50 leading-relaxed mb-4">{item.desc}</p>
                   <div className="bg-[hsl(160,70%,15%)] text-white text-xs font-semibold px-4 py-2 rounded-lg inline-flex items-center gap-1">
                     {item.cta}
                   </div>
@@ -384,7 +384,7 @@ const PaymentGatewayProposal = () => {
             <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">
               Frictionless Checkout
             </h2>
-            <p className="text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
               Our goal is <strong>"Ease of Payment"</strong>. The checkout experience is designed to feel as simple 
               as Stripe or PayPal — just 3 steps to complete a payment. Customers only need:
             </p>
@@ -399,14 +399,14 @@ const PaymentGatewayProposal = () => {
                     {item.num}
                   </div>
                   <div>
-                    <div className="font-semibold text-[hsl(160,70%,15%)] text-sm">{item.title}</div>
-                    <div className="text-xs text-[hsl(160,70%,15%)]/50">{item.desc}</div>
+                    <div className="font-semibold text-[hsl(160,70%,15%)] text-base">{item.title}</div>
+                    <div className="text-sm text-[hsl(160,70%,15%)]/60">{item.desc}</div>
                   </div>
                 </div>
               ))}
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-xs text-amber-800 leading-relaxed">
+              <p className="text-sm text-amber-800 leading-relaxed">
                 <strong>Processing Fee:</strong> An estimated ~4% fee will apply per transaction. 
                 This is transparently displayed to the customer on the confirmation screen before they authorise payment.
               </p>
@@ -420,7 +420,7 @@ const PaymentGatewayProposal = () => {
 
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-3">Implementation Roadmap</h2>
-          <p className="text-[hsl(160,70%,15%)]/50 max-w-2xl mx-auto">
+          <p className="text-base text-[hsl(160,70%,15%)]/50 max-w-2xl mx-auto">
             A pragmatic, phased rollout that delivers value early while building toward a fully integrated payment ecosystem.
           </p>
         </div>
@@ -492,8 +492,8 @@ const PaymentGatewayProposal = () => {
                     {item.step}
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-[hsl(160,70%,15%)]">{item.title}</div>
-                    <div className="text-xs text-[hsl(160,70%,15%)]/50">{item.desc}</div>
+                    <div className="text-base font-semibold text-[hsl(160,70%,15%)]">{item.title}</div>
+                    <div className="text-sm text-[hsl(160,70%,15%)]/60">{item.desc}</div>
                   </div>
                 </div>
               ))}
@@ -514,7 +514,7 @@ const PaymentGatewayProposal = () => {
                 "Integration support contact / Slack channel",
                 "Sample API requests & responses",
               ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3 text-sm text-[hsl(160,70%,15%)]/70">
+                <div key={i} className="flex items-start gap-3 text-base text-[hsl(160,70%,15%)]/70">
                   <ArrowUpRight className="w-4 h-4 text-[hsl(38,70%,55%)] shrink-0 mt-0.5" />
                   <span>{item}</span>
                 </div>
@@ -527,11 +527,11 @@ const PaymentGatewayProposal = () => {
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-white mb-3">Ready to Build Together?</h2>
-          <p className="text-white/50 text-sm max-w-md mx-auto mb-8">
+          <p className="text-white/50 text-base max-w-md mx-auto mb-8">
             We're excited to partner on making land payments effortless for our customers. 
             Let's schedule a technical deep-dive to align on Phase 1.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 text-white/40 text-xs">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-white/40 text-sm">
             <span>Lake City Development (Pvt) Ltd</span>
             <span>•</span>
             <span>Harare, Zimbabwe</span>
