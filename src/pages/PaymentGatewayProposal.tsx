@@ -59,9 +59,9 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
 
 /* ─────────────── Section Divider ─────────────── */
 const SectionDivider = ({ label }: { label: string }) => (
-  <div className="flex items-center gap-4 my-16">
+  <div className="flex items-center gap-6 my-20">
     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[hsl(160,70%,15%)]/20 to-transparent" />
-    <span className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(160,70%,15%)]/40">{label}</span>
+    <span className="text-sm md:text-base font-bold uppercase tracking-[0.25em] text-[hsl(160,70%,15%)]/40">{label}</span>
     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[hsl(160,70%,15%)]/20 to-transparent" />
   </div>
 );
