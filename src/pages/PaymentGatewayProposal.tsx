@@ -61,7 +61,7 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
 const SectionDivider = ({ label }: { label: string }) => (
   <div className="flex items-center gap-6 my-20">
     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[hsl(160,70%,15%)]/20 to-transparent" />
-    <span className="text-sm md:text-base font-bold uppercase tracking-[0.25em] text-[hsl(160,70%,15%)]/40">{label}</span>
+    <span className="text-base md:text-lg font-bold uppercase tracking-[0.25em] text-[hsl(160,70%,15%)]/40">{label}</span>
     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[hsl(160,70%,15%)]/20 to-transparent" />
   </div>
 );
@@ -92,7 +92,7 @@ const PhaseCard = ({ phase, title, subtitle, items, color, active }: {
         {phase}
       </div>
       <div>
-        <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">{title}</h3>
+        <h3 className="text-2xl font-bold text-[hsl(160,70%,15%)]">{title}</h3>
         <p className="text-base text-[hsl(160,70%,15%)]/50 mt-0.5">{subtitle}</p>
       </div>
     </div>
@@ -280,7 +280,7 @@ const PaymentGatewayProposal = () => {
         
         <div className="grid md:grid-cols-2 gap-12 items-start">
           <div>
-            <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">What is StandLedger?</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">What is StandLedger?</h2>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
               StandLedger is a proprietary customer portal built for <strong>Lake City Development (Pvt) Ltd</strong>, 
               a Zimbabwean land development company. The platform gives customers real-time visibility into their 
@@ -338,7 +338,7 @@ const PaymentGatewayProposal = () => {
         <SectionDivider label="Integration Points" />
 
         <div className="mb-12">
-          <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">Where Payments Fit In</h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">Where Payments Fit In</h2>
           <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed max-w-3xl mb-8">
             The customer journey naturally creates multiple moments where a <strong>"Pay Now"</strong> call-to-action 
             delivers maximum value. Below are the key screens where a payment button would be surfaced.
@@ -381,7 +381,7 @@ const PaymentGatewayProposal = () => {
         
         <div className="grid md:grid-cols-2 gap-12 items-center mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">
               Frictionless Checkout
             </h2>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
@@ -418,7 +418,7 @@ const PaymentGatewayProposal = () => {
         <SectionDivider label="Phased Approach" />
 
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-[hsl(160,70%,15%)] mb-3">Implementation Roadmap</h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Implementation Roadmap</h2>
           <p className="text-base text-[hsl(160,70%,15%)]/50 max-w-2xl mx-auto">
             A pragmatic, phased rollout that delivers value early while building toward a fully integrated payment ecosystem.
           </p>
@@ -477,7 +477,7 @@ const PaymentGatewayProposal = () => {
 
         <div className="grid md:grid-cols-2 gap-8 mb-16">
           <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8">
-            <h3 className="text-xl font-bold text-[hsl(160,70%,15%)] mb-4">Integration Flow (Phase 2+)</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">Integration Flow (Phase 2+)</h3>
             <div className="space-y-4">
               {[
                 { step: "1", title: "Customer initiates payment", desc: "Name, Stand Number, Amount submitted via React frontend" },
@@ -499,7 +499,7 @@ const PaymentGatewayProposal = () => {
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8">
-            <h3 className="text-xl font-bold text-[hsl(160,70%,15%)] mb-4">What We Need From Partner</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">What We Need From Partner</h3>
             <div className="space-y-3">
               {[
                 "REST API documentation (OpenAPI/Swagger preferred)",
@@ -525,7 +525,7 @@ const PaymentGatewayProposal = () => {
         {/* ── Footer ── */}
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-white mb-3">Ready to Build Together?</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">Ready to Build Together?</h2>
           <p className="text-white/50 text-base max-w-md mx-auto mb-8">
             We're excited to partner on making land payments effortless for our customers.
           </p>
