@@ -385,8 +385,7 @@ const PaymentGatewayProposal = () => {
               Frictionless Checkout
             </h2>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
-              Our goal is <strong>"Ease of Payment"</strong>. The checkout experience is designed to feel as simple 
-              as Stripe or PayPal — just 3 steps to complete a payment. Customers only need:
+              Our goal is <strong>"Ease of Payment"</strong>. The checkout experience is designed to feel seamless and familiar — just 3 steps to complete a payment. Customers only need:
             </p>
             <div className="space-y-4 mb-8">
               {[
