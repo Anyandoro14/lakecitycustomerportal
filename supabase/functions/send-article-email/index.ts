@@ -115,16 +115,15 @@ Deno.serve(async (req) => {
       }
 
       // Parse the service account key - handle both JSON and raw PEM formats
-      let privateKey: string;
+      let privateKeyPem: string;
       try {
-        const key = JSON.parse(serviceAccountKey);
-        privateKey = key.private_key;
+        const key = JSON.parse(serviceAccountKey.replace(/\\n/g, '\n'));
+        privateKeyPem = key.private_key;
       } catch {
-        // Secret is stored as raw PEM key, not JSON
-        privateKey = serviceAccountKey;
+        privateKeyPem = serviceAccountKey;
       }
       
-      if (!privateKey) {
+      if (!privateKeyPem) {
         return new Response(JSON.stringify({ error: 'Invalid service account key configuration' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
@@ -139,16 +138,28 @@ Deno.serve(async (req) => {
         iat: now,
       }));
 
-      // Import the private key
-      const pemContent = privateKey
-        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-        .replace(/-----END PRIVATE KEY-----/g, '')
-        .replace(/\s/g, '');
-      
-      const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
+      // Extract and normalize PEM base64 content
+      const extractPemBase64 = (pem: string) => {
+        const normalized = (pem || '').toString().replace(/\r/g, '').replace(/\\n/g, '\n');
+        const match = normalized.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
+        const body = match ? match[1] : normalized;
+        let base64 = body.replace(/[^A-Za-z0-9+/=\n]/g, '').replace(/\n/g, '');
+        const pad = base64.length % 4;
+        if (pad === 2) base64 += '==';
+        else if (pad === 3) base64 += '=';
+        else if (pad === 1) throw new Error('Invalid base64 length');
+        return base64;
+      };
+
+      const base64Key = extractPemBase64(privateKeyPem);
+      const raw = atob(base64Key);
+      const buffer = new ArrayBuffer(raw.length);
+      const view = new Uint8Array(buffer);
+      for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+
       const cryptoKey = await crypto.subtle.importKey(
         'pkcs8',
-        binaryKey,
+        buffer,
         { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
         false,
         ['sign']
