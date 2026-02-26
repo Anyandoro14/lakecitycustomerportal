@@ -357,9 +357,9 @@ const PaymentGatewayProposal = () => {
                 {[
                   { band: "$0 – $499", pct: 16, bar: "w-[16%]" },
                   { band: "$500 – $999", pct: 4, bar: "w-[4%]" },
-                  { band: "$1,000 – $1,499", pct: 51, bar: "w-[51%]" },
+                  { band: "$1,000 – $1,499", pct: 55, bar: "w-[55%]" },
                   { band: "$1,500 – $1,999", pct: 19, bar: "w-[19%]" },
-                  { band: "$2,000+", pct: 10, bar: "w-[10%]" },
+                  { band: "$2,000+", pct: 6, bar: "w-[6%]" },
                 ].map((b) => (
                   <div key={b.band} className="space-y-1">
                     <div className="flex items-center justify-between">
