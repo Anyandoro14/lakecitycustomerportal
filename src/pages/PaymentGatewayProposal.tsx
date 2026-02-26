@@ -348,6 +348,37 @@ const PaymentGatewayProposal = () => {
                 </p>
               </div>
             </div>
+
+            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
+              <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
+                <DollarSign className="w-4 h-4" /> Monthly Payment Distribution
+              </h3>
+              <div className="space-y-2">
+                {[
+                  { band: "$0 – $499", pct: 16, bar: "w-[16%]" },
+                  { band: "$500 – $999", pct: 4, bar: "w-[4%]" },
+                  { band: "$1,000 – $1,499", pct: 51, bar: "w-[51%]" },
+                  { band: "$1,500 – $1,999", pct: 19, bar: "w-[19%]" },
+                  { band: "$2,000+", pct: 10, bar: "w-[10%]" },
+                ].map((b) => (
+                  <div key={b.band} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[hsl(160,70%,15%)]">{b.band}</span>
+                      <span className="text-sm font-semibold text-[hsl(160,70%,15%)]">{b.pct}%</span>
+                    </div>
+                    <div className="h-2 bg-[hsl(160,70%,15%)]/10 rounded-full overflow-hidden">
+                      <div className={`h-full bg-gradient-to-r from-[hsl(160,60%,35%)] to-[hsl(160,70%,45%)] rounded-full ${b.bar}`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 bg-[hsl(160,70%,15%)]/5 rounded-lg p-3">
+                <p className="text-xs text-[hsl(160,70%,15%)]/70 leading-relaxed">
+                  <strong>Key insight:</strong> Over half of all customers pay between <strong>$1,000 – $1,499/mo</strong>, 
+                  well within the <strong>$999 per-transaction cap</strong> when split across two payments.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
