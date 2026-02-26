@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 
-const ACCESS_PASSWORD = "LakeCity2025!Pay";
+const ACCESS_PASSWORD = "LC$tand#G8way!2026zw";
 
 /* ─────────────────── Password Gate ─────────────────── */
 const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
