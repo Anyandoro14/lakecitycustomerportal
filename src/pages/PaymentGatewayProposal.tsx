@@ -314,7 +314,10 @@ const PaymentGatewayProposal = () => {
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mix of local (29%) and diaspora (71%) customers</li>
               </ul>
             </div>
+          </div>
+        </div>
 
+        <div className="grid md:grid-cols-2 gap-8 mb-16">
             <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
               <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
                 <Globe className="w-4 h-4" /> Where Our Customers Are
@@ -379,7 +382,6 @@ const PaymentGatewayProposal = () => {
                 </p>
               </div>
             </div>
-          </div>
         </div>
 
         {/* ── Platform Overview ── */}
