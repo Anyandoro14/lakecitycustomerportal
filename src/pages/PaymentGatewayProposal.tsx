@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Shield, CreditCard, Building2, ArrowRight, Check, ChevronDown, Zap, Globe, Smartphone, Wallet, ArrowUpRight, Eye, EyeOff, DollarSign, Users, BarChart3, Layers } from "lucide-react";
+import { Lock, Shield, CreditCard, Building2, ArrowRight, Check, ChevronDown, Zap, Globe, Smartphone, Wallet, ArrowUpRight, Eye, EyeOff, DollarSign, Users, BarChart3, Layers, MapPin, Landmark, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
