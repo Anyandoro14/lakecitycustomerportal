@@ -629,10 +629,6 @@ const PaymentGatewayProposal = () => {
         {/* ── Footer ── */}
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">Ready to Build Together?</h2>
-          <p className="text-white/50 text-base max-w-md mx-auto mb-8">
-            We're excited to partner on making land payments effortless for our customers.
-          </p>
           <div className="flex flex-wrap items-center justify-center gap-4 text-white/40 text-sm">
             <span>Lake City Development (Pvt) Ltd</span>
             <span>•</span>
