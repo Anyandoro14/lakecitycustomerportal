@@ -275,6 +275,76 @@ const PaymentGatewayProposal = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-16">
+        {/* ── About Lake City ── */}
+        <SectionDivider label="About Lake City" />
+
+        <div className="grid md:grid-cols-2 gap-12 items-start mb-16">
+          <div>
+            <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">Lake City Development</h2>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              <strong>Lake City Development (Pvt) Ltd</strong> is a Zimbabwean land development company that sells 
+              residential stands on a <strong>36-month instalment basis</strong>. Customers purchase land and make 
+              fixed monthly payments (typically <strong>$50 – $500 USD</strong>) until the stand is fully paid off, 
+              at which point the Agreement of Sale is finalised.
+            </p>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
+              The company currently manages <strong>500+ active customer accounts</strong> across multiple 
+              development phases, with all financial records maintained via a centralised payment ledger. 
+              StandLedger is the proprietary customer portal that gives buyers real-time visibility into 
+              their balances, statements, and documents.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-sm text-amber-800 leading-relaxed">
+                <strong>🏦 Banking Requirement:</strong> All payments, regardless of country of origin, 
+                must settle into Lake City's <strong>CABS (Central Africa Building Society) account in Zimbabwe (USD)</strong>. 
+                CABS is our primary banking partner for all collections.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
+              <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
+                <Users className="w-4 h-4" /> Customer Profile
+              </h3>
+              <ul className="space-y-2.5 text-base text-[hsl(160,70%,15%)]/60">
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Individual land buyers (not corporate)</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Monthly instalment payments of $50 – $500</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />36-month payment plans (average)</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mobile-first users, primarily smartphone access</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mix of local and diaspora customers</li>
+              </ul>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
+              <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
+                <Globe className="w-4 h-4" /> Where Our Customers Are
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { flag: "🇿🇼", country: "Zimbabwe", detail: "Primary market — majority of customers (Harare, Bulawayo, regional towns)" },
+                  { flag: "🇿🇦", country: "South Africa", detail: "Diaspora hub — concentrated in Johannesburg" },
+                  { flag: "🇬🇧", country: "United Kingdom", detail: "Diaspora hub — London & Midlands communities" },
+                ].map((loc) => (
+                  <div key={loc.country} className="flex items-start gap-3">
+                    <span className="text-xl shrink-0">{loc.flag}</span>
+                    <div>
+                      <div className="text-sm font-semibold text-[hsl(160,70%,15%)]">{loc.country}</div>
+                      <div className="text-sm text-[hsl(160,70%,15%)]/50">{loc.detail}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 bg-[hsl(160,70%,15%)]/5 rounded-lg p-3">
+                <p className="text-xs text-[hsl(160,70%,15%)]/70 leading-relaxed">
+                  <strong>Key implication:</strong> The payment gateway must support cross-border payments from ZAR and GBP origins, 
+                  all terminating in USD at <strong>CABS, Zimbabwe</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ── Platform Overview ── */}
         <SectionDivider label="Platform Overview" />
         
