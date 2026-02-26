@@ -263,7 +263,7 @@ const PaymentGatewayProposal = () => {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">Integration Proposal</span>
           </h1>
           <p className="text-white/50 text-xl mt-6 max-w-2xl leading-relaxed">
-            A phased approach to enabling seamless land instalment payments for 500+ customers in Zimbabwe, 
+            A phased approach to enabling seamless land instalment payments for 70 customers in Zimbabwe, 
             processing transactions up to $999 per payment.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
@@ -288,7 +288,7 @@ const PaymentGatewayProposal = () => {
               at which point the Agreement of Sale is finalised.
             </p>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
-              The company currently manages <strong>500+ active customer accounts</strong> across multiple 
+              The company currently manages <strong>70 active customer accounts</strong> across multiple 
               development phases, with all financial records maintained via a centralised payment ledger. 
               StandLedger is the proprietary customer portal that gives buyers real-time visibility into 
               their balances, statements, and documents.
@@ -361,7 +361,7 @@ const PaymentGatewayProposal = () => {
               as a progressive web app (PWA) optimised for mobile-first usage in the Zimbabwean market.
             </p>
             <div className="grid grid-cols-2 gap-4">
-              <StatCard icon={Users} value="500+" label="Active Customers" />
+              <StatCard icon={Users} value="70" label="Active Customers" />
               <StatCard icon={DollarSign} value="$999" label="Max Transaction" />
               <StatCard icon={BarChart3} value="~4%" label="Est. Processing Fee" />
               <StatCard icon={Layers} value="36 mo" label="Avg. Payment Plan" />
