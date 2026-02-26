@@ -435,7 +435,7 @@ const PaymentGatewayProposal = () => {
               "Customer clicks 'Make Payment' on StandLedger",
               "Shown their unique payment reference (Stand #) and bank details",
               "Customer visits their bank (in-branch or online banking) to initiate transfer",
-              "Payment reconciled manually via existing Google Sheets ledger",
+              "Payment reconciled manually via existing receipting process",
               "Confirmation notification sent to customer once payment is recorded",
               "No API integration required — purely informational flow",
             ]}
