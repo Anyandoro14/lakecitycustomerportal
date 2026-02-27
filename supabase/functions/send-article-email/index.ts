@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
     if (!isTest) {
       await supabaseAdmin.from('article_broadcasts').insert({
         article_id: articleId,
-        sent_by: claimsData.claims.sub,
+        sent_by: user.id,
         sent_by_email: userEmail,
         recipient_count: sentCount,
         broadcast_type: broadcastToAll ? 'all_customers' : 'individual',
@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
         action: 'SEND_ARTICLE_EMAIL',
         entity_type: 'article',
         entity_id: articleId,
-        performed_by: claimsData.claims.sub,
+        performed_by: user.id,
         performed_by_email: userEmail,
         details: {
           subject,
