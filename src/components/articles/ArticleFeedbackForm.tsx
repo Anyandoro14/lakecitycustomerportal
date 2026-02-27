@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, Send, CheckCircle } from "lucide-react";
+import { Send, CheckCircle } from "lucide-react";
 
 interface ArticleFeedbackFormProps {
   articleId: string;
@@ -31,11 +31,11 @@ const ArticleFeedbackForm = ({ articleId, onSubmit }: ArticleFeedbackFormProps) 
 
   if (submitted) {
     return (
-      <div className="mt-6 rounded-lg border border-border bg-card p-6 text-center">
-        <CheckCircle className="h-10 w-10 text-secondary mx-auto mb-3" />
-        <p className="font-semibold text-foreground">Thank you for your feedback!</p>
-        <p className="text-sm text-muted-foreground mt-1">
-          We've received your comment. Our team reviews all feedback to improve your experience.
+      <div className="mt-12 py-10 text-center">
+        <CheckCircle className="h-8 w-8 text-secondary mx-auto mb-4" />
+        <p className="font-display text-lg font-medium text-foreground">Thank you for your feedback</p>
+        <p className="text-sm font-body text-muted-foreground mt-2 max-w-sm mx-auto leading-relaxed">
+          Our team reviews all feedback to improve your experience.
         </p>
       </div>
     );
@@ -43,49 +43,51 @@ const ArticleFeedbackForm = ({ articleId, onSubmit }: ArticleFeedbackFormProps) 
 
   if (!isOpen) {
     return (
-      <div className="mt-6">
-        <Button
-          variant="outline"
+      <div className="mt-12">
+        <button
           onClick={() => setIsOpen(true)}
-          className="w-full h-12 gap-2 text-sm border-dashed"
+          className="group w-full py-6 text-center transition-all duration-300"
         >
-          <MessageSquare className="h-4 w-4" />
-          Share your thoughts on this article
-        </Button>
+          <p className="text-xs font-body tracking-[0.2em] uppercase text-muted-foreground/50 mb-2 group-hover:text-secondary transition-colors">
+            We value your perspective
+          </p>
+          <p className="font-display text-base sm:text-lg text-foreground/70 italic group-hover:text-foreground transition-colors">
+            Share your thoughts on this communication
+          </p>
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-border bg-card p-4 space-y-3">
+    <div className="mt-12 space-y-5">
       <div>
-        <p className="text-sm font-semibold text-foreground">Leave a Comment</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Your feedback is anonymous and shared only with our development team and directors. 
-          It won't be posted publicly. We value your input — please be patient as changes may take time to implement.
+        <p className="font-display text-lg font-medium text-foreground">Your Feedback</p>
+        <p className="text-sm font-body text-muted-foreground mt-1.5 leading-relaxed">
+          Shared privately with our team and directors. Your input helps shape future communications.
         </p>
       </div>
       <Textarea
-        placeholder="Share your feedback or suggestions..."
+        placeholder="Share your thoughts..."
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         maxLength={2000}
-        className="min-h-[100px] resize-none text-sm"
+        className="min-h-[120px] resize-none text-base font-body leading-relaxed border-border/50 focus:border-secondary"
       />
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">{comment.length}/2000</span>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => { setIsOpen(false); setComment(""); }}>
+        <span className="text-xs font-body text-muted-foreground/40">{comment.length}/2,000</span>
+        <div className="flex gap-3">
+          <Button variant="ghost" size="sm" onClick={() => { setIsOpen(false); setComment(""); }} className="font-body text-sm">
             Cancel
           </Button>
           <Button
             size="sm"
             onClick={handleSubmit}
             disabled={!comment.trim() || submitting}
-            className="gap-1.5"
+            className="gap-2 font-body text-sm px-6"
           >
             <Send className="h-3.5 w-3.5" />
-            {submitting ? "Sending..." : "Send Feedback"}
+            {submitting ? "Sending..." : "Submit"}
           </Button>
         </div>
       </div>

@@ -18,71 +18,92 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
     ? format(new Date(article.published_at), "d MMMM yyyy")
     : format(new Date(article.created_at), "d MMMM yyyy");
 
+  const categoryLabel = article.category === "welcome" ? "Welcome" : "Press Release";
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Sticky header — email app style */}
-      <div className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-border px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 -ml-2">
+      {/* Minimal sticky nav */}
+      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50">
+        <div className="max-w-3xl mx-auto px-6 sm:px-8 py-3 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={onBack} className="gap-2 -ml-3 text-muted-foreground hover:text-foreground font-body text-sm">
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Updates</span>
+            <span className="hidden sm:inline">All Updates</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onToggleRead(article.id)}
-            className="gap-1.5 text-xs"
+            className="gap-1.5 text-xs font-body text-muted-foreground hover:text-foreground"
           >
             {isRead ? (
               <>
                 <BookOpen className="h-4 w-4" />
-                Mark Unread
+                <span className="hidden sm:inline">Mark Unread</span>
               </>
             ) : (
               <>
                 <BookOpenCheck className="h-4 w-4" />
-                Mark as Read
+                <span className="hidden sm:inline">Mark as Read</span>
               </>
             )}
           </Button>
         </div>
       </div>
 
-      {/* Article content */}
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-32">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-medium uppercase tracking-wider text-secondary">
-              {article.category === "welcome" ? "Welcome" : "Portal Update"}
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">
+      {/* Article hero */}
+      <div className="bg-primary text-primary-foreground">
+        <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16">
+          {/* Category tag */}
+          <p className="text-[11px] sm:text-xs font-body font-medium tracking-[0.25em] uppercase text-primary-foreground/50 mb-6">
+            {categoryLabel}
+          </p>
+
+          {/* Title */}
+          <h1 className="font-display text-2xl sm:text-4xl lg:text-5xl font-medium leading-tight tracking-tight max-w-2xl">
             {article.title}
           </h1>
-          <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-            <span className="font-medium">{article.author_name || "LakeCity Team"}</span>
-            <span>·</span>
-            <span>{publishedDate}</span>
+
+          {/* Meta */}
+          <div className="mt-8 flex items-center gap-3">
+            <div className="h-px flex-1 max-w-[40px] bg-primary-foreground/20" />
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-body text-primary-foreground/50">
+              <span className="font-medium text-primary-foreground/70">{article.author_name || "The Directors"}</span>
+              <span className="text-primary-foreground/30">·</span>
+              <span>{publishedDate}</span>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Content — render as HTML-safe paragraphs */}
-        <div className="prose-article text-sm leading-relaxed text-foreground space-y-4">
+      {/* Article body */}
+      <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16 pb-32">
+        {/* Opening line accent */}
+        <div className="h-px w-12 bg-secondary mb-10" />
+
+        {/* Content */}
+        <div className="space-y-6">
           {article.content.split("\n\n").map((paragraph, i) => {
             if (paragraph.startsWith("## ")) {
-              return <h2 key={i} className="text-lg font-semibold mt-8 mb-3 text-foreground">{paragraph.replace("## ", "")}</h2>;
+              return (
+                <h2 key={i} className="font-display text-xl sm:text-2xl font-semibold mt-12 mb-4 text-foreground tracking-tight">
+                  {paragraph.replace("## ", "")}
+                </h2>
+              );
             }
             if (paragraph.startsWith("### ")) {
-              return <h3 key={i} className="text-base font-semibold mt-6 mb-2 text-foreground">{paragraph.replace("### ", "")}</h3>;
+              return (
+                <h3 key={i} className="font-display text-lg sm:text-xl font-semibold mt-10 mb-3 text-foreground tracking-tight">
+                  {paragraph.replace("### ", "")}
+                </h3>
+              );
             }
             if (paragraph.startsWith("- ") || paragraph.startsWith("• ")) {
               const items = paragraph.split("\n").filter(Boolean);
               return (
-                <ul key={i} className="space-y-1.5 ml-1">
+                <ul key={i} className="space-y-3 ml-1 my-6">
                   {items.map((item, j) => (
-                    <li key={j} className="flex items-start gap-2 text-muted-foreground">
-                      <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-secondary flex-shrink-0" />
+                    <li key={j} className="flex items-start gap-4 font-body text-base text-muted-foreground leading-relaxed">
+                      <span className="mt-2.5 h-1 w-1 rounded-full bg-secondary flex-shrink-0" />
                       <span>{item.replace(/^[-•]\s*/, "")}</span>
                     </li>
                   ))}
@@ -91,18 +112,31 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
             }
             if (paragraph.startsWith("> ")) {
               return (
-                <blockquote key={i} className="border-l-2 border-secondary pl-4 italic text-muted-foreground">
+                <blockquote key={i} className="border-l-2 border-secondary pl-6 my-8 font-display italic text-lg text-foreground/80 leading-relaxed">
                   {paragraph.replace(/^>\s*/, "")}
                 </blockquote>
               );
             }
             return (
-              <p key={i} className="text-muted-foreground">{paragraph}</p>
+              <p key={i} className={`font-body text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
+                i === 0 ? "text-foreground/90 font-light text-lg sm:text-xl leading-[1.7]" : ""
+              }`}>
+                {paragraph}
+              </p>
             );
           })}
         </div>
 
-        {/* Feedback form */}
+        {/* Closing line */}
+        <div className="mt-16 flex items-center gap-4">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] font-body tracking-[0.3em] uppercase text-muted-foreground/40">
+            End of Communication
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        {/* Feedback */}
         <ArticleFeedbackForm articleId={article.id} onSubmit={onSubmitFeedback} />
       </div>
     </div>
