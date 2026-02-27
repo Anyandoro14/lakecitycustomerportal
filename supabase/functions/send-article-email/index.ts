@@ -219,6 +219,25 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'No recipients found' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // Deduplicate: remove recipients who already received this article
+    if (!isTest) {
+      const { data: alreadySent } = await supabaseAdmin
+        .from('article_email_sends')
+        .select('recipient_email')
+        .eq('article_id', articleId);
+      
+      if (alreadySent && alreadySent.length > 0) {
+        const sentSet = new Set(alreadySent.map((r: any) => r.recipient_email));
+        const before = recipients.length;
+        recipients = recipients.filter(e => !sentSet.has(e));
+        console.log(`Dedup: ${before} total, ${before - recipients.length} already sent, ${recipients.length} remaining`);
+      }
+    }
+
+    if (recipients.length === 0) {
+      return new Response(JSON.stringify({ success: true, recipientCount: 0, message: 'All recipients already received this article' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Send emails one at a time with 600ms delay to respect Resend's 2 req/sec limit
     let sentCount = 0;
     let failCount = 0;
@@ -236,6 +255,11 @@ Deno.serve(async (req) => {
           failCount++;
         } else {
           sentCount++;
+          // Record successful send for dedup
+          await supabaseAdmin.from('article_email_sends').upsert(
+            { article_id: articleId, recipient_email: email },
+            { onConflict: 'article_id,recipient_email' }
+          );
         }
       } catch (err) {
         console.error(`Exception sending to ${email}:`, err.message);
@@ -246,7 +270,7 @@ Deno.serve(async (req) => {
         await new Promise(resolve => setTimeout(resolve, 600));
       }
     }
-    console.log(`Broadcast complete: ${sentCount} sent, ${failCount} failed out of ${recipients.length} total`);
+    console.log(`Broadcast complete: ${sentCount} sent, ${failCount} failed out of ${recipients.length} remaining`);
 
     // Log broadcast
     if (!isTest) {
