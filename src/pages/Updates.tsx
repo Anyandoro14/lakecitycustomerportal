@@ -13,7 +13,7 @@ import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Newspaper, Plus, Mail, Edit, Trash2, Eye, EyeOff, Shield } from "lucide-react";
+import { Newspaper, Plus, Mail, Edit, Trash2, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 
 const Updates = () => {
@@ -26,9 +26,7 @@ const Updates = () => {
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
   const [emailArticleId, setEmailArticleId] = useState<string | null>(null);
 
-  // Customer hook
   const customerHook = useArticles();
-  // Admin hook (only used by internal users)
   const adminHook = useArticleAdmin();
 
   useSessionTimeout();
@@ -61,25 +59,10 @@ const Updates = () => {
     );
   }
 
-  // ─── Internal User: Article Detail View ───
-  if (isInternalUser && selectedArticleId) {
-    const article = adminHook.articles.find(a => a.id === selectedArticleId);
-    if (article) {
-      return (
-        <ArticleDetail
-          article={article}
-          readStatus={customerHook.readStatuses[article.id]}
-          onBack={() => setSelectedArticleId(null)}
-          onToggleRead={customerHook.toggleReadStatus}
-          onSubmitFeedback={customerHook.submitFeedback}
-        />
-      );
-    }
-  }
-
-  // ─── Customer: Article Detail View ───
-  if (!isInternalUser && selectedArticleId) {
-    const article = customerHook.articles.find(a => a.id === selectedArticleId);
+  // ─── Article Detail View (both internal & customer) ───
+  if (selectedArticleId) {
+    const articles = isInternalUser ? adminHook.articles : customerHook.articles;
+    const article = articles.find(a => a.id === selectedArticleId);
     if (article) {
       return (
         <ArticleDetail
@@ -125,7 +108,6 @@ const Updates = () => {
             </Button>
           </div>
 
-          {/* Article Editor Dialog */}
           <Dialog open={showEditor} onOpenChange={setShowEditor}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -142,7 +124,6 @@ const Updates = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Email Composer Dialog */}
           <Dialog open={!!emailArticleId} onOpenChange={() => setEmailArticleId(null)}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -152,7 +133,6 @@ const Updates = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Articles list */}
           <div className="space-y-3">
             {adminHook.articles.length === 0 ? (
               <div className="text-center py-16">
@@ -163,10 +143,7 @@ const Updates = () => {
               adminHook.articles.map((article) => (
                 <div key={article.id} className="bg-card rounded-lg border border-border p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <button
-                      className="flex-1 text-left"
-                      onClick={() => setSelectedArticleId(article.id)}
-                    >
+                    <button className="flex-1 text-left" onClick={() => setSelectedArticleId(article.id)}>
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant={article.is_published ? "default" : "secondary"} className="text-[10px]">
                           {article.is_published ? "Published" : "Draft"}
@@ -207,41 +184,55 @@ const Updates = () => {
     );
   }
 
-  // ─── Customer: Article List View ───
+  // ─── Customer: Premium Press Release View ───
   return (
     <div className="min-h-screen bg-background pb-24">
       <CustomerHeader />
 
-      <div className="max-w-2xl mx-auto px-4 pt-5 pb-3">
-        <div className="flex items-center gap-2.5">
-          <Newspaper className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-bold text-foreground">Updates & Announcements</h1>
+      {/* Hero masthead */}
+      <div className="bg-primary text-primary-foreground">
+        <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16">
+          <p className="text-xs sm:text-sm font-body font-light tracking-[0.25em] uppercase text-primary-foreground/60 mb-3">
+            Investor Communications
+          </p>
+          <h1 className="font-display text-3xl sm:text-5xl font-medium leading-tight tracking-tight">
+            Updates &<br className="hidden sm:block" /> Announcements
+          </h1>
+          <div className="mt-6 h-px w-16 bg-primary-foreground/20" />
+          <p className="mt-4 text-sm sm:text-base font-body font-light text-primary-foreground/70 max-w-md leading-relaxed">
+            Official communications from The Directors at Warwickshire Pvt Ltd — keeping you informed on your investment.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground mt-1 ml-[30px]">
-          News, improvements, and important notices from LakeCity
-        </p>
       </div>
 
-      <div className="max-w-2xl mx-auto border-t border-border">
+      {/* Articles feed */}
+      <div className="max-w-3xl mx-auto px-6 sm:px-8 py-8 sm:py-12">
         {customerHook.articles.length === 0 ? (
-          <div className="text-center py-16 px-4">
-            <Newspaper className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No updates yet. Check back soon!</p>
+          <div className="text-center py-20">
+            <div className="h-px w-12 bg-border mx-auto mb-8" />
+            <p className="font-display text-lg text-muted-foreground italic">
+              No communications yet.
+            </p>
+            <p className="text-sm text-muted-foreground/60 mt-2 font-body">Check back soon for updates.</p>
+            <div className="h-px w-12 bg-border mx-auto mt-8" />
           </div>
         ) : (
-          customerHook.articles.map((article) => (
-            <ArticleCard
-              key={article.id}
-              article={article}
-              readStatus={customerHook.readStatuses[article.id]}
-              onClick={() => {
-                setSelectedArticleId(article.id);
-                if (!customerHook.readStatuses[article.id]?.is_read) {
-                  customerHook.toggleReadStatus(article.id);
-                }
-              }}
-            />
-          ))
+          <div className="space-y-0">
+            {customerHook.articles.map((article, index) => (
+              <ArticleCard
+                key={article.id}
+                article={article}
+                readStatus={customerHook.readStatuses[article.id]}
+                isFirst={index === 0}
+                onClick={() => {
+                  setSelectedArticleId(article.id);
+                  if (!customerHook.readStatuses[article.id]?.is_read) {
+                    customerHook.toggleReadStatus(article.id);
+                  }
+                }}
+              />
+            ))}
+          </div>
         )}
       </div>
 
