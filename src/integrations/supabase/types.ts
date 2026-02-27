@@ -55,6 +55,35 @@ export type Database = {
           },
         ]
       }
+      article_email_sends: {
+        Row: {
+          article_id: string
+          id: string
+          recipient_email: string
+          sent_at: string
+        }
+        Insert: {
+          article_id: string
+          id?: string
+          recipient_email: string
+          sent_at?: string
+        }
+        Update: {
+          article_id?: string
+          id?: string
+          recipient_email?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_email_sends_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_feedback: {
         Row: {
           article_id: string
