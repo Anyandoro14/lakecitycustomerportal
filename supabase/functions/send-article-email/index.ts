@@ -128,9 +128,10 @@ Deno.serve(async (req) => {
       }
 
       // Create JWT for Google API
-      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+      const toBase64Url = (str: string) => btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const header = toBase64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
       const now = Math.floor(Date.now() / 1000);
-      const claimSet = btoa(JSON.stringify({
+      const claimSet = toBase64Url(JSON.stringify({
         iss: clientEmail,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
         aud: 'https://oauth2.googleapis.com/token',
@@ -167,7 +168,8 @@ Deno.serve(async (req) => {
 
       const toSign = new TextEncoder().encode(`${header}.${claimSet}`);
       const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, toSign);
-      const jwt = `${header}.${claimSet}.${btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+      const sigBase64Url = toBase64Url(String.fromCharCode(...new Uint8Array(signature)));
+      const jwt = `${header}.${claimSet}.${sigBase64Url}`;
 
       // Exchange JWT for access token
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -179,14 +181,24 @@ Deno.serve(async (req) => {
         }),
       });
       const tokenData = await tokenRes.json();
+      console.log('Google token response status:', tokenRes.status);
+      if (!tokenData.access_token) {
+        console.error('Google token error:', JSON.stringify(tokenData));
+        return new Response(JSON.stringify({ error: 'Failed to authenticate with Google Sheets' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const accessToken = tokenData.access_token;
 
       // Fetch Column E (email addresses) from Collection Schedule
       const sheetsRes = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Collection%20Schedule!E:E`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent("Collection Schedule 1!E:E")}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const sheetsData = await sheetsRes.json();
+      console.log('Sheets response status:', sheetsRes.status, 'rows:', sheetsData.values?.length || 0);
+      if (!sheetsRes.ok) {
+        console.error('Sheets error:', JSON.stringify(sheetsData));
+        return new Response(JSON.stringify({ error: 'Failed to fetch customer emails from sheet' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const rows = sheetsData.values || [];
 
       // Extract unique valid emails (skip header)
@@ -197,6 +209,7 @@ Deno.serve(async (req) => {
           emailSet.add(email);
         }
       }
+      console.log('Unique recipient emails found:', emailSet.size);
       recipients = Array.from(emailSet);
     } else if (recipientEmail) {
       recipients = [recipientEmail.trim().toLowerCase()];
