@@ -219,36 +219,31 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'No recipients found' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Send emails sequentially with small batches to avoid Resend rate limits
+    // Send emails one at a time with 600ms delay to respect Resend's 2 req/sec limit
     let sentCount = 0;
     let failCount = 0;
-    const batchSize = 10;
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const batch = recipients.slice(i, i + batchSize);
-      
-      for (const email of batch) {
-        try {
-          const { data: sendData, error: sendError } = await resend.emails.send({
-            from: 'LakeCity <noreply@noreply.lakecity.co.zw>',
-            to: [email],
-            subject,
-            html: emailHtml,
-          });
-          if (sendError) {
-            console.error(`Send error for ${email}:`, JSON.stringify(sendError));
-            failCount++;
-          } else {
-            sentCount++;
-          }
-        } catch (err) {
-          console.error(`Exception sending to ${email}:`, err.message);
+    for (let i = 0; i < recipients.length; i++) {
+      const email = recipients[i];
+      try {
+        const { data: sendData, error: sendError } = await resend.emails.send({
+          from: 'LakeCity <noreply@noreply.lakecity.co.zw>',
+          to: [email],
+          subject,
+          html: emailHtml,
+        });
+        if (sendError) {
+          console.error(`Send error for ${email}:`, JSON.stringify(sendError));
           failCount++;
+        } else {
+          sentCount++;
         }
+      } catch (err) {
+        console.error(`Exception sending to ${email}:`, err.message);
+        failCount++;
       }
-      
-      // Small delay between batches to respect rate limits
-      if (i + batchSize < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait 600ms between each send (max ~1.6 req/sec, under 2 req/sec limit)
+      if (i < recipients.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 600));
       }
     }
     console.log(`Broadcast complete: ${sentCount} sent, ${failCount} failed out of ${recipients.length} total`);
