@@ -640,6 +640,271 @@ const PaymentGatewayProposal = () => {
           </div>
         </div>
 
+        {/* ── Payment Infrastructure & Integration Requirements ── */}
+        <SectionDivider label="Payment Infrastructure" />
+
+        <div className="mb-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Payment Infrastructure &<br />Integration Requirements</h2>
+              <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed max-w-3xl">
+                A structured fintech specification for prospective gateway partners. This section defines our desired customer journey,
+                geo-based payment expectations, compliance standards, ledger protection rules, and integration requirements.
+              </p>
+            </div>
+            <a href="/payment-gateway/specifications">
+              <Button className="bg-[hsl(160,70%,15%)] hover:bg-[hsl(160,70%,20%)] text-white font-semibold px-6 h-12 shrink-0">
+                Design Specifications <ArrowUpRight className="w-4 h-4 ml-2" />
+              </Button>
+            </a>
+          </div>
+
+          {/* 1 — Executive Context */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-sm font-bold text-[hsl(160,70%,15%)]">1</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Executive Context</h3>
+            </div>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              LakeCity (Warwickshire) operates a <strong>BNPL land development model</strong> via StandLedger. Customers are primarily
+              diaspora-based across <strong>Canada, United States, United Kingdom, and Australia</strong>, making cross-border payments
+              into Zimbabwe.
+            </p>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              We require a <strong>geo-aware, compliance-driven, modular payment system</strong> that can serve these geographies
+              with locally relevant payment rails while settling all funds in USD at CABS, Zimbabwe.
+            </p>
+            <div className="bg-[hsl(160,70%,15%)]/5 rounded-xl p-4">
+              <p className="text-sm text-[hsl(160,70%,15%)]/70 leading-relaxed">
+                <strong>Note:</strong> This is not a simple checkout integration. This is a structured fintech payment infrastructure
+                designed to support multi-currency, multi-geography instalment collection at scale.
+              </p>
+            </div>
+          </div>
+
+          {/* 2 — Target Customer Journey */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-sm font-bold text-[hsl(160,70%,15%)]">2</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Target Customer Journey</h3>
+            </div>
+            <div className="space-y-3 mb-6">
+              {[
+                "Customer logs in (2FA authenticated)",
+                'Navigates to "Make a Payment"',
+                "Sees outstanding balance and minimum instalment (Column K logic)",
+                "Enters free-text payment amount",
+                "Payment methods render based on registered geography",
+                "Customer selects payment rail",
+                "Secure payment processing (tokenized, no card data stored)",
+                "Confirmation screen with transaction reference",
+                "Status flows into Receipt Intake → QC → Ledger aggregation",
+              ].map((step, i) => (
+                <div key={i} className="flex items-start gap-3 text-base text-[hsl(160,70%,15%)]/70">
+                  <div className="w-6 h-6 rounded-full bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-xs font-bold text-[hsl(160,70%,15%)] shrink-0 mt-0.5">
+                    {i + 1}
+                  </div>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-sm text-red-800 leading-relaxed">
+                <strong>⚠ Critical Constraint:</strong> The gateway must <strong>NOT</strong> write directly to the Collection Schedule.
+                All payment data must flow through the existing receipt intake and QC validation pipeline.
+              </p>
+            </div>
+          </div>
+
+          {/* 3 — Geo-Based Payment Rendering */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-sm font-bold text-[hsl(160,70%,15%)]">3</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Geo-Based Payment Rendering</h3>
+            </div>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
+              Payment options must render conditionally based on the customer's registered country. Only relevant payment rails should be displayed.
+            </p>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { flag: "🇨🇦", country: "Canada", methods: ["Card (Visa/MC)", "Interac / EFT", "Pre-Authorized Debit (PAD)", "Wire Transfer"] },
+                { flag: "🇺🇸", country: "United States", methods: ["Card (Visa/MC)", "ACH (NACHA compliant)", "Wire Transfer"] },
+                { flag: "🇬🇧", country: "United Kingdom", methods: ["Card (Visa/MC)", "Open Banking (Pay-by-Bank)", "Faster Payments"] },
+                { flag: "🇦🇺", country: "Australia", methods: ["Card (Visa/MC)", "PayID", "Direct Debit (BECS)"] },
+                { flag: "🌍", country: "Other Countries", methods: ["Card (Visa/MC)", "SWIFT Wire", "Remittance Partner (e.g. Wise)"] },
+              ].map((geo) => (
+                <div key={geo.country} className="bg-[hsl(160,70%,15%)]/5 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xl">{geo.flag}</span>
+                    <span className="font-bold text-[hsl(160,70%,15%)] text-sm">{geo.country}</span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {geo.methods.map((m, i) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-[hsl(160,70%,15%)]/60">
+                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        {m}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4 — Regulatory & Compliance */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-sm font-bold text-[hsl(160,70%,15%)]">4</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Regulatory & Compliance Requirements</h3>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-bold text-[hsl(160,70%,15%)] uppercase tracking-wider mb-3">Standards Required</h4>
+                <ul className="space-y-2">
+                  {[
+                    "PCI DSS Level 1",
+                    "PSD2 / Strong Customer Authentication (UK/EU)",
+                    "NACHA compliance (US ACH)",
+                    "Payments Canada EFT rules",
+                    "BECS (Australia Direct Debit)",
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-base text-[hsl(160,70%,15%)]/60">
+                      <Shield className="w-4 h-4 text-[hsl(160,70%,15%)] shrink-0 mt-0.5" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-[hsl(160,70%,15%)] uppercase tracking-wider mb-3">Mandatory Practices</h4>
+                <ul className="space-y-2">
+                  {[
+                    "Tokenization of all payment credentials",
+                    "No raw card data stored locally",
+                    "Webhook reliability with retry logic",
+                    "Gateway reference IDs for all transactions",
+                    "Full reconcilability of every payment event",
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-base text-[hsl(160,70%,15%)]/60">
+                      <Lock className="w-4 h-4 text-[hsl(160,70%,15%)] shrink-0 mt-0.5" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* 5 — FX & Transparency */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-sm font-bold text-[hsl(160,70%,15%)]">5</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">FX & Transparency Requirements</h3>
+            </div>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              When payment currency differs from the contract currency (USD), the checkout experience must transparently display:
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { icon: BarChart3, label: "FX Rate", desc: "Live exchange rate at time of payment" },
+                { icon: DollarSign, label: "Converted Amount", desc: "Exact amount in customer's currency" },
+                { icon: Landmark, label: "Settlement Currency", desc: "USD — CABS, Zimbabwe" },
+                { icon: Wallet, label: "Fee Disclosure", desc: "All fees itemised before confirmation" },
+              ].map((item, i) => (
+                <div key={i} className="bg-[hsl(160,70%,15%)]/5 rounded-xl p-4 text-center">
+                  <item.icon className="w-6 h-6 text-[hsl(160,70%,15%)] mx-auto mb-2" />
+                  <div className="text-sm font-bold text-[hsl(160,70%,15%)] mb-1">{item.label}</div>
+                  <div className="text-xs text-[hsl(160,70%,15%)]/50">{item.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-4">
+              <p className="text-sm text-amber-800 leading-relaxed">
+                <strong>Policy:</strong> No hidden spreads. All FX margins and processing fees must be disclosed to the customer
+                before payment authorisation.
+              </p>
+            </div>
+          </div>
+
+          {/* 6 — Ledger Protection Rules */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8 mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-sm font-bold text-red-700">6</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Ledger Protection Rules</h3>
+            </div>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              The payment gateway must operate within strict boundaries to protect accounting integrity.
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-bold text-red-700 uppercase tracking-wider mb-3">Gateway Must NOT</h4>
+                <ul className="space-y-2">
+                  {[
+                    "Modify Collection Schedule directly",
+                    "Edit Column H (Deposit), K (Monthly Payment), or L (Start Date)",
+                    "Bypass QC validation logic",
+                    "Create duplicate receipts",
+                    "Overwrite ledger data without validation",
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-base text-red-700/70">
+                      <span className="text-red-500 shrink-0 mt-0.5 font-bold">✕</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-emerald-700 uppercase tracking-wider mb-3">Required Data Flow</h4>
+                <div className="space-y-3">
+                  {[
+                    { step: "1", label: "Receipt Intake", desc: "All transactions enter via receipt intake pipeline" },
+                    { step: "2", label: "QC Validation", desc: "Payments verified against ledger rules" },
+                    { step: "3", label: "Monthly Aggregation", desc: "Approved payments aggregated into monthly totals" },
+                  ].map((item) => (
+                    <div key={item.step} className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0">{item.step}</div>
+                      <div>
+                        <div className="text-sm font-semibold text-[hsl(160,70%,15%)]">{item.label}</div>
+                        <div className="text-xs text-[hsl(160,70%,15%)]/50">{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 7 — API & Integration Requirements */}
+          <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-sm font-bold text-[hsl(160,70%,15%)]">7</div>
+              <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">API & Integration Requirements</h3>
+            </div>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              The gateway partner must provide the following technical capabilities:
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              {[
+                { label: "REST API", desc: "Well-documented RESTful endpoints with OpenAPI/Swagger spec" },
+                { label: "Secure Webhooks", desc: "Signed webhook callbacks for payment status updates" },
+                { label: "Idempotency Keys", desc: "Support for idempotent requests to prevent duplicate charges" },
+                { label: "Retry Logic", desc: "Configurable retry policies for failed webhook deliveries" },
+                { label: "Transaction State Mapping", desc: "Clear status lifecycle: pending → processing → settled → failed" },
+                { label: "Sandbox Environment", desc: "Full-featured test environment with simulated payment rails" },
+                { label: "Reconciliation Export", desc: "CSV/API export for daily settlement reconciliation" },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3 bg-[hsl(160,70%,15%)]/5 rounded-lg p-4">
+                  <ArrowUpRight className="w-4 h-4 text-[hsl(160,70%,15%)] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-sm font-semibold text-[hsl(160,70%,15%)]">{item.label}</div>
+                    <div className="text-xs text-[hsl(160,70%,15%)]/50">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* ── Footer ── */}
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
