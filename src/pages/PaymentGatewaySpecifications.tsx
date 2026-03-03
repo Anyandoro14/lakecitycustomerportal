@@ -124,7 +124,9 @@ const PaymentGatewaySpecifications = () => {
             "Pre-populate customer name and stand number from authenticated session.",
             "Support partial payments — customer may pay less than full balance but not less than minimum instalment.",
             "Display payment confirmation with downloadable receipt.",
-            "All successful payments must flow into Receipt Intake pipeline before ledger update.",
+            "Successful gateway payments must instantly populate as new payments in the ledger — no manual QC step required.",
+            "Receipt Intake must log gateway transactions with auto-approval status (source: 'Gateway').",
+            "Gateway-originated payment cells must be locked from future manual editing (immutable once written).",
             "Feature-flag controlled: entire payment module must be independently toggleable without affecting portal functionality.",
           ]}
         />

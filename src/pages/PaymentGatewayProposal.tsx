@@ -698,7 +698,9 @@ const PaymentGatewayProposal = () => {
                 "Customer selects payment rail",
                 "Secure payment processing (tokenized, no card data stored)",
                 "Confirmation screen with transaction reference",
-                "Status flows into Receipt Intake → QC → Ledger aggregation",
+                "Successful payments instantly populate as new payments in the ledger — no manual QC required",
+                "Receipt Intake logs the transaction with auto-approval status (source: Gateway)",
+                "Gateway-originated payment cells are locked from future manual editing",
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3 text-base text-[hsl(160,70%,15%)]/70">
                   <div className="w-6 h-6 rounded-full bg-[hsl(160,70%,15%)]/10 flex items-center justify-center text-xs font-bold text-[hsl(160,70%,15%)] shrink-0 mt-0.5">
@@ -708,10 +710,16 @@ const PaymentGatewayProposal = () => {
                 </div>
               ))}
             </div>
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-sm text-red-800 leading-relaxed">
-                <strong>⚠ Critical Constraint:</strong> The gateway must <strong>NOT</strong> write directly to the Collection Schedule.
-                All payment data must flow through the existing receipt intake and QC validation pipeline.
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-3">
+              <p className="text-sm text-emerald-800 leading-relaxed">
+                <strong>✅ Instant Settlement:</strong> Payments processed successfully via the gateway are <strong>auto-approved</strong> and
+                populate instantly as new payments. No internal QC process is required for gateway-verified transactions.
+              </p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-sm text-amber-800 leading-relaxed">
+                <strong>🔒 Immutability Rule:</strong> Gateway-originated payment entries are <strong>locked from future manual editing</strong>.
+                These fields cannot be modified once written. Receipt Intake will reflect these as auto-approved with source tagged as "Gateway".
               </p>
             </div>
           </div>
@@ -840,11 +848,10 @@ const PaymentGatewayProposal = () => {
                 <h4 className="text-sm font-bold text-red-700 uppercase tracking-wider mb-3">Gateway Must NOT</h4>
                 <ul className="space-y-2">
                   {[
-                    "Modify Collection Schedule directly",
                     "Edit Column H (Deposit), K (Monthly Payment), or L (Start Date)",
-                    "Bypass QC validation logic",
                     "Create duplicate receipts",
-                    "Overwrite ledger data without validation",
+                    "Overwrite existing ledger data",
+                    "Allow manual editing of gateway-originated payment cells",
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-2 text-base text-red-700/70">
                       <span className="text-red-500 shrink-0 mt-0.5 font-bold">✕</span>
@@ -857,9 +864,10 @@ const PaymentGatewayProposal = () => {
                 <h4 className="text-sm font-bold text-emerald-700 uppercase tracking-wider mb-3">Required Data Flow</h4>
                 <div className="space-y-3">
                   {[
-                    { step: "1", label: "Receipt Intake", desc: "All transactions enter via receipt intake pipeline" },
-                    { step: "2", label: "QC Validation", desc: "Payments verified against ledger rules" },
-                    { step: "3", label: "Monthly Aggregation", desc: "Approved payments aggregated into monthly totals" },
+                    { step: "1", label: "Receipt Intake (Auto-Approved)", desc: "Gateway transactions logged with auto-approval status — no manual QC required" },
+                    { step: "2", label: "Instant Ledger Posting", desc: "Successful payments populate immediately as new payment entries" },
+                    { step: "3", label: "Cell Lock", desc: "Gateway-originated cells are immutable — locked from future manual editing" },
+                    { step: "4", label: "Monthly Aggregation", desc: "Payments aggregated into monthly totals as normal" },
                   ].map((item) => (
                     <div key={item.step} className="flex items-start gap-3">
                       <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0">{item.step}</div>
