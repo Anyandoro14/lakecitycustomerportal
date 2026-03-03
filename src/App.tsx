@@ -35,6 +35,16 @@ const CollectionsCommandCenter = lazy(() => import("./pages/CollectionsCommandCe
 const CollectionsGuide = lazy(() => import("./pages/CollectionsGuide"));
 const PaymentGatewayProposal = lazy(() => import("./pages/PaymentGatewayProposal"));
 const PaymentGatewaySpecifications = lazy(() => import("./pages/PaymentGatewaySpecifications"));
+const DocsHome = lazy(() => import("./pages/docs/DocsHome"));
+const DocsGlossary = lazy(() => import("./pages/docs/DocsGlossary"));
+const DocsDataModels = lazy(() => import("./pages/docs/DocsDataModels"));
+const DocsSheets = lazy(() => import("./pages/docs/DocsSheets"));
+const DocsApiReference = lazy(() => import("./pages/docs/DocsApiReference"));
+const DocsEndpoints = lazy(() => import("./pages/docs/DocsEndpoints"));
+const DocsWebhooks = lazy(() => import("./pages/docs/DocsWebhooks"));
+const DocsAuthentication = lazy(() => import("./pages/docs/DocsAuthentication"));
+const DocsQuickstart = lazy(() => import("./pages/docs/DocsQuickstart"));
+const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
 
 const queryClient = new QueryClient();
 
@@ -81,6 +91,16 @@ const App = () => (
                 <Route path="/collections-guide" element={<CollectionsGuide />} />
                 <Route path="/payment-gateway" element={<PaymentGatewayProposal />} />
                 <Route path="/payment-gateway/specifications" element={<PaymentGatewaySpecifications />} />
+                <Route path="/docs" element={<DocsHome />} />
+                <Route path="/docs/glossary" element={<DocsGlossary />} />
+                <Route path="/docs/quickstart" element={<DocsQuickstart />} />
+                <Route path="/docs/data-models" element={<DocsDataModels />} />
+                <Route path="/docs/sheets" element={<DocsSheets />} />
+                <Route path="/docs/api-reference" element={<DocsApiReference />} />
+                <Route path="/docs/endpoints" element={<DocsEndpoints />} />
+                <Route path="/docs/webhooks" element={<DocsWebhooks />} />
+                <Route path="/docs/authentication" element={<DocsAuthentication />} />
+                <Route path="/docs/errors" element={<DocsErrors />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
