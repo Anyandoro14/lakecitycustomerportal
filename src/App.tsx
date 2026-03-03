@@ -34,6 +34,7 @@ const ArticleFeedbackDashboard = lazy(() => import("./pages/ArticleFeedbackDashb
 const CollectionsCommandCenter = lazy(() => import("./pages/CollectionsCommandCenter"));
 const CollectionsGuide = lazy(() => import("./pages/CollectionsGuide"));
 const PaymentGatewayProposal = lazy(() => import("./pages/PaymentGatewayProposal"));
+const PaymentGatewaySpecifications = lazy(() => import("./pages/PaymentGatewaySpecifications"));
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ const App = () => (
                 <Route path="/collections" element={<CollectionsCommandCenter />} />
                 <Route path="/collections-guide" element={<CollectionsGuide />} />
                 <Route path="/payment-gateway" element={<PaymentGatewayProposal />} />
+                <Route path="/payment-gateway/specifications" element={<PaymentGatewaySpecifications />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
