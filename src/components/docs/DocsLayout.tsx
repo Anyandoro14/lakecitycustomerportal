@@ -197,11 +197,13 @@ export default function DocsLayout({ children, title, subtitle, breadcrumb, onTh
             [&_h3]:font-display [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-foreground [&_h3]:mt-8 [&_h3]:mb-3
             [&_p]:text-foreground/80 [&_p]:leading-relaxed [&_p]:mb-4
             [&_ul]:text-foreground/80 [&_li]:mb-1
-            [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono
-            [&_pre]:bg-foreground [&_pre]:text-primary-foreground [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:text-sm
+            [&_code]:bg-muted [&_code]:text-foreground [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono
+            [&_pre]:bg-[hsl(210,15%,13%)] [&_pre]:text-[hsl(150,30%,75%)] [&_pre]:p-5 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:text-sm [&_pre]:leading-relaxed
+            [&_pre_code]:bg-transparent [&_pre_code]:text-inherit [&_pre_code]:p-0
             [&_table]:w-full [&_table]:border-collapse
-            [&_th]:bg-muted [&_th]:text-left [&_th]:px-4 [&_th]:py-2 [&_th]:text-sm [&_th]:font-semibold [&_th]:border [&_th]:border-border
-            [&_td]:px-4 [&_td]:py-2 [&_td]:text-sm [&_td]:border [&_td]:border-border
+            [&_th]:bg-muted [&_th]:text-foreground [&_th]:text-left [&_th]:px-4 [&_th]:py-2.5 [&_th]:text-sm [&_th]:font-semibold [&_th]:border [&_th]:border-border
+            [&_td]:px-4 [&_td]:py-2.5 [&_td]:text-sm [&_td]:text-foreground/90 [&_td]:border [&_td]:border-border
+            [&_strong]:text-foreground
           ">
             {children}
           </div>
