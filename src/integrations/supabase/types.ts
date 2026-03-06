@@ -824,6 +824,75 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_transactions: {
+        Row: {
+          amount_local: number | null
+          amount_usd: number
+          completed_at: string | null
+          created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          error_message: string | null
+          gateway: string
+          gateway_checkout_url: string | null
+          gateway_reference: string | null
+          id: string
+          ledger_cell: string | null
+          ledger_written_at: string | null
+          local_currency: string | null
+          metadata: Json | null
+          settlement_status: string | null
+          stand_number: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount_local?: number | null
+          amount_usd: number
+          completed_at?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          gateway?: string
+          gateway_checkout_url?: string | null
+          gateway_reference?: string | null
+          id?: string
+          ledger_cell?: string | null
+          ledger_written_at?: string | null
+          local_currency?: string | null
+          metadata?: Json | null
+          settlement_status?: string | null
+          stand_number: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount_local?: number | null
+          amount_usd?: number
+          completed_at?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          gateway?: string
+          gateway_checkout_url?: string | null
+          gateway_reference?: string | null
+          id?: string
+          ledger_cell?: string | null
+          ledger_written_at?: string | null
+          local_currency?: string | null
+          metadata?: Json | null
+          settlement_status?: string | null
+          stand_number?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
