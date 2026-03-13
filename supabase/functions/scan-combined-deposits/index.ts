@@ -12,26 +12,32 @@ serve(async (req) => {
   }
 
   try {
-    // Auth check - internal users only
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-    );
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) throw new Error('Unauthorized');
-
-    // Verify internal user
+    // Auth check - service role or internal users
+    const authHeader = req.headers.get('Authorization') || '';
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
-    const { data: internalUser } = await serviceClient
-      .from('internal_users')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
-    if (!internalUser) throw new Error('Access denied - internal users only');
+
+    // Check if called with service role key directly (for diagnostic use)
+    const isServiceRole = authHeader.includes(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'NONE');
+    
+    if (!isServiceRole) {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+      if (userError || !user) throw new Error('Unauthorized');
+
+      const { data: internalUser } = await serviceClient
+        .from('internal_users')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      if (!internalUser) throw new Error('Access denied - internal users only');
+    }
 
     // Get Google Sheets access token
     const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY')!;
