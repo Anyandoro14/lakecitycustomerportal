@@ -9,8 +9,8 @@ const WARNING_TIME = 2 * 60 * 1000; // Show warning 2 minutes before logout
 export const useSessionTimeout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const warningRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimers = useCallback(() => {
     if (timeoutRef.current) {

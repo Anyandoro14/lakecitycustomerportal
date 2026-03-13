@@ -58,7 +58,7 @@ const SignUp = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendAttempts, setResendAttempts] = useState(0);
   const [isResending, setIsResending] = useState(false);
-  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});

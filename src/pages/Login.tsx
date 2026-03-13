@@ -37,7 +37,7 @@ const Login = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendAttempts, setResendAttempts] = useState(0);
   const [isResending, setIsResending] = useState(false);
-  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Login form state
   const [loginStandNumber, setLoginStandNumber] = useState("");
