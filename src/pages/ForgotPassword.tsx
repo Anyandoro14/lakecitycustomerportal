@@ -141,7 +141,7 @@ const ForgotPassword = () => {
         startCooldownTimer();
         toast({
           title: "New code sent",
-          description: `A new verification code has been sent via WhatsApp`,
+          description: `A new verification code has been sent via SMS`,
         });
       } else {
         throw new Error(data?.error || "Failed to resend code");
