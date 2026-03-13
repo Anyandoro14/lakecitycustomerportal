@@ -823,23 +823,37 @@ serve(async (req) => {
       
       console.log(`Stand ${standNumber}: Deposit (Column H) = ${deposit} = ${depositAmount}, hasVerifiedDeposit = ${hasVerifiedDeposit}`);
       
+      // GROUP 2 DETECTION: For certain clients (e.g., Richcraft accounts), the deposit and
+      // first monthly installment were paid together. In these cases, the first monthly column
+      // (Column M) already contains both the deposit AND the first installment combined.
+      // We detect this by checking if Column M value ≈ deposit + monthly installment amount.
+      // If so, the deposit is already embedded in totalPaymentsSum and should NOT be added again.
+      const firstMonthPayment = parseCurrencyToNumber(paymentColumns[0]?.toString() || '');
+      const expectedCombined = depositAmount + monthlyPaymentAmount;
+      const isCombinedDepositInstallment = hasVerifiedDeposit 
+        && monthlyPaymentAmount > 0
+        && firstMonthPayment > 0
+        && Math.abs(firstMonthPayment - expectedCombined) < 1; // tolerance of $1
+      
+      if (isCombinedDepositInstallment) {
+        console.log(`Stand ${standNumber}: COMBINED DEPOSIT detected — Column M ($${firstMonthPayment}) ≈ Deposit ($${depositAmount}) + Installment ($${monthlyPaymentAmount}). Deposit already in monthly totals.`);
+      }
+      
       // OVERPAYMENT LOGIC: Calculate how many instalments are covered by total payments
-      // The deposit covers 1 "payment slot" in the sequence, so we add it to the
-      // effective total for sequencing purposes only.
-      // coveredMonths = floor(effectiveTotal / monthlyPaymentAmount)
-      // remainingBalance = effectiveTotal % monthlyPaymentAmount
+      // For Group 1 (standard): deposit is separate from monthly columns, add it for sequencing
+      // For Group 2 (combined): deposit is already in Column M, do NOT add it again
       let coveredMonths = 0;
       let remainingBalance = 0;
       
-      // For sequencing: deposit + all monthly payments
-      const effectiveTotalForSequencing = totalPaymentsSum + (hasVerifiedDeposit ? depositAmount : 0);
+      const shouldAddDepositForSequencing = hasVerifiedDeposit && !isCombinedDepositInstallment;
+      const effectiveTotalForSequencing = totalPaymentsSum + (shouldAddDepositForSequencing ? depositAmount : 0);
       
       if (monthlyPaymentAmount > 0) {
         coveredMonths = Math.floor(effectiveTotalForSequencing / monthlyPaymentAmount);
         remainingBalance = effectiveTotalForSequencing % monthlyPaymentAmount;
       }
       
-      console.log(`Stand ${standNumber}: Effective total for sequencing = ${effectiveTotalForSequencing}, Covered months = ${coveredMonths}, Remaining balance toward next = ${remainingBalance}`);
+      console.log(`Stand ${standNumber}: Effective total for sequencing = ${effectiveTotalForSequencing}, Covered months = ${coveredMonths}, Remaining balance toward next = ${remainingBalance}, combinedDeposit = ${isCombinedDepositInstallment}`);
       
       // Calculate next payment based on covered months (not last filled cell)
       // CRITICAL: Respect Payment Start Date (Column L) - no payment due before this date
