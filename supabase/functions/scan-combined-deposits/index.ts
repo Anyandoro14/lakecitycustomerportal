@@ -139,6 +139,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       affected,
       affectedCount: affected.length,
+      standard: standard.slice(0, 30), // Include standard accounts for debugging
       standardCount: standard.length,
       summary: `Found ${affected.length} accounts where Column M ≈ Deposit + Installment (combined deposit pattern)`,
     }), {
