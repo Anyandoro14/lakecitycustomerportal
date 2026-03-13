@@ -530,7 +530,7 @@ function generateStatementsForCustomerSync(
     const lastDayOfMonth = getLastDayOfMonth(year, month);
     
     // Get payments for this month
-    const monthData = monthlyPaymentsMap[statementMonth] || { payments: [], total: 0 };
+    const monthData = monthlyPaymentsMap[statementMonth] || { payments: [], receipts: [], total: 0 };
     const totalPaymentsReceived = monthData.total;
     
     // Opening balance = closing balance + payments made this month
