@@ -128,7 +128,7 @@ const TwoFABypassDialog = ({ phoneNumber, standNumber, customerName, trigger }: 
             2FA Bypass Code
           </DialogTitle>
           <DialogDescription>
-            Generate a bypass code for customers who cannot receive SMS/WhatsApp verification.
+            Generate a bypass code for customers who cannot receive SMS verification.
           </DialogDescription>
         </DialogHeader>
         

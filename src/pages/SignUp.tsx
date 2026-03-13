@@ -275,7 +275,7 @@ const SignUp = () => {
         setStep('verify');
         toast({
           title: "Account created!",
-          description: `Verification code sent via ${data.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} to ${data.phoneNumber}`,
+          description: `Verification code sent via SMS to ${data.phoneNumber}`,
         });
       } else {
         // Verification not sent, but account created
