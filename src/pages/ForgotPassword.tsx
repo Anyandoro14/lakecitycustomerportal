@@ -141,7 +141,7 @@ const ForgotPassword = () => {
         startCooldownTimer();
         toast({
           title: "New code sent",
-          description: `A new verification code has been sent via WhatsApp`,
+          description: `A new verification code has been sent via SMS`,
         });
       } else {
         throw new Error(data?.error || "Failed to resend code");
@@ -470,7 +470,7 @@ const ForgotPassword = () => {
             <Alert>
               <MessageCircle className="h-4 w-4" />
               <AlertDescription className="text-sm text-muted-foreground">
-                A verification code will be sent to the WhatsApp number registered with your account. If you don't have a phone number on file, you'll be directed to contact support.
+                A verification code will be sent to the SMS number registered with your account. If you don't have a phone number on file, you'll be directed to contact support.
               </AlertDescription>
             </Alert>
 
