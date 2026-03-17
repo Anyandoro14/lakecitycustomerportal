@@ -54,6 +54,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Login Process & Credentials",
         content: `The LakeCity system uses a secure multi-step login process designed to protect both customer and internal data.\n\n**Customer Login Flow:**\n1. Customer enters their registered email address\n2. Password authentication is validated\n3. Two-Factor Authentication (2FA) via SMS is triggered\n4. Upon successful 2FA verification, the customer accesses their dashboard\n\n**Internal Staff Login Flow:**\n1. Staff navigates to the internal login portal\n2. Credentials are validated against the internal users directory\n3. Role-based access is automatically applied\n\n**Example:** Alex Nyandoro logs in with his registered email. The system sends a 2FA code to his verified phone number. After entering the code, Alex sees his personalized dashboard showing his stand information, payment history, and documents.`,
         screenshotPlaceholder: "Screenshot: Customer login screen with email and password fields",
+        screenshotSrc: loginScreen,
       },
       {
         title: "Permission Levels & Roles",
