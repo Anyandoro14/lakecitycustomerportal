@@ -60,6 +60,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Permission Levels & Roles",
         content: `The system enforces strict role-based access control (RBAC) with the following hierarchy:\n\n**Internal Roles:**\n- **Super Admin** — Full system access, can manage users, view all reports, and configure system settings\n- **Director** — Access to reporting, collections, and oversight functions\n- **Admin** — Operational access to CRM, customer lookups, and support tools\n- **Helpdesk** — Basic customer support access\n\n**Customer Role:**\n- Customers can only view their own data: payment history, statements, agreement of sale, and updates\n\n**Key Principle:** A customer can never see another customer's data. An admin cannot perform actions reserved for Super Admins.`,
         screenshotPlaceholder: "Screenshot: Internal portal showing role-based navigation differences",
+        screenshotSrc: internalPortalNav,
       },
       {
         title: "Internal vs Client Visibility",
