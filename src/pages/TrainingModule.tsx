@@ -206,8 +206,21 @@ const TrainingModule = () => {
                     ))}
                   </div>
 
-                  {/* Placeholders for screenshots/videos */}
-                  {module.sections[currentSection].screenshotPlaceholder && (
+                  {/* Screenshots */}
+                  {module.sections[currentSection].screenshotSrc ? (
+                    <Card className="mt-6 overflow-hidden border">
+                      <CardContent className="p-0">
+                        <img
+                          src={module.sections[currentSection].screenshotSrc}
+                          alt={module.sections[currentSection].screenshotPlaceholder || "Training screenshot"}
+                          className="w-full h-auto"
+                        />
+                        <p className="text-xs text-muted-foreground px-4 py-2 bg-muted/30 border-t">
+                          {module.sections[currentSection].screenshotPlaceholder}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : module.sections[currentSection].screenshotPlaceholder ? (
                     <Card className="mt-6 border-dashed border-2 border-muted">
                       <CardContent className="py-8 text-center">
                         <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -215,7 +228,7 @@ const TrainingModule = () => {
                         <Badge variant="outline" className="mt-2">Screenshot Placeholder</Badge>
                       </CardContent>
                     </Card>
-                  )}
+                  ) : null}
                   {module.sections[currentSection].videoPlaceholder && (
                     <Card className="mt-6 border-dashed border-2 border-muted">
                       <CardContent className="py-8 text-center">
