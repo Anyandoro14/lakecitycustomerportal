@@ -402,6 +402,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "The Customer Dashboard",
         content: `When a customer logs in, they see a clean, focused dashboard designed to provide transparency into their account:\n\n**Key Elements:**\n- **Payment Summary** — Current balance, total paid, last payment date\n- **Payment History** — Chronological list of all payments made\n- **Monthly Statements** — Generated statements showing opening balance, payments, and closing balance\n- **Agreement of Sale** — Access to their agreement documents\n- **Updates** — Company announcements and communications\n\n**Example:** Alex Nyandoro logs in and sees:\n- Total paid: $14,000 of $36,000\n- Last payment: March 1, 2026 — $1,000\n- Next due: April 1, 2026\n- 14 of 35 payments completed`,
         screenshotPlaceholder: "Screenshot: Customer dashboard showing payment summary",
+        screenshotSrc: homeDashboard,
       },
       {
         title: "Transparency Principles",
