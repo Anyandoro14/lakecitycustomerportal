@@ -1,5 +1,19 @@
 // Training module definitions for LakeCity LMS
 
+import loginScreen from "@/assets/guide/login-screen.png";
+import internalPortalNav from "@/assets/guide/internal-portal-nav.png";
+import clientVsInternalView from "@/assets/guide/client-vs-internal-view.png";
+import receiptCaptureForm from "@/assets/guide/receipt-capture-form.png";
+import collectionSchedule from "@/assets/guide/collection-schedule.png";
+import agreementOfSale from "@/assets/guide/agreement-of-sale.png";
+import homeDashboard from "@/assets/guide/home-dashboard.png";
+import paymentHistory from "@/assets/guide/payment-history.png";
+import internalDashboard from "@/assets/guide/internal-dashboard.png";
+import updatesPage from "@/assets/guide/updates-page.png";
+import reportingDashboard from "@/assets/guide/reporting-dashboard.png";
+import monthlyStatements from "@/assets/guide/monthly-statements.png";
+import statementSummary from "@/assets/guide/statement-summary.png";
+
 export interface QuizQuestion {
   id: string;
   question: string;
@@ -12,6 +26,7 @@ export interface ModuleSection {
   title: string;
   content: string;
   screenshotPlaceholder?: string;
+  screenshotSrc?: string;
   videoPlaceholder?: string;
 }
 
