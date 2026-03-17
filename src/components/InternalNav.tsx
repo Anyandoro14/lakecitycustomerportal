@@ -18,6 +18,7 @@ import {
   Newspaper,
   MessageSquare,
   Landmark,
+  GraduationCap,
 } from "lucide-react";
 
 interface InternalNavProps {
