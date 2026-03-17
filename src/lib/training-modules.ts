@@ -630,6 +630,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Available Reports",
         content: `The reporting module provides senior accountants and management with comprehensive financial visibility:\n\n**Key Reports:**\n\n1. **Revenue Summary** — Total collections, period comparisons, trend analysis\n2. **Collections Dashboard** — Overdue accounts, aging analysis, collection efficiency\n3. **Geographic Revenue** — Revenue distribution by location/project\n4. **Payment Trends** — Historical payment patterns and forecasting data\n\n**Report Characteristics:**\n- Real-time data from the collection schedule\n- Filterable by date range, project, and status\n- Visual charts and graphs for quick analysis\n- Exportable for external reporting\n\n**Example:** The Finance Director reviews the monthly revenue summary and notices that collections for the quarter are 15% below forecast. The aging report reveals that 30 accounts have moved into the 60-day overdue category, prompting a focused collections effort.`,
         screenshotPlaceholder: "Screenshot: Reporting dashboard with revenue charts",
+        screenshotSrc: reportingDashboard,
       },
       {
         title: "Monitoring & Decision-Making",
