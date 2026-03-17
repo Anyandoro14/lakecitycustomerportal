@@ -408,6 +408,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Transparency Principles",
         content: `**LakeCity's commitment to transparency means customers should always be able to:**\n\n1. **See exactly how much they've paid** — Complete payment history with dates and amounts\n2. **Understand their remaining obligations** — Clear balance and schedule information\n3. **Access their documents** — Agreement of Sale and monthly statements available anytime\n4. **Receive timely updates** — Company communications about important developments\n\n**What Customers Cannot See:**\n- Other customers' information\n- Internal notes or communications\n- Collection status flags\n- Staff actions or audit logs\n\n**Accounting Parallel:** Think of the customer portal as a client-facing statement of account — it shows the facts (balances, payments) without the internal workings (ledger adjustments, reconciliation notes).`,
         screenshotPlaceholder: "Screenshot: Customer payment history view",
+        screenshotSrc: paymentHistory,
       },
     ],
     quiz: [
