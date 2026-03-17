@@ -33,6 +33,8 @@ const Updates = lazy(() => import("./pages/Updates"));
 const ArticleFeedbackDashboard = lazy(() => import("./pages/ArticleFeedbackDashboard"));
 const CollectionsCommandCenter = lazy(() => import("./pages/CollectionsCommandCenter"));
 const CollectionsGuide = lazy(() => import("./pages/CollectionsGuide"));
+const TrainingCenter = lazy(() => import("./pages/TrainingCenter"));
+const TrainingModule = lazy(() => import("./pages/TrainingModule"));
 const PaymentGatewayProposal = lazy(() => import("./pages/PaymentGatewayProposal"));
 const PaymentGatewaySpecifications = lazy(() => import("./pages/PaymentGatewaySpecifications"));
 const DocsHome = lazy(() => import("./pages/docs/DocsHome"));
