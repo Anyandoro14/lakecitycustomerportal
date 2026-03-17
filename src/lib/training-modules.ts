@@ -143,6 +143,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "The Receipt Capture Form",
         content: `Payment receipts are captured through a structured Google Form that ensures consistent data collection. Each field serves a specific accounting purpose:\n\n**Required Fields:**\n- **Stand Number** — Links the payment to the correct customer account (like an account number in a sub-ledger)\n- **First Name / Last Name** — Identifies the payer for audit verification\n- **Phone Number** — Contact reference for payment queries\n- **Receipt Date** — The actual date payment was received (not the entry date)\n- **Payment Method** — Cash, bank transfer, mobile money, etc.\n- **Amount** — The exact payment amount in the transaction currency\n- **Receipt Upload** — Photographic evidence of the physical receipt\n- **Receipt Entered By** — The staff member recording the entry (accountability control)\n\n**Example:** A payment of $500 is received from Alex Nyandoro for Stand 3314 on March 15, 2026, via bank transfer. The accounting admin captures all fields and uploads a photo of the bank receipt.`,
         screenshotPlaceholder: "Screenshot: Google Form for receipt capture showing all fields",
+        screenshotSrc: receiptCaptureForm,
       },
       {
         title: "Data Flow: Form to Ledger",
