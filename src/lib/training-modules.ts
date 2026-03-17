@@ -461,6 +461,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Internal Portal Overview",
         content: `The internal portal is the command center for LakeCity's operations. Access is controlled by role:\n\n**Available Screens (by permission):**\n- **Dashboard** — Overview of system status and key metrics\n- **Collections Command Center** — Overdue accounts, outreach tools, notes\n- **CRM / Conversations** — Customer communication management\n- **Looking Glass** — Customer account lookup tool\n- **Account Management** — User access control (Super Admin only)\n- **Reporting** — Financial reports and analytics\n- **Articles** — Customer-facing updates management\n\n**Key Actions Internal Users Can Perform:**\n- Look up any customer account\n- View payment histories and balances\n- Send communications via WhatsApp, SMS, or email\n- Add internal notes to customer records\n- Generate and review reports`,
         screenshotPlaceholder: "Screenshot: Internal portal dashboard",
+        screenshotSrc: internalDashboard,
       },
       {
         title: "Accounting Implications of Actions",
