@@ -345,6 +345,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Agreement Structure & Links",
         content: `The Agreement of Sale is the foundational legal document that governs the relationship between LakeCity and each customer.\n\n**Key Links:**\n- **Client Profile** — The agreement is linked to the customer's profile via their stand number\n- **Payment Schedule** — The agreed purchase price and terms are reflected in the collection schedule\n- **Deposit Record** — The initial payment is recorded against the agreement\n\n**What the Agreement Contains:**\n- Customer details (name, contact information)\n- Stand details (number, location, size)\n- Financial terms (total price, deposit, installment plan)\n- Legal obligations (both parties)\n\n**Example:** Alex Nyandoro's Agreement of Sale for Stand 3314 outlines a total purchase price of $36,000, a deposit of $2,000, and 34 monthly installments of $1,000.`,
         screenshotPlaceholder: "Screenshot: Agreement of Sale document view",
+        screenshotSrc: agreementOfSale,
       },
       {
         title: "Legal vs Financial Alignment",
