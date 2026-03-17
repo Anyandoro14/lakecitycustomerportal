@@ -66,6 +66,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Internal vs Client Visibility",
         content: `Understanding what each user type can see is critical for maintaining data integrity and client trust.\n\n**What Clients See:**\n- Their own payment summary and history\n- Monthly statements for their stand\n- Agreement of Sale documents\n- Company updates and announcements\n\n**What Internal Users See:**\n- All client records (based on role)\n- Collection schedules and overdue accounts\n- CRM conversations\n- Reporting dashboards\n- Audit logs\n\n**Example:** When Alex Nyandoro views his dashboard, he sees only Stand 3314 information. An internal admin viewing Alex's record can see his full payment history, communication log, and account status.`,
         screenshotPlaceholder: "Screenshot: Side-by-side comparison of client vs internal view",
+        screenshotSrc: clientVsInternalView,
       },
       {
         title: "Risk & Control Principles",
