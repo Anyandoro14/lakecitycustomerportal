@@ -518,6 +518,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Purpose & Usage",
         content: `The Updates page is a broadcast communication channel for sharing important information with all customers.\n\n**When to Use:**\n- Policy changes that affect payments or schedules\n- Important company announcements\n- Infrastructure updates (new features, maintenance)\n- Seasonal notices (holiday schedules, office closures)\n\n**How It Works:**\n1. Internal staff creates an article with title, content, and category\n2. The article can be previewed before publishing\n3. Once published, it becomes visible to all logged-in customers\n4. Optionally, it can be emailed to all customers\n\n**Example:** LakeCity needs to communicate a change in accepted payment methods. An article is created, reviewed, and published. Alex Nyandoro and all other customers see this update on their next login.`,
         screenshotPlaceholder: "Screenshot: Updates page as seen by a customer",
+        screenshotSrc: updatesPage,
       },
       {
         title: "Governance Principles",
