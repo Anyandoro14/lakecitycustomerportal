@@ -284,6 +284,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Payment Schedule Structure",
         content: `The collection schedule is the backbone of LakeCity's financial tracking system. It functions like an accounts receivable sub-ledger for each customer.\n\n**Key Components:**\n- **Total Purchase Price** — The agreed amount from the Agreement of Sale\n- **Deposit (Payment #1)** — The initial payment\n- **Remaining Balance** — Total price minus deposit\n- **Monthly Installment** — The calculated periodic payment amount\n- **Number of Installments** — Total payment periods\n\n**How Installments Are Calculated:**\nThe system uses Column K (installment amount) from the collection schedule. This represents the agreed monthly payment based on:\n- Remaining balance after deposit\n- Number of agreed payment periods\n- Any negotiated adjustments\n\n**Example:** Alex Nyandoro's Agreement of Sale is for $36,000. After a $2,000 deposit, his remaining balance is $34,000. With 34 monthly installments, his Column K value shows $1,000/month.`,
         screenshotPlaceholder: "Screenshot: Collection schedule showing installment breakdown",
+        screenshotSrc: collectionSchedule,
       },
       {
         title: "Due Date Logic",
