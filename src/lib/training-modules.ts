@@ -1,5 +1,19 @@
 // Training module definitions for LakeCity LMS
 
+import loginScreen from "@/assets/guide/login-screen.png";
+import internalPortalNav from "@/assets/guide/internal-portal-nav.png";
+import clientVsInternalView from "@/assets/guide/client-vs-internal-view.png";
+import receiptCaptureForm from "@/assets/guide/receipt-capture-form.png";
+import collectionSchedule from "@/assets/guide/collection-schedule.png";
+import agreementOfSale from "@/assets/guide/agreement-of-sale.png";
+import homeDashboard from "@/assets/guide/home-dashboard.png";
+import paymentHistory from "@/assets/guide/payment-history.png";
+import internalDashboard from "@/assets/guide/internal-dashboard.png";
+import updatesPage from "@/assets/guide/updates-page.png";
+import reportingDashboard from "@/assets/guide/reporting-dashboard.png";
+import monthlyStatements from "@/assets/guide/monthly-statements.png";
+import statementSummary from "@/assets/guide/statement-summary.png";
+
 export interface QuizQuestion {
   id: string;
   question: string;
@@ -12,6 +26,7 @@ export interface ModuleSection {
   title: string;
   content: string;
   screenshotPlaceholder?: string;
+  screenshotSrc?: string;
   videoPlaceholder?: string;
 }
 
@@ -39,16 +54,19 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Login Process & Credentials",
         content: `The LakeCity system uses a secure multi-step login process designed to protect both customer and internal data.\n\n**Customer Login Flow:**\n1. Customer enters their registered email address\n2. Password authentication is validated\n3. Two-Factor Authentication (2FA) via SMS is triggered\n4. Upon successful 2FA verification, the customer accesses their dashboard\n\n**Internal Staff Login Flow:**\n1. Staff navigates to the internal login portal\n2. Credentials are validated against the internal users directory\n3. Role-based access is automatically applied\n\n**Example:** Alex Nyandoro logs in with his registered email. The system sends a 2FA code to his verified phone number. After entering the code, Alex sees his personalized dashboard showing his stand information, payment history, and documents.`,
         screenshotPlaceholder: "Screenshot: Customer login screen with email and password fields",
+        screenshotSrc: loginScreen,
       },
       {
         title: "Permission Levels & Roles",
         content: `The system enforces strict role-based access control (RBAC) with the following hierarchy:\n\n**Internal Roles:**\n- **Super Admin** — Full system access, can manage users, view all reports, and configure system settings\n- **Director** — Access to reporting, collections, and oversight functions\n- **Admin** — Operational access to CRM, customer lookups, and support tools\n- **Helpdesk** — Basic customer support access\n\n**Customer Role:**\n- Customers can only view their own data: payment history, statements, agreement of sale, and updates\n\n**Key Principle:** A customer can never see another customer's data. An admin cannot perform actions reserved for Super Admins.`,
         screenshotPlaceholder: "Screenshot: Internal portal showing role-based navigation differences",
+        screenshotSrc: internalPortalNav,
       },
       {
         title: "Internal vs Client Visibility",
         content: `Understanding what each user type can see is critical for maintaining data integrity and client trust.\n\n**What Clients See:**\n- Their own payment summary and history\n- Monthly statements for their stand\n- Agreement of Sale documents\n- Company updates and announcements\n\n**What Internal Users See:**\n- All client records (based on role)\n- Collection schedules and overdue accounts\n- CRM conversations\n- Reporting dashboards\n- Audit logs\n\n**Example:** When Alex Nyandoro views his dashboard, he sees only Stand 3314 information. An internal admin viewing Alex's record can see his full payment history, communication log, and account status.`,
         screenshotPlaceholder: "Screenshot: Side-by-side comparison of client vs internal view",
+        screenshotSrc: clientVsInternalView,
       },
       {
         title: "Risk & Control Principles",
@@ -125,6 +143,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "The Receipt Capture Form",
         content: `Payment receipts are captured through a structured Google Form that ensures consistent data collection. Each field serves a specific accounting purpose:\n\n**Required Fields:**\n- **Stand Number** — Links the payment to the correct customer account (like an account number in a sub-ledger)\n- **First Name / Last Name** — Identifies the payer for audit verification\n- **Phone Number** — Contact reference for payment queries\n- **Receipt Date** — The actual date payment was received (not the entry date)\n- **Payment Method** — Cash, bank transfer, mobile money, etc.\n- **Amount** — The exact payment amount in the transaction currency\n- **Receipt Upload** — Photographic evidence of the physical receipt\n- **Receipt Entered By** — The staff member recording the entry (accountability control)\n\n**Example:** A payment of $500 is received from Alex Nyandoro for Stand 3314 on March 15, 2026, via bank transfer. The accounting admin captures all fields and uploads a photo of the bank receipt.`,
         screenshotPlaceholder: "Screenshot: Google Form for receipt capture showing all fields",
+        screenshotSrc: receiptCaptureForm,
       },
       {
         title: "Data Flow: Form to Ledger",
@@ -265,6 +284,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Payment Schedule Structure",
         content: `The collection schedule is the backbone of LakeCity's financial tracking system. It functions like an accounts receivable sub-ledger for each customer.\n\n**Key Components:**\n- **Total Purchase Price** — The agreed amount from the Agreement of Sale\n- **Deposit (Payment #1)** — The initial payment\n- **Remaining Balance** — Total price minus deposit\n- **Monthly Installment** — The calculated periodic payment amount\n- **Number of Installments** — Total payment periods\n\n**How Installments Are Calculated:**\nThe system uses Column K (installment amount) from the collection schedule. This represents the agreed monthly payment based on:\n- Remaining balance after deposit\n- Number of agreed payment periods\n- Any negotiated adjustments\n\n**Example:** Alex Nyandoro's Agreement of Sale is for $36,000. After a $2,000 deposit, his remaining balance is $34,000. With 34 monthly installments, his Column K value shows $1,000/month.`,
         screenshotPlaceholder: "Screenshot: Collection schedule showing installment breakdown",
+        screenshotSrc: collectionSchedule,
       },
       {
         title: "Due Date Logic",
@@ -325,6 +345,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Agreement Structure & Links",
         content: `The Agreement of Sale is the foundational legal document that governs the relationship between LakeCity and each customer.\n\n**Key Links:**\n- **Client Profile** — The agreement is linked to the customer's profile via their stand number\n- **Payment Schedule** — The agreed purchase price and terms are reflected in the collection schedule\n- **Deposit Record** — The initial payment is recorded against the agreement\n\n**What the Agreement Contains:**\n- Customer details (name, contact information)\n- Stand details (number, location, size)\n- Financial terms (total price, deposit, installment plan)\n- Legal obligations (both parties)\n\n**Example:** Alex Nyandoro's Agreement of Sale for Stand 3314 outlines a total purchase price of $36,000, a deposit of $2,000, and 34 monthly installments of $1,000.`,
         screenshotPlaceholder: "Screenshot: Agreement of Sale document view",
+        screenshotSrc: agreementOfSale,
       },
       {
         title: "Legal vs Financial Alignment",
@@ -381,11 +402,13 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "The Customer Dashboard",
         content: `When a customer logs in, they see a clean, focused dashboard designed to provide transparency into their account:\n\n**Key Elements:**\n- **Payment Summary** — Current balance, total paid, last payment date\n- **Payment History** — Chronological list of all payments made\n- **Monthly Statements** — Generated statements showing opening balance, payments, and closing balance\n- **Agreement of Sale** — Access to their agreement documents\n- **Updates** — Company announcements and communications\n\n**Example:** Alex Nyandoro logs in and sees:\n- Total paid: $14,000 of $36,000\n- Last payment: March 1, 2026 — $1,000\n- Next due: April 1, 2026\n- 14 of 35 payments completed`,
         screenshotPlaceholder: "Screenshot: Customer dashboard showing payment summary",
+        screenshotSrc: homeDashboard,
       },
       {
         title: "Transparency Principles",
         content: `**LakeCity's commitment to transparency means customers should always be able to:**\n\n1. **See exactly how much they've paid** — Complete payment history with dates and amounts\n2. **Understand their remaining obligations** — Clear balance and schedule information\n3. **Access their documents** — Agreement of Sale and monthly statements available anytime\n4. **Receive timely updates** — Company communications about important developments\n\n**What Customers Cannot See:**\n- Other customers' information\n- Internal notes or communications\n- Collection status flags\n- Staff actions or audit logs\n\n**Accounting Parallel:** Think of the customer portal as a client-facing statement of account — it shows the facts (balances, payments) without the internal workings (ledger adjustments, reconciliation notes).`,
         screenshotPlaceholder: "Screenshot: Customer payment history view",
+        screenshotSrc: paymentHistory,
       },
     ],
     quiz: [
@@ -438,6 +461,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Internal Portal Overview",
         content: `The internal portal is the command center for LakeCity's operations. Access is controlled by role:\n\n**Available Screens (by permission):**\n- **Dashboard** — Overview of system status and key metrics\n- **Collections Command Center** — Overdue accounts, outreach tools, notes\n- **CRM / Conversations** — Customer communication management\n- **Looking Glass** — Customer account lookup tool\n- **Account Management** — User access control (Super Admin only)\n- **Reporting** — Financial reports and analytics\n- **Articles** — Customer-facing updates management\n\n**Key Actions Internal Users Can Perform:**\n- Look up any customer account\n- View payment histories and balances\n- Send communications via WhatsApp, SMS, or email\n- Add internal notes to customer records\n- Generate and review reports`,
         screenshotPlaceholder: "Screenshot: Internal portal dashboard",
+        screenshotSrc: internalDashboard,
       },
       {
         title: "Accounting Implications of Actions",
@@ -494,6 +518,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Purpose & Usage",
         content: `The Updates page is a broadcast communication channel for sharing important information with all customers.\n\n**When to Use:**\n- Policy changes that affect payments or schedules\n- Important company announcements\n- Infrastructure updates (new features, maintenance)\n- Seasonal notices (holiday schedules, office closures)\n\n**How It Works:**\n1. Internal staff creates an article with title, content, and category\n2. The article can be previewed before publishing\n3. Once published, it becomes visible to all logged-in customers\n4. Optionally, it can be emailed to all customers\n\n**Example:** LakeCity needs to communicate a change in accepted payment methods. An article is created, reviewed, and published. Alex Nyandoro and all other customers see this update on their next login.`,
         screenshotPlaceholder: "Screenshot: Updates page as seen by a customer",
+        screenshotSrc: updatesPage,
       },
       {
         title: "Governance Principles",
@@ -605,6 +630,7 @@ export const LEAD_MODULES: TrainingModule[] = [
         title: "Available Reports",
         content: `The reporting module provides senior accountants and management with comprehensive financial visibility:\n\n**Key Reports:**\n\n1. **Revenue Summary** — Total collections, period comparisons, trend analysis\n2. **Collections Dashboard** — Overdue accounts, aging analysis, collection efficiency\n3. **Geographic Revenue** — Revenue distribution by location/project\n4. **Payment Trends** — Historical payment patterns and forecasting data\n\n**Report Characteristics:**\n- Real-time data from the collection schedule\n- Filterable by date range, project, and status\n- Visual charts and graphs for quick analysis\n- Exportable for external reporting\n\n**Example:** The Finance Director reviews the monthly revenue summary and notices that collections for the quarter are 15% below forecast. The aging report reveals that 30 accounts have moved into the 60-day overdue category, prompting a focused collections effort.`,
         screenshotPlaceholder: "Screenshot: Reporting dashboard with revenue charts",
+        screenshotSrc: reportingDashboard,
       },
       {
         title: "Monitoring & Decision-Making",
