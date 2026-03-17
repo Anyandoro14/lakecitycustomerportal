@@ -85,6 +85,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       path: '/collections-guide',
       visible: isSuperAdmin || isDirector,
     },
+    {
+      id: 'training',
+      label: 'Training Center',
+      icon: GraduationCap,
+      path: '/training',
+      visible: true,
+    },
   ];
 
   const visibleItems = navItems.filter(item => item.visible);

@@ -103,6 +103,8 @@ const App = () => (
                 <Route path="/docs/webhooks" element={<DocsWebhooks />} />
                 <Route path="/docs/authentication" element={<DocsAuthentication />} />
                 <Route path="/docs/errors" element={<DocsErrors />} />
+                <Route path="/training" element={<TrainingCenter />} />
+                <Route path="/training/:path/:moduleId" element={<TrainingModule />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
