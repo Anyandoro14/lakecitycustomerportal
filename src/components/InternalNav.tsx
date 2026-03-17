@@ -18,6 +18,7 @@ import {
   Newspaper,
   MessageSquare,
   Landmark,
+  GraduationCap,
 } from "lucide-react";
 
 interface InternalNavProps {
@@ -83,6 +84,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       icon: Newspaper,
       path: '/collections-guide',
       visible: isSuperAdmin || isDirector,
+    },
+    {
+      id: 'training',
+      label: 'Training Center',
+      icon: GraduationCap,
+      path: '/training',
+      visible: true,
     },
   ];
 

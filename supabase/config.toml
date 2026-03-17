@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.collections-ai-outreach]
 verify_jwt = false
+
+[functions.training-ai-assistant]
+verify_jwt = false

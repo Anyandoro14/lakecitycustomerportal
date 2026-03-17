@@ -980,6 +980,108 @@ export type Database = {
         }
         Relationships: []
       }
+      training_chat_history: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          module_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          module_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          module_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      training_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          module_id: string
+          quiz_passed: boolean | null
+          quiz_score: number | null
+          started_at: string | null
+          status: string
+          training_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          module_id: string
+          quiz_passed?: boolean | null
+          quiz_score?: number | null
+          started_at?: string | null
+          status?: string
+          training_path?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          module_id?: string
+          quiz_passed?: boolean | null
+          quiz_score?: number | null
+          started_at?: string | null
+          status?: string
+          training_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      training_questions: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          module_id: string
+          question_type: string
+          status: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          module_id: string
+          question_type?: string
+          status?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          module_id?: string
+          question_type?: string
+          status?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       twofa_bypass_codes: {
         Row: {
           bypass_code: string
