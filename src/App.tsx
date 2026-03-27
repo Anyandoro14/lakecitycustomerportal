@@ -47,6 +47,8 @@ const DocsWebhooks = lazy(() => import("./pages/docs/DocsWebhooks"));
 const DocsAuthentication = lazy(() => import("./pages/docs/DocsAuthentication"));
 const DocsQuickstart = lazy(() => import("./pages/docs/DocsQuickstart"));
 const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
+const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
+const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 
 const queryClient = new QueryClient();
 
@@ -103,6 +105,8 @@ const App = () => (
                 <Route path="/docs/webhooks" element={<DocsWebhooks />} />
                 <Route path="/docs/authentication" element={<DocsAuthentication />} />
                 <Route path="/docs/errors" element={<DocsErrors />} />
+                <Route path="/crm-specs" element={<CrmSpecifications />} />
+                <Route path="/crm-specs/technical" element={<CrmTechnicalSpecs />} />
                 <Route path="/training" element={<TrainingCenter />} />
                 <Route path="/training/:path/:moduleId" element={<TrainingModule />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
