@@ -649,9 +649,9 @@ const CrmSpecifications = () => {
         {/* ── Implementation Phases ── */}
         <SectionDivider label="Implementation Roadmap" />
         <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Phased Rollout Plan</h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Accelerated Rollout Plan</h2>
           <p className="text-base text-[hsl(160,70%,15%)]/50 max-w-2xl mx-auto">
-            A pragmatic approach that delivers value incrementally while minimising disruption to ongoing operations.
+            An aggressive, sprint-driven delivery cadence designed to get the CRM operational in under 10 weeks with zero tolerance for scope creep.
           </p>
         </div>
 
@@ -659,47 +659,46 @@ const CrmSpecifications = () => {
           <PhaseCard
             phase="P1"
             title="Foundation & Migration"
-            subtitle="Weeks 1–6"
+            subtitle="Weeks 1–3"
             color="hsl(160,70%,15%)"
             active
             items={[
-              "Import existing customer profiles (profiles table)",
-              "Set up role-based access matching our hierarchy",
-              "Configure Twilio SMS/WhatsApp integration",
-              "Configure Resend email integration",
-              "Migrate conversation history and internal notes",
-              "Establish Google Sheets ↔ CRM sync for payment data",
-              "Train core team (3-5 super admins)",
+              "Bulk import all customer profiles (profiles table) — Day 1 priority",
+              "Role-based access configured and tested against our hierarchy",
+              "Twilio SMS/WhatsApp + Resend email integrations live",
+              "Full conversation history and internal notes migrated",
+              "Google Sheets ↔ CRM bi-directional sync operational",
+              "Core team trained and operational (3–5 super admins)",
             ]}
           />
           <PhaseCard
             phase="P2"
             title="Workflows & Automation"
-            subtitle="Weeks 7–12"
+            subtitle="Weeks 4–6"
             color="hsl(160,50%,30%)"
             items={[
-              "Build collections pipeline and escalation workflows",
-              "Configure automated payment reminders",
-              "Set up SLA management for support cases",
-              "Implement customer onboarding automation sequence",
-              "Deploy AI-assisted outreach for collections",
-              "Build custom reporting dashboards",
-              "Train full staff (10-15 users)",
+              "Collections pipeline with automated escalation triggers live",
+              "Payment reminder sequences deployed and tested",
+              "SLA engine active for all support case types",
+              "Customer onboarding automation running end-to-end",
+              "AI-assisted collections outreach generating messages",
+              "Reporting dashboards built and stakeholder-approved",
+              "Full staff onboarded and trained (10–15 users)",
             ]}
           />
           <PhaseCard
             phase="P3"
             title="Scale & Optimise"
-            subtitle="Weeks 13–20"
+            subtitle="Weeks 7–10"
             color="hsl(38,70%,55%)"
             items={[
-              "Performance tuning for 10,000+ records",
-              "Advanced analytics and BI integration",
-              "Customer self-service portal integration",
-              "Multi-language support (English + Shona)",
-              "Mobile app or PWA optimisation for field agents",
-              "API integration with planned Payment Gateway",
-              "Full audit and compliance review",
+              "Load-tested and performance-tuned for 10,000+ records",
+              "Advanced analytics and BI dashboards integrated",
+              "Customer self-service portal fully connected",
+              "Multi-language support shipped (English + Shona)",
+              "Mobile / PWA experience optimised for field agents",
+              "Payment Gateway API integration completed",
+              "Comprehensive audit, compliance review, and sign-off",
             ]}
           />
         </div>
@@ -715,7 +714,7 @@ const CrmSpecifications = () => {
                 { label: "Scalability", desc: "Demonstrated capacity to handle 10,000–100,000 records with sub-2-second search. High-availability architecture.", weight: "20%" },
                 { label: "Security & Compliance", desc: "SOC 2 Type II. GDPR support. Field-level encryption. Comprehensive audit trail. Regular penetration testing.", weight: "20%" },
                 { label: "Total Cost of Ownership", desc: "Transparent pricing. No hidden fees for API calls, integrations, or storage. Predictable scaling costs.", weight: "15%" },
-                { label: "Implementation Speed", desc: "Ability to deliver Phase 1 within 6 weeks. Dedicated implementation support. Structured training programme.", weight: "15%" },
+                { label: "Implementation Speed", desc: "Ability to deliver Phase 1 within 3 weeks. Dedicated implementation lead on-site or available daily. Structured training programme.", weight: "15%" },
               ].map((c) => (
                 <div key={c.label} className="flex gap-4">
                   <div className="w-14 h-8 rounded-lg bg-[hsl(160,70%,15%)]/10 text-[hsl(160,70%,15%)] text-xs font-bold flex items-center justify-center shrink-0">
