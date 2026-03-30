@@ -670,18 +670,18 @@ const PaymentGatewayProposal = () => {
               <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Executive Context</h3>
             </div>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              LakeCity (Warwickshire) operates a <strong>BNPL land development model</strong> via StandLedger. Customers are primarily
-              diaspora-based across <strong>Canada, United States, United Kingdom, and Australia</strong>, making cross-border payments
-              into Zimbabwe.
+              The Issuer operates a <strong>buy-now-pay-later land development model</strong> with customers primarily 
+              based across <strong>Canada, the United States, the United Kingdom, and Australia</strong>, making recurring cross-border 
+              instalment payments into Zimbabwe.
             </p>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              We require a <strong>geo-aware, compliance-driven, modular payment system</strong> that can serve these geographies
-              with locally relevant payment rails while settling all funds in USD at CABS, Zimbabwe.
+              The selected vendor must deliver a <strong>geo-aware, compliance-driven, modular payment system</strong> capable of serving 
+              these geographies with locally relevant payment rails while settling all funds in USD at a designated Zimbabwean bank.
             </p>
             <div className="bg-[hsl(160,70%,15%)]/5 rounded-xl p-4">
               <p className="text-sm text-[hsl(160,70%,15%)]/70 leading-relaxed">
-                <strong>Note:</strong> This is not a simple checkout integration. This is a structured fintech payment infrastructure
-                designed to support multi-currency, multi-geography instalment collection at scale.
+                <strong>Scope Notice:</strong> This RFP covers a structured fintech payment infrastructure — not a simple checkout widget. 
+                Vendors must demonstrate capability in multi-currency, multi-geography instalment collection at scale.
               </p>
             </div>
           </div>
