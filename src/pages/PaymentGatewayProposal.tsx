@@ -422,8 +422,8 @@ const PaymentGatewayProposal = () => {
               </div>
               <div className="mt-4 bg-[hsl(160,70%,15%)]/5 rounded-lg p-3">
                 <p className="text-xs text-[hsl(160,70%,15%)]/70 leading-relaxed">
-                  <strong>Key insight:</strong> Over half of all customers pay between <strong>$1,000 – $1,499/mo</strong>, 
-                  well within the <strong>$999 per-transaction cap</strong> when split across two payments.
+                  <strong>Key insight:</strong> Over half of all customers pay between <strong>$1,000 – $1,499/mo</strong>. 
+                  Vendors should specify their per-transaction and monthly throughput limits in their proposal.
                 </p>
               </div>
             </div>
