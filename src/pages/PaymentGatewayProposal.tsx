@@ -39,10 +39,10 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
         <div className="text-center mb-10">
           <img src={logoWordmark} alt="StandLedger" className="h-10 mx-auto mb-6 brightness-0 invert" />
           <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 text-white/70 text-xs font-medium tracking-wider uppercase mb-4">
-            <Lock className="w-3 h-3" /> Confidential Document
+            <Lock className="w-3 h-3" /> Confidential RFP
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Payment Gateway Integration</h1>
-          <p className="text-white/50 text-sm">This document is password-protected. Enter credentials to continue.</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Payment Gateway RFP</h1>
+          <p className="text-white/50 text-sm">This Request for Proposal is confidential. Enter credentials to proceed.</p>
         </div>
         <form onSubmit={submit}>
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8">
