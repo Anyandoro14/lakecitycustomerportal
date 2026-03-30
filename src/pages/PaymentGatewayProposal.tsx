@@ -269,19 +269,19 @@ const PaymentGatewayProposal = () => {
         <div className="max-w-6xl mx-auto px-6 py-20 relative z-10">
           <div className="flex items-center gap-3 mb-8">
             <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert" />
-            <span className="text-white/30 text-xl">×</span>
-            <span className="text-white/60 text-base font-medium tracking-wide">Payment Gateway Partner</span>
+            <span className="text-white/30 text-xl">|</span>
+            <span className="text-white/60 text-base font-medium tracking-wide">Request for Proposal</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold text-white leading-tight max-w-3xl">
             Payment Gateway<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">Integration Proposal</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">Request for Proposal</span>
           </h1>
           <p className="text-white/50 text-xl mt-6 max-w-2xl leading-relaxed">
-            A phased approach to enabling seamless land instalment payments for 70 customers in Zimbabwe, 
-            processing transactions up to $999 per payment.
+            Lake City Development is soliciting proposals from qualified payment gateway vendors to enable seamless 
+            cross-border land instalment collections across multiple geographies, settling in USD at CABS, Zimbabwe.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
-            {["Confidential", "February 2026", "v1.0"].map((tag) => (
+            {["RFP-LC-PG-2026", "Confidential", "Issued March 2026", "v2.0"].map((tag) => (
               <span key={tag} className="bg-white/10 border border-white/10 text-white/70 text-sm font-medium px-4 py-1.5 rounded-full">{tag}</span>
             ))}
           </div>
