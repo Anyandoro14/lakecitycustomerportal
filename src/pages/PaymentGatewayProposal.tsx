@@ -893,7 +893,7 @@ const PaymentGatewayProposal = () => {
               <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">API & Integration Requirements</h3>
             </div>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              The gateway partner must provide the following technical capabilities:
+              The selected vendor must provide the following technical capabilities as part of their proposal:
             </p>
             <div className="grid md:grid-cols-2 gap-4">
               {[
