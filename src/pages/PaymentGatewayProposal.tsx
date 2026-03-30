@@ -536,9 +536,9 @@ const PaymentGatewayProposal = () => {
         {/* ── Phased Approach ── */}
         <SectionDivider label="Phased Approach" />
         <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Implementation Roadmap</h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Expected Delivery Phases</h2>
           <p className="text-base text-[hsl(160,70%,15%)]/50 max-w-2xl mx-auto">
-            A pragmatic, phased rollout that delivers value early while building toward a fully integrated payment ecosystem.
+            Respondents should propose a phased delivery plan aligned with the following milestones. Accelerated timelines will be weighted favourably.
           </p>
         </div>
 
