@@ -444,7 +444,7 @@ const PaymentGatewayProposal = () => {
             </p>
             <div className="grid grid-cols-2 gap-4">
               <StatCard icon={Users} value="69 → 10K+" label="Pilot → Target Scale" />
-              <StatCard icon={DollarSign} value="$999" label="Max Transaction" />
+              <StatCard icon={DollarSign} value="TBD" label="Per-Txn Limit (Vendor)" />
               <StatCard icon={BarChart3} value="~4%" label="Est. Processing Fee" />
               <StatCard icon={Layers} value="0–120 mo" label="Contract Range" />
             </div>
