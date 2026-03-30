@@ -39,10 +39,10 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
         <div className="text-center mb-10">
           <img src={logoWordmark} alt="StandLedger" className="h-10 mx-auto mb-6 brightness-0 invert" />
           <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 text-white/70 text-xs font-medium tracking-wider uppercase mb-4">
-            <Lock className="w-3 h-3" /> Confidential Document
+            <Lock className="w-3 h-3" /> Confidential RFP
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Payment Gateway Integration</h1>
-          <p className="text-white/50 text-sm">This document is password-protected. Enter credentials to continue.</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Payment Gateway RFP</h1>
+          <p className="text-white/50 text-sm">This Request for Proposal is confidential. Enter credentials to proceed.</p>
         </div>
         <form onSubmit={submit}>
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8">
@@ -65,7 +65,7 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
             </Button>
           </div>
         </form>
-        <p className="text-white/30 text-xs text-center mt-6">Shared between Lake City Development & Integration Partner only.</p>
+        <p className="text-white/30 text-xs text-center mt-6">Issued by Lake City Development (Warwickshire Pvt Ltd). Distribution restricted to invited respondents.</p>
       </div>
     </div>
   );
@@ -269,19 +269,19 @@ const PaymentGatewayProposal = () => {
         <div className="max-w-6xl mx-auto px-6 py-20 relative z-10">
           <div className="flex items-center gap-3 mb-8">
             <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert" />
-            <span className="text-white/30 text-xl">×</span>
-            <span className="text-white/60 text-base font-medium tracking-wide">Payment Gateway Partner</span>
+            <span className="text-white/30 text-xl">|</span>
+            <span className="text-white/60 text-base font-medium tracking-wide">Request for Proposal</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold text-white leading-tight max-w-3xl">
             Payment Gateway<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">Integration Proposal</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">Request for Proposal</span>
           </h1>
           <p className="text-white/50 text-xl mt-6 max-w-2xl leading-relaxed">
-            A phased approach to enabling seamless land instalment payments for 70 customers in Zimbabwe, 
-            processing transactions up to $999 per payment.
+            Lake City Development is soliciting proposals from qualified payment gateway vendors to enable seamless 
+            cross-border land instalment collections across multiple geographies, settling in USD at CABS, Zimbabwe.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
-            {["Confidential", "February 2026", "v1.0"].map((tag) => (
+            {["RFP-LC-PG-2026", "Confidential", "Issued March 2026", "v2.0"].map((tag) => (
               <span key={tag} className="bg-white/10 border border-white/10 text-white/70 text-sm font-medium px-4 py-1.5 rounded-full">{tag}</span>
             ))}
           </div>
@@ -536,9 +536,9 @@ const PaymentGatewayProposal = () => {
         {/* ── Phased Approach ── */}
         <SectionDivider label="Phased Approach" />
         <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Implementation Roadmap</h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Expected Delivery Phases</h2>
           <p className="text-base text-[hsl(160,70%,15%)]/50 max-w-2xl mx-auto">
-            A pragmatic, phased rollout that delivers value early while building toward a fully integrated payment ecosystem.
+            Respondents should propose a phased delivery plan aligned with the following milestones. Accelerated timelines will be weighted favourably.
           </p>
         </div>
 
@@ -617,19 +617,23 @@ const PaymentGatewayProposal = () => {
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8">
-            <h3 className="text-2xl md:text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">What We Need From Partner</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">Vendor Response Requirements</h3>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              Respondents must address each of the following in their proposal submission:
+            </p>
             <div className="space-y-3">
               {[
                 "REST API documentation (OpenAPI/Swagger preferred)",
-                "Sandbox/test environment credentials",
+                "Sandbox/test environment with simulated payment rails",
                 "Webhook specification for payment status callbacks",
-                "Supported payment methods & currencies (USD, ZWL)",
-                "Transaction limit confirmation ($999 cap)",
-                "Fee schedule breakdown (per-transaction, monthly, setup)",
-                "Settlement timeline (T+1, T+3, etc.)",
-                "PCI DSS compliance documentation",
-                "Integration support contact / Slack channel",
-                "Sample API requests & responses",
+                "Supported payment methods & currencies by geography",
+                "Per-transaction limit capabilities (minimum $999 single-transaction support)",
+                "Transparent fee schedule (per-transaction, monthly platform, setup/onboarding)",
+                "Settlement timeline commitment (T+1 preferred, T+3 maximum)",
+                "PCI DSS Level 1 compliance certification",
+                "Dedicated integration support channel & escalation path",
+                "Sample API request/response payloads",
+                "Proposed SLA for uptime, latency, and dispute resolution",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3 text-base text-[hsl(160,70%,15%)]/70">
                   <ArrowUpRight className="w-4 h-4 text-[hsl(38,70%,55%)] shrink-0 mt-0.5" />
@@ -646,15 +650,15 @@ const PaymentGatewayProposal = () => {
         <div className="mb-12">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
             <div>
-              <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Payment Infrastructure &<br />Integration Requirements</h2>
+              <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Functional &<br />Technical Requirements</h2>
               <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed max-w-3xl">
-                A structured fintech specification for prospective gateway partners. This section defines our desired customer journey,
-                geo-based payment expectations, compliance standards, ledger protection rules, and integration requirements.
+                The following sections define the mandatory functional, compliance, and technical requirements 
+                that all vendor proposals must address. These are non-negotiable baseline criteria for evaluation.
               </p>
             </div>
             <a href="/payment-gateway/specifications">
               <Button className="bg-[hsl(160,70%,15%)] hover:bg-[hsl(160,70%,20%)] text-white font-semibold px-6 h-12 shrink-0">
-                Design Specifications <ArrowUpRight className="w-4 h-4 ml-2" />
+                Full Technical Specifications <ArrowUpRight className="w-4 h-4 ml-2" />
               </Button>
             </a>
           </div>
@@ -666,18 +670,18 @@ const PaymentGatewayProposal = () => {
               <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">Executive Context</h3>
             </div>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              LakeCity (Warwickshire) operates a <strong>BNPL land development model</strong> via StandLedger. Customers are primarily
-              diaspora-based across <strong>Canada, United States, United Kingdom, and Australia</strong>, making cross-border payments
-              into Zimbabwe.
+              The Issuer operates a <strong>buy-now-pay-later land development model</strong> with customers primarily 
+              based across <strong>Canada, the United States, the United Kingdom, and Australia</strong>, making recurring cross-border 
+              instalment payments into Zimbabwe.
             </p>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              We require a <strong>geo-aware, compliance-driven, modular payment system</strong> that can serve these geographies
-              with locally relevant payment rails while settling all funds in USD at CABS, Zimbabwe.
+              The selected vendor must deliver a <strong>geo-aware, compliance-driven, modular payment system</strong> capable of serving 
+              these geographies with locally relevant payment rails while settling all funds in USD at a designated Zimbabwean bank.
             </p>
             <div className="bg-[hsl(160,70%,15%)]/5 rounded-xl p-4">
               <p className="text-sm text-[hsl(160,70%,15%)]/70 leading-relaxed">
-                <strong>Note:</strong> This is not a simple checkout integration. This is a structured fintech payment infrastructure
-                designed to support multi-currency, multi-geography instalment collection at scale.
+                <strong>Scope Notice:</strong> This RFP covers a structured fintech payment infrastructure — not a simple checkout widget. 
+                Vendors must demonstrate capability in multi-currency, multi-geography instalment collection at scale.
               </p>
             </div>
           </div>
@@ -889,7 +893,7 @@ const PaymentGatewayProposal = () => {
               <h3 className="text-xl font-bold text-[hsl(160,70%,15%)]">API & Integration Requirements</h3>
             </div>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
-              The gateway partner must provide the following technical capabilities:
+              The selected vendor must provide the following technical capabilities as part of their proposal:
             </p>
             <div className="grid md:grid-cols-2 gap-4">
               {[
@@ -916,12 +920,18 @@ const PaymentGatewayProposal = () => {
         {/* ── Footer ── */}
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
+          <p className="text-white/50 text-sm mb-4 max-w-xl mx-auto leading-relaxed">
+            This RFP is issued by Lake City Development (Warwickshire Pvt Ltd). All submissions are treated as confidential. 
+            Proposals should be directed to the contact provided during the distribution of this document.
+          </p>
           <div className="flex flex-wrap items-center justify-center gap-4 text-white/40 text-sm">
+            <span>RFP-LC-PG-2026</span>
+            <span>•</span>
             <span>Warwickshire Pvt Ltd</span>
             <span>•</span>
             <span>Harare, Zimbabwe</span>
             <span>•</span>
-            <span>Confidential — February 2026</span>
+            <span>Issued March 2026</span>
           </div>
         </div>
       </main>
