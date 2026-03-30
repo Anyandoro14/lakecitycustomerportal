@@ -541,7 +541,7 @@ const PaymentGatewayProposal = () => {
               {[
                 { num: "1", title: "Name", desc: "Pre-filled from their authenticated session" },
                 { num: "2", title: "Stand Number", desc: "Auto-populated from their profile" },
-                { num: "3", title: "Payment Amount", desc: "Customer enters their desired payment (max $999)" },
+                { num: "3", title: "Payment Amount", desc: "Customer enters their desired payment amount" },
               ].map((item) => (
                 <div key={item.num} className="flex items-start gap-4">
                   <div className="w-8 h-8 rounded-full bg-[hsl(160,70%,15%)] text-white text-sm font-bold flex items-center justify-center shrink-0">
