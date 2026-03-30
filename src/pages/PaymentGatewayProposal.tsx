@@ -650,10 +650,10 @@ const PaymentGatewayProposal = () => {
         <div className="mb-12">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
             <div>
-              <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Payment Infrastructure &<br />Integration Requirements</h2>
+              <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-3">Functional &<br />Technical Requirements</h2>
               <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed max-w-3xl">
-                A structured fintech specification for prospective gateway partners. This section defines our desired customer journey,
-                geo-based payment expectations, compliance standards, ledger protection rules, and integration requirements.
+                The following sections define the mandatory functional, compliance, and technical requirements 
+                that all vendor proposals must address. These are non-negotiable baseline criteria for evaluation.
               </p>
             </div>
             <a href="/payment-gateway/specifications">
