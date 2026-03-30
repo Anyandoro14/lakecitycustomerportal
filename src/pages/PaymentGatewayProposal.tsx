@@ -658,7 +658,7 @@ const PaymentGatewayProposal = () => {
             </div>
             <a href="/payment-gateway/specifications">
               <Button className="bg-[hsl(160,70%,15%)] hover:bg-[hsl(160,70%,20%)] text-white font-semibold px-6 h-12 shrink-0">
-                Design Specifications <ArrowUpRight className="w-4 h-4 ml-2" />
+                Full Technical Specifications <ArrowUpRight className="w-4 h-4 ml-2" />
               </Button>
             </a>
           </div>
