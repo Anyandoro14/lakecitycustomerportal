@@ -174,7 +174,7 @@ const CheckoutMockup = () => {
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input defaultValue="250.00" className="h-11 bg-gray-50 border-gray-200 pl-9 text-lg font-semibold" />
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">Maximum single transaction: $999.00</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Transaction limits determined by gateway provider</p>
                 </div>
                 <Button onClick={() => setStep("method")} className="w-full h-11 bg-[hsl(160,70%,15%)] hover:bg-[hsl(160,70%,20%)] text-white font-semibold mt-2">
                   Continue <ArrowRight className="w-4 h-4 ml-1" />
