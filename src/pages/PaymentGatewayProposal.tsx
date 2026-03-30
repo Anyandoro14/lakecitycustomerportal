@@ -174,7 +174,7 @@ const CheckoutMockup = () => {
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input defaultValue="250.00" className="h-11 bg-gray-50 border-gray-200 pl-9 text-lg font-semibold" />
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">Maximum single transaction: $999.00</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Transaction limits determined by gateway provider</p>
                 </div>
                 <Button onClick={() => setStep("method")} className="w-full h-11 bg-[hsl(160,70%,15%)] hover:bg-[hsl(160,70%,20%)] text-white font-semibold mt-2">
                   Continue <ArrowRight className="w-4 h-4 ml-1" />
@@ -422,8 +422,8 @@ const PaymentGatewayProposal = () => {
               </div>
               <div className="mt-4 bg-[hsl(160,70%,15%)]/5 rounded-lg p-3">
                 <p className="text-xs text-[hsl(160,70%,15%)]/70 leading-relaxed">
-                  <strong>Key insight:</strong> Over half of all customers pay between <strong>$1,000 – $1,499/mo</strong>, 
-                  well within the <strong>$999 per-transaction cap</strong> when split across two payments.
+                  <strong>Key insight:</strong> Over half of all customers pay between <strong>$1,000 – $1,499/mo</strong>. 
+                  Vendors should specify their per-transaction and monthly throughput limits in their proposal.
                 </p>
               </div>
             </div>
@@ -444,7 +444,7 @@ const PaymentGatewayProposal = () => {
             </p>
             <div className="grid grid-cols-2 gap-4">
               <StatCard icon={Users} value="69 → 10K+" label="Pilot → Target Scale" />
-              <StatCard icon={DollarSign} value="$999" label="Max Transaction" />
+              <StatCard icon={DollarSign} value="TBD" label="Per-Txn Limit (Vendor)" />
               <StatCard icon={BarChart3} value="~4%" label="Est. Processing Fee" />
               <StatCard icon={Layers} value="0–120 mo" label="Contract Range" />
             </div>
@@ -541,7 +541,7 @@ const PaymentGatewayProposal = () => {
               {[
                 { num: "1", title: "Name", desc: "Pre-filled from their authenticated session" },
                 { num: "2", title: "Stand Number", desc: "Auto-populated from their profile" },
-                { num: "3", title: "Payment Amount", desc: "Customer enters their desired payment (max $999)" },
+                { num: "3", title: "Payment Amount", desc: "Customer enters their desired payment amount" },
               ].map((item) => (
                 <div key={item.num} className="flex items-start gap-4">
                   <div className="w-8 h-8 rounded-full bg-[hsl(160,70%,15%)] text-white text-sm font-bold flex items-center justify-center shrink-0">
@@ -658,7 +658,7 @@ const PaymentGatewayProposal = () => {
                 "Sandbox/test environment with simulated payment rails",
                 "Webhook specification for payment status callbacks",
                 "Supported payment methods & currencies by geography",
-                "Per-transaction limit capabilities (minimum $999 single-transaction support)",
+                "Per-transaction and monthly throughput limits",
                 "Transparent fee schedule (per-transaction, monthly platform, setup/onboarding)",
                 "Settlement timeline commitment (T+1 preferred, T+3 maximum)",
                 "PCI DSS Level 1 compliance certification",
