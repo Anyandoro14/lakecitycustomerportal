@@ -617,19 +617,23 @@ const PaymentGatewayProposal = () => {
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-8">
-            <h3 className="text-2xl md:text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">What We Need From Partner</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-[hsl(160,70%,15%)] mb-4">Vendor Response Requirements</h3>
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              Respondents must address each of the following in their proposal submission:
+            </p>
             <div className="space-y-3">
               {[
                 "REST API documentation (OpenAPI/Swagger preferred)",
-                "Sandbox/test environment credentials",
+                "Sandbox/test environment with simulated payment rails",
                 "Webhook specification for payment status callbacks",
-                "Supported payment methods & currencies (USD, ZWL)",
-                "Transaction limit confirmation ($999 cap)",
-                "Fee schedule breakdown (per-transaction, monthly, setup)",
-                "Settlement timeline (T+1, T+3, etc.)",
-                "PCI DSS compliance documentation",
-                "Integration support contact / Slack channel",
-                "Sample API requests & responses",
+                "Supported payment methods & currencies by geography",
+                "Per-transaction limit capabilities (minimum $999 single-transaction support)",
+                "Transparent fee schedule (per-transaction, monthly platform, setup/onboarding)",
+                "Settlement timeline commitment (T+1 preferred, T+3 maximum)",
+                "PCI DSS Level 1 compliance certification",
+                "Dedicated integration support channel & escalation path",
+                "Sample API request/response payloads",
+                "Proposed SLA for uptime, latency, and dispute resolution",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3 text-base text-[hsl(160,70%,15%)]/70">
                   <ArrowUpRight className="w-4 h-4 text-[hsl(38,70%,55%)] shrink-0 mt-0.5" />
