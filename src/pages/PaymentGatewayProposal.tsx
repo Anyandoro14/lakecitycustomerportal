@@ -442,10 +442,10 @@ const PaymentGatewayProposal = () => {
               as a progressive web app (PWA) optimised for mobile-first usage in the Zimbabwean diaspora market.
             </p>
             <div className="grid grid-cols-2 gap-4">
-              <StatCard icon={Users} value="70" label="Active Customers" />
+              <StatCard icon={Users} value="69 → 10K+" label="Pilot → Target Scale" />
               <StatCard icon={DollarSign} value="$999" label="Max Transaction" />
               <StatCard icon={BarChart3} value="~4%" label="Est. Processing Fee" />
-              <StatCard icon={Layers} value="36 mo" label="Avg. Payment Plan" />
+              <StatCard icon={Layers} value="0–120 mo" label="Contract Range" />
             </div>
           </div>
           <div className="space-y-4">
