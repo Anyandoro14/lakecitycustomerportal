@@ -65,7 +65,7 @@ const PasswordGate = ({ onUnlock }: { onUnlock: () => void }) => {
             </Button>
           </div>
         </form>
-        <p className="text-white/30 text-xs text-center mt-6">Shared between Lake City Development & Integration Partner only.</p>
+        <p className="text-white/30 text-xs text-center mt-6">Issued by Lake City Development (Warwickshire Pvt Ltd). Distribution restricted to invited respondents.</p>
       </div>
     </div>
   );
