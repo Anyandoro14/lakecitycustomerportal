@@ -278,7 +278,8 @@ const PaymentGatewayProposal = () => {
           </h1>
           <p className="text-white/50 text-xl mt-6 max-w-2xl leading-relaxed">
             Lake City Development is soliciting proposals from qualified payment gateway vendors to enable seamless 
-            cross-border land instalment collections across multiple geographies, settling in USD at CABS, Zimbabwe.
+            cross-border land instalment collections — scaling from 69 pilot accounts to 10,000+ — across multiple 
+            geographies, with contract terms ranging from cash purchases to 120-month instalment plans.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
             {["RFP-LC-PG-2026", "Confidential", "Issued March 2026", "v2.0"].map((tag) => (
