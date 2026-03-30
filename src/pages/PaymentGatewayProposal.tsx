@@ -920,12 +920,18 @@ const PaymentGatewayProposal = () => {
         {/* ── Footer ── */}
         <div className="bg-gradient-to-br from-[hsl(160,70%,8%)] via-[hsl(160,50%,12%)] to-[hsl(160,30%,20%)] rounded-3xl p-12 text-center">
           <img src={logoWordmark} alt="StandLedger" className="h-8 brightness-0 invert mx-auto mb-6" />
+          <p className="text-white/50 text-sm mb-4 max-w-xl mx-auto leading-relaxed">
+            This RFP is issued by Lake City Development (Warwickshire Pvt Ltd). All submissions are treated as confidential. 
+            Proposals should be directed to the contact provided during the distribution of this document.
+          </p>
           <div className="flex flex-wrap items-center justify-center gap-4 text-white/40 text-sm">
+            <span>RFP-LC-PG-2026</span>
+            <span>•</span>
             <span>Warwickshire Pvt Ltd</span>
             <span>•</span>
             <span>Harare, Zimbabwe</span>
             <span>•</span>
-            <span>Confidential — February 2026</span>
+            <span>Issued March 2026</span>
           </div>
         </div>
       </main>
