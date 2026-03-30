@@ -658,7 +658,7 @@ const PaymentGatewayProposal = () => {
                 "Sandbox/test environment with simulated payment rails",
                 "Webhook specification for payment status callbacks",
                 "Supported payment methods & currencies by geography",
-                "Per-transaction limit capabilities (minimum $999 single-transaction support)",
+                "Per-transaction and monthly throughput limits",
                 "Transparent fee schedule (per-transaction, monthly platform, setup/onboarding)",
                 "Settlement timeline commitment (T+1 preferred, T+3 maximum)",
                 "PCI DSS Level 1 compliance certification",
