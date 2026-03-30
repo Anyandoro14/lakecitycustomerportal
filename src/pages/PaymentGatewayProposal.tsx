@@ -290,27 +290,34 @@ const PaymentGatewayProposal = () => {
 
       <main className="max-w-6xl mx-auto px-6 py-16">
         {/* ── About Lake City ── */}
-        <SectionDivider label="About Lake City" />
+        <SectionDivider label="About the Issuer" />
         <div className="grid md:grid-cols-2 gap-12 items-start mb-16">
           <div>
             <h2 className="text-4xl md:text-5xl font-bold text-[hsl(160,70%,15%)] mb-4">Lake City Development</h2>
             <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
               <strong>Warwickshire Pvt Ltd</strong> is a Zimbabwean land development company that sells 
-              residential stands on a <strong>36-month instalment basis</strong>. Customers purchase land and make 
-              fixed monthly payments (typically <strong>$400 – $2,500 USD</strong>) until the stand is fully paid off, 
-              at which point the Agreement of Sale is finalised.
+              residential stands on an <strong>instalment basis</strong>. Contract durations range from 
+              <strong>cash purchases (0 months) up to 120 months</strong>, with customers making fixed monthly 
+              payments until the stand is fully paid off and the Agreement of Sale is finalised.
             </p>
-            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-6">
-              The company currently manages <strong>69 active customer accounts</strong> across multiple 
-              development phases, with all financial records maintained via a centralised payment ledger. 
-              StandLedger is the proprietary customer portal that gives buyers real-time visibility into 
-              their balances, statements, and documents.
+            <p className="text-base text-[hsl(160,70%,15%)]/60 leading-relaxed mb-4">
+              The platform currently serves <strong>69 pilot accounts</strong> (predominantly 36-month contracts) 
+              and is architected to scale to <strong>10,000+ accounts</strong> as development phases expand. 
+              All financial records are maintained via a centralised payment ledger, with StandLedger providing 
+              customers real-time visibility into balances, statements, and documents.
             </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-blue-800 leading-relaxed">
+                <strong>📈 Scale Trajectory:</strong> The selected vendor must demonstrate capacity to scale from 
+                the current <strong>69-account pilot</strong> to <strong>10,000+ active accounts</strong> without 
+                re-platforming. Proposals should address how pricing, throughput, and support scale accordingly.
+              </p>
+            </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
               <p className="text-sm text-amber-800 leading-relaxed">
                 <strong>🏦 Banking Requirement:</strong> All payments, regardless of country of origin, 
                 must settle into Lake City's <strong>CABS (Central Africa Building Society) account in Zimbabwe (USD)</strong>. 
-                CABS is our primary banking partner for all collections.
+                CABS is the primary banking partner for all collections.
               </p>
             </div>
           </div>
@@ -321,12 +328,35 @@ const PaymentGatewayProposal = () => {
                 <Users className="w-4 h-4" /> Customer Profile
               </h3>
               <ul className="space-y-2.5 text-base text-[hsl(160,70%,15%)]/60">
-                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Individual land buyers</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Individual land buyers (residential stands)</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Monthly instalment payments of $400 – $2,500</li>
-                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />36-month payment plans (average)</li>
+                <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Contract terms: 0 – 120 months (pilot cohort avg. 36 months)</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mobile-first users, primarily smartphone access</li>
                 <li className="flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />Mix of local (29%) and diaspora (71%) customers</li>
               </ul>
+            </div>
+            <div className="bg-white rounded-2xl border border-[hsl(160,10%,90%)] p-6">
+              <h3 className="text-base font-bold text-[hsl(160,70%,15%)] mb-4 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" /> Scale Overview
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-[hsl(160,10%,90%)]">
+                  <span className="text-sm text-[hsl(160,70%,15%)]/60">Current (Pilot)</span>
+                  <span className="text-sm font-bold text-[hsl(160,70%,15%)]">69 accounts</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-[hsl(160,10%,90%)]">
+                  <span className="text-sm text-[hsl(160,70%,15%)]/60">Target Scale</span>
+                  <span className="text-sm font-bold text-[hsl(160,70%,15%)]">10,000+ accounts</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-[hsl(160,10%,90%)]">
+                  <span className="text-sm text-[hsl(160,70%,15%)]/60">Contract Range</span>
+                  <span className="text-sm font-bold text-[hsl(160,70%,15%)]">0 – 120 months</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm text-[hsl(160,70%,15%)]/60">Pilot Avg. Term</span>
+                  <span className="text-sm font-bold text-[hsl(160,70%,15%)]">36 months</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
