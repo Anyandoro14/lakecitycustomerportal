@@ -107,12 +107,22 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Extract tenant_id from JWT app_metadata
+    const authHeader = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const userToken = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = user?.app_metadata?.tenant_id;
+    }
+
     // Double-check no existing account for this stand number
-    const { data: existingProfile } = await supabaseAdmin
+    let existingProfileQuery = supabaseAdmin
       .from('profiles')
       .select('id')
-      .eq('stand_number', trimmedStand)
-      .maybeSingle();
+      .eq('stand_number', trimmedStand);
+    if (tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
+    const { data: existingProfile } = await existingProfileQuery.maybeSingle();
 
     if (existingProfile) {
       console.log(`Account already exists for stand number: ${trimmedStand}`);
@@ -132,11 +142,12 @@ const handler = async (req: Request): Promise<Response> => {
       : `stand-${trimmedStand.toLowerCase().replace(/[^a-z0-9]/g, '')}@lakecity.portal`;
 
     // Check if email already exists
-    const { data: existingByEmail } = await supabaseAdmin
+    let existingByEmailQuery = supabaseAdmin
       .from('profiles')
       .select('id')
-      .eq('email', authEmail)
-      .maybeSingle();
+      .eq('email', authEmail);
+    if (tenantId) existingByEmailQuery = existingByEmailQuery.eq('tenant_id', tenantId);
+    const { data: existingByEmail } = await existingByEmailQuery.maybeSingle();
 
     if (existingByEmail) {
       console.log(`Email already in use: ${authEmail}`);
@@ -172,7 +183,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Created auth user: ${userId}`);
 
     // Update profile with stand number and phone
-    const { error: profileError } = await supabaseAdmin
+    let profileUpdateQuery = supabaseAdmin
       .from('profiles')
       .update({
         stand_number: trimmedStand,
@@ -180,6 +191,8 @@ const handler = async (req: Request): Promise<Response> => {
         email: authEmail
       })
       .eq('id', userId);
+    if (tenantId) profileUpdateQuery = profileUpdateQuery.eq('tenant_id', tenantId);
+    const { error: profileError } = await profileUpdateQuery;
 
     if (profileError) {
       console.error('Failed to update profile:', profileError);

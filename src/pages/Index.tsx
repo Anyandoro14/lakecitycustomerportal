@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { useTenant } from "@/contexts/TenantContext";
 import { RefreshCw } from "lucide-react";
 
 const Index = () => {
@@ -26,6 +27,7 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { tenantId } = useTenant();
   const { needsOnboarding, loading: onboardingLoading, markComplete } = useOnboarding();
   const { getUnreadArticles, dismissRibbon } = useArticles();
 
@@ -68,7 +70,7 @@ const Index = () => {
     }
     try {
       const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
-        body: {}
+        body: { tenant_id: tenantId }
       });
 
       if (error) {

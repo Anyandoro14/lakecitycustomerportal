@@ -33,10 +33,9 @@ const parseCurrencyValue = (val: string): number => {
 };
 
 // Fetch posted receipts from Receipts_Intake sheet for a list of stand numbers
-async function fetchPostedReceipts(accessToken: string, standNumbers: string[]): Promise<Map<string, ReceiptRecord[]>> {
-  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+async function fetchPostedReceipts(accessToken: string, standNumbers: string[], spreadsheetId: string): Promise<Map<string, ReceiptRecord[]>> {
   if (!spreadsheetId) {
-    console.log('No SPREADSHEET_ID for receipts fetch');
+    console.log('No spreadsheet_id for receipts fetch');
     return new Map();
   }
 
@@ -186,11 +185,11 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body for Looking Glass mode
+    // Parse request body for Looking Glass mode and tenant_id
     let lookingGlassMode = false;
     let targetStandNumber = null;
     let requestBody: any = {};
-    
+
     try {
       const bodyText = await req.text();
       if (bodyText) {
@@ -200,6 +199,30 @@ serve(async (req) => {
       }
     } catch (e) {
       // No body or invalid JSON, continue with normal flow
+    }
+
+    // Resolve spreadsheet_id: prefer tenant_id lookup, fall back to env var
+    let spreadsheetId: string | null = null;
+    const requestTenantId = requestBody.tenant_id;
+
+    if (requestTenantId) {
+      const { data: tenant, error: tenantError } = await supabaseClient
+        .from('tenants')
+        .select('spreadsheet_id')
+        .eq('id', requestTenantId)
+        .single();
+
+      if (tenantError) {
+        console.warn('Tenant lookup failed, falling back to env var:', tenantError.message);
+      } else if (tenant?.spreadsheet_id) {
+        spreadsheetId = tenant.spreadsheet_id;
+        console.log(`Using spreadsheet_id from tenant ${requestTenantId}`);
+      }
+    }
+
+    // Fallback to environment variable for backwards compatibility
+    if (!spreadsheetId) {
+      spreadsheetId = Deno.env.get('SPREADSHEET_ID') || null;
     }
 
     // Get user's profile (include stand_number for fallback matching)
@@ -396,10 +419,9 @@ serve(async (req) => {
     const { access_token } = await tokenResponse.json();
     console.log('Successfully obtained access token');
 
-    const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
     if (!spreadsheetId) {
       return new Response(
-        JSON.stringify({ error: 'SPREADSHEET_ID not configured' }),
+        JSON.stringify({ error: 'No spreadsheet configured for this tenant. Set spreadsheet_id on the tenant or SPREADSHEET_ID env var.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -444,7 +466,9 @@ serve(async (req) => {
       sheetTitle = sheets[0].properties.title;
     }
 
-    console.log(`Using sheet: "${sheetTitle}"`);
+    // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
+    const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
+    console.log(`Using sheet: "${sheetTitle}", hasPaymentsLedger: ${hasPaymentsLedger}`);
 
     // Fetch the data - extended to BH to include Agreement signed columns
     const range = encodeURIComponent(`${sheetTitle}!A:BJ`);
@@ -561,7 +585,7 @@ serve(async (req) => {
     // This provides actual receipt dates instead of column-position-based dates
     const standNumbersList = customerRows.map(row => row[standNumIndex]?.toString().trim().toUpperCase() || '').filter(Boolean);
     console.log(`Fetching receipts for ${standNumbersList.length} stand(s)...`);
-    const receiptsMap = await fetchPostedReceipts(access_token, standNumbersList);
+    const receiptsMap = await fetchPostedReceipts(access_token, standNumbersList, spreadsheetId);
     console.log(`Receipts found for ${receiptsMap.size} stand(s)`);
 
     // Map all stands to data objects
@@ -594,22 +618,52 @@ serve(async (req) => {
         }
       }
 
-      // Get the start date for this customer from the sheet
+      // Get the start date for this customer — prefer profiles.payment_start_date, then sheet column
       const startDateStr = startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '';
-      let customerStartDate = new Date(2025, 8, 5); // Default to September 5, 2025 (updated from November)
-      
-      if (startDateStr) {
+      let customerStartDate: Date | null = null;
+
+      // First, try to get payment_start_date from profiles table (authoritative)
+      const standKey_ = standNumber.toString().trim().toUpperCase();
+      const { data: profileWithDate } = await supabaseClient
+        .from('profiles')
+        .select('payment_start_date')
+        .ilike('stand_number', standKey_)
+        .limit(1)
+        .maybeSingle();
+
+      if (profileWithDate?.payment_start_date) {
+        customerStartDate = new Date(profileWithDate.payment_start_date);
+        if (isNaN(customerStartDate.getTime())) customerStartDate = null;
+      }
+
+      // Fallback: parse from sheet column
+      if (!customerStartDate && startDateStr) {
         try {
-          // Try to parse the date from the sheet
           const parsedDate = new Date(startDateStr);
           if (!isNaN(parsedDate.getTime())) {
             customerStartDate = parsedDate;
-            // Set the day to 5th of the month as per requirement
             customerStartDate.setDate(5);
           }
         } catch (e) {
           console.log(`Could not parse start date for stand ${standNumber}: ${startDateStr}`);
         }
+      }
+
+      // Final fallback: use sheet header date (no hardcoded 2025 date)
+      if (!customerStartDate) {
+        const headerDate = headers[paymentStartCol];
+        if (headerDate) {
+          const parsed = new Date(headerDate);
+          if (!isNaN(parsed.getTime())) {
+            customerStartDate = parsed;
+          }
+        }
+      }
+
+      // Last resort fallback
+      if (!customerStartDate) {
+        customerStartDate = new Date(2025, 8, 5);
+        console.warn(`Stand ${standNumber}: No payment_start_date found, using fallback Sept 2025`);
       }
 
       console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);

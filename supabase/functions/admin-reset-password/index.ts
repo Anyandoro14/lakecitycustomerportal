@@ -36,9 +36,19 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Extract tenant_id from JWT app_metadata
+    const authHeaderForTenant = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeaderForTenant?.startsWith('Bearer ')) {
+      const userToken = authHeaderForTenant.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = user?.app_metadata?.tenant_id;
+    }
+
     // Build query to find customer profile based on provided fields
     let query = supabaseAdmin.from("profiles").select("*");
-    
+    if (tenantId) query = query.eq('tenant_id', tenantId);
+
     if (standNumber) {
       query = query.ilike("stand_number", standNumber);
     }
@@ -122,6 +132,7 @@ Deno.serve(async (req) => {
       entity_id: userId,
       performed_by: performedBy,
       performed_by_email: performedByEmail,
+      ...(tenantId ? { tenant_id: tenantId } : {}),
       details: {
         customer_email: userEmail,
         stand_number: profile.stand_number,

@@ -396,14 +396,19 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
     const currentBalance = parseCurrency(row[currentBalanceCol]);
 
     // Get first payment header to determine base date
-    // Column M is now September 5, 2025
+    // Column M header contains the date of the first payment column
     const firstPaymentHeader = headers[paymentStartCol];
-    let basePaymentDate = new Date(2025, 8, 5); // September 5, 2025 default (updated from October)
+    let basePaymentDate: Date | null = null;
     if (firstPaymentHeader) {
       const parsedHeaderDate = new Date(firstPaymentHeader);
       if (!isNaN(parsedHeaderDate.getTime())) {
         basePaymentDate = parsedHeaderDate;
       }
+    }
+    // Fallback only if header parsing fails
+    if (!basePaymentDate) {
+      basePaymentDate = new Date(2025, 8, 5);
+      console.warn('Could not parse payment column header date, using fallback');
     }
 
     // Extract payments with dates
@@ -616,21 +621,27 @@ serve(async (req) => {
     let targetMonth: string | null = null;
     let targetStand: string | null = null;
     let refreshMode: boolean = false;
-    
+    let tenantId: string | null = null;
+
     try {
       const body = await req.json();
       targetMonth = body.target_month || null;
       targetStand = body.target_stand || null;
-      refreshMode = body.refresh === true; // If true, update existing statements
+      refreshMode = body.refresh === true;
+      tenantId = body.tenant_id || null;
     } catch {
       // No body provided, generate all
     }
 
     // Run Google auth and profiles fetch in parallel
     console.log('Fetching data in parallel...');
+    let profilesQuery = supabase.from('profiles').select('stand_number, payment_start_date');
+    if (tenantId) {
+      profilesQuery = profilesQuery.eq('tenant_id', tenantId);
+    }
     const [accessToken, profilesResult] = await Promise.all([
       getGoogleAccessToken(),
-      supabase.from('profiles').select('stand_number, payment_start_date')
+      profilesQuery
     ]);
 
     const profiles = profilesResult.data || [];
@@ -638,14 +649,22 @@ serve(async (req) => {
       console.warn('Could not fetch profiles:', profilesResult.error.message);
     }
 
-    // Create payment start date map
+    // Create payment start date map and find earliest for range start
     const paymentStartDateMap: Record<string, Date> = {};
-    const defaultPaymentStartDate = new Date(2025, 8, 5);
+    let earliestPaymentStart: Date | null = null;
     for (const profile of profiles) {
       if (profile.stand_number && profile.payment_start_date) {
-        paymentStartDateMap[profile.stand_number] = new Date(profile.payment_start_date);
+        const d = new Date(profile.payment_start_date);
+        if (!isNaN(d.getTime())) {
+          paymentStartDateMap[profile.stand_number] = d;
+          if (!earliestPaymentStart || d < earliestPaymentStart) {
+            earliestPaymentStart = d;
+          }
+        }
       }
     }
+    // Fallback default only used for stands without a profile payment_start_date
+    const defaultPaymentStartDate = earliestPaymentStart || new Date(2025, 8, 5);
 
     // Fetch customer data and itemized receipts from sheets in parallel
     console.log('Fetching customer data and itemized receipts from Google Sheets...');
@@ -661,8 +680,10 @@ serve(async (req) => {
       );
     }
 
-    // Determine date range
-    const startMonth = new Date(2025, 9, 1); // October 2025
+    // Determine date range — derive from earliest payment_start_date instead of hardcoding
+    const startMonth = earliestPaymentStart
+      ? new Date(earliestPaymentStart.getFullYear(), earliestPaymentStart.getMonth(), 1)
+      : new Date(2025, 8, 1); // Richcraft-only fallback
     let endMonth: Date;
     if (targetMonth) {
       const [year, month] = targetMonth.split('-').map(Number);

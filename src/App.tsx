@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { LookingGlassProvider } from "@/contexts/LookingGlassContext";
+import { TenantProvider } from "@/contexts/TenantContext";
 
 // Critical path - loaded immediately
 import Login from "./pages/Login";
@@ -49,6 +50,7 @@ const DocsQuickstart = lazy(() => import("./pages/docs/DocsQuickstart"));
 const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
 const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
+const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
 
 const queryClient = new QueryClient();
 
@@ -63,6 +65,7 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <TenantProvider>
         <LookingGlassProvider>
           <Toaster />
           <Sonner />
@@ -107,6 +110,7 @@ const App = () => (
                 <Route path="/docs/errors" element={<DocsErrors />} />
                 <Route path="/crm-specs" element={<CrmSpecifications />} />
                 <Route path="/crm-specs/technical" element={<CrmTechnicalSpecs />} />
+                <Route path="/admin/qc-queue" element={<QcQueue />} />
                 <Route path="/training" element={<TrainingCenter />} />
                 <Route path="/training/:path/:moduleId" element={<TrainingModule />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
@@ -115,6 +119,7 @@ const App = () => (
             </Suspense>
           </BrowserRouter>
         </LookingGlassProvider>
+        </TenantProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>
