@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
 
     const userId = user.id;
     const userEmail = user.email || '';
+    const tenantId = user.app_metadata?.tenant_id;
 
     // Verify email domain
     if (!userEmail?.toLowerCase().endsWith('@lakecity.co.zw')) {
@@ -150,8 +151,9 @@ Deno.serve(async (req) => {
       entity_id: twilioResult.sid,
       performed_by: userId,
       performed_by_email: userEmail,
-      details: { 
-        recipient: formattedPhone, 
+      ...(tenantId ? { tenant_id: tenantId } : {}),
+      details: {
+        recipient: formattedPhone,
         messagePreview: message.substring(0, 50) + (message.length > 50 ? '...' : '')
       }
     });

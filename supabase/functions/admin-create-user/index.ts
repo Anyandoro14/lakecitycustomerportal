@@ -26,14 +26,24 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Extract tenant_id from JWT app_metadata
+    const authHeader = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const userToken = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = user?.app_metadata?.tenant_id;
+    }
+
     console.log(`Creating account for stand: ${standNumber}, email: ${email}, phone: ${phoneNumber}`);
 
     // Check if profile already exists for this stand
-    const { data: existingProfile } = await supabaseAdmin
+    let existingProfileQuery = supabaseAdmin
       .from('profiles')
       .select('id, stand_number')
-      .eq('stand_number', standNumber)
-      .maybeSingle();
+      .eq('stand_number', standNumber);
+    if (tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
+    const { data: existingProfile } = await existingProfileQuery.maybeSingle();
 
     if (existingProfile) {
       console.log(`Account already exists for stand ${standNumber}`);
@@ -51,13 +61,15 @@ Deno.serve(async (req) => {
       console.log(`Email ${email} already exists, updating profile with stand number`);
       
       // Update the profile with the stand number and phone
-      const { error: updateError } = await supabaseAdmin
+      let updateQuery = supabaseAdmin
         .from('profiles')
         .update({
           stand_number: standNumber,
           phone_number: phoneNumber
         })
         .eq('id', existingUser.id);
+      if (tenantId) updateQuery = updateQuery.eq('tenant_id', tenantId);
+      const { error: updateError } = await updateQuery;
 
       if (updateError) {
         console.error("Error updating profile:", updateError);
@@ -112,7 +124,7 @@ Deno.serve(async (req) => {
     console.log(`Created auth user: ${userId}`);
 
     // Update profile with stand number and phone
-    const { error: profileError } = await supabaseAdmin
+    let profileUpdateQuery = supabaseAdmin
       .from('profiles')
       .update({
         stand_number: standNumber,
@@ -120,6 +132,8 @@ Deno.serve(async (req) => {
         email: email.toLowerCase()
       })
       .eq('id', userId);
+    if (tenantId) profileUpdateQuery = profileUpdateQuery.eq('tenant_id', tenantId);
+    const { error: profileError } = await profileUpdateQuery;
 
     if (profileError) {
       console.error("Error updating profile:", profileError);
@@ -130,7 +144,8 @@ Deno.serve(async (req) => {
           id: userId,
           stand_number: standNumber,
           phone_number: phoneNumber,
-          email: email.toLowerCase()
+          email: email.toLowerCase(),
+          ...(tenantId ? { tenant_id: tenantId } : {})
         });
 
       if (insertError) {

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lake City Customer Portal — Development Workflow (Executive Guide)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      line-height: 1.55;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 3rem;
+      color: #1a1a1a;
+      font-size: 11pt;
+    }
+    h1 {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-top: 0;
+      border-bottom: 2px solid #333;
+      padding-bottom: 0.5rem;
+    }
+    h2 {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 1.15rem;
+      font-weight: 650;
+      margin-top: 1.75rem;
+      color: #222;
+    }
+    p { margin: 0.65rem 0; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.25rem; padding-left: 0.5rem; }
+    li { margin: 0.35rem 0; }
+    .meta {
+      font-size: 0.95rem;
+      color: #555;
+      margin-bottom: 1.5rem;
+    }
+    .callout {
+      background: #f5f5f5;
+      border-left: 4px solid #333;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.98rem;
+    }
+    strong { font-weight: 600; }
+    @media print {
+      body { padding: 0; max-width: 100%; }
+      h2 { page-break-after: avoid; }
+      li { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Development Workflow — Executive Guide</h1>
+  <p class="meta"><strong>Audience:</strong> Founder / leader without a day-to-day coding background.<br />
+  <strong>Purpose:</strong> Plain-language map from idea → safe testing → live customers.</p>
+
+  <div class="callout">
+    <strong>Big picture:</strong> Your product has two “homes”: the <strong>website</strong> (what users see) and the <strong>database &amp; backend</strong> (where data and payments logic live). Moving a change to production means updating both, in the right order, after you have checked it in a safe copy of the system (your “dev” environment).
+  </div>
+
+  <h2>1. Planning with Claude (or another AI assistant)</h2>
+  <p>This is the “what should we build and why” phase. You describe the business outcome; the assistant helps turn it into a clear plan.</p>
+  <ol>
+    <li><strong>State the business problem</strong> — e.g. “Payments show up too slowly on the customer dashboard” or “We need receipts to flow from the form into our system without manual spreadsheet work.”</li>
+    <li><strong>Agree on success</strong> — What will “done” look like for you and for customers? (e.g. “Balance updates within a minute of approval.”)</li>
+    <li><strong>Review constraints</strong> — Budget, timeline, legal/compliance, and what must <em>not</em> change (e.g. existing Odoo or payment gateway rules).</li>
+    <li><strong>Get a written plan</strong> — A short document listing steps, main parts of the system touched, and risks. Treat this as your checklist, not as code.</li>
+    <li><strong>Assign ownership</strong> — Who approves the plan, who implements (you with AI, a developer, or both), and who signs off before customers see it.</li>
+  </ol>
+  <p><strong>In plain terms:</strong> Planning with Claude is like agreeing on the blueprint and acceptance tests before anyone remodels the house.</p>
+
+  <h2>2. Edits to the codebase</h2>
+  <p>The “codebase” is the folder of files that defines your app and its connection to the database. Changes here are invisible to customers until those changes are <em>built</em>, <em>deployed</em>, and pointed at the live database.</p>
+  <ol>
+    <li><strong>Work on a branch or copy</strong> — Ideally, new work lives on a separate line of development (often called a “branch”) so the live version stays untouched until you are ready.</li>
+    <li><strong>Implement the plan</strong> — Screens, logic, database structure (migrations), and “serverless” functions (small programs that run in the cloud when something happens) are updated to match the plan.</li>
+    <li><strong>Keep changes small and reviewable</strong> — Each chunk of work should map to one goal so you can test and roll back if needed.</li>
+    <li><strong>Save to Git</strong> — Your hosting and tools (including Lovable) usually connect to <strong>Git</strong>, which is a history of every saved version. Pushing those saves to your central repository is how the team (and deployment tools) get the latest files.</li>
+    <li><strong>Do not assume “save = live”</strong> — Saving code to the repository updates the <em>source of truth</em>. The public site and production database are updated only when you run your deployment steps (see sections 3 and 4).</li>
+  </ol>
+  <p><strong>In plain terms:</strong> Editing the codebase is updating the recipe; customers still get the old meal until you cook and serve the new one in the right kitchen (dev first, then production).</p>
+
+  <h2>3. Testing and viewing in a development (“dev”) environment</h2>
+  <p>A <strong>dev environment</strong> is a safe copy: wrong buttons or bugs do not affect paying customers or real financial records (when you use a separate database or test data).</p>
+  <ol>
+    <li><strong>Run the app locally or on a preview URL</strong> — For this project, developers often use a command like starting the dev server on a laptop so the site opens in a browser with instant reload. Lovable may also offer a preview of the project before you “publish.”</li>
+    <li><strong>Point the app at non-production data</strong> — Use a <strong>staging</strong> or <strong>development</strong> Supabase project (or local database) so tests do not touch production customer data.</li>
+    <li><strong>Apply backend changes there first</strong> — Database structure updates (migrations) and cloud functions should be deployed to the <em>same</em> environment you are testing against, not straight to production while you are still learning if the feature works.</li>
+    <li><strong>Walk through real scenarios</strong> — Log in as a test customer, submit a form, approve a receipt, check balances and emails. Compare results to the plan in section 1.</li>
+    <li><strong>Fix issues and repeat</strong> — Until the checklist passes, stay in dev. Only then proceed to production deployment.</li>
+  </ol>
+  <p><strong>In plain terms:</strong> Dev is the rehearsal stage. Nothing here should frighten customers or accountants.</p>
+
+  <h2>4. Deploying to production</h2>
+  <p><strong>Production</strong> is what real users and real data use. Two parts usually deploy separately:</p>
+  <ul>
+    <li><strong>Frontend (the website)</strong> — For Lovable-hosted projects, this is typically an explicit step such as <strong>Share → Publish</strong> inside Lovable. Pushing code to Git alone does not always replace that step for the live URL.</li>
+    <li><strong>Backend (database + server logic)</strong> — Supabase migrations and edge functions must be applied to your <strong>production</strong> Supabase project using your team’s agreed process (dashboard, CLI, or CI/CD). Publishing the website in Lovable does not automatically run database migrations or deploy every function.</li>
+  </ul>
+  <ol>
+    <li><strong>Freeze scope</strong> — Agree that dev testing is complete and what exactly is going live.</li>
+    <li><strong>Deploy backend first (or in the order your technical lead specifies)</strong> — So the live site does not call APIs or tables that do not exist yet.</li>
+    <li><strong>Publish the frontend</strong> — e.g. Lovable <strong>Publish</strong> so the public site serves the new build.</li>
+    <li><strong>Smoke-test production</strong> — One careful pass on the live URL with a known test account (or read-only checks) to confirm critical paths.</li>
+    <li><strong>Monitor and communicate</strong> — Watch for errors, support tickets, and payment anomalies; tell stakeholders when the release is complete.</li>
+  </ol>
+  <p><strong>In plain terms:</strong> Production deployment is opening the restaurant to guests after the staff-only rehearsal — two switches (website + backend), both intentional.</p>
+
+  <div class="callout">
+    <strong>How to save this document as a PDF:</strong> Open this file in <strong>Chrome</strong> or <strong>Edge</strong>, press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac), choose <strong>Save as PDF</strong> as the printer, then save. On a phone, open the file from cloud storage and use the share/export-to-PDF option if available.
+  </div>
+
+  <p style="margin-top: 2rem; font-size: 0.9rem; color: #666;">
+    Document generated for the Lake City Customer Portal repository. Adjust names of tools (Lovable, Supabase, Git) only if your team uses different vendors; the sequence stays the same: plan → build in repo → test in dev → deploy backend and frontend to production.
+  </p>
+
+</body>
+</html>

@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:test": "vite --mode test",
+    "test:env:setup": "bash scripts/setup-test-env.sh",
+    "test:env:serve-functions": "bash scripts/serve-test-functions.sh",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

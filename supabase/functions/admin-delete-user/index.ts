@@ -26,15 +26,25 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Extract tenant_id from JWT app_metadata
+    const authHeader = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const userToken = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = user?.app_metadata?.tenant_id;
+    }
+
     let targetUserId = userId;
 
     // If standNumber provided, look up the user
     if (standNumber && !userId) {
-      const { data: profile } = await supabaseAdmin
+      let profileQuery = supabaseAdmin
         .from('profiles')
         .select('id, email')
-        .eq('stand_number', standNumber)
-        .maybeSingle();
+        .eq('stand_number', standNumber);
+      if (tenantId) profileQuery = profileQuery.eq('tenant_id', tenantId);
+      const { data: profile } = await profileQuery.maybeSingle();
 
       if (!profile) {
         // Try to find in auth users by checking all profiles
@@ -66,10 +76,12 @@ Deno.serve(async (req) => {
     }
 
     // Delete profile
-    const { error: profileError } = await supabaseAdmin
+    let deleteProfileQuery = supabaseAdmin
       .from('profiles')
       .delete()
       .eq('id', targetUserId);
+    if (tenantId) deleteProfileQuery = deleteProfileQuery.eq('tenant_id', tenantId);
+    const { error: profileError } = await deleteProfileQuery;
 
     if (profileError) {
       console.log('Error deleting profile:', profileError);
