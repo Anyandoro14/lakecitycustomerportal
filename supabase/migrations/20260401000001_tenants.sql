@@ -15,5 +15,5 @@ CREATE TABLE tenants (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Seed Richcraft as the first tenant
-INSERT INTO tenants (slug, display_name) VALUES ('richcraft', 'Richcraft');
+-- Seed Lake City as the first tenant (slug used by app routing; Richcraft is a customer type, not the tenant)
+INSERT INTO tenants (slug, display_name) VALUES ('lakecity', 'Lake City');

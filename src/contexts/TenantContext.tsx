@@ -62,6 +62,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           crmProvider: data.crm_provider as 'internal' | 'odoo',
         });
         setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Tenant lookup failed:", err);
+        setError("Could not load organization. Check your connection and try again.");
+        setLoading(false);
       });
   }, []);
 

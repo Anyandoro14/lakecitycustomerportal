@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLookingGlass } from "@/contexts/LookingGlassContext";
 import LookingGlassBanner from "@/components/LookingGlassBanner";
@@ -11,6 +11,7 @@ import DocumentsSection from "@/components/DocumentsSection";
 import PaymentHistory from "@/components/PaymentHistory";
 import TwoFABypassDialog from "@/components/TwoFABypassDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import { Loader2, Lock, Eye, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,31 +20,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const LookingGlassView = () => {
   const navigate = useNavigate();
+  const { tenantId } = useTenant();
   const { isLookingGlassMode, customer, exitLookingGlass } = useLookingGlass();
   const [standData, setStandData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  useEffect(() => {
-    // Redirect if not in Looking Glass mode
-    if (!isLookingGlassMode || !customer) {
-      navigate("/internal-portal");
-      return;
-    }
-
-    fetchCustomerData();
-  }, [isLookingGlassMode, customer, navigate]);
-
-  const fetchCustomerData = async () => {
-    if (!customer) return;
+  const fetchCustomerData = useCallback(async () => {
+    if (!customer || !tenantId) return;
 
     setLoading(true);
     try {
-      // Fetch data for the specific customer's stand using the edge function
-      const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
+      const { data, error } = await supabase.functions.invoke('fetch-customer-data', {
         body: { 
           lookingGlassMode: true,
-          targetStandNumber: customer.standNumber 
+          targetStandNumber: customer.standNumber,
+          tenant_id: tenantId,
         }
       });
 
@@ -54,9 +46,8 @@ const LookingGlassView = () => {
         return;
       }
 
-      // Find the specific stand data
       const targetStand = data.stands?.find(
-        (s: any) => s.standNumber === customer.standNumber
+        (s: any) => s.standNumber?.toUpperCase() === customer.standNumber?.toUpperCase(),
       );
 
       if (targetStand) {
@@ -70,7 +61,17 @@ const LookingGlassView = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [customer, tenantId]);
+
+  useEffect(() => {
+    if (!isLookingGlassMode || !customer) {
+      navigate("/internal-portal");
+      return;
+    }
+
+    if (!tenantId) return;
+    fetchCustomerData();
+  }, [isLookingGlassMode, customer, navigate, tenantId, fetchCustomerData]);
 
   if (!isLookingGlassMode || !customer) {
     return null;

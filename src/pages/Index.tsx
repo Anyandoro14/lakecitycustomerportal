@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerHeader from "@/components/CustomerHeader";
 import CustomerOverview from "@/components/CustomerOverview";
@@ -27,7 +27,7 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const { tenantId } = useTenant();
+  const { tenantId, loading: tenantLoading, error: tenantError } = useTenant();
   const { needsOnboarding, loading: onboardingLoading, markComplete } = useOnboarding();
   const { getUnreadArticles, dismissRibbon } = useArticles();
 
@@ -39,37 +39,45 @@ const Index = () => {
   }, []);
 
   const checkAuthAndLoadData = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        navigate("/login");
+        return;
+      }
+
+      const { data: internalUser } = await supabase
+        .from("internal_users")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (internalUser) {
+        navigate("/internal-portal");
+        return;
+      }
+
+      setIsAuthenticated(true);
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
       navigate("/login");
-      return;
     }
-    
-    // Check if user is an internal user - if so, redirect to internal portal
-    const { data: internalUser } = await supabase
-      .from('internal_users')
-      .select('id')
-      .eq('user_id', session.user.id)
-      .single();
-    
-    if (internalUser) {
-      navigate("/internal-portal");
-      return;
-    }
-    
-    setIsAuthenticated(true);
-    await fetchCustomerData();
   };
 
-  const fetchCustomerData = async (isRefresh = false) => {
+  const fetchCustomerData = useCallback(async (isRefresh = false) => {
+    if (!tenantId) {
+      if (!isRefresh) setLoading(false);
+      return;
+    }
     if (isRefresh) {
       setRefreshing(true);
     } else {
       setLoading(true);
     }
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
+      const { data, error } = await supabase.functions.invoke('fetch-customer-data', {
         body: { tenant_id: tenantId }
       });
 
@@ -124,9 +132,54 @@ const Index = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [tenantId, navigate, toast]);
 
-  if (!isAuthenticated || loading || onboardingLoading) {
+  useEffect(() => {
+    if (!isAuthenticated || !tenantId || tenantLoading) return;
+    fetchCustomerData();
+  }, [isAuthenticated, tenantId, tenantLoading, fetchCustomerData]);
+
+  // If tenant finished resolving but we have no tenant (misconfig / wrong slug), stop spinning —
+  // otherwise loading stays true forever because fetchCustomerData never runs without tenantId.
+  useEffect(() => {
+    if (!isAuthenticated || tenantLoading) return;
+    if (!tenantId) {
+      setLoading(false);
+    }
+  }, [isAuthenticated, tenantLoading, tenantId]);
+
+  useEffect(() => {
+    if (!selectedStand?.standNumber || !tenantId) return;
+    const stand = selectedStand.standNumber;
+    const channel = supabase
+      .channel(`customer-payments-${stand}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payment_receipts',
+          filter: `stand_number=eq.${stand}`,
+        },
+        () => {
+          fetchCustomerData(true);
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'installments' },
+        () => {
+          fetchCustomerData(true);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedStand?.standNumber, tenantId, fetchCustomerData]);
+
+  if (!isAuthenticated || tenantLoading || loading || onboardingLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center">
@@ -144,6 +197,28 @@ const Index = () => {
         onComplete={markComplete} 
         customerName={selectedStand?.customerName?.split(' ')[0]}
       />
+    );
+  }
+
+  if (tenantError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">{tenantError}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!tenantId) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Could not resolve your organization. Please try again later.</p>
+          <Button onClick={() => navigate("/settings")}>Go to Settings</Button>
+        </div>
+      </div>
     );
   }
 

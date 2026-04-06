@@ -446,6 +446,122 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
   return customers;
 }
 
+/** Statement generation from contracts + payment_receipts (approved) when source=database */
+async function fetchStatementDataFromDatabase(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+  targetStand: string | null,
+): Promise<{
+  customers: CustomerData[];
+  itemizedByStand: Map<string, ReceiptRecord[]>;
+  paymentStartDateMap: Record<string, Date>;
+}> {
+  let cq = supabase
+    .from("contracts")
+    .select(
+      `id, stand_number, total_price, payment_start_date,
+       profiles ( email, full_name, payment_start_date )`,
+    )
+    .eq("tenant_id", tenantId)
+    .eq("status", "active");
+
+  if (targetStand) {
+    cq = cq.ilike("stand_number", targetStand.trim());
+  }
+
+  const { data: contracts, error } = await cq;
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!contracts?.length) {
+    return { customers: [], itemizedByStand: new Map(), paymentStartDateMap: {} };
+  }
+
+  const contractIds = contracts.map((c: { id: string }) => c.id);
+  const stands = [...new Set(contracts.map((c: { stand_number: string }) => c.stand_number))];
+
+  const [{ data: balances }, { data: receipts }] = await Promise.all([
+    supabase.from("contract_balances").select("*").in("contract_id", contractIds),
+    supabase
+      .from("payment_receipts")
+      .select("stand_number, amount, payment_date, gateway_reference, gateway_metadata")
+      .eq("tenant_id", tenantId)
+      .eq("qc_status", "approved")
+      .in("stand_number", stands),
+  ]);
+
+  const balanceById = new Map((balances || []).map((b: { contract_id: string }) => [b.contract_id, b]));
+
+  const itemizedByStand = new Map<string, ReceiptRecord[]>();
+  for (const r of receipts || []) {
+    const row = r as {
+      stand_number: string;
+      amount: number | string;
+      payment_date: string;
+      gateway_reference: string | null;
+      gateway_metadata: Record<string, unknown> | null;
+    };
+    const key = row.stand_number?.toString().trim().toUpperCase() || "";
+    const amt = typeof row.amount === "number" ? row.amount : parseCurrency(String(row.amount));
+    const ref: ReceiptRecord = {
+      intake_id: "db",
+      stand_number: key,
+      payment_date: row.payment_date,
+      payment_amount: amt,
+      payment_method: typeof row.gateway_metadata?.payment_method === "string"
+        ? row.gateway_metadata.payment_method
+        : "",
+      reference: row.gateway_reference || "",
+    };
+    if (!itemizedByStand.has(key)) itemizedByStand.set(key, []);
+    itemizedByStand.get(key)!.push(ref);
+  }
+
+  for (const [, list] of itemizedByStand) {
+    list.sort((a, b) => {
+      const da = new Date(a.payment_date).getTime();
+      const db = new Date(b.payment_date).getTime();
+      return da - db;
+    });
+  }
+
+  const paymentStartDateMap: Record<string, Date> = {};
+  const customers: CustomerData[] = [];
+
+  for (const c of contracts as Array<{
+    id: string;
+    stand_number: string;
+    total_price: number | string;
+    payment_start_date: string;
+    profiles: { email?: string; full_name?: string; payment_start_date?: string } | null;
+  }>) {
+    const bal = balanceById.get(c.id) as { total_paid?: number; current_balance?: number } | undefined;
+    const prof = c.profiles;
+    const email = prof?.email?.trim().toLowerCase() || `stand-${c.stand_number}@lakecity.portal`;
+    const name = (prof?.full_name || "").trim();
+    const totalPrice = Number(c.total_price);
+    const totalPaid = bal ? Number(bal.total_paid) : 0;
+    const currentBalance = bal ? Number(bal.current_balance) : Math.max(0, totalPrice - totalPaid);
+    const standKey = c.stand_number.toString().trim().toUpperCase();
+    const startRaw = prof?.payment_start_date || c.payment_start_date;
+    const start = new Date(startRaw);
+    if (!isNaN(start.getTime())) {
+      paymentStartDateMap[standKey] = start;
+    }
+    customers.push({
+      email,
+      standNumber: c.stand_number,
+      fullName: name,
+      totalPrice,
+      totalPaid,
+      currentBalance,
+      payments: [],
+    });
+  }
+
+  return { customers, itemizedByStand, paymentStartDateMap };
+}
+
 // Generate statements for a single customer (optimized - batch insert)
 // UPDATED: Uses currentBalance from sheet (Column AZ) as source of truth for the latest statement
 // Previous months work backwards from there
@@ -622,6 +738,7 @@ serve(async (req) => {
     let targetStand: string | null = null;
     let refreshMode: boolean = false;
     let tenantId: string | null = null;
+    let source: 'sheets' | 'database' = 'sheets';
 
     try {
       const body = await req.json();
@@ -629,49 +746,71 @@ serve(async (req) => {
       targetStand = body.target_stand || null;
       refreshMode = body.refresh === true;
       tenantId = body.tenant_id || null;
+      source = body.source === 'database' ? 'database' : 'sheets';
     } catch {
       // No body provided, generate all
     }
 
-    // Run Google auth and profiles fetch in parallel
-    console.log('Fetching data in parallel...');
-    let profilesQuery = supabase.from('profiles').select('stand_number, payment_start_date');
-    if (tenantId) {
-      profilesQuery = profilesQuery.eq('tenant_id', tenantId);
-    }
-    const [accessToken, profilesResult] = await Promise.all([
-      getGoogleAccessToken(),
-      profilesQuery
-    ]);
-
-    const profiles = profilesResult.data || [];
-    if (profilesResult.error) {
-      console.warn('Could not fetch profiles:', profilesResult.error.message);
-    }
-
-    // Create payment start date map and find earliest for range start
+    let customers: CustomerData[];
+    let itemizedReceiptsMap: Map<string, ReceiptRecord[]>;
     const paymentStartDateMap: Record<string, Date> = {};
     let earliestPaymentStart: Date | null = null;
-    for (const profile of profiles) {
-      if (profile.stand_number && profile.payment_start_date) {
-        const d = new Date(profile.payment_start_date);
-        if (!isNaN(d.getTime())) {
-          paymentStartDateMap[profile.stand_number] = d;
-          if (!earliestPaymentStart || d < earliestPaymentStart) {
-            earliestPaymentStart = d;
+
+    if (source === 'database') {
+      if (!tenantId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'tenant_id is required when source=database' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      console.log('Fetching statement inputs from database (contracts + payment_receipts)...');
+      const db = await fetchStatementDataFromDatabase(supabase, tenantId, targetStand);
+      customers = db.customers;
+      itemizedReceiptsMap = db.itemizedByStand;
+      for (const [k, v] of Object.entries(db.paymentStartDateMap)) {
+        paymentStartDateMap[k] = v;
+        if (!earliestPaymentStart || v < earliestPaymentStart) {
+          earliestPaymentStart = v;
+        }
+      }
+    } else {
+      console.log('Fetching data in parallel (Google Sheets + profiles)...');
+      let profilesQuery = supabase.from('profiles').select('stand_number, payment_start_date');
+      if (tenantId) {
+        profilesQuery = profilesQuery.eq('tenant_id', tenantId);
+      }
+      const [accessToken, profilesResult] = await Promise.all([
+        getGoogleAccessToken(),
+        profilesQuery,
+      ]);
+
+      const profiles = profilesResult.data || [];
+      if (profilesResult.error) {
+        console.warn('Could not fetch profiles:', profilesResult.error.message);
+      }
+
+      for (const profile of profiles) {
+        if (profile.stand_number && profile.payment_start_date) {
+          const d = new Date(profile.payment_start_date);
+          if (!isNaN(d.getTime())) {
+            paymentStartDateMap[profile.stand_number] = d;
+            if (!earliestPaymentStart || d < earliestPaymentStart) {
+              earliestPaymentStart = d;
+            }
           }
         }
       }
-    }
-    // Fallback default only used for stands without a profile payment_start_date
-    const defaultPaymentStartDate = earliestPaymentStart || new Date(2025, 8, 5);
 
-    // Fetch customer data and itemized receipts from sheets in parallel
-    console.log('Fetching customer data and itemized receipts from Google Sheets...');
-    const [customers, itemizedReceiptsMap] = await Promise.all([
-      fetchAllCustomerData(accessToken),
-      fetchItemizedReceipts(accessToken)
-    ]);
+      console.log('Fetching customer data and itemized receipts from Google Sheets...');
+      const [sheetCustomers, sheetReceipts] = await Promise.all([
+        fetchAllCustomerData(accessToken),
+        fetchItemizedReceipts(accessToken),
+      ]);
+      customers = sheetCustomers;
+      itemizedReceiptsMap = sheetReceipts;
+    }
+
+    const defaultPaymentStartDate = earliestPaymentStart || new Date(2025, 8, 5);
 
     if (customers.length === 0) {
       return new Response(
@@ -696,8 +835,9 @@ serve(async (req) => {
     console.log(`Date range: ${startMonth.toLocaleDateString()} to ${endMonth.toLocaleDateString()}`);
 
     // Filter customers if target stand specified
-    const customersToProcess = targetStand 
-      ? customers.filter(c => c.standNumber === targetStand)
+    const targetStandNorm = targetStand?.trim().toUpperCase() || null;
+    const customersToProcess = targetStandNorm
+      ? customers.filter((c) => c.standNumber?.toUpperCase() === targetStandNorm)
       : customers;
 
     console.log(`Processing ${customersToProcess.length} customers...`);
@@ -745,7 +885,10 @@ serve(async (req) => {
     const allNewStatements: StatementRecord[] = [];
     
     for (const customer of customersToProcess) {
-      const customerPaymentStartDate = paymentStartDateMap[customer.standNumber] || defaultPaymentStartDate;
+      const customerPaymentStartDate =
+        paymentStartDateMap[customer.standNumber] ||
+        paymentStartDateMap[customer.standNumber.toUpperCase()] ||
+        defaultPaymentStartDate;
       
       // Get itemized receipts for this customer
       const standKey = customer.standNumber.toUpperCase();
@@ -772,9 +915,13 @@ serve(async (req) => {
     for (let i = 0; i < allNewStatements.length; i += batchSize) {
       const batch = allNewStatements.slice(i, i + batchSize);
       
+      const rowsToInsert = tenantId
+        ? batch.map((row) => ({ ...row, tenant_id: tenantId }))
+        : batch;
+
       const { error: insertError, data: insertedData } = await supabase
         .from('monthly_statements')
-        .insert(batch)
+        .insert(rowsToInsert)
         .select('id');
       
       if (insertError) {

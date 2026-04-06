@@ -141,6 +141,16 @@ serve(async (req) => {
           console.error('sale.order upsert error:', contractError.message);
         } else {
           console.log(`Upserted contract for SO ${_id}`);
+          if (contract?.id) {
+            fetch(`${supabaseUrl}/functions/v1/generate-installments`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ contract_id: contract.id }),
+            }).catch((err) => console.error('generate-installments call failed:', err));
+          }
         }
         break;
       }

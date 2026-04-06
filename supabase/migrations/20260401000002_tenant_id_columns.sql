@@ -13,16 +13,16 @@ ALTER TABLE customer_invitations ADD COLUMN tenant_id UUID REFERENCES tenants(id
 ALTER TABLE customer_onboarding ADD COLUMN tenant_id UUID REFERENCES tenants(id);
 
 -- Backfill all existing rows with Richcraft tenant_id
-UPDATE profiles SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE payment_transactions SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE monthly_statements SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE internal_users SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE audit_log SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE conversations SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE messages SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE support_cases SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE customer_invitations SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
-UPDATE customer_onboarding SET tenant_id = (SELECT id FROM tenants WHERE slug = 'richcraft');
+UPDATE profiles SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE payment_transactions SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE monthly_statements SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE internal_users SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE audit_log SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE conversations SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE messages SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE support_cases SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE customer_invitations SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
+UPDATE customer_onboarding SET tenant_id = (SELECT id FROM tenants WHERE slug = 'lakecity');
 
 -- Now enforce NOT NULL
 ALTER TABLE profiles ALTER COLUMN tenant_id SET NOT NULL;
