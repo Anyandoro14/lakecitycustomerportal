@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
 
     const userId = userData.user.id;
     const userEmail = userData.user.email?.toLowerCase() || "";
+    const tenantId = userData.user.app_metadata?.tenant_id;
 
     // Verify internal user
     if (!userEmail.endsWith("@lakecity.co.zw")) {
@@ -66,13 +67,15 @@ Deno.serve(async (req) => {
     switch (action) {
       case "list": {
         const { filters, currentUserId } = params as { filters: ConversationFilters; currentUserId?: string };
-        
+
         let query = supabaseAdmin
           .from("conversations")
           .select("*")
           .order("last_message_at", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false })
           .limit(100);
+
+        if (tenantId) query = query.eq("tenant_id", tenantId);
 
         if (filters?.status) {
           query = query.eq("status", filters.status);
@@ -256,6 +259,7 @@ Deno.serve(async (req) => {
             provider_message_id: providerMessageId,
             delivery_status: deliveryStatus,
             created_by_user_id: userId,
+            ...(tenantId ? { tenant_id: tenantId } : {}),
           })
           .select()
           .single();
@@ -263,7 +267,7 @@ Deno.serve(async (req) => {
         if (msgError) throw msgError;
 
         // Log to audit
-        await supabaseAdmin.from("audit_log").insert({
+        await supabaseAdmin.from("audit_log").insert({ ...(tenantId ? { tenant_id: tenantId } : {}),
           action: `SEND_${channel.toUpperCase()}`,
           entity_type: "conversation",
           entity_id: conversationId,
@@ -413,7 +417,7 @@ Deno.serve(async (req) => {
         }
 
         // Audit log
-        await supabaseAdmin.from("audit_log").insert({
+        await supabaseAdmin.from("audit_log").insert({ ...(tenantId ? { tenant_id: tenantId } : {}),
           action: "LINK_CONTACT_TO_STAND",
           entity_type: "conversation",
           entity_id: conversationId,
@@ -503,6 +507,7 @@ Deno.serve(async (req) => {
             primary_phone: phone || null,
             primary_email: email || null,
             status: "open",
+            ...(tenantId ? { tenant_id: tenantId } : {}),
           })
           .select()
           .single();

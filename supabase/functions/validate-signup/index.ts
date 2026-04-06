@@ -118,12 +118,22 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Extract tenant_id from JWT app_metadata
+    const authHeader = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const userToken = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = user?.app_metadata?.tenant_id;
+    }
+
     // Check if an account already exists for this stand number
-    const { data: existingProfile } = await supabaseAdmin
+    let existingProfileQuery = supabaseAdmin
       .from('profiles')
       .select('id, stand_number')
-      .eq('stand_number', trimmedStand)
-      .maybeSingle();
+      .eq('stand_number', trimmedStand);
+    if (tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
+    const { data: existingProfile } = await existingProfileQuery.maybeSingle();
 
     if (existingProfile) {
       console.log(`Account already exists for stand number: ${trimmedStand}`);

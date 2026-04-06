@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
 
     const userId = user.id;
     const userEmail = user.email || '';
+    const tenantId = user.app_metadata?.tenant_id;
 
     // Verify internal user
     if (!userEmail?.toLowerCase().endsWith('@lakecity.co.zw')) {
@@ -273,6 +274,7 @@ LakeCity Development`;
         custom_message: customMessage,
         sent_by: userId,
         sent_by_email: userEmail,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
       })
       .select()
       .single();
@@ -288,6 +290,7 @@ LakeCity Development`;
       entity_id: invitation?.id || sendResult.messageId,
       performed_by: userId,
       performed_by_email: userEmail,
+      ...(tenantId ? { tenant_id: tenantId } : {}),
       details: {
         stand_number: standNumber,
         customer_email: customerEmail,

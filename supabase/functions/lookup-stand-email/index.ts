@@ -62,11 +62,21 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { data: profile } = await supabaseAdmin
+    // Extract tenant_id from JWT app_metadata
+    const authHeader = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const userToken = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = user?.app_metadata?.tenant_id;
+    }
+
+    let profileQuery = supabaseAdmin
       .from('profiles')
       .select('email, phone_number, phone_number_2')
-      .eq('stand_number', trimmedStand)
-      .maybeSingle();
+      .eq('stand_number', trimmedStand);
+    if (tenantId) profileQuery = profileQuery.eq('tenant_id', tenantId);
+    const { data: profile } = await profileQuery.maybeSingle();
 
     // If found in profiles, return it
     if (profile?.email) {
@@ -259,11 +269,12 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Found email in Google Sheets for stand number ${trimmedStand}: ${email}`);
 
     // Check if user exists in auth by looking up their profile by email
-    const { data: existingProfile } = await supabaseAdmin
+    let existingProfileQuery = supabaseAdmin
       .from('profiles')
       .select('phone_number, phone_number_2')
-      .eq('email', email)
-      .maybeSingle();
+      .eq('email', email);
+    if (tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
+    const { data: existingProfile } = await existingProfileQuery.maybeSingle();
 
     // Build array of available phone numbers
     const phoneNumbers: string[] = [];

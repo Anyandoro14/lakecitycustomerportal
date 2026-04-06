@@ -38,17 +38,27 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
+    // Extract tenant_id from JWT app_metadata
+    const authHeader = req.headers.get('Authorization');
+    let tenantId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const userToken = authHeader.replace('Bearer ', '');
+      const { data: { user: tokenUser } } = await supabaseAdmin.auth.getUser(userToken);
+      tenantId = tokenUser?.app_metadata?.tenant_id;
+    }
+
     // Check if user is a Super Admin or Director
     const superAdmins = getSuperAdmins();
     const userEmail = user.email?.toLowerCase() || '';
     const isSuperAdmin = superAdmins.includes(userEmail);
     
     // Check if user is director from internal_users table
-    const { data: internalUser } = await supabaseClient
+    let internalUserQuery = supabaseClient
       .from('internal_users')
       .select('role')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', user.id);
+    if (tenantId) internalUserQuery = internalUserQuery.eq('tenant_id', tenantId);
+    const { data: internalUser } = await internalUserQuery.single();
     
     const isDirector = internalUser?.role === 'director';
     const canAccess = isSuperAdmin || isDirector;
@@ -61,9 +71,11 @@ serve(async (req) => {
 
     if (action === 'fetch') {
       // Fetch all internal users with their account status
-      const { data: internalUsers, error: internalError } = await supabaseAdmin
+      let internalUsersQuery = supabaseAdmin
         .from('internal_users')
-        .select('*')
+        .select('*');
+      if (tenantId) internalUsersQuery = internalUsersQuery.eq('tenant_id', tenantId);
+      const { data: internalUsers, error: internalError } = await internalUsersQuery
         .order('created_at', { ascending: false });
 
       if (internalError) {
@@ -73,15 +85,19 @@ serve(async (req) => {
 
       // Fetch all profiles to check account creation status
       const userIds = internalUsers?.map(u => u.user_id) || [];
-      const { data: profiles } = await supabaseAdmin
+      let profilesQuery = supabaseAdmin
         .from('profiles')
         .select('id, created_at, email, full_name, stand_number')
         .in('id', userIds);
+      if (tenantId) profilesQuery = profilesQuery.eq('tenant_id', tenantId);
+      const { data: profiles } = await profilesQuery;
 
       // Get all customers (non-internal users with profiles)
-      const { data: allProfiles, error: allProfilesError } = await supabaseAdmin
+      let allProfilesQuery = supabaseAdmin
         .from('profiles')
-        .select('id, email, full_name, stand_number, phone_number, phone_number_2, created_at')
+        .select('id, email, full_name, stand_number, phone_number, phone_number_2, created_at');
+      if (tenantId) allProfilesQuery = allProfilesQuery.eq('tenant_id', tenantId);
+      const { data: allProfiles, error: allProfilesError } = await allProfilesQuery
         .order('created_at', { ascending: false });
 
       if (allProfilesError) {
@@ -203,11 +219,12 @@ serve(async (req) => {
       const { userId: targetUserId, newRole } = userData;
 
       // Prevent modifying other super admins
-      const { data: targetUser } = await supabaseAdmin
+      let targetUserQuery = supabaseAdmin
         .from('internal_users')
         .select('email')
-        .eq('user_id', targetUserId)
-        .single();
+        .eq('user_id', targetUserId);
+      if (tenantId) targetUserQuery = targetUserQuery.eq('tenant_id', tenantId);
+      const { data: targetUser } = await targetUserQuery.single();
 
       if (targetUser && superAdmins.includes(targetUser.email.toLowerCase())) {
         throw new Error('Cannot modify Super Admin roles');
@@ -220,10 +237,12 @@ serve(async (req) => {
       }
 
       // Update the role
-      const { error: updateError } = await supabaseAdmin
+      let updateRoleQuery = supabaseAdmin
         .from('internal_users')
         .update({ role: newRole, updated_at: new Date().toISOString() })
         .eq('user_id', targetUserId);
+      if (tenantId) updateRoleQuery = updateRoleQuery.eq('tenant_id', tenantId);
+      const { error: updateError } = await updateRoleQuery;
 
       if (updateError) {
         console.error('Error updating role:', updateError);
@@ -239,7 +258,8 @@ serve(async (req) => {
           entity_id: targetUserId,
           performed_by: user.id,
           performed_by_email: user.email,
-          details: { newRole, previousEmail: targetUser?.email }
+          details: { newRole, previousEmail: targetUser?.email },
+          ...(tenantId ? { tenant_id: tenantId } : {})
         });
 
       return new Response(
@@ -260,11 +280,12 @@ serve(async (req) => {
       }
 
       // Check if user already exists
-      const { data: existingUser } = await supabaseAdmin
+      let existingUserQuery = supabaseAdmin
         .from('internal_users')
         .select('id')
-        .eq('email', email.toLowerCase())
-        .single();
+        .eq('email', email.toLowerCase());
+      if (tenantId) existingUserQuery = existingUserQuery.eq('tenant_id', tenantId);
+      const { data: existingUser } = await existingUserQuery.single();
 
       if (existingUser) {
         throw new Error('User already exists in the system');

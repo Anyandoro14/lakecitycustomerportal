@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerHeader from "@/components/CustomerHeader";
 import CustomerOverview from "@/components/CustomerOverview";
@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { useTenant } from "@/contexts/TenantContext";
 import { RefreshCw } from "lucide-react";
 
 const Index = () => {
@@ -26,6 +27,7 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { tenantId } = useTenant();
   const { needsOnboarding, loading: onboardingLoading, markComplete } = useOnboarding();
   const { getUnreadArticles, dismissRibbon } = useArticles();
 
@@ -67,8 +69,8 @@ const Index = () => {
       setLoading(true);
     }
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
-        body: {}
+      const { data, error } = await supabase.functions.invoke('fetch-customer-data', {
+        body: { tenant_id: tenantId }
       });
 
       if (error) {
@@ -123,6 +125,33 @@ const Index = () => {
       setRefreshing(false);
     }
   };
+
+  // Stable callback for Realtime re-fetch
+  const refetchData = useCallback(() => {
+    fetchCustomerData();
+  }, [tenantId]);
+
+  // Subscribe to Realtime changes on payment_receipts and installments
+  useEffect(() => {
+    if (!isAuthenticated || !selectedStand?.standNumber || !tenantId) return;
+
+    const channel = supabase
+      .channel('customer-payments')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'payment_receipts',
+        filter: `stand_number=eq.${selectedStand.standNumber}`,
+      }, () => { refetchData(); })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'installments',
+      }, () => { refetchData(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedStand?.standNumber, tenantId, isAuthenticated, refetchData]);
 
   if (!isAuthenticated || loading || onboardingLoading) {
     return (
