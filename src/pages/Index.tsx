@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerHeader from "@/components/CustomerHeader";
 import CustomerOverview from "@/components/CustomerOverview";
@@ -69,7 +69,7 @@ const Index = () => {
       setLoading(true);
     }
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
+      const { data, error } = await supabase.functions.invoke('fetch-customer-data', {
         body: { tenant_id: tenantId }
       });
 
@@ -125,6 +125,33 @@ const Index = () => {
       setRefreshing(false);
     }
   };
+
+  // Stable callback for Realtime re-fetch
+  const refetchData = useCallback(() => {
+    fetchCustomerData();
+  }, [tenantId]);
+
+  // Subscribe to Realtime changes on payment_receipts and installments
+  useEffect(() => {
+    if (!isAuthenticated || !selectedStand?.standNumber || !tenantId) return;
+
+    const channel = supabase
+      .channel('customer-payments')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'payment_receipts',
+        filter: `stand_number=eq.${selectedStand.standNumber}`,
+      }, () => { refetchData(); })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'installments',
+      }, () => { refetchData(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedStand?.standNumber, tenantId, isAuthenticated, refetchData]);
 
   if (!isAuthenticated || loading || onboardingLoading) {
     return (

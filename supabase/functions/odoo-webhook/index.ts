@@ -141,6 +141,24 @@ serve(async (req) => {
           console.error('sale.order upsert error:', contractError.message);
         } else {
           console.log(`Upserted contract for SO ${_id}`);
+
+          // Auto-generate installment schedule for new contracts
+          if (contract?.id) {
+            try {
+              const genResponse = await fetch(`${supabaseUrl}/functions/v1/generate-installments`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({ contract_id: contract.id }),
+              });
+              const genResult = await genResponse.json();
+              console.log(`Installment generation for contract ${contract.id}:`, genResult);
+            } catch (genErr: any) {
+              console.error('Failed to generate installments:', genErr.message);
+            }
+          }
         }
         break;
       }

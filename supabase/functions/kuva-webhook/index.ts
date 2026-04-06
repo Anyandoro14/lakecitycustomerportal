@@ -111,26 +111,41 @@ serve(async (req) => {
       );
     }
 
-    // Update installments if stand_number is provided
+    // Update installments if stand_number is provided — match via contract
     const standNumber = payload.stand_number || payload.metadata?.stand_number;
     if (standNumber) {
-      // Find the earliest pending installment for this stand
-      const { data: installment } = await supabase
-        .from('installments')
-        .select('id, contract_id')
+      // Find the active contract for this stand
+      const { data: contract } = await supabase
+        .from('contracts')
+        .select('id')
+        .eq('stand_number', standNumber)
         .eq('tenant_id', tenantId)
-        .eq('status', 'pending')
-        .order('due_date', { ascending: true })
-        .limit(1)
+        .eq('status', 'active')
         .maybeSingle();
 
-      if (installment) {
-        await supabase
+      if (contract) {
+        // Find the earliest pending installment for this contract
+        const { data: installment } = await supabase
           .from('installments')
-          .update({ status: 'paid', synced_at: new Date().toISOString() })
-          .eq('id', installment.id);
+          .select('id')
+          .eq('contract_id', contract.id)
+          .eq('status', 'pending')
+          .order('due_date', { ascending: true })
+          .limit(1)
+          .maybeSingle();
 
-        console.log(`Marked installment ${installment.id} as paid`);
+        if (installment) {
+          await supabase
+            .from('installments')
+            .update({ status: 'paid', synced_at: new Date().toISOString() })
+            .eq('id', installment.id);
+
+          console.log(`Marked installment ${installment.id} as paid for contract ${contract.id}`);
+        } else {
+          console.log(`No pending installments for contract ${contract.id}`);
+        }
+      } else {
+        console.log(`No active contract found for stand ${standNumber} in tenant ${tenantId}`);
       }
     }
 

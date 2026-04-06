@@ -622,6 +622,7 @@ serve(async (req) => {
     let targetStand: string | null = null;
     let refreshMode: boolean = false;
     let tenantId: string | null = null;
+    let source: 'sheets' | 'database' = 'sheets';
 
     try {
       const body = await req.json();
@@ -629,11 +630,179 @@ serve(async (req) => {
       targetStand = body.target_stand || null;
       refreshMode = body.refresh === true;
       tenantId = body.tenant_id || null;
+      source = body.source === 'database' ? 'database' : 'sheets';
     } catch {
       // No body provided, generate all
     }
 
-    // Run Google auth and profiles fetch in parallel
+    // DATABASE SOURCE: Generate statements from contracts + payment_receipts (no Google Sheets)
+    if (source === 'database') {
+      console.log('Using DATABASE source for statement generation...');
+
+      let contractsQuery = supabase.from('contracts').select('*').eq('status', 'active');
+      if (tenantId) contractsQuery = contractsQuery.eq('tenant_id', tenantId);
+      if (targetStand) contractsQuery = contractsQuery.eq('stand_number', targetStand);
+
+      const { data: contracts, error: contractsError } = await contractsQuery;
+      if (contractsError) throw new Error(`Failed to fetch contracts: ${contractsError.message}`);
+      if (!contracts || contracts.length === 0) {
+        return new Response(
+          JSON.stringify({ success: true, message: 'No contracts found', created: 0, duration_ms: Date.now() - startTime }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const standNumbers = contracts.map(c => c.stand_number);
+
+      // Fetch balance view and approved receipts in parallel
+      const [balancesResult, receiptsResult] = await Promise.all([
+        supabase.from('contract_balances').select('*').in('stand_number', standNumbers),
+        supabase.from('payment_receipts').select('*').eq('qc_status', 'approved').in('stand_number', standNumbers).order('payment_date', { ascending: true }),
+      ]);
+
+      const balanceMap: Record<string, any> = {};
+      for (const b of balancesResult.data || []) balanceMap[b.stand_number] = b;
+
+      const receiptsByStand: Record<string, any[]> = {};
+      for (const r of receiptsResult.data || []) {
+        if (!receiptsByStand[r.stand_number]) receiptsByStand[r.stand_number] = [];
+        receiptsByStand[r.stand_number].push(r);
+      }
+
+      // Determine date range
+      let dbStartMonth: Date | null = null;
+      for (const c of contracts) {
+        const d = new Date(c.payment_start_date);
+        if (!isNaN(d.getTime()) && (!dbStartMonth || d < dbStartMonth)) dbStartMonth = d;
+      }
+      const startMonth = dbStartMonth ? new Date(dbStartMonth.getFullYear(), dbStartMonth.getMonth(), 1) : new Date(2025, 8, 1);
+      let endMonth: Date;
+      if (targetMonth) {
+        const [year, month] = targetMonth.split('-').map(Number);
+        endMonth = new Date(year, month - 1, 1);
+      } else {
+        endMonth = new Date();
+        endMonth.setDate(1);
+      }
+
+      // Fetch existing statements
+      const { data: existingStatementsData } = await supabase
+        .from('monthly_statements')
+        .select('stand_number, customer_email, statement_month')
+        .in('stand_number', standNumbers);
+
+      const existingStatements = new Set<string>();
+      for (const stmt of existingStatementsData || []) {
+        existingStatements.add(`${stmt.stand_number}|${stmt.customer_email}|${stmt.statement_month}`);
+      }
+
+      if (refreshMode) {
+        await supabase.from('monthly_statements').delete().in('stand_number', standNumbers);
+        existingStatements.clear();
+      }
+
+      // Get profiles for email lookup
+      const { data: dbProfiles } = await supabase.from('profiles').select('id, email, stand_number').in('stand_number', standNumbers);
+      const emailByStand: Record<string, string> = {};
+      for (const p of dbProfiles || []) {
+        if (p.stand_number) emailByStand[p.stand_number] = p.email || `stand-${p.stand_number}@lakecity.portal`;
+      }
+
+      const allStatements: StatementRecord[] = [];
+
+      for (const contract of contracts) {
+        const balance = balanceMap[contract.stand_number];
+        const receipts = receiptsByStand[contract.stand_number] || [];
+        const email = emailByStand[contract.stand_number] || `stand-${contract.stand_number}@lakecity.portal`;
+        const currentBalance = balance ? parseFloat(balance.current_balance) : parseFloat(contract.total_price);
+
+        // Build monthly payment map from receipts
+        const monthlyPayments: Record<string, { total: number; receipts: any[] }> = {};
+        for (const r of receipts) {
+          const d = new Date(r.payment_date);
+          if (isNaN(d.getTime())) continue;
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+          if (!monthlyPayments[key]) monthlyPayments[key] = { total: 0, receipts: [] };
+          monthlyPayments[key].total += parseFloat(r.amount);
+          monthlyPayments[key].receipts.push(r);
+        }
+
+        // Generate statements working backwards from current balance
+        const monthsToGenerate: string[] = [];
+        const tempMonth = new Date(startMonth);
+        while (tempMonth <= endMonth) {
+          const sm = `${tempMonth.getFullYear()}-${String(tempMonth.getMonth() + 1).padStart(2, '0')}-01`;
+          if (!existingStatements.has(`${contract.stand_number}|${email}|${sm}`)) {
+            monthsToGenerate.push(sm);
+          }
+          tempMonth.setMonth(tempMonth.getMonth() + 1);
+        }
+
+        monthsToGenerate.sort((a, b) => b.localeCompare(a));
+        let closingBal = currentBalance;
+
+        for (const sm of monthsToGenerate) {
+          const [y, m] = sm.split('-');
+          const month = parseInt(m) - 1;
+          const year = parseInt(y);
+          const lastDay = new Date(year, month + 1, 0, 23, 59, 59, 999);
+          const mp = monthlyPayments[sm] || { total: 0, receipts: [] };
+          const openingBal = closingBal + mp.total;
+
+          const paymentStartDate = new Date(contract.payment_start_date);
+          const isBeforeStart = new Date(year, month, 1) < paymentStartDate;
+          const isOverdue = !isBeforeStart && closingBal > 0 && new Date() > lastDay;
+          const daysOverdue = isOverdue ? Math.floor((Date.now() - lastDay.getTime()) / 86400000) : 0;
+
+          allStatements.push({
+            stand_number: contract.stand_number,
+            customer_email: email,
+            statement_month: sm,
+            opening_balance: openingBal,
+            payments_received: mp.receipts.map(r => ({
+              date: r.payment_date,
+              amount: `$${parseFloat(r.amount).toFixed(2)}`,
+              amount_numeric: parseFloat(r.amount),
+              reference: r.gateway_reference || '',
+              payment_method: r.gateway || '',
+            })),
+            total_payments: mp.total,
+            closing_balance: closingBal,
+            is_overdue: isOverdue,
+            days_overdue: daysOverdue,
+            generated_at: new Date().toISOString(),
+          });
+
+          closingBal = openingBal;
+        }
+      }
+
+      // Sort chronologically and batch insert
+      allStatements.sort((a, b) => a.statement_month.localeCompare(b.statement_month));
+      let totalCreated = 0;
+      for (let i = 0; i < allStatements.length; i += 500) {
+        const batch = allStatements.slice(i, i + 500);
+        const { data: inserted, error: insertError } = await supabase.from('monthly_statements').insert(batch).select('id');
+        if (insertError) {
+          console.error(`DB source batch insert error:`, insertError.message);
+        } else {
+          totalCreated += inserted?.length || batch.length;
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          source: 'database',
+          customers_processed: contracts.length,
+          statements_created: totalCreated,
+          duration_ms: Date.now() - startTime,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // SHEETS SOURCE (original path) — Run Google auth and profiles fetch in parallel
     console.log('Fetching data in parallel...');
     let profilesQuery = supabase.from('profiles').select('stand_number, payment_start_date');
     if (tenantId) {
