@@ -37,7 +37,7 @@ CREATE INDEX idx_installments_due_date ON installments(due_date);
 
 -- RLS
 ALTER TABLE contracts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "tenant_isolation" ON contracts USING (tenant_id = auth.tenant_id());
+CREATE POLICY "tenant_isolation" ON contracts USING (tenant_id = public.jwt_tenant_id());
 
 ALTER TABLE installments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "tenant_isolation" ON installments USING (tenant_id = auth.tenant_id());
+CREATE POLICY "tenant_isolation" ON installments USING (tenant_id = public.jwt_tenant_id());

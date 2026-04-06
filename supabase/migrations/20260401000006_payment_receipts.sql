@@ -28,4 +28,4 @@ CREATE INDEX idx_payment_receipts_created_at ON payment_receipts(created_at DESC
 
 -- RLS
 ALTER TABLE payment_receipts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "tenant_isolation" ON payment_receipts USING (tenant_id = auth.tenant_id());
+CREATE POLICY "tenant_isolation" ON payment_receipts USING (tenant_id = public.jwt_tenant_id());
