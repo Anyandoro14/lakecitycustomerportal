@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +18,14 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
+/**
+ * QC Queue — placeholder UI.
+ *
+ * The `payment_receipts` table is not yet deployed, so all Supabase queries
+ * are stubbed out. Once the table is created via migration, restore the
+ * original queries.
+ */
+
 interface PaymentReceipt {
   id: string;
   stand_number: string;
@@ -34,7 +41,6 @@ interface PaymentReceipt {
 
 const QcQueue = () => {
   const navigate = useNavigate();
-  const { tenantId } = useTenant();
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -47,35 +53,6 @@ const QcQueue = () => {
     checkAccessAndLoad();
   }, []);
 
-  // Subscribe to Realtime changes on payment_receipts
-  useEffect(() => {
-    if (!tenantId) return;
-
-    const channel = supabase
-      .channel('qc-queue-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'payment_receipts',
-        filter: `tenant_id=eq.${tenantId}`,
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newReceipt = payload.new as PaymentReceipt;
-          if (newReceipt.qc_status === 'pending_qc') {
-            setReceipts(prev => [newReceipt, ...prev]);
-            toast.info(`New receipt: Stand ${newReceipt.stand_number} - $${newReceipt.amount}`);
-          }
-        } else if (payload.eventType === 'UPDATE') {
-          setReceipts(prev => prev.map(r =>
-            r.id === (payload.new as PaymentReceipt).id ? payload.new as PaymentReceipt : r
-          ));
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [tenantId]);
-
   const checkAccessAndLoad = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -83,7 +60,6 @@ const QcQueue = () => {
       return;
     }
 
-    // Check internal user role
     const { data: internalUser } = await supabase
       .from('internal_users')
       .select('role')
@@ -103,62 +79,21 @@ const QcQueue = () => {
     }
 
     setUserRole(internalUser.role);
-    await loadReceipts();
+    // payment_receipts table not yet deployed — load empty
+    setReceipts([]);
+    setLoading(false);
   };
 
   const loadReceipts = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('payment_receipts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (error) {
-      console.error('Error loading receipts:', error);
-      toast.error("Failed to load receipts");
-    } else {
-      setReceipts(data || []);
-    }
-    setLoading(false);
+    // Stub: payment_receipts table not yet in schema
+    toast.info("QC Queue will be available once the payment receipts table is deployed.");
+    setReceipts([]);
   };
 
   const handleAction = async () => {
     if (!selectedReceipt || !actionType) return;
     setProcessing(true);
-
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data: internalUser } = await supabase
-      .from('internal_users')
-      .select('id')
-      .eq('user_id', session?.user?.id)
-      .single();
-
-    const newStatus = actionType === 'approve' ? 'approved' : 'rejected';
-
-    const { error } = await supabase
-      .from('payment_receipts')
-      .update({
-        qc_status: newStatus,
-        qc_reviewer_id: internalUser?.id,
-        qc_reviewed_at: new Date().toISOString(),
-        qc_notes: qcNotes || null,
-      })
-      .eq('id', selectedReceipt.id);
-
-    if (error) {
-      toast.error(`Failed to ${actionType} receipt: ${error.message}`);
-    } else {
-      toast.success(`Receipt ${actionType === 'approve' ? 'approved' : 'rejected'} successfully`);
-
-      // If approved and tenant uses Odoo, trigger sync
-      if (actionType === 'approve') {
-        supabase.functions.invoke('odoo-sync-payment', {
-          body: { receipt_id: selectedReceipt.id },
-        }).catch(err => console.warn('Odoo sync call (non-blocking):', err));
-      }
-    }
-
+    toast.info("QC actions will be available once the payment receipts table is deployed.");
     setSelectedReceipt(null);
     setActionType(null);
     setQcNotes("");
