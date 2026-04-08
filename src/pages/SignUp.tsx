@@ -254,7 +254,8 @@ const SignUp = () => {
           standNumber: validatedData.standNumber,
           phoneNumber: validatedData.phoneNumber,
           password: password,
-          email: email || undefined
+          email: email || undefined,
+          paymentPlanMonths: validatedData.paymentPlanMonths,
         }
       });
 
