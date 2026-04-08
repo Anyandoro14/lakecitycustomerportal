@@ -182,7 +182,8 @@ const SignUp = () => {
       setValidatedData({
         standNumber: data.standNumber,
         phoneNumber: data.phoneNumber,
-        email: data.email
+        email: data.email,
+        paymentPlanMonths: data.paymentPlanMonths,
       });
       
       // Pre-fill email if available from records
