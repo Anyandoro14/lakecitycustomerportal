@@ -44,6 +44,7 @@ const SignUp = () => {
     standNumber: string;
     phoneNumber: string;
     email?: string;
+    paymentPlanMonths?: number;
   } | null>(null);
   
   // Registration result
