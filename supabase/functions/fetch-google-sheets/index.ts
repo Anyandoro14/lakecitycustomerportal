@@ -1028,7 +1028,7 @@ serve(async (req) => {
       console.log(`Stand ${standNumber}: Agreement signed by Warwickshire = ${agreementSignedByWarwickshire}, by Client = ${agreementSignedByClient}`);
       console.log(`Stand ${standNumber}: Agreement of Sale File = ${agreementOfSaleFile ? 'Present' : 'Not available'}`);
 
-      return {
+      const standData = {
         customerId: customerRow[standNumIndex] || '',
         standNumber: standNumber || '',
         customerName: fullName || '',
