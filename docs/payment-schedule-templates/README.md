@@ -1,19 +1,22 @@
 # Payment schedule templates (BNPL ledger)
 
-Excel workbooks for the **Collection Schedule** tabs in Google Sheets. They implement a **BNPL-style loan ledger**: **Total price** is the base contract amount; **deposit** is deducted before instalments; **due dates** align to the **5th** of each month; schedules are **wide enough** to support terms **12–120 months** and operational visibility through **December 2035** when you extend monthly headers.
+Excel workbooks for the **Collection Schedule** tabs in Google Sheets. They implement a **BNPL-style loan ledger**: **Total price** is the base contract amount; **deposit** is deducted before instalments; **due dates** align to the **5th** of each month; all templates share a **168-column monthly grid** (Columns **M** through **FX**, January 2022 – December 2035) supporting terms **12–120 months**.
 
 **Canonical spec:** see **[BNPL_SCHEDULE_SPEC.md](./BNPL_SCHEDULE_SPEC.md)** (formulas, Column **I** / **H**, widening rules).
+
+**Operator instructions:** see **[COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md](./COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md)** — the single reference for template setup. Instructions are **not** embedded as a separate tab inside the `.xlsx` files.
 
 ## Column layout (data sheet)
 
 | Area | Role |
 |------|------|
-| A–L | Identity, **Deposit** (typ. **H**), **Total price** base (**I**), **Payment / monthly instalment** (typ. **K**), **Payment start date** (**L**, any qualifying 5th) |
-| **M** → last month | One column per instalment month (headers through at least **Dec 2035** when you widen the book) |
-| After last month | **Next payment** marker column, **TOTAL PAID**, **Current Balance**, **Payment Progress** |
-| Further right | Receipts … Registered (operational) |
+| A–L | Identity, **Deposit** (typ. **H**), **Total price** base (**I**), **Term / # instalments** (**J**), **Payment / monthly instalment** (typ. **K**), **Payment start date** (**L**, any qualifying 5th) |
+| **M–FX** | **168** monthly instalment columns (5 Jan 2022 – 5 Dec 2035) |
+| **FY** | **Next Payment** marker column |
+| **FZ** | **TOTAL PAID** |
+| After FZ | **Current Balance**, **Payment Progress**, then Receipts … Registered (operational) |
 
-**Formulas (per row):** after running the fix script, **TOTAL PAID** = Deposit + SUM(monthly cells); **Current Balance** = Total price − Deposit − SUM(monthly cells); **Progress** = (Deposit + SUM(monthly)) / Total price. See the spec file for exact Excel.
+**Formulas (per row):** after running the fix script, **TOTAL PAID** = `Deposit + SUM(M:FX)` (monthly amounts only); **Current Balance** = `Total price − Deposit − SUM(M:FX)`; **Progress** = `(Deposit + SUM(M:FX)) / Total price`. Backend code **clamps** reads to the column before **Next Payment** so long `payment_plan_months` values do not overrun the physical grid. See the spec file for exact Excel.
 
 ## Templates included
 
@@ -47,4 +50,4 @@ Then replace or merge the output xlsx files into your master Google Sheet, or up
 
 ## Tab naming in the master workbook
 
-Use **`Collection Schedule - Nmo`** (e.g. **`Collection Schedule - 36mo`**). Legacy **`Collection Schedule - N Months`** and **`Collection Schedule 1`** are still recognized until tabs are renamed.
+Use **`Collection Schedule - Nmo`** (e.g. **`Collection Schedule - 36mo`**, **`Collection Schedule - 120mo`**). Legacy **`Collection Schedule - N Months`** and **`Collection Schedule 1`** are still recognized until tabs are renamed.

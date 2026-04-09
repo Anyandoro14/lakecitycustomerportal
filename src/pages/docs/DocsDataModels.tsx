@@ -10,12 +10,12 @@ const columns = [
   { field: "DocumentationFee", type: "number", required: false, unique: false, desc: "Fee for document processing.", example: "150.00" },
   { field: "Deposit (Column H)", type: "number", required: false, unique: false, desc: "Down payment amount. Treated as Payment #1.", example: "500.00" },
   { field: "TotalPrice", type: "number", required: true, unique: false, desc: "Full amount including fees.", example: "4500.50" },
-  { field: "NumberOfInstallments", type: "integer", required: false, unique: false, desc: "Count of payment periods.", example: "36" },
+  { field: "NumberOfInstallments (Column J)", type: "integer", required: false, unique: false, desc: "Contract term in months (12–120).", example: "48" },
   { field: "MonthlyInstallment (Column K)", type: "number", required: true, unique: false, desc: "Authoritative monthly payment amount. Immutable for gateway-originated entries.", example: "125.00" },
-  { field: "StartDate (Column L)", type: "date", required: true, unique: false, desc: "Date customer payments begin. Anchor for due date calculations.", example: '"2025-09-05"' },
-  { field: "DateColumns (M–AW)", type: "date", required: false, unique: false, desc: "Monthly installment cells. Aggregated by calendar month.", example: '"2025-09-05"' },
-  { field: "NextPaymentDue", type: "date", required: false, unique: false, desc: "Next pending payment date (derived).", example: '"2025-01-05"' },
-  { field: "TotalPaid", type: "number", required: false, unique: false, desc: "Cumulative verified receipts.", example: "1200.00" },
+  { field: "StartDate (Column L)", type: "date", required: true, unique: false, desc: "Date customer payments begin. Anchor for due date calculations.", example: '"5 Sep 2025"' },
+  { field: "DateColumns (M–FX)", type: "number", required: false, unique: false, desc: "168 monthly instalment cells (Jan 2022 – Dec 2035). Aggregated by calendar month.", example: "125.00" },
+  { field: "NextPaymentDue (Column FY)", type: "date", required: false, unique: false, desc: "Next pending payment date (derived).", example: '"5 Jan 2026"' },
+  { field: "TotalPaid (Column FZ)", type: "number", required: false, unique: false, desc: "Cumulative verified receipts. Deposit + SUM(M:FX).", example: "1200.00" },
   { field: "CurrentBalance", type: "number", required: false, unique: false, desc: "Outstanding balance = TotalPrice − TotalPaid.", example: "3300.50" },
   { field: "PaymentProgress", type: "float", required: false, unique: false, desc: "Percentage complete (0–100).", example: "26.67" },
   { field: "Receipts", type: "array", required: false, unique: false, desc: "List of payment records.", example: '[{ "id": "R001" }]' },
@@ -39,6 +39,7 @@ export default function DocsDataModels() {
         { label: "Overview", id: "overview" },
         { label: "Column Reference", id: "columns" },
         { label: "Business Rules", id: "rules" },
+        { label: "Template Setup", id: "template-setup" },
       ]}
     >
       <h2 id="overview">Overview</h2>
@@ -53,6 +54,11 @@ export default function DocsDataModels() {
       </p>
 
       <h2 id="columns">Column Reference</h2>
+      <p>
+        All templates share <strong>168 monthly columns</strong> (M through FX, covering January 2022 – December 2035).
+        Column J holds the <strong>contract term</strong> (e.g. 48 months) — this determines how many of the 168
+        columns a given contract uses, not the physical grid width.
+      </p>
       <div className="overflow-x-auto">
         <table>
           <thead>
@@ -97,7 +103,7 @@ export default function DocsDataModels() {
       <h3>Monthly Aggregation</h3>
       <p>
         Payments are aggregated by calendar month. If multiple receipts are approved for the same stand in the same month, 
-        amounts are summed into the corresponding monthly cell (M–AW). This aggregation is <strong>additive only</strong> and 
+        amounts are summed into the corresponding monthly cell (M–FX). This aggregation is <strong>additive only</strong> and 
         never modifies historical data.
       </p>
 
@@ -105,6 +111,18 @@ export default function DocsDataModels() {
       <p>
         Payments processed via a payment gateway are <strong>auto-approved</strong> (bypass manual QC) and the resulting 
         Column K values are <strong>immutable</strong> — locked from future manual editing.
+      </p>
+
+      <h2 id="template-setup">Template Setup</h2>
+      <p>
+        Each <code>.xlsx</code> template file contains <strong>one</strong> data sheet named{" "}
+        <code>Collection Schedule - {"{N}"}mo</code> (e.g. <code>Collection Schedule - 48mo</code>,{" "}
+        <code>Collection Schedule - 120mo</code>). Operator setup instructions are maintained in a{" "}
+        <strong>standalone document</strong>:{" "}
+        <code className="text-xs">docs/payment-schedule-templates/COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md</code>.
+      </p>
+      <p>
+        Instructions are <strong>not</strong> embedded as a separate tab inside the workbook files.
       </p>
     </DocsLayout>
   );
