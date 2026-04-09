@@ -617,7 +617,9 @@ serve(async (req) => {
     const stands = [];
     for (const customerRow of customerRows) {
       const standNumber = customerRow[standNumIndex];
-      
+      // Column M (index 12): first monthly instalment cell — used before start-date fallbacks below
+      const paymentStartCol = 12;
+
       // Combine first and last name
       const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
       const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
@@ -700,7 +702,6 @@ serve(async (req) => {
         paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
           ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
           : 36;
-      const paymentStartCol = 12; // Column M
 
       const headerStr = (i: number) =>
         headers[i] != null ? String(headers[i]).trim() : "";
