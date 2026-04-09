@@ -1057,7 +1057,8 @@ serve(async (req) => {
         deposit: deposit, // Deposit amount from Collection Schedule
         isVatInclusive: isVatInclusive, // VAT indicator: true=inclusive, false=exclusive, null=unknown
       };
-    });
+      stands.push(standData);
+    }
 
     return new Response(
       JSON.stringify({ stands }),
