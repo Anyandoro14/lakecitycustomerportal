@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,7 +182,7 @@ const QcQueue = () => {
                     <TableRow key={receipt.id}>
                       <TableCell className="font-medium">{receipt.stand_number}</TableCell>
                       <TableCell>${receipt.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
-                      <TableCell>{new Date(receipt.payment_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{format(parseISO(receipt.payment_date), "d MMM yyyy")}</TableCell>
                       <TableCell><Badge variant="outline">{receipt.gateway}</Badge></TableCell>
                       <TableCell className="text-sm">{receipt.gateway_reference || '—'}</TableCell>
                       <TableCell>
@@ -238,7 +239,7 @@ const QcQueue = () => {
                   <TableRow key={receipt.id}>
                     <TableCell>{receipt.stand_number}</TableCell>
                     <TableCell>${receipt.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell>{new Date(receipt.payment_date).toLocaleDateString()}</TableCell>
+                    <TableCell>{format(parseISO(receipt.payment_date), "d MMM yyyy")}</TableCell>
                     <TableCell>
                       <Badge variant={receipt.qc_status === 'approved' ? 'default' : 'destructive'}>
                         {receipt.qc_status}
