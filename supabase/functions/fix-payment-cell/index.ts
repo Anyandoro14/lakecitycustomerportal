@@ -59,7 +59,7 @@ serve(async (req) => {
     let foundTab = '', foundRow = -1, standColIdx = -1;
 
     for (const tab of tabs) {
-      const range = encodeURIComponent(`${tab}!A1:FX`);
+      const range = encodeURIComponent(`${tab}!A1:GZ`);
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
       if (!res.ok) { console.log(`Skip tab ${tab}`); continue; }
