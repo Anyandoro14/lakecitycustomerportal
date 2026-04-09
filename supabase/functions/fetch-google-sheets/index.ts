@@ -494,8 +494,9 @@ serve(async (req) => {
       `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
     );
 
-    // Fetch the data - extended to BH to include Agreement signed columns
-    const range = encodeURIComponent(`${sheetTitle}!A:BJ`);
+    // Fetch full row width: identity A–L, monthly M–FX (repo templates), totals FY–GB, operational/agreement columns.
+    // (Legacy layouts used A:BJ; widened BNPL grids need through ~FZ+ — A:ZZ avoids truncation.)
+    const range = encodeURIComponent(`${sheetTitle}!A:ZZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -693,13 +694,13 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);
 
-      // BNPL: term from profile (12–120); monthly grid from Column M (index 12). Widen templates through 2035 in Sheets.
+      // BNPL: term from profile (12–120); monthly grid from Column M (index 12). Templates use a shared
+      // calendar (e.g. Jan 2022–Dec 2035); do not read past the column before "Next Payment".
       const termMonths =
         paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
           ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
           : 36;
       const paymentStartCol = 12; // Column M
-      const paymentEndCol = paymentStartCol + termMonths - 1;
 
       const headerStr = (i: number) =>
         headers[i] != null ? String(headers[i]).trim() : "";
@@ -713,6 +714,11 @@ serve(async (req) => {
       };
 
       const nextPaymentColIdx = findHeaderCol((s) => /next\s*payment/i.test(s));
+      const termBasedEnd = paymentStartCol + termMonths - 1;
+      const paymentEndCol =
+        nextPaymentColIdx >= 0
+          ? Math.min(termBasedEnd, nextPaymentColIdx - 1)
+          : termBasedEnd;
       let totalPaidCol = findHeaderCol((s) => /total\s*paid/i.test(s));
       let currentBalanceCol = findHeaderCol((s) => /current\s*balance/i.test(s));
       let paymentProgressCol = findHeaderCol((s) => /payment\s*progress/i.test(s));
@@ -818,7 +824,15 @@ serve(async (req) => {
         }
       }
 
+      // When no monthly cells are filled but deposit is paid, show deposit as last payment (not "No payments yet")
       const depositAmount = parseCurrencyToNumber(deposit);
+      if (lastPaymentIndex === -1 && depositAmount > 0) {
+        lastPaymentAmount = `$${depositAmount.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+        lastPaymentDate = 'Initial Deposit';
+      }
       const firstMonthPayment = parseCurrencyToNumber(paymentColumns[0]?.toString() || "");
       const expectedCombined = depositAmount + monthlyPaymentAmount;
       const isCombinedDepositInstallment =
@@ -879,9 +893,13 @@ serve(async (req) => {
           });
         }
         
-        // Update lastPaymentDate to the actual most recent receipt date
+        // Last payment card: use most recent posted receipt for both amount and date
         if (itemizedReceipts.length > 0) {
           const mostRecent = itemizedReceipts[0]; // Already sorted most recent first
+          lastPaymentAmount = `$${mostRecent.payment_amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`;
           try {
             const receiptDate = new Date(mostRecent.payment_date);
             if (!isNaN(receiptDate.getTime())) {
@@ -931,8 +949,18 @@ serve(async (req) => {
         }
       }
       
+      // Total Paid / Current Balance / Payment Progress columns may be empty or show $0/0% when formulas are
+      // missing; responses use deposit + monthly instalment cells and Total Price (not those cells alone).
       // Format calculated total to match sheet: deposit + instalment cells (see BNPL_SCHEDULE_SPEC.md)
       const calculatedTotalPaid = `$${totalPaidLikeSheet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const tpNum = parseCurrencyToNumber(totalPrice);
+      // BNPL: remaining balance = Total price − (deposit + sum of monthly cells) = I − totalPaidLikeSheet
+      const calculatedBalanceNum = Math.max(0, tpNum - totalPaidLikeSheet);
+      const calculatedCurrentBalance = `$${calculatedBalanceNum.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
       
       const sheetTotalNum = parseFloat(sheetTotalPaid.toString().replace(/[$,]/g, '')) || 0;
       if (Math.abs(sheetTotalNum - totalPaidLikeSheet) > 0.01) {
@@ -1032,23 +1060,13 @@ serve(async (req) => {
         }
       }
       
-      // Calculate payment progress percentage from sheet or fallback to calculation
-      let progressPercentage = 0;
-      
-      // Try to use the payment progress from column AU first
-      const progressStr = paymentProgress.toString().replace('%', '').trim();
-      const progressNum = parseFloat(progressStr);
-      
-      if (!isNaN(progressNum) && progressNum >= 0) {
-        progressPercentage = Math.round(progressNum);
-      } else {
-        // Fallback: progress = (deposit + instalments) / Total price (Column I base)
-        const tpNum = parseCurrencyToNumber(totalPrice);
-        progressPercentage =
-          tpNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / tpNum) * 100)) : 0;
-      }
-      
-      console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);
+      // Progress: derive from amounts (sheet "Payment Progress" can be wrong if formulas/columns shifted)
+      const progressPercentage =
+        tpNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / tpNum) * 100)) : 0;
+
+      console.log(
+        `Stand ${standNumber}: Progress = ${progressPercentage}% (sheet had "${paymentProgress}", computed from totals)`,
+      );
 
       // Get agreement signature status from columns BG and BH
       // Checkbox columns typically have "TRUE" or empty/"FALSE"
@@ -1067,7 +1085,7 @@ serve(async (req) => {
         customerName: fullName || '',
         customerCategory: customerCategory,
         customerPhone: phoneNumber,
-        standBalance: currentBalance,
+        standBalance: calculatedCurrentBalance,
         lastPayment: lastPaymentAmount,
         lastPaymentDate: lastPaymentDate,
         nextPayment: nextPaymentAmount,
@@ -1076,7 +1094,7 @@ serve(async (req) => {
         daysOverdue: daysOverdue,
         paymentNotYetDue: paymentNotYetDue,
         paymentStartDate: customerStartDate.toISOString(),
-        currentBalance: currentBalance,
+        currentBalance: calculatedCurrentBalance,
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
         nextDueDate: nextPaymentDue,
