@@ -49,10 +49,28 @@ export default function DocsSheets() {
         <code>src/lib/collection-schedule.ts</code> (<code>TAB_NAME_ERROR</code>).
       </div>
 
+      <h3>BNPL ledger rules (Collection Schedule)</h3>
+      <p>
+        Schedules follow a <strong>buy-now-pay-later style ledger</strong>: <strong>Total price</strong> (typically Column{" "}
+        <strong>I</strong>) is the <strong>base contract price</strong>. <strong>Deposit</strong> (typically Column{" "}
+        <strong>H</strong>) is deducted <strong>before</strong> splitting the remainder into instalments.{" "}
+        <strong>Current Balance</strong> = Total price − Deposit − sum of instalment payments (Columns <strong>M</strong>{" "}
+        through the last month column); before any instalment payments, that equals <strong>Total price − Deposit</strong>.
+      </p>
+      <p>
+        <strong>Due dates</strong> are on the <strong>5th</strong> of each month. <strong>Payment start date</strong> (Column{" "}
+        <strong>L</strong>) is per contract and not fixed globally. Use one tab per term length (12, 24, …, 120 months);
+        widen monthly columns so schedules can run through at least <strong>December 2035</strong> where needed.
+      </p>
+      <p>
+        Full template rules for operators: see repo{" "}
+        <code className="text-xs">docs/payment-schedule-templates/BNPL_SCHEDULE_SPEC.md</code>.
+      </p>
+
       <h3>Data layout</h3>
       <p>
         Each row is one customer: payment plan, schedule dates per instalment, and status for receipts and agreements.
-        This is the <strong>single source of truth</strong> for financial data.
+        This is the <strong>single source of truth</strong> for financial data while the portal reads from Google Sheets.
       </p>
       <p>
         Key columns include Stand Number, customer details, deposit and instalment amounts (Columns H, K), payment

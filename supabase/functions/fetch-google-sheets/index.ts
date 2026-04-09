@@ -693,19 +693,55 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);
 
-      // Column M (index 12) is now September 5, 2025 (new column added)
-      // Column AW (index 48) is end of payment months (shifted +1)
-      // Column AY (index 50) is Total Paid (shifted +1)
-      // Column AZ (index 51) is Current Balance (shifted +1)
-      // Column BA (index 52) is Payment Progress % (shifted +1)
-      const paymentStartCol = 12; // Column M - now September 2025
-      const paymentEndCol = 48; // Column AW (shifted from AV)
-      const totalPaidCol = 50; // Column AY (shifted from AX)
-      const currentBalanceCol = 51; // Column AZ (shifted from AY)
-      const paymentProgressCol = 52; // Column BA (shifted from AZ)
-      const agreementSignedByWarwickshireCol = 58; // Column BG - Agreement signed by Warwickshire
-      const agreementSignedByClientCol = 59; // Column BH - Agreement signed by client
-      const agreementOfSaleFileCol = 61; // Column BJ - Agreement of Sale File (Google Drive link)
+      // BNPL: term from profile (12–120); monthly grid from Column M (index 12). Widen templates through 2035 in Sheets.
+      const termMonths =
+        paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
+          ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
+          : 36;
+      const paymentStartCol = 12; // Column M
+      const paymentEndCol = paymentStartCol + termMonths - 1;
+
+      const headerStr = (i: number) =>
+        headers[i] != null ? String(headers[i]).trim() : "";
+
+      const findHeaderCol = (pred: (s: string) => boolean): number => {
+        for (let i = 0; i < headers.length; i++) {
+          const s = headerStr(i);
+          if (s && pred(s)) return i;
+        }
+        return -1;
+      };
+
+      const nextPaymentColIdx = findHeaderCol((s) => /next\s*payment/i.test(s));
+      let totalPaidCol = findHeaderCol((s) => /total\s*paid/i.test(s));
+      let currentBalanceCol = findHeaderCol((s) => /current\s*balance/i.test(s));
+      let paymentProgressCol = findHeaderCol((s) => /payment\s*progress/i.test(s));
+
+      if (totalPaidCol < 0 && nextPaymentColIdx >= 0) {
+        totalPaidCol = nextPaymentColIdx + 1;
+        currentBalanceCol = nextPaymentColIdx + 2;
+        paymentProgressCol = nextPaymentColIdx + 3;
+      } else if (totalPaidCol < 0) {
+        totalPaidCol = paymentEndCol + 2;
+        currentBalanceCol = paymentEndCol + 3;
+        paymentProgressCol = paymentEndCol + 4;
+      } else {
+        if (currentBalanceCol < 0) currentBalanceCol = totalPaidCol + 1;
+        if (paymentProgressCol < 0) paymentProgressCol = totalPaidCol + 2;
+      }
+
+      let agreementSignedByWarwickshireCol = findHeaderCol((s) =>
+        /warwickshire|vendor/i.test(s) && /sign|agreement/i.test(s),
+      );
+      let agreementSignedByClientCol = findHeaderCol((s) =>
+        /client/i.test(s) && /sign|agreement/i.test(s),
+      );
+      let agreementOfSaleFileCol = findHeaderCol((s) =>
+        /agreement\s*of\s*sale|drive|file\s*link|google\s*drive/i.test(s),
+      );
+      if (agreementSignedByWarwickshireCol < 0) agreementSignedByWarwickshireCol = 58;
+      if (agreementSignedByClientCol < 0) agreementSignedByClientCol = 59;
+      if (agreementOfSaleFileCol < 0) agreementOfSaleFileCol = 61;
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
@@ -777,9 +813,21 @@ serve(async (req) => {
           const monthsFromStart = i;
           const paymentDate = new Date(basePaymentDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
+          paymentDate.setDate(5); // BNPL: due dates on the 5th
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         }
       }
+
+      const depositAmount = parseCurrencyToNumber(deposit);
+      const firstMonthPayment = parseCurrencyToNumber(paymentColumns[0]?.toString() || "");
+      const expectedCombined = depositAmount + monthlyPaymentAmount;
+      const isCombinedDepositInstallment =
+        depositAmount > 0 &&
+        monthlyPaymentAmount > 0 &&
+        firstMonthPayment > 0 &&
+        Math.abs(firstMonthPayment - expectedCombined) < 1;
+      // Sheet TOTAL PAID formula: deposit + SUM(M:last) unless first month embeds deposit+instalment
+      const totalPaidLikeSheet = isCombinedDepositInstallment ? totalPaymentsSum : totalPaymentsSum + depositAmount;
 
       // Build payment history from ITEMIZED RECEIPTS if available (preferred)
       // This shows actual receipt dates, not column-position dates
@@ -883,39 +931,23 @@ serve(async (req) => {
         }
       }
       
-      // Format calculated total for display - this is the authoritative sum of all payment cells
-      const calculatedTotalPaid = `$${totalPaymentsSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      // Format calculated total to match sheet: deposit + instalment cells (see BNPL_SCHEDULE_SPEC.md)
+      const calculatedTotalPaid = `$${totalPaidLikeSheet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       
-      // Log both values to identify discrepancies between sheet formula and calculated sum
       const sheetTotalNum = parseFloat(sheetTotalPaid.toString().replace(/[$,]/g, '')) || 0;
-      if (Math.abs(sheetTotalNum - totalPaymentsSum) > 0.01) {
-        console.warn(`Stand ${standNumber}: DISCREPANCY - Sheet says ${sheetTotalPaid} (${sheetTotalNum}) but calculated sum is ${calculatedTotalPaid} (${totalPaymentsSum})`);
+      if (Math.abs(sheetTotalNum - totalPaidLikeSheet) > 0.01) {
+        console.warn(
+          `Stand ${standNumber}: DISCREPANCY - Sheet TOTAL PAID ${sheetTotalPaid} (${sheetTotalNum}) vs computed ${calculatedTotalPaid} (${totalPaidLikeSheet})`,
+        );
       }
       
       console.log(`Stand ${standNumber}: Calculated total = ${calculatedTotalPaid}, Sheet total = ${sheetTotalPaid}, Last payment index = ${lastPaymentIndex}`);
       
-      // DEPOSIT TREATMENT: Column H deposit counts as Payment #1 in the contract sequence.
-      // It increments payment sequencing but is NOT added to totalPaymentsSum (which tracks
-      // monthly column payments M-AW only, and currentBalance from AZ is the balance source of truth).
-      const depositAmount = parseCurrencyToNumber(deposit);
       const hasVerifiedDeposit = depositAmount > 0;
-      
-      console.log(`Stand ${standNumber}: Deposit (Column H) = ${deposit} = ${depositAmount}, hasVerifiedDeposit = ${hasVerifiedDeposit}`);
-      
-      // GROUP 2 DETECTION: For certain clients (e.g., Richcraft accounts), the deposit and
-      // first monthly installment were paid together. In these cases, the first monthly column
-      // (Column M) already contains both the deposit AND the first installment combined.
-      // We detect this by checking if Column M value ≈ deposit + monthly installment amount.
-      // If so, the deposit is already embedded in totalPaymentsSum and should NOT be added again.
-      const firstMonthPayment = parseCurrencyToNumber(paymentColumns[0]?.toString() || '');
-      const expectedCombined = depositAmount + monthlyPaymentAmount;
-      const isCombinedDepositInstallment = hasVerifiedDeposit 
-        && monthlyPaymentAmount > 0
-        && firstMonthPayment > 0
-        && Math.abs(firstMonthPayment - expectedCombined) < 1; // tolerance of $1
+      console.log(`Stand ${standNumber}: Deposit = ${deposit} = ${depositAmount}, hasVerifiedDeposit = ${hasVerifiedDeposit}`);
       
       if (isCombinedDepositInstallment) {
-        console.log(`Stand ${standNumber}: COMBINED DEPOSIT detected — Column M ($${firstMonthPayment}) ≈ Deposit ($${depositAmount}) + Installment ($${monthlyPaymentAmount}). Deposit already in monthly totals.`);
+        console.log(`Stand ${standNumber}: COMBINED DEPOSIT — Column M ($${firstMonthPayment}) ≈ Deposit ($${depositAmount}) + Instalment ($${monthlyPaymentAmount}). Deposit counted in monthly column.`);
       }
       
       // OVERPAYMENT LOGIC: Calculate how many instalments are covered by total payments
@@ -977,6 +1009,7 @@ serve(async (req) => {
         // Calculate next due date from customer's actual start date (not the sheet header)
         const nextDueDate = new Date(customerStartDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + nextUncoveredMonth);
+        nextDueDate.setDate(5);
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
         // Calculate remaining amount due for this instalment (if partial payment exists)
@@ -1009,10 +1042,10 @@ serve(async (req) => {
       if (!isNaN(progressNum) && progressNum >= 0) {
         progressPercentage = Math.round(progressNum);
       } else {
-        // Fallback: calculate from calculated total paid and current balance
-        const balanceNum = parseFloat(currentBalance.toString().replace(/[$,]/g, '')) || 0;
-        const totalAmountDue = totalPaymentsSum + balanceNum;
-        progressPercentage = totalAmountDue > 0 ? Math.round((totalPaymentsSum / totalAmountDue) * 100) : 0;
+        // Fallback: progress = (deposit + instalments) / Total price (Column I base)
+        const tpNum = parseCurrencyToNumber(totalPrice);
+        progressPercentage =
+          tpNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / tpNum) * 100)) : 0;
       }
       
       console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);

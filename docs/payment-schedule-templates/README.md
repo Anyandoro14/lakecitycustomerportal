@@ -1,18 +1,24 @@
-# Payment schedule templates (Collection Schedule)
+# Payment schedule templates (BNPL ledger)
 
-Excel workbooks for customer payment grids, aligned with the portal’s **Column A–L** layout (Stand Number through Start Date), **monthly amounts from Column M**, then **Next Payment Column**, **TOTAL PAID**, **Current Balance**, and **Payment Progress**, followed by operational columns (Receipts through Registered).
+Excel workbooks for the **Collection Schedule** tabs in Google Sheets. They implement a **BNPL-style loan ledger**: **Total price** is the base contract amount; **deposit** is deducted before instalments; **due dates** align to the **5th** of each month; schedules are **wide enough** to support terms **12–120 months** and operational visibility through **December 2035** when you extend monthly headers.
 
-## What was corrected (2026-04-07)
+**Canonical spec:** see **[BNPL_SCHEDULE_SPEC.md](./BNPL_SCHEDULE_SPEC.md)** (formulas, Column **I** / **H**, widening rules).
 
-1. **TOTAL PAID** had been defined as `SUM` from Column M through the **Next Payment Column**. That incorrectly included the non-amount “Next Payment Column”. It is now **`SUM` only across true monthly columns** (from M through the column immediately before Next Payment).
-2. **Current Balance** and **Payment Progress** are rewritten so they always reference the **TOTAL PAID** column for that template (required after structural edits).
-3. **`TEMPLATE_INSTRUCTIONS`** was updated so the formula description matches the fix (and per-template column letters).
-4. **60-month** workbook was missing from the original zip; it is generated from the 72-month file by removing the last 12 monthly columns.
+## Column layout (data sheet)
+
+| Area | Role |
+|------|------|
+| A–L | Identity, **Deposit** (typ. **H**), **Total price** base (**I**), **Payment / monthly instalment** (typ. **K**), **Payment start date** (**L**, any qualifying 5th) |
+| **M** → last month | One column per instalment month (headers through at least **Dec 2035** when you widen the book) |
+| After last month | **Next payment** marker column, **TOTAL PAID**, **Current Balance**, **Payment Progress** |
+| Further right | Receipts … Registered (operational) |
+
+**Formulas (per row):** after running the fix script, **TOTAL PAID** = Deposit + SUM(monthly cells); **Current Balance** = Total price − Deposit − SUM(monthly cells); **Progress** = (Deposit + SUM(monthly)) / Total price. See the spec file for exact Excel.
 
 ## Templates included
 
 | File | Term (months) |
-|------|-----------------|
+|------|----------------|
 | `Collection_Schedule_Template_12mo.xlsx` | 12 |
 | `Collection_Schedule_Template_24mo.xlsx` | 24 |
 | `Collection_Schedule_Template_36mo.xlsx` | 36 |
@@ -23,21 +29,21 @@ Excel workbooks for customer payment grids, aligned with the portal’s **Column
 | `Collection_Schedule_Template_96mo.xlsx` | 96 |
 | `Collection_Schedule_Template_120mo.xlsx` | 120 |
 
-Each file has a **TEMPLATE_INSTRUCTIONS** sheet and a **Collection Schedule - {N}mo** data sheet.
+Each file has **TEMPLATE_INSTRUCTIONS** and a **Collection Schedule - {N}mo** data sheet.
 
-## Regenerating fixes
+## Regenerating formulas
 
-From the repository root (creates `docs/payment-schedule-templates/.venv-xlsx` on first run and installs `openpyxl`):
+From the repository root (creates `docs/payment-schedule-templates/.venv-xlsx` on first run):
 
 ```bash
 bash docs/payment-schedule-templates/run-fix-templates.sh
 ```
 
-Manual alternative: `python3 -m venv docs/payment-schedule-templates/.venv-xlsx`, then install `requirements-xlsx.txt` and run `fix_collection_schedule_templates.py` with that interpreter.
+Then replace or merge the output xlsx files into your master Google Sheet, or upload new workbooks built from these templates.
 
-## Portal / Edge Functions note
+## Portal / Edge Functions
 
-Edge Functions resolve the correct tab using **`profiles.payment_plan_months`** and the canonical name **`Collection Schedule - Nmo`**. Pick the template whose term **N** matches that profile value. Variable-width templates use header-based totals where supported.
+`fetch-google-sheets` reads **`profiles.payment_plan_months`** (default 36) to know **how many** month columns (M onward) to include, and finds **TOTAL PAID** / **Current Balance** / **Payment Progress** by **header text** so widened layouts keep working.
 
 ## Tab naming in the master workbook
 

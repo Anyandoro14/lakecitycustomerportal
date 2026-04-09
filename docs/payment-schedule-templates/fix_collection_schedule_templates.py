@@ -52,6 +52,25 @@ def find_header_columns(ws):
     return next_idx, total_paid_idx
 
 
+def find_deposit_and_total_columns(ws) -> tuple[int, int]:
+    """Deposit + Total price columns (BNPL: balance net of deposit before instalments)."""
+    dep_idx = tot_idx = None
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(1, c).value
+        if not v:
+            continue
+        t = str(v).strip().lower()
+        if "deposit" in t:
+            dep_idx = c
+        if "total price" in t:
+            tot_idx = c
+    if tot_idx is None:
+        tot_idx = 9  # Column I — base contract price
+    if dep_idx is None:
+        dep_idx = 8  # Column H — deposit
+    return dep_idx, tot_idx
+
+
 def fix_collection_formulas(ws) -> tuple[int, int, int]:
     """Return (months_count, last_month_col_idx, next_col_idx)."""
     next_idx, total_paid_idx = find_header_columns(ws)
@@ -62,14 +81,20 @@ def fix_collection_formulas(ws) -> tuple[int, int, int]:
     m_idx = 13  # Column M
     months_count = last_mo_idx - m_idx + 1
 
-    tp_letter = get_column_letter(total_paid_idx)
+    dep_idx, tot_idx = find_deposit_and_total_columns(ws)
+    dep_letter = get_column_letter(dep_idx)
+    tot_letter = get_column_letter(tot_idx)
 
     for r in range(2, ws.max_row + 1):
         m_letter = get_column_letter(m_idx)
         end_letter = get_column_letter(last_mo_idx)
-        ws.cell(r, total_paid_idx).value = f"=SUM({m_letter}{r}:{end_letter}{r})"
+        # TOTAL PAID = deposit + sum of instalment cells (M … last month)
+        ws.cell(r, total_paid_idx).value = f"={dep_letter}{r}+SUM({m_letter}{r}:{end_letter}{r})"
 
-    # Current Balance / Payment Progress must reference the TOTAL PAID column (fixes e.g. 60mo after delete_cols)
+    tp_letter = get_column_letter(total_paid_idx)
+
+    # Current Balance = Total price - Deposit - SUM(instalments) = I - H - SUM(M:last)
+    # Payment Progress = (Deposit + SUM(M:last)) / Total price
     bal_idx = prog_idx = None
     for c in range(1, ws.max_column + 1):
         v = ws.cell(1, c).value
@@ -82,8 +107,14 @@ def fix_collection_formulas(ws) -> tuple[int, int, int]:
             prog_idx = c
     if bal_idx and prog_idx:
         for r in range(2, ws.max_row + 1):
-            ws.cell(r, bal_idx).value = f"=I{r}-{tp_letter}{r}"
-            ws.cell(r, prog_idx).value = f"=IF(I{r}=0,\"\",{tp_letter}{r}/I{r})"
+            m_letter = get_column_letter(m_idx)
+            end_letter = get_column_letter(last_mo_idx)
+            ws.cell(r, bal_idx).value = (
+                f"={tot_letter}{r}-{dep_letter}{r}-SUM({m_letter}{r}:{end_letter}{r})"
+            )
+            ws.cell(r, prog_idx).value = (
+                f"=IF({tot_letter}{r}=0,\"\",({dep_letter}{r}+SUM({m_letter}{r}:{end_letter}{r}))/{tot_letter}{r})"
+            )
 
     return months_count, last_mo_idx, next_idx
 
@@ -157,7 +188,10 @@ def process_workbook(path: Path) -> None:
     update_instructions_sheet(wb, months, last_mo_letter, next_letter, tp_letter, bal_letter, prog_letter)
     wb.save(path)
     wb.close()
-    print(f"OK {path.name}: {months} months → TOTAL PAID {tp_letter} = SUM(M:{last_mo_letter})")
+    print(
+        f"OK {path.name}: {months} months → TOTAL PAID {tp_letter} = Deposit+SUM(M:{last_mo_letter}); "
+        f"Balance = Total−Deposit−SUM(M:{last_mo_letter})"
+    )
 
 
 def build_60_month_from_72() -> Path:
