@@ -31,7 +31,7 @@ const LookingGlassView = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-customer-data', {
+      const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
         body: { 
           lookingGlassMode: true,
           targetStandNumber: customer.standNumber,
