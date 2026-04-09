@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles ALTER COLUMN payment_plan_months SET DEFAULT 36;
+COMMENT ON COLUMN public.profiles.payment_plan_months IS 'Contract term in months (12–120). Maps to Collection Schedule - {N}mo tab. Default 36.';
