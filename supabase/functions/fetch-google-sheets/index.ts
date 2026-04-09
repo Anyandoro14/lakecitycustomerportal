@@ -498,8 +498,8 @@ serve(async (req) => {
       `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
     );
 
-    // Fetch the data - extended to BH to include Agreement signed columns
-    const range = encodeURIComponent(`${sheetTitle}!A:BJ`);
+    // Fetch the data — wide enough to cover 168 payment columns + summary + status columns
+    const range = encodeURIComponent(`${sheetTitle}!A:GZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -702,8 +702,8 @@ serve(async (req) => {
         paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
           ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
           : 36;
-      const paymentStartCol = 12; // Column M
-      const paymentEndCol = paymentStartCol + termMonths - 1;
+      const paymentStartCol = PAYMENT_GRID_START_COL; // Column M (index 12)
+      const paymentEndCol = PAYMENT_GRID_END_COL;     // Column FX (index 179) — full 168-month grid
 
       const headerStr = (i: number) =>
         headers[i] != null ? String(headers[i]).trim() : "";
