@@ -2,10 +2,21 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { AlertTriangle, Clock, X } from "lucide-react";
 
-// ── Maintenance toggle ─────────────────────────────────────────
-// Set MAINTENANCE_ENABLED = true to block customers immediately.
-// Set it back to false to restore access.
-const MAINTENANCE_ENABLED = false;
+// ── Scheduled-maintenance gate ─────────────────────────────────
+// This React-level gate is UNRELATED to hosting-platform "maintenance mode".
+// It is driven by the build-time env var VITE_SCHEDULED_MAINTENANCE.
+// When the var is unset or false the gate is completely inert and customers
+// always see the normal app.  Set VITE_SCHEDULED_MAINTENANCE=true in .env
+// (and re-publish) only when you intentionally schedule a downtime window.
+
+const SCHEDULED_MAINTENANCE_ENABLED =
+  import.meta.env.VITE_SCHEDULED_MAINTENANCE === "true" ||
+  import.meta.env.VITE_SCHEDULED_MAINTENANCE === "1";
+
+// UTC window — only evaluated when SCHEDULED_MAINTENANCE_ENABLED is true
+const RIBBON_START  = new Date("2026-04-09T09:00:00Z");   // ribbon warning
+const MAINTENANCE_START = new Date("2026-04-09T10:00:00Z"); // full block
+const MAINTENANCE_END   = new Date("2026-04-09T22:00:00Z"); // block ends
 
 const MAINTENANCE_MESSAGE =
   "We are performing system maintenance. The site will be back shortly. Thank you for your patience.";
@@ -22,9 +33,21 @@ const BYPASS_PREFIXES = [
 ];
 
 function useSchedule() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!SCHEDULED_MAINTENANCE_ENABLED) return;
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!SCHEDULED_MAINTENANCE_ENABLED) {
+    return { showRibbon: false, showMaintenance: false };
+  }
+
   return {
-    showRibbon: false, // Set to true to show a warning ribbon before blocking
-    showMaintenance: MAINTENANCE_ENABLED,
+    showRibbon: now >= RIBBON_START && now < MAINTENANCE_END,
+    showMaintenance: now >= MAINTENANCE_START && now < MAINTENANCE_END,
   };
 }
 
