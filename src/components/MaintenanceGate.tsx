@@ -6,9 +6,9 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 // Ribbon appears:    12:00 AM EST Apr 9 = 04:00 UTC Apr 9
 // Maintenance starts: 2:00 AM EST Apr 9 = 06:00 UTC Apr 9
 // Maintenance ends:   2:00 PM EST Apr 9 = 18:00 UTC Apr 9
-const RIBBON_START = new Date("2025-04-09T04:00:00Z");
-const MAINTENANCE_START = new Date("2025-04-09T06:00:00Z");
-const MAINTENANCE_END = new Date("2025-04-09T18:00:00Z");
+const RIBBON_START = new Date("2026-04-09T04:00:00Z");
+const MAINTENANCE_START = new Date("2026-04-09T06:00:00Z");
+const MAINTENANCE_END = new Date("2026-04-09T18:00:00Z");
 
 const MAINTENANCE_MESSAGE =
   "We are doing system maintenance. The site will be unavailable from 2 AM EST – 2 PM EST on April 9. Thank you for your patience.";
