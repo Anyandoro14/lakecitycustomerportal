@@ -78,10 +78,12 @@ serve(async (req) => {
           foundTab = tab;
           foundRow = i + 1; // 1-based
           // Find last filled payment column
-          const { start: colStart } = paymentColumnBounds(DEFAULT_PAYMENT_PLAN_MONTHS);
+          const { start: colStart, end: colEnd } = paymentColumnBounds(DEFAULT_PAYMENT_PLAN_MONTHS);
           const rowCells = rows[i] || [];
           let lastIdx = -1;
-          for (let c = rowCells.length - 1; c >= colStart; c--) {
+          // Only search within payment columns (M through end of term)
+          const searchEnd = Math.min(colEnd, rowCells.length - 1);
+          for (let c = searchEnd; c >= colStart; c--) {
             const cv = rowCells[c]?.toString().trim() || '';
             if (cv && cv !== '0' && cv !== '$0' && cv !== '$0.00') {
               lastIdx = c;
