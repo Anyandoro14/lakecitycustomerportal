@@ -44,6 +44,7 @@ const SignUp = () => {
     standNumber: string;
     phoneNumber: string;
     email?: string;
+    paymentPlanMonths: number;
   } | null>(null);
   
   // Registration result
@@ -182,7 +183,11 @@ const SignUp = () => {
       setValidatedData({
         standNumber: data.standNumber,
         phoneNumber: data.phoneNumber,
-        email: data.email
+        email: data.email,
+        paymentPlanMonths:
+          typeof data.paymentPlanMonths === "number" && data.paymentPlanMonths > 0
+            ? data.paymentPlanMonths
+            : 36,
       });
       
       // Pre-fill email if available from records
@@ -253,7 +258,8 @@ const SignUp = () => {
           standNumber: validatedData.standNumber,
           phoneNumber: validatedData.phoneNumber,
           password: password,
-          email: email || undefined
+          email: email || undefined,
+          paymentPlanMonths: validatedData.paymentPlanMonths,
         }
       });
 

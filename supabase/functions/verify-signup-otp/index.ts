@@ -1,6 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import {
+  columnIndexToA1Letter,
+  findStandRowInCollectionTabs,
+} from "../_shared/collection-schedule-sheets.ts";
 
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -119,7 +123,7 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
-// Helper: Update Column BK to mark account as registered
+// Helper: Update "Registered" column to mark account as registered
 async function markAccountRegistered(
   standNumber: string,
   accessToken: string
@@ -127,60 +131,49 @@ async function markAccountRegistered(
   try {
     const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
     if (!spreadsheetId) {
-      console.log('Spreadsheet ID not configured, skipping BK update');
+      console.log('Spreadsheet ID not configured, skipping Registered update');
       return false;
     }
 
-    // Fetch spreadsheet metadata
     const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
     const metadataResponse = await fetch(metadataUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (!metadataResponse.ok) {
-      console.error('Failed to fetch spreadsheet metadata for BK update');
+      console.error('Failed to fetch spreadsheet metadata for Registered update');
       return false;
     }
 
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
-    const sheetTitle = sheets.length > 0 ? sheets[0].properties.title : 'Sheet1';
 
-    // Fetch Column B (Stand Numbers) to find the row
-    const range = encodeURIComponent(`${sheetTitle}!B:B`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-    
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!response.ok) {
-      console.error('Failed to fetch stand numbers for BK update');
+    const loc = await findStandRowInCollectionTabs(
+      accessToken,
+      spreadsheetId,
+      sheets,
+      standNumber,
+    );
+    if (!loc) {
+      console.log(`Stand ${standNumber} not found in collection tabs for Registered update`);
       return false;
     }
 
-    const data = await response.json();
-    const rows = data.values || [];
+    const sheetTitle = loc.sheetTitle;
+    const rowIndex = loc.row1Based;
 
-    // Find the row with matching stand number
-    const normalizedStand = standNumber.trim().toUpperCase();
-    let rowIndex = -1;
+    const headerRange = encodeURIComponent(`${sheetTitle}!1:1`);
+    const headerUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${headerRange}`;
+    const headerRes = await fetch(headerUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!headerRes.ok) return false;
+    const headerData = await headerRes.json();
+    const headerRow = headerData.values?.[0] || [];
+    const regIdx = headerRow.findIndex(
+      (h: string) => h && h.toString().toLowerCase().includes('registered'),
+    );
+    const colLetter = regIdx >= 0 ? columnIndexToA1Letter(regIdx) : 'BK';
 
-    for (let i = 1; i < rows.length; i++) {
-      const rowStand = rows[i]?.[0]?.toString().trim().toUpperCase() || '';
-      if (rowStand === normalizedStand) {
-        rowIndex = i + 1; // Sheets are 1-indexed
-        break;
-      }
-    }
-
-    if (rowIndex === -1) {
-      console.log(`Stand ${standNumber} not found in spreadsheet for BK update`);
-      return false;
-    }
-
-    // Update Column BK (column index 63) for this row
-    const cellRange = `${sheetTitle}!BK${rowIndex}`;
+    const cellRange = `${sheetTitle}!${colLetter}${rowIndex}`;
     const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
     
     const updateResponse = await fetch(updateUrl, {
@@ -237,12 +230,22 @@ async function syncEmailToSheet(
 
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
-    const sheetTitle = sheets.length > 0 ? sheets[0].properties.title : 'Sheet1';
 
-    // Fetch data
+    const loc = await findStandRowInCollectionTabs(
+      accessToken,
+      spreadsheetId,
+      sheets,
+      standNumber,
+    );
+    if (!loc) {
+      return { synced: false };
+    }
+
+    const sheetTitle = loc.sheetTitle;
+
     const range = encodeURIComponent(`${sheetTitle}!A:G`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-    
+
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -259,93 +262,82 @@ async function syncEmailToSheet(
       return { synced: false };
     }
 
-    // Column indices (0-based)
-    const STAND_COL = 1;  // Column B - Stand Number
-    const FIRST_NAME_COL = 2; // Column C - First Name
-    const LAST_NAME_COL = 3;  // Column D - Last Name
-    const EMAIL_COL = 4;  // Column E - Email
-    const CATEGORY_COL = 5; // Column F - Customer Category
-    const PHONE_COL = 6;  // Column G - Contact Number
+    const STAND_COL = 1;
+    const FIRST_NAME_COL = 2;
+    const LAST_NAME_COL = 3;
+    const EMAIL_COL = 4;
+    const CATEGORY_COL = 5;
+    const PHONE_COL = 6;
 
-    // Normalize phone number for comparison
     const normalizePhone = (phone: string) => {
       return phone.replace(/\s+/g, '').replace(/^0/, '+263');
     };
 
     const normalizedInputPhone = normalizePhone(phoneNumber);
+    const i = loc.row1Based - 1;
+    const row = rows[i];
+    if (!row) return { synced: false };
 
-    // Find matching row
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const rowStand = row[STAND_COL]?.toString().trim().toUpperCase() || '';
-      const rowPhone = row[PHONE_COL]?.toString().trim() || '';
-      const rowEmail = row[EMAIL_COL]?.toString().trim() || '';
-      const firstName = row[FIRST_NAME_COL]?.toString().trim() || '';
-      const lastName = row[LAST_NAME_COL]?.toString().trim() || '';
-      const category = row[CATEGORY_COL]?.toString().trim() || '';
+    const rowStand = row[STAND_COL]?.toString().trim().toUpperCase() || '';
+    const rowPhone = row[PHONE_COL]?.toString().trim() || '';
+    const rowEmail = row[EMAIL_COL]?.toString().trim() || '';
+    const firstName = row[FIRST_NAME_COL]?.toString().trim() || '';
+    const lastName = row[LAST_NAME_COL]?.toString().trim() || '';
+    const category = row[CATEGORY_COL]?.toString().trim() || '';
 
-      const normalizedRowPhone = normalizePhone(rowPhone);
+    const normalizedRowPhone = normalizePhone(rowPhone);
 
-      // Check if stand number matches
-      if (rowStand !== standNumber.trim().toUpperCase()) {
-        continue;
-      }
-
-      // Check if phone number matches
-      if (normalizedRowPhone !== normalizedInputPhone && 
-          rowPhone.replace(/\s+/g, '') !== phoneNumber.replace(/\s+/g, '')) {
-        console.log(`Phone mismatch for stand ${standNumber}: sheet=${rowPhone}, input=${phoneNumber}`);
-        return { 
-          synced: false, 
-          customerName: `${firstName} ${lastName}`.trim(),
-          customerCategory: category
-        };
-      }
-
-      // All conditions met - sync email only if not already populated
-      if (rowEmail && !rowEmail.includes('@lakecity.portal')) {
-        console.log(`Email already exists in sheet for stand ${standNumber}: ${rowEmail}`);
-        return { 
-          synced: false, 
-          customerName: `${firstName} ${lastName}`.trim(),
-          customerCategory: category
-        };
-      }
-
-      // Update email in Column E (row i+1 because sheets are 1-indexed)
-      const cellRange = `${sheetTitle}!E${i + 1}`;
-      const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
-      
-      const updateResponse = await fetch(updateUrl, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          values: [[email]]
-        })
-      });
-
-      if (updateResponse.ok) {
-        console.log(`Successfully synced email ${email} for stand ${standNumber}`);
-        return { 
-          synced: true, 
-          customerName: `${firstName} ${lastName}`.trim(),
-          customerCategory: category
-        };
-      } else {
-        console.error('Failed to update email in sheet:', await updateResponse.text());
-        return { 
-          synced: false, 
-          customerName: `${firstName} ${lastName}`.trim(),
-          customerCategory: category
-        };
-      }
+    if (rowStand !== standNumber.trim().toUpperCase()) {
+      return { synced: false };
     }
 
-    console.log(`No matching row found for stand ${standNumber}`);
-    return { synced: false };
+    if (normalizedRowPhone !== normalizedInputPhone &&
+      rowPhone.replace(/\s+/g, '') !== phoneNumber.replace(/\s+/g, '')) {
+      console.log(`Phone mismatch for stand ${standNumber}: sheet=${rowPhone}, input=${phoneNumber}`);
+      return {
+        synced: false,
+        customerName: `${firstName} ${lastName}`.trim(),
+        customerCategory: category,
+      };
+    }
+
+    if (rowEmail && !rowEmail.includes('@lakecity.portal')) {
+      console.log(`Email already exists in sheet for stand ${standNumber}: ${rowEmail}`);
+      return {
+        synced: false,
+        customerName: `${firstName} ${lastName}`.trim(),
+        customerCategory: category,
+      };
+    }
+
+    const cellRange = `${sheetTitle}!E${loc.row1Based}`;
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
+
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [[email]],
+      }),
+    });
+
+    if (updateResponse.ok) {
+      console.log(`Successfully synced email ${email} for stand ${standNumber}`);
+      return {
+        synced: true,
+        customerName: `${firstName} ${lastName}`.trim(),
+        customerCategory: category,
+      };
+    }
+    console.error('Failed to update email in sheet:', await updateResponse.text());
+    return {
+      synced: false,
+      customerName: `${firstName} ${lastName}`.trim(),
+      customerCategory: category,
+    };
   } catch (error) {
     console.error('Error during email sync:', error);
     return { synced: false };

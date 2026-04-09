@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { listCollectionScheduleDataTabTitles } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -192,24 +193,51 @@ serve(async (req) => {
     const accessToken = tokenData.access_token;
     console.log('Successfully obtained access token');
 
-    // Determine which sheet to use
-    const sheetName = Deno.env.get('SHEET_NAME') || 'Collection Schedule 1';
-    console.log(`Using sheet: "${sheetName}"`);
-
-    // Fetch all data from the Collection Schedule sheet with retry
-    const range = `${sheetName}!A1:BA100`;
-    const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
-
-    const sheetsResponse = await fetchWithRetry(sheetsUrl, {
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metaRes = await fetchWithRetry(metaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    if (!metaRes.ok) {
+      throw new Error(`Failed to fetch spreadsheet metadata: ${metaRes.status}`);
+    }
+    const metaJson = await metaRes.json();
+    const sheetMetas = metaJson.sheets || [];
 
-    if (!sheetsResponse.ok) {
-      throw new Error(`Failed to fetch sheet data: ${sheetsResponse.status}`);
+    const envSheet = Deno.env.get('SHEET_NAME')?.trim();
+    const tabTitles: string[] = envSheet
+      ? [envSheet]
+      : listCollectionScheduleDataTabTitles(sheetMetas);
+    console.log(`Reporting tabs (${tabTitles.length}): ${tabTitles.join(", ")}`);
+
+    const merged: string[][] = [];
+    let headerRow: string[] | null = null;
+
+    for (const sheetName of tabTitles) {
+      const range = `${sheetName}!A1:ZZ200`;
+      const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+
+      const sheetsResponse = await fetchWithRetry(sheetsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!sheetsResponse.ok) {
+        console.warn(`Skip tab "${sheetName}": ${sheetsResponse.status}`);
+        continue;
+      }
+
+      const sheetsData: GoogleSheetsResponse = await sheetsResponse.json();
+      const part = sheetsData.values || [];
+      if (part.length === 0) continue;
+      if (!headerRow) {
+        headerRow = part[0];
+        merged.push(headerRow);
+      }
+      for (let r = 1; r < part.length; r++) {
+        merged.push(part[r]);
+      }
     }
 
-    const sheetsData: GoogleSheetsResponse = await sheetsResponse.json();
-    const rows = sheetsData.values || [];
+    const rows = merged;
     
     console.log(`Fetched rows: ${rows.length}`);
 
@@ -233,15 +261,26 @@ serve(async (req) => {
     const totalPaidIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total paid'));
     const currentBalanceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('current balance'));
     const progressIdx = headerRow.findIndex(h => h?.toLowerCase().includes('payment progress'));
-    const monthlyPaymentIdx = headerRow.findIndex(h => h?.toLowerCase().includes('payment'));
+    const monthlyPaymentIdx = headerRow.findIndex(
+      (h) =>
+        h &&
+        h.toString().toLowerCase().includes('payment') &&
+        !h.toString().toLowerCase().includes('progress'),
+    );
     const startDateIdx = headerRow.findIndex(h => h?.toLowerCase().includes('start date'));
-    
-    // New boolean columns: BC=54, BD=55, BE=56, BF=57, BG=58 (0-indexed)
-    const offerReceivedIdx = 54; // Column BC
-    const initialPaymentCompletedIdx = 55; // Column BD
-    const agreementRequestedIdx = 56; // Column BE
-    const agreementSignedWarwickshireIdx = 57; // Column BF
-    const agreementSignedClientIdx = 58; // Column BG
+
+    const findByIncludes = (sub: string) =>
+      headerRow.findIndex((h) => h && h.toString().toLowerCase().includes(sub));
+
+    const offerReceivedIdx = findByIncludes('offer received');
+    const initialPaymentCompletedIdx = findByIncludes('initial payment completed');
+    const agreementRequestedIdx = findByIncludes('agreement requested');
+    const agreementSignedWarwickshireIdx = findByIncludes('agreement signed by warwickshire') >= 0
+      ? findByIncludes('agreement signed by warwickshire')
+      : findByIncludes('warwickshire');
+    const agreementSignedClientIdx = findByIncludes('agreement signed by client') >= 0
+      ? findByIncludes('agreement signed by client')
+      : findByIncludes('signed by client');
 
     // Phone number to country code mapping function
     const extractCountryFromPhone = (phone: string): string => {
@@ -334,11 +373,13 @@ serve(async (req) => {
       const monthlyPayment = row[monthlyPaymentIdx] || '0';
       
       // Parse boolean fields (TRUE/FALSE strings to boolean)
-      const offerReceived = (row[offerReceivedIdx] || '').toUpperCase() === 'TRUE';
-      const initialPaymentCompleted = (row[initialPaymentCompletedIdx] || '').toUpperCase() === 'TRUE';
-      const agreementRequested = (row[agreementRequestedIdx] || '').toUpperCase() === 'TRUE';
-      const agreementSignedWarwickshire = (row[agreementSignedWarwickshireIdx] || '').toUpperCase() === 'TRUE';
-      const agreementSignedClient = (row[agreementSignedClientIdx] || '').toUpperCase() === 'TRUE';
+      const cellBool = (idx: number) =>
+        idx >= 0 ? (row[idx] || '').toString().toUpperCase() === 'TRUE' : false;
+      const offerReceived = cellBool(offerReceivedIdx);
+      const initialPaymentCompleted = cellBool(initialPaymentCompletedIdx);
+      const agreementRequested = cellBool(agreementRequestedIdx);
+      const agreementSignedWarwickshire = cellBool(agreementSignedWarwickshireIdx);
+      const agreementSignedClient = cellBool(agreementSignedClientIdx);
 
       // Determine if this is an unsold stand
       let isUnsold = !firstName && !lastName && !email;

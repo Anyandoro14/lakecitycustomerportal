@@ -16,6 +16,8 @@ interface RegisterUserRequest {
   phoneNumber: string;
   password: string;
   email?: string;
+  /** Matches Collection Schedule tab "Collection Schedule - N Months" from validate-signup */
+  paymentPlanMonths?: number;
 }
 
 // Rate limiting: max 3 registration attempts per phone per hour
@@ -39,7 +41,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { standNumber, phoneNumber, password, email }: RegisterUserRequest = await req.json();
+    const { standNumber, phoneNumber, password, email, paymentPlanMonths }: RegisterUserRequest =
+      await req.json();
 
     // Input validation
     if (!standNumber || typeof standNumber !== 'string') {
@@ -65,6 +68,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     const trimmedStand = standNumber.trim();
     const trimmedPhone = phoneNumber.trim();
+    const planMonths =
+      typeof paymentPlanMonths === "number" && paymentPlanMonths > 0
+        ? Math.round(paymentPlanMonths)
+        : 36;
 
     // Validate password strength
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -188,7 +195,8 @@ const handler = async (req: Request): Promise<Response> => {
       .update({
         stand_number: trimmedStand,
         phone_number: trimmedPhone,
-        email: authEmail
+        email: authEmail,
+        payment_plan_months: planMonths,
       })
       .eq('id', userId);
     if (tenantId) profileUpdateQuery = profileUpdateQuery.eq('tenant_id', tenantId);

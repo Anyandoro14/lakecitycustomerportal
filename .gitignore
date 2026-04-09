@@ -30,3 +30,6 @@ node.pkg
 *.njsproj
 *.sln
 *.sw?
+
+# Local venv for xlsx maintenance scripts (docs/payment-schedule-templates)
+.venv-xlsx/

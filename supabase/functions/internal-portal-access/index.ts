@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { listCollectionScheduleDataTabTitles } from '../_shared/collection-schedule-sheets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -122,84 +123,79 @@ async function searchGoogleSheets(searchType: string, searchQuery: string): Prom
 
   const metadata = await metadataResponse.json();
   const sheets = metadata.sheets || [];
-  const sheetTitle = sheets.length > 0 ? sheets[0].properties.title : 'Sheet1';
-
-  const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch spreadsheet data');
-  }
-
-  const data = await response.json();
-  const rows = data.values || [];
-
-  if (rows.length === 0) {
-    return [];
-  }
-
-  const headers = rows[0];
-  const standNumIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('stand'));
-  const firstNameIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('first name'));
-  const lastNameIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('last name'));
-  const phoneIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('contact'));
-  const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
-  const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
+  const tabTitles = listCollectionScheduleDataTabTitles(sheets);
+  const titlesToScan = tabTitles.length > 0 ? tabTitles : [sheets[0]?.properties?.title || 'Sheet1'];
 
   const results: any[] = [];
   const normalizedQuery = searchQuery.replace(/\s+/g, '').toLowerCase();
 
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const standNumber = row[standNumIndex]?.toString().trim() || '';
-    const phone = row[phoneIndex]?.toString().replace(/\s+/g, '') || '';
-    const email = row[emailIndex]?.toString().trim().toLowerCase() || '';
-    const firstName = row[firstNameIndex]?.toString().trim() || '';
-    const lastName = row[lastNameIndex]?.toString().trim() || '';
-    const customerCategory = row[customerCategoryIndex]?.toString().trim() || '';
+  for (const sheetTitle of titlesToScan) {
+    if (results.length >= 10) break;
 
-    let matches = false;
-    
-    if (searchType === 'stand') {
-      matches = standNumber.toLowerCase().includes(normalizedQuery);
-    } else if (searchType === 'phone') {
-      // Normalize phone for comparison - remove spaces, handle +263 vs 0 prefix
-      const normalizedPhone = phone.replace(/\s+/g, '');
-      const normalizedSearchPhone = normalizedQuery;
-      
-      // Direct match
-      if (normalizedPhone.includes(normalizedSearchPhone)) {
-        matches = true;
-      }
-      // Check if search is +263 format and phone is 0 format
-      else if (normalizedSearchPhone.startsWith('+263') && normalizedPhone.startsWith('0')) {
-        const withoutPrefix = normalizedSearchPhone.slice(4);
-        matches = normalizedPhone.slice(1).includes(withoutPrefix);
-      }
-      // Check if search is 0 format and phone is +263 format
-      else if (normalizedSearchPhone.startsWith('0') && normalizedPhone.startsWith('+263')) {
-        const withoutPrefix = normalizedSearchPhone.slice(1);
-        matches = normalizedPhone.slice(4).includes(withoutPrefix);
-      }
-    }
+    const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
 
-    if (matches) {
-      results.push({
-        stand_number: standNumber,
-        full_name: `${firstName} ${lastName}`.trim() || null,
-        email: email || `stand-${standNumber}@lakecity.portal`,
-        phone_number: phone || null,
-        customer_category: customerCategory || null,
-        payment_start_date: null,
-        user_id: null,
-        source: 'google_sheets'
-      });
-      
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) continue;
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    if (rows.length === 0) continue;
+
+    const headers = rows[0];
+    const standNumIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('stand'));
+    const firstNameIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('first name'));
+    const lastNameIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('last name'));
+    const phoneIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('contact'));
+    const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
+    const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
+
+    for (let i = 1; i < rows.length; i++) {
       if (results.length >= 10) break;
+
+      const row = rows[i];
+      const standNumber = row[standNumIndex]?.toString().trim() || '';
+      const phone = row[phoneIndex]?.toString().replace(/\s+/g, '') || '';
+      const email = row[emailIndex]?.toString().trim().toLowerCase() || '';
+      const firstName = row[firstNameIndex]?.toString().trim() || '';
+      const lastName = row[lastNameIndex]?.toString().trim() || '';
+      const customerCategory = row[customerCategoryIndex]?.toString().trim() || '';
+
+      let matches = false;
+
+      if (searchType === 'stand') {
+        matches = standNumber.toLowerCase().includes(normalizedQuery);
+      } else if (searchType === 'phone') {
+        const normalizedPhone = phone.replace(/\s+/g, '');
+        const normalizedSearchPhone = normalizedQuery;
+
+        if (normalizedPhone.includes(normalizedSearchPhone)) {
+          matches = true;
+        } else if (normalizedSearchPhone.startsWith('+263') && normalizedPhone.startsWith('0')) {
+          const withoutPrefix = normalizedSearchPhone.slice(4);
+          matches = normalizedPhone.slice(1).includes(withoutPrefix);
+        } else if (normalizedSearchPhone.startsWith('0') && normalizedPhone.startsWith('+263')) {
+          const withoutPrefix = normalizedSearchPhone.slice(1);
+          matches = normalizedPhone.slice(4).includes(withoutPrefix);
+        }
+      }
+
+      if (matches) {
+        results.push({
+          stand_number: standNumber,
+          full_name: `${firstName} ${lastName}`.trim() || null,
+          email: email || `stand-${standNumber}@lakecity.portal`,
+          phone_number: phone || null,
+          customer_category: customerCategory || null,
+          payment_start_date: null,
+          user_id: null,
+          source: 'google_sheets'
+        });
+      }
     }
   }
 

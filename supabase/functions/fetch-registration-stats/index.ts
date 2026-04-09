@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import { listCollectionScheduleDataTabTitles } from '../_shared/collection-schedule-sheets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -162,35 +163,8 @@ serve(async (req) => {
 
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
-    const sheetTitle = sheets.length > 0 ? sheets[0].properties.title : 'Sheet1';
-
-    // Fetch columns B (Stand), C (First Name), D (Last Name), F (Category), and BK (Registered)
-    const range = encodeURIComponent(`${sheetTitle}!A:BK`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-    
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch spreadsheet data');
-    }
-
-    const data = await response.json();
-    const rows = data.values || [];
-
-    if (rows.length < 2) {
-      return new Response(
-        JSON.stringify({
-          totalCustomers: 0,
-          registeredCustomers: 0,
-          unregisteredCustomers: 0,
-          registrationPercentage: 0,
-          byCategory: []
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const tabTitles = listCollectionScheduleDataTabTitles(sheets);
+    const titlesToScan = tabTitles.length > 0 ? tabTitles : [sheets[0]?.properties?.title || 'Sheet1'];
 
     // Column indices (0-based)
     const STAND_COL = 1;       // Column B - Stand Number
@@ -208,40 +182,69 @@ serve(async (req) => {
 
     const customers: CustomerRecord[] = [];
     const categoryStats: { [key: string]: { total: number; registered: number } } = {};
+    const seenStands = new Set<string>();
 
-    // Skip header row
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const standNumber = row[STAND_COL]?.toString().trim() || '';
-      const firstName = row[FIRST_NAME_COL]?.toString().trim() || '';
-      const lastName = row[LAST_NAME_COL]?.toString().trim() || '';
-      const category = row[CATEGORY_COL]?.toString().trim() || 'Uncategorized';
-      const registeredValue = row[REGISTERED_COL]?.toString().trim().toUpperCase() || '';
-      
-      // Skip rows without stand numbers (unsold/empty)
-      if (!standNumber) continue;
-      
-      // Skip rows that look like headers or totals
-      if (standNumber.toLowerCase().includes('stand') || standNumber.toLowerCase().includes('total')) continue;
+    for (const sheetTitle of titlesToScan) {
+      const range = encodeURIComponent(`${sheetTitle}!A:BK`);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
 
-      const isRegistered = registeredValue === 'TRUE' || registeredValue === 'YES' || registeredValue === '1';
-      const customerName = `${firstName} ${lastName}`.trim() || 'Unknown';
-
-      customers.push({
-        standNumber,
-        customerName,
-        category,
-        isRegistered
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      // Track by category
-      if (!categoryStats[category]) {
-        categoryStats[category] = { total: 0, registered: 0 };
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const rows = data.values || [];
+
+      if (rows.length < 2) continue;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const standNumber = row[STAND_COL]?.toString().trim() || '';
+        const firstName = row[FIRST_NAME_COL]?.toString().trim() || '';
+        const lastName = row[LAST_NAME_COL]?.toString().trim() || '';
+        const category = row[CATEGORY_COL]?.toString().trim() || 'Uncategorized';
+        const registeredValue = row[REGISTERED_COL]?.toString().trim().toUpperCase() || '';
+
+        if (!standNumber) continue;
+        if (seenStands.has(standNumber)) continue;
+
+        if (standNumber.toLowerCase().includes('stand') || standNumber.toLowerCase().includes('total')) continue;
+
+        seenStands.add(standNumber);
+
+        const isRegistered = registeredValue === 'TRUE' || registeredValue === 'YES' || registeredValue === '1';
+        const customerName = `${firstName} ${lastName}`.trim() || 'Unknown';
+
+        customers.push({
+          standNumber,
+          customerName,
+          category,
+          isRegistered
+        });
+
+        if (!categoryStats[category]) {
+          categoryStats[category] = { total: 0, registered: 0 };
+        }
+        categoryStats[category].total++;
+        if (isRegistered) {
+          categoryStats[category].registered++;
+        }
       }
-      categoryStats[category].total++;
-      if (isRegistered) {
-        categoryStats[category].registered++;
-      }
+    }
+
+    if (customers.length === 0) {
+      return new Response(
+        JSON.stringify({
+          totalCustomers: 0,
+          registeredCustomers: 0,
+          unregisteredCustomers: 0,
+          registrationPercentage: 0,
+          byCategory: []
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const totalCustomers = customers.length;

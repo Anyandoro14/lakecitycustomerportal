@@ -1,6 +1,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import {
+  resolveCollectionScheduleSheetTitle,
+} from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -228,7 +231,7 @@ serve(async (req) => {
     // Get user's profile (include stand_number for fallback matching)
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
-      .select('email, stand_number')
+      .select('email, stand_number, payment_plan_months')
       .eq('id', user.id)
       .single();
 
@@ -298,6 +301,22 @@ serve(async (req) => {
         }
       } else {
         console.warn(`Looking Glass denied - user ${primaryEmail} not @lakecity.co.zw`);
+      }
+    }
+
+    let paymentPlanMonthsForSchedule: number | null =
+      profile.payment_plan_months != null && profile.payment_plan_months > 0
+        ? Math.round(Number(profile.payment_plan_months))
+        : null;
+
+    if (lookingGlassMode && targetStandNumber && isLookingGlassAdmin) {
+      const { data: targetProfileRow } = await supabaseClient
+        .from("profiles")
+        .select("payment_plan_months")
+        .ilike("stand_number", targetStandNumber.trim())
+        .maybeSingle();
+      if (targetProfileRow?.payment_plan_months != null && targetProfileRow.payment_plan_months > 0) {
+        paymentPlanMonthsForSchedule = Math.round(Number(targetProfileRow.payment_plan_months));
       }
     }
 
@@ -445,30 +464,35 @@ serve(async (req) => {
 
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
-    
-    // Determine which sheet to use
-    const preferredName = Deno.env.get('SHEET_NAME');
-    const preferredGid = Deno.env.get('SHEET_GID');
-    
-    let sheetTitle = 'Sheet1'; // Default fallback
-    
-    if (preferredName) {
-      const found = sheets.find((s: any) => s.properties.title === preferredName);
-      if (found) {
-        sheetTitle = found.properties.title;
-      }
-    } else if (preferredGid) {
-      const found = sheets.find((s: any) => s.properties.sheetId?.toString() === preferredGid);
-      if (found) {
-        sheetTitle = found.properties.title;
-      }
-    } else if (sheets.length > 0) {
-      sheetTitle = sheets[0].properties.title;
+
+    const resolved = resolveCollectionScheduleSheetTitle(sheets, {
+      paymentPlanMonths: paymentPlanMonthsForSchedule,
+      envPreferredName: Deno.env.get('SHEET_NAME'),
+      envPreferredGid: Deno.env.get('SHEET_GID'),
+    });
+
+    const sheetExists = sheets.some((s: any) => s.properties?.title === resolved.sheetTitle);
+    if (!sheetExists) {
+      console.error(
+        `Collection Schedule tab not found: expected "${resolved.sheetTitle}" (source=${resolved.source}).`,
+      );
+      return new Response(
+        JSON.stringify({
+          error:
+            `Collection Schedule tab "${resolved.sheetTitle}" was not found in the spreadsheet. ` +
+            `Rename the sheet or set profiles.payment_plan_months / SHEET_NAME.`,
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
+
+    const sheetTitle = resolved.sheetTitle;
 
     // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
     const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
-    console.log(`Using sheet: "${sheetTitle}", hasPaymentsLedger: ${hasPaymentsLedger}`);
+    console.log(
+      `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
+    );
 
     // Fetch the data - extended to BH to include Agreement signed columns
     const range = encodeURIComponent(`${sheetTitle}!A:BJ`);

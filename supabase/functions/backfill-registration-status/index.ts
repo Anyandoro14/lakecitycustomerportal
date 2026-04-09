@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import { resolveCollectionScheduleSheetTitle } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -170,9 +171,21 @@ serve(async (req) => {
       throw new Error('SPREADSHEET_ID not configured');
     }
 
-    // Determine which sheet to use (same as fetch-reporting-data)
-    const sheetName = Deno.env.get('SHEET_NAME') || 'Collection Schedule 1';
-    console.log(`Using sheet: "${sheetName}"`);
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metaRes = await fetch(metaUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!metaRes.ok) {
+      throw new Error('Failed to fetch spreadsheet metadata');
+    }
+    const metaJson = await metaRes.json();
+    const sheetList = metaJson.sheets || [];
+
+    const resolved = resolveCollectionScheduleSheetTitle(sheetList, {
+      paymentPlanMonths: 36,
+      envPreferredName: Deno.env.get('SHEET_NAME'),
+      envPreferredGid: Deno.env.get('SHEET_GID'),
+    });
+    const sheetName = resolved.sheetTitle;
+    console.log(`Using sheet: "${sheetName}" (source=${resolved.source})`);
 
     // Fetch header row and first few columns to find stand numbers
     const range = encodeURIComponent(`${sheetName}!A1:BK`);

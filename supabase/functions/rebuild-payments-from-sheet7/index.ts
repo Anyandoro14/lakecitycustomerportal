@@ -321,24 +321,24 @@ serve(async (req) => {
     
     console.log(`Processed ${standsData.length} stands from Sheet 7`);
     
-    // Step 2: Read Collection Schedule 1 to find row indices for each stand
-    const collectionRange = encodeURIComponent("Collection Schedule 1!A:BH");
+    // Step 2: Read Collection Schedule - 36 Months to find row indices for each stand
+    const collectionRange = encodeURIComponent("Collection Schedule - 36 Months!A:BH");
     const collectionUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${collectionRange}`;
     
-    console.log('Fetching Collection Schedule 1 data...');
+    console.log('Fetching Collection Schedule - 36 Months data...');
     const collectionResponse = await fetch(collectionUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     
     if (!collectionResponse.ok) {
       const error = await collectionResponse.text();
-      throw new Error(`Failed to fetch Collection Schedule 1: ${error}`);
+      throw new Error(`Failed to fetch Collection Schedule - 36 Months: ${error}`);
     }
     
     const collectionData = await collectionResponse.json();
     const collectionRows = collectionData.values || [];
     
-    console.log(`Collection Schedule 1 has ${collectionRows.length} rows`);
+    console.log(`Collection Schedule - 36 Months has ${collectionRows.length} rows`);
     
     // Build a map of stand number to row index
     const standToRowIndex = new Map<string, number>();
@@ -349,7 +349,7 @@ serve(async (req) => {
       }
     }
     
-    // Payment columns in Collection Schedule 1 (based on screenshot):
+    // Payment columns in Collection Schedule - 36 Months (based on screenshot):
     // Column Z (25) = Payment 1 (amount)
     // Column AA (26) = Date of Payment 1
     // Column AB (27) = Payment 2 (amount)
@@ -383,7 +383,7 @@ serve(async (req) => {
           stand: standData.standNumber,
           phone: standData.phone,
           paymentsWritten: 0,
-          error: 'Stand not found in Collection Schedule 1'
+          error: 'Stand not found in Collection Schedule - 36 Months'
         });
         continue;
       }
@@ -391,12 +391,12 @@ serve(async (req) => {
       // Update phone number in Column D
       if (standData.phone) {
         updates.push({
-          range: `Collection Schedule 1!D${rowIndex}`,
+          range: `Collection Schedule - 36 Months!D${rowIndex}`,
           values: [[standData.phone]]
         });
       }
       
-      // Write payments to Collection Schedule 1 in interleaved format:
+      // Write payments to Collection Schedule - 36 Months in interleaved format:
       // Payment 1 Amount at Z, Payment 1 Date at AA
       // Payment 2 Amount at AB, Payment 2 Date at AC
       // etc.
@@ -417,22 +417,22 @@ serve(async (req) => {
           const payment = standData.payments[p];
           // Write payment amount
           updates.push({
-            range: `Collection Schedule 1!${amountColLetter}${rowIndex}`,
+            range: `Collection Schedule - 36 Months!${amountColLetter}${rowIndex}`,
             values: [[`$${payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]]
           });
           // Write payment date (preserve original date from Sheet 7)
           updates.push({
-            range: `Collection Schedule 1!${dateColLetter}${rowIndex}`,
+            range: `Collection Schedule - 36 Months!${dateColLetter}${rowIndex}`,
             values: [[payment.dateStr]]
           });
         } else {
           // Clear unused payment slots
           updates.push({
-            range: `Collection Schedule 1!${amountColLetter}${rowIndex}`,
+            range: `Collection Schedule - 36 Months!${amountColLetter}${rowIndex}`,
             values: [['']]
           });
           updates.push({
-            range: `Collection Schedule 1!${dateColLetter}${rowIndex}`,
+            range: `Collection Schedule - 36 Months!${dateColLetter}${rowIndex}`,
             values: [['']]
           });
         }

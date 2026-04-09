@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { listCollectionScheduleDataTabTitles } from "../_shared/collection-schedule-sheets.ts";
 
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -166,45 +167,49 @@ const handler = async (req: Request): Promise<Response> => {
             if (metadataResponse.ok) {
               const metadata = await metadataResponse.json();
               const sheets = metadata.sheets || [];
-              const sheetTitle = sheets.length > 0 ? sheets[0].properties.title : 'Sheet1';
+              const tabTitles = listCollectionScheduleDataTabTitles(sheets);
+              const titlesToScan = tabTitles.length > 0 ? tabTitles : [sheets[0]?.properties?.title || 'Sheet1'];
 
-              const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
-              const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-              
-              const response = await fetch(url, {
-                headers: { Authorization: `Bearer ${access_token}` },
-              });
+              for (const sheetTitle of titlesToScan) {
+                if (email) break;
 
-              if (response.ok) {
+                const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+
+                const response = await fetch(url, {
+                  headers: { Authorization: `Bearer ${access_token}` },
+                });
+
+                if (!response.ok) continue;
+
                 const data = await response.json();
                 const rows = data.values || [];
 
-                if (rows.length > 0) {
-                  const headers = rows[0];
-                  const standNumIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('stand'));
-                  const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
+                if (rows.length === 0) continue;
 
-                  if (standNumIndex !== -1 && emailIndex !== -1) {
-                    const customerRow = rows.slice(1).find((row: string[]) => 
-                      row[standNumIndex] && row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase()
-                    );
+                const headers = rows[0];
+                const standNumIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('stand'));
+                const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
 
-                    if (customerRow && customerRow[emailIndex]) {
-                      email = customerRow[emailIndex].toString().trim();
-                      console.log(`Found email in Google Sheets: ${email}`);
+                if (standNumIndex === -1 || emailIndex === -1) continue;
 
-                      // Look up user by email to get phone number
-                      const { data: profileByEmail } = await supabaseAdmin
-                        .from('profiles')
-                        .select('id, phone_number')
-                        .eq('email', email)
-                        .maybeSingle();
+                const customerRow = rows.slice(1).find((row: string[]) =>
+                  row[standNumIndex] && row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase()
+                );
 
-                      if (profileByEmail) {
-                        userId = profileByEmail.id;
-                        phoneNumber = profileByEmail.phone_number;
-                      }
-                    }
+                if (customerRow && customerRow[emailIndex]) {
+                  email = customerRow[emailIndex].toString().trim();
+                  console.log(`Found email in Google Sheets: ${email}`);
+
+                  const { data: profileByEmail } = await supabaseAdmin
+                    .from('profiles')
+                    .select('id, phone_number')
+                    .eq('email', email)
+                    .maybeSingle();
+
+                  if (profileByEmail) {
+                    userId = profileByEmail.id;
+                    phoneNumber = profileByEmail.phone_number;
                   }
                 }
               }

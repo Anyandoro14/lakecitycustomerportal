@@ -1,6 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import {
+  DEFAULT_PAYMENT_PLAN_MONTHS,
+  listCollectionScheduleDataTabTitles,
+  parseCollectionScheduleTabMonths,
+  paymentColumnBounds,
+  resolveCollectionScheduleSheetTitle,
+} from "../_shared/collection-schedule-sheets.ts";
 
 /**
  * COMPLIANCE-CRITICAL: QC Enforcement for Receipt Processing
@@ -183,84 +190,59 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
-// Fetch valid stand numbers from Collection Schedule
-async function fetchValidStandNumbers(accessToken: string): Promise<Set<string>> {
-  const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
-  if (!spreadsheetId) {
-    throw new Error('SPREADSHEET_ID not configured');
-  }
-
-  // Get spreadsheet metadata to find the main collection sheet
-  const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
-  const metadataResponse = await fetch(metadataUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!metadataResponse.ok) {
-    throw new Error('Failed to fetch spreadsheet metadata');
-  }
-
-  const metadata = await metadataResponse.json();
-  const sheets = metadata.sheets || [];
-  
-  // Find the main collection sheet (first sheet or RICHCRAFT CLIENT LIST)
-  let sheetTitle = sheets[0]?.properties?.title || 'Sheet1';
-  const richcraftSheet = sheets.find((s: any) => 
-    s.properties.title.toUpperCase().includes('RICHCRAFT') || 
-    s.properties.title.toUpperCase().includes('CLIENT LIST')
-  );
-  if (richcraftSheet) {
-    sheetTitle = richcraftSheet.properties.title;
-  }
-
-  console.log(`Fetching valid stand numbers from sheet: "${sheetTitle}"`);
-
-  // Fetch stand numbers from the collection schedule
-  const range = encodeURIComponent(`${sheetTitle}!A:E`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch collection schedule data');
-  }
-
-  const data: GoogleSheetsResponse = await response.json();
-  const rows = data.values || [];
-  
-  if (rows.length < 2) {
-    return new Set();
-  }
-
-  const headers = rows[0];
-  const standNumIndex = headers.findIndex(h => 
-    h && h.toString().toLowerCase().includes('stand')
-  );
-
-  if (standNumIndex === -1) {
-    throw new Error('Could not find Stand Number column in Collection Schedule');
-  }
-
+/** Union of stand numbers across all Collection Schedule - N Months tabs (and legacy tab). */
+async function fetchValidStandNumbersFromAllCollectionTabs(
+  accessToken: string,
+  spreadsheetId: string,
+  sheets: { properties?: { title?: string } }[],
+): Promise<Set<string>> {
+  const tabTitles = listCollectionScheduleDataTabTitles(sheets as { properties: { title?: string } }[]);
   const validStands = new Set<string>();
-  for (let i = 1; i < rows.length; i++) {
-    const standNum = rows[i][standNumIndex]?.toString().trim();
-    if (standNum) {
-      validStands.add(standNum);
+
+  for (const sheetTitle of tabTitles) {
+    const range = encodeURIComponent(`${sheetTitle}!A:E`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      console.warn(`Could not read tab "${sheetTitle}" for stand list`);
+      continue;
+    }
+
+    const data: GoogleSheetsResponse = await response.json();
+    const rows = data.values || [];
+    if (rows.length < 2) continue;
+
+    const headers = rows[0];
+    const standNumIndex = headers.findIndex((h) =>
+      h && h.toString().toLowerCase().includes('stand')
+    );
+    if (standNumIndex === -1) continue;
+
+    for (let i = 1; i < rows.length; i++) {
+      const standNum = rows[i][standNumIndex]?.toString().trim();
+      if (standNum) validStands.add(standNum);
     }
   }
 
-  console.log(`Found ${validStands.size} valid stand numbers in Collection Schedule`);
+  console.log(`Found ${validStands.size} valid stand numbers across ${tabTitles.length} collection tab(s)`);
   return validStands;
 }
 
-// Fetch Collection Schedule data with row mappings for posting
-async function fetchCollectionScheduleData(accessToken: string): Promise<{
+// Fetch one Collection Schedule tab with row mappings for posting
+async function fetchCollectionScheduleData(
+  accessToken: string,
+  sheetTitle: string,
+  paymentPlanMonths: number,
+): Promise<{
   sheetTitle: string;
   rows: string[][];
   standRowMap: Map<string, number>;
   paymentColumnStart: number;
+  paymentColumnEnd: number;
   headerRow: string[];
 }> {
   const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
@@ -268,41 +250,11 @@ async function fetchCollectionScheduleData(accessToken: string): Promise<{
     throw new Error('SPREADSHEET_ID not configured');
   }
 
-  const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
-  const metadataResponse = await fetch(metadataUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  console.log(`Fetching Collection Schedule data from: "${sheetTitle}" (${paymentPlanMonths} mo)`);
 
-  if (!metadataResponse.ok) {
-    throw new Error('Failed to fetch spreadsheet metadata');
-  }
-
-  const metadata = await metadataResponse.json();
-  const sheets = metadata.sheets || [];
-  
-  // Find "Collection Schedule 1" specifically - this is the source of truth for posting
-  let sheetTitle = sheets[0]?.properties?.title || 'Sheet1';
-  const collectionScheduleSheet = sheets.find((s: any) => 
-    s.properties.title === 'Collection Schedule 1'
-  );
-  if (collectionScheduleSheet) {
-    sheetTitle = collectionScheduleSheet.properties.title;
-  } else {
-    // Fallback to first sheet that contains "Collection Schedule" in name
-    const fallbackSheet = sheets.find((s: any) => 
-      s.properties.title.toLowerCase().includes('collection schedule')
-    );
-    if (fallbackSheet) {
-      sheetTitle = fallbackSheet.properties.title;
-    }
-  }
-
-  console.log(`Fetching Collection Schedule data from: "${sheetTitle}"`);
-
-  // Fetch entire sheet to get payment columns
   const range = encodeURIComponent(`${sheetTitle}!A:BA`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-  
+
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -313,40 +265,36 @@ async function fetchCollectionScheduleData(accessToken: string): Promise<{
 
   const data: GoogleSheetsResponse = await response.json();
   const rows = data.values || [];
-  
+
   if (rows.length < 2) {
     throw new Error('Collection Schedule has no data rows');
   }
 
   const headerRow = rows[0];
-  
-  // Find Stand Number column
-  const standNumIndex = headerRow.findIndex(h => 
+
+  const standNumIndex = headerRow.findIndex((h) =>
     h && h.toString().toLowerCase().includes('stand')
   );
   if (standNumIndex === -1) {
     throw new Error('Could not find Stand Number column');
   }
 
-  // Payment structure in Collection Schedule 1:
-  // - Payments begin at column M (index 12) and continue through column AW (index 48)
-  // - Each column from M to AW is a sequential payment column (NOT interleaved)
-  const paymentColumnStart = 12; // Column M (index 12)
-  const paymentColumnEnd = 48; // Column AW (index 48)
-  console.log(`Payment columns: M (12) through AW (48) - sequential payment cells`)
+  const { start: paymentColumnStart, end: paymentColumnEnd } = paymentColumnBounds(paymentPlanMonths);
+  console.log(
+    `Payment columns: index ${paymentColumnStart} through ${paymentColumnEnd} (${paymentPlanMonths} months)`,
+  );
 
-  // Build stand -> row mapping
   const standRowMap = new Map<string, number>();
   for (let i = 1; i < rows.length; i++) {
     const standNum = rows[i][standNumIndex]?.toString().trim();
     if (standNum) {
-      standRowMap.set(standNum, i + 1); // 1-indexed row number for Sheets API
+      standRowMap.set(standNum, i + 1);
     }
   }
 
   console.log(`Found ${standRowMap.size} stands mapped to rows`);
 
-  return { sheetTitle, rows, standRowMap, paymentColumnStart, headerRow };
+  return { sheetTitle, rows, standRowMap, paymentColumnStart, paymentColumnEnd, headerRow };
 }
 
 // Convert column index to letter (0 = A, 1 = B, etc.)
@@ -634,6 +582,7 @@ async function postReceiptsToCollectionSchedule(
     rows: string[][];
     standRowMap: Map<string, number>;
     paymentColumnStart: number;
+    paymentColumnEnd: number;
     headerRow: string[];
   }
 ): Promise<PostedReceipt[]> {
@@ -643,8 +592,8 @@ async function postReceiptsToCollectionSchedule(
   }
 
   const posted: PostedReceipt[] = [];
-  const paymentColumnEnd = 48; // Column AW
-  
+  const paymentColumnEnd = scheduleData.paymentColumnEnd;
+
   // Parse the base date from the first payment column header (Column M)
   // This is the reference point for calculating which column corresponds to which month
   let baseDate = new Date(2025, 8, 5); // Default: September 5, 2025
@@ -875,22 +824,96 @@ serve(async (req) => {
     console.log('='.repeat(60));
     console.log(`Timestamp: ${new Date().toISOString()}`);
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+    }
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
+    if (!spreadsheetId) {
+      throw new Error('SPREADSHEET_ID not configured');
+    }
+
     // Get Google Sheets access token (with WRITE permission)
     console.log('Authenticating with Google Sheets (write access)...');
     const accessToken = await getGoogleAccessToken();
 
-    // Step 1: Fetch Collection Schedule data with row mappings
-    console.log('Step 1: Fetching Collection Schedule data...');
-    const scheduleData = await fetchCollectionScheduleData(accessToken);
-    const validStands = new Set(scheduleData.standRowMap.keys());
+    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metadataResponse = await fetch(metadataUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!metadataResponse.ok) {
+      throw new Error('Failed to fetch spreadsheet metadata');
+    }
+    const metadata = await metadataResponse.json();
+    const sheets = metadata.sheets || [];
+
+    // Step 1: Valid stands = union across all collection schedule tabs
+    console.log('Step 1: Loading stand numbers from all Collection Schedule tabs...');
+    const validStands = await fetchValidStandNumbersFromAllCollectionTabs(
+      accessToken,
+      spreadsheetId,
+      sheets,
+    );
 
     // Step 2: Fetch and validate receipts from Receipts_Intake
     console.log('Step 2: Processing receipts from Receipts_Intake...');
     const { approved, rejected } = await fetchAndValidateReceipts(accessToken, validStands);
 
-    // Step 3: Post approved receipts to Collection Schedule
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('stand_number, payment_plan_months')
+      .not('stand_number', 'is', null);
+
+    const standToMonths = new Map<string, number>();
+    for (const p of profileRows || []) {
+      const sn = p.stand_number?.toString().trim().toUpperCase();
+      if (!sn) continue;
+      const m =
+        p.payment_plan_months != null && p.payment_plan_months > 0
+          ? Math.round(Number(p.payment_plan_months))
+          : DEFAULT_PAYMENT_PLAN_MONTHS;
+      standToMonths.set(sn, m);
+    }
+
+    // Step 3: Post per tab (group receipts by resolved Collection Schedule tab)
     console.log('Step 3: Posting approved receipts to Collection Schedule...');
-    const posted = await postReceiptsToCollectionSchedule(accessToken, approved, scheduleData);
+    const posted: PostedReceipt[] = [];
+
+    const groups = new Map<string, ApprovedReceipt[]>();
+    for (const rec of approved) {
+      const sn = rec.stand_number?.toString().trim().toUpperCase() || '';
+      const months = standToMonths.get(sn) ?? DEFAULT_PAYMENT_PLAN_MONTHS;
+      const resolved = resolveCollectionScheduleSheetTitle(sheets, {
+        paymentPlanMonths: months,
+        envPreferredName: Deno.env.get('SHEET_NAME'),
+        envPreferredGid: Deno.env.get('SHEET_GID'),
+      });
+      const key = resolved.sheetTitle;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(rec);
+    }
+
+    for (const [sheetTitle, tabReceipts] of groups) {
+      if (tabReceipts.length === 0) continue;
+      const firstSn = tabReceipts[0].stand_number?.toString().trim().toUpperCase() || '';
+      const m0 =
+        parseCollectionScheduleTabMonths(sheetTitle) ??
+        standToMonths.get(firstSn) ??
+        DEFAULT_PAYMENT_PLAN_MONTHS;
+
+      const sheetExists = sheets.some((s: { properties?: { title?: string } }) => s.properties?.title === sheetTitle);
+      if (!sheetExists) {
+        console.error(`Skipping post: tab "${sheetTitle}" not found in workbook`);
+        continue;
+      }
+
+      const scheduleData = await fetchCollectionScheduleData(accessToken, sheetTitle, m0);
+      const tabPosted = await postReceiptsToCollectionSchedule(accessToken, tabReceipts, scheduleData);
+      posted.push(...tabPosted);
+    }
 
     // Step 4: Mark posted receipts as "Posted" in Receipts_Intake
     console.log('Step 4: Updating status in Receipts_Intake...');

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveCollectionScheduleSheetTitle } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -358,7 +359,7 @@ serve(async (req) => {
       // Get current profile info
       const { data: currentProfile } = await supabaseAdmin
         .from('profiles')
-        .select('email, stand_number, phone_number')
+        .select('email, stand_number, phone_number, payment_plan_months')
         .eq('id', targetUserId)
         .single();
 
@@ -471,10 +472,37 @@ serve(async (req) => {
       };
 
       const accessToken = await getAccessToken();
-      
+
+      const metadataUrl0 = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+      const metadataRes0 = await fetch(metadataUrl0, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!metadataRes0.ok) {
+        throw new Error('Failed to load spreadsheet metadata for phone validation');
+      }
+      const meta0 = await metadataRes0.json();
+      const sheetList = meta0.sheets || [];
+
+      const planMonths =
+        currentProfile.payment_plan_months != null && currentProfile.payment_plan_months > 0
+          ? Math.round(Number(currentProfile.payment_plan_months))
+          : null;
+
+      const resolved = resolveCollectionScheduleSheetTitle(sheetList, {
+        paymentPlanMonths: planMonths,
+        envPreferredName: Deno.env.get('SHEET_NAME'),
+        envPreferredGid: Deno.env.get('SHEET_GID'),
+      });
+      const sheetName = resolved.sheetTitle;
+      const sheetOk = sheetList.some((s: { properties?: { title?: string } }) => s.properties?.title === sheetName);
+      if (!sheetOk) {
+        throw new Error(
+          `Collection Schedule tab "${sheetName}" not found. Set profiles.payment_plan_months or rename the sheet.`,
+        );
+      }
+
       // Fetch the Collection Schedule to find the stand's authoritative phone number
-      const sheetName = 'Collection Schedule 1';
-      const range = `'${sheetName}'!A:BL`;
+      const range = `'${sheetName.replace(/'/g, "''")}'!A:BL`;
       const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
       
       const sheetsResponse = await fetch(sheetsUrl, {

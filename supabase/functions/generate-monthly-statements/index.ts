@@ -1,6 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import {
+  listCollectionScheduleDataTabTitles,
+  parseCollectionScheduleTabMonths,
+  paymentColumnBounds,
+} from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -311,138 +316,125 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
 
   const metadata = await metadataResponse.json();
   const sheets = metadata.sheets || [];
-  
-  const preferredName = Deno.env.get('SHEET_NAME');
-  const preferredGid = Deno.env.get('SHEET_GID');
-  
-  let sheetTitle = 'Sheet1';
-  
-  if (preferredName) {
-    const found = sheets.find((s: any) => s.properties.title === preferredName);
-    if (found) sheetTitle = found.properties.title;
-  } else if (preferredGid) {
-    const found = sheets.find((s: any) => s.properties.sheetId?.toString() === preferredGid);
-    if (found) sheetTitle = found.properties.title;
-  } else if (sheets.length > 0) {
-    sheetTitle = sheets[0].properties.title;
-  }
 
-  console.log(`Using sheet: "${sheetTitle}"`);
+  const envName = Deno.env.get('SHEET_NAME')?.trim();
+  const tabTitles: string[] = envName
+    ? [envName]
+    : listCollectionScheduleDataTabTitles(sheets);
 
-  // Fetch the data
-  const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch sheet data');
-  }
-
-  const data: GoogleSheetsResponse = await response.json();
-  const rows = data.values || [];
-  
-  console.log(`Fetched ${rows.length} rows from sheet`);
-
-  if (rows.length < 2) {
-    return [];
-  }
-
-  const headers = rows[0];
-  const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
-  const firstNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('first'));
-  const lastNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('last'));
-  const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
-  const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
-
-  // Email column is optional - we can generate placeholder emails from stand numbers
-  if (standNumIndex === -1) {
-    throw new Error('Required stand number column not found in spreadsheet');
-  }
-
-  // Column M (index 12) is now September 5, 2025 (new column added)
-  // Column AW (index 48) is end of payment months (shifted +1)
-  // Column AY (index 50) is Total Paid (shifted +1)
-  // Column AZ (index 51) is Current Balance (shifted +1)
-  const paymentStartCol = 12; // Column M - now September 2025
-  const paymentEndCol = 48; // Column AW (shifted from AV)
-  const totalPaidCol = 50; // Column AY (shifted from AX)
-  const currentBalanceCol = 51; // Column AZ (shifted from AY)
+  console.log(`Statement generation reading tab(s): ${tabTitles.join(', ')}`);
 
   const customers: CustomerData[] = [];
 
-  for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
-    const row = rows[rowIdx];
-    const standNumber = row[standNumIndex]?.toString().trim();
-    
-    // Skip rows without stand number
-    if (!standNumber) continue;
-    
-    // Use email from sheet if available, otherwise generate placeholder email from stand number
-    // This matches the registration pattern: stand-{standNumber}@lakecity.portal
-    let email = emailIndex !== -1 ? row[emailIndex]?.toString().trim().toLowerCase() : '';
-    if (!email) {
-      email = `stand-${standNumber}@lakecity.portal`;
-    }
+  for (const sheetTitle of tabTitles) {
+    const monthsFromTitle = parseCollectionScheduleTabMonths(sheetTitle);
+    const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
 
-    const firstName = firstNameIndex !== -1 ? (row[firstNameIndex] || '') : '';
-    const lastName = lastNameIndex !== -1 ? (row[lastNameIndex] || '') : '';
-    const fullName = `${firstName} ${lastName}`.trim();
-
-    const totalPrice = totalPriceIndex !== -1 ? parseCurrency(row[totalPriceIndex]) : 0;
-    const totalPaid = parseCurrency(row[totalPaidCol]);
-    const currentBalance = parseCurrency(row[currentBalanceCol]);
-
-    // Get first payment header to determine base date
-    // Column M header contains the date of the first payment column
-    const firstPaymentHeader = headers[paymentStartCol];
-    let basePaymentDate: Date | null = null;
-    if (firstPaymentHeader) {
-      const parsedHeaderDate = new Date(firstPaymentHeader);
-      if (!isNaN(parsedHeaderDate.getTime())) {
-        basePaymentDate = parsedHeaderDate;
-      }
-    }
-    // Fallback only if header parsing fails
-    if (!basePaymentDate) {
-      basePaymentDate = new Date(2025, 8, 5);
-      console.warn('Could not parse payment column header date, using fallback');
-    }
-
-    // Extract payments with dates
-    const payments: PaymentRecord[] = [];
-    for (let i = paymentStartCol; i <= paymentEndCol; i++) {
-      const paymentValue = row[i]?.toString().trim();
-      if (paymentValue && paymentValue !== '') {
-        const monthOffset = i - paymentStartCol;
-        const paymentDate = new Date(basePaymentDate);
-        paymentDate.setMonth(paymentDate.getMonth() + monthOffset);
-        
-        // Installment period is the month this payment applies to
-        const installmentPeriod = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        
-        payments.push({
-          date: paymentDate.toISOString().split('T')[0], // YYYY-MM-DD format
-          amount: paymentValue,
-          installment_period: installmentPeriod
-        });
-      }
-    }
-
-    customers.push({
-      email,
-      standNumber,
-      fullName,
-      totalPrice,
-      totalPaid,
-      currentBalance,
-      payments
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    if (!response.ok) {
+      console.warn(`Skipping tab "${sheetTitle}": fetch failed`);
+      continue;
+    }
+
+    const data: GoogleSheetsResponse = await response.json();
+    const rows = data.values || [];
+
+    if (rows.length < 2) continue;
+
+    const headers = rows[0];
+    const standNumIndex = headers.findIndex((h) => h && h.toString().toLowerCase().includes('stand'));
+    const firstNameIndex = headers.findIndex((h) => h && h.toString().toLowerCase().includes('first'));
+    const lastNameIndex = headers.findIndex((h) => h && h.toString().toLowerCase().includes('last'));
+    const emailIndex = headers.findIndex((h) => h && h.toString().toLowerCase().includes('email'));
+    const totalPriceIndex = headers.findIndex((h) => h && h.toString().toLowerCase().includes('total price'));
+    const totalPaidIdx = headers.findIndex(
+      (h) => h && h.toString().toLowerCase().includes('total paid'),
+    );
+    const currentBalanceIdx = headers.findIndex(
+      (h) => h && h.toString().toLowerCase().includes('current balance'),
+    );
+
+    if (standNumIndex === -1 || totalPaidIdx === -1 || currentBalanceIdx === -1) {
+      console.warn(`Skipping tab "${sheetTitle}": missing required columns`);
+      continue;
+    }
+
+    const paymentStartCol = 12;
+    const paymentEndCol =
+      monthsFromTitle != null
+        ? paymentColumnBounds(monthsFromTitle).end
+        : 48; // legacy 36-mo layout (M–AW)
+
+    for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
+      const row = rows[rowIdx];
+      const standNumber = row[standNumIndex]?.toString().trim();
+
+      if (!standNumber) continue;
+
+      let email = emailIndex !== -1 ? row[emailIndex]?.toString().trim().toLowerCase() : '';
+      if (!email) {
+        email = `stand-${standNumber}@lakecity.portal`;
+      }
+
+      const firstName = firstNameIndex !== -1 ? (row[firstNameIndex] || '') : '';
+      const lastName = lastNameIndex !== -1 ? (row[lastNameIndex] || '') : '';
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      const totalPrice = totalPriceIndex !== -1 ? parseCurrency(row[totalPriceIndex]) : 0;
+      const totalPaid = parseCurrency(row[totalPaidIdx]);
+      const currentBalance = parseCurrency(row[currentBalanceIdx]);
+
+      const firstPaymentHeader = headers[paymentStartCol];
+      let basePaymentDate: Date | null = null;
+      if (firstPaymentHeader) {
+        const parsedHeaderDate = new Date(firstPaymentHeader);
+        if (!isNaN(parsedHeaderDate.getTime())) {
+          basePaymentDate = parsedHeaderDate;
+        }
+      }
+      if (!basePaymentDate) {
+        basePaymentDate = new Date(2025, 8, 5);
+        console.warn('Could not parse payment column header date, using fallback');
+      }
+
+      const payments: PaymentRecord[] = [];
+      for (let i = paymentStartCol; i <= paymentEndCol; i++) {
+        const paymentValue = row[i]?.toString().trim();
+        if (paymentValue && paymentValue !== '') {
+          const monthOffset = i - paymentStartCol;
+          const paymentDate = new Date(basePaymentDate);
+          paymentDate.setMonth(paymentDate.getMonth() + monthOffset);
+
+          const installmentPeriod = paymentDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+          });
+
+          payments.push({
+            date: paymentDate.toISOString().split('T')[0],
+            amount: paymentValue,
+            installment_period: installmentPeriod,
+          });
+        }
+      }
+
+      customers.push({
+        email,
+        standNumber,
+        fullName,
+        totalPrice,
+        totalPaid,
+        currentBalance,
+        payments,
+      });
+    }
   }
 
-  console.log(`Processed ${customers.length} customers from sheet`);
+  console.log(`Processed ${customers.length} customers from sheet(s)`);
   return customers;
 }
 

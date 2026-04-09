@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'https://esm.sh/resend@4.0.0';
+import { listCollectionScheduleDataTabTitles } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -188,27 +189,34 @@ Deno.serve(async (req) => {
       }
       const accessToken = tokenData.access_token;
 
-      // Fetch Column E (email addresses) from Collection Schedule
-      const sheetsRes = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent("Collection Schedule 1!E:E")}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+      const metaRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      const sheetsData = await sheetsRes.json();
-      console.log('Sheets response status:', sheetsRes.status, 'rows:', sheetsData.values?.length || 0);
-      if (!sheetsRes.ok) {
-        console.error('Sheets error:', JSON.stringify(sheetsData));
-        return new Response(JSON.stringify({ error: 'Failed to fetch customer emails from sheet' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      const rows = sheetsData.values || [];
+      const metaJson = await metaRes.json();
+      const tabTitles = listCollectionScheduleDataTabTitles(metaJson.sheets || []);
+      const titles = tabTitles.length > 0 ? tabTitles : ["Collection Schedule - 36 Months"];
 
-      // Extract unique valid emails (skip header)
       const emailSet = new Set<string>();
-      for (let i = 1; i < rows.length; i++) {
-        const email = rows[i]?.[0]?.trim()?.toLowerCase();
-        if (email && email.includes('@') && email.length > 3) {
-          emailSet.add(email);
+      for (const sheetTitle of titles) {
+        const sheetsRes = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(`${sheetTitle}!E:E`)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        const sheetsData = await sheetsRes.json();
+        if (!sheetsRes.ok) {
+          console.warn(`Skipping emails from tab ${sheetTitle}:`, sheetsRes.status);
+          continue;
+        }
+        const rows = sheetsData.values || [];
+        for (let i = 1; i < rows.length; i++) {
+          const email = rows[i]?.[0]?.trim()?.toLowerCase();
+          if (email && email.includes("@") && email.length > 3) {
+            emailSet.add(email);
+          }
         }
       }
+      console.log("Sheets: merged unique emails from collection tabs:", emailSet.size);
       console.log('Unique recipient emails found:', emailSet.size);
       recipients = Array.from(emailSet);
     } else if (recipientEmail) {

@@ -14,15 +14,24 @@ export default function DocsSheets() {
         { label: "AgreementTracking", id: "agreement-tracking" },
       ]}
     >
-      <h2 id="collection-schedule">1. CollectionSchedule</h2>
+      <h2 id="collection-schedule">1. Collection Schedule tabs</h2>
       <p>
-        This sheet holds the entire payment schedule for all active customers. Each row represents a customer, their 
-        payment plan, schedule dates per installment, and status tracking for receipts and agreements. It is the 
-        <strong> single source of truth</strong> for financial data and should be treated as the authoritative ledger.
+        The workbook uses <strong>one tab per installment term length</strong> (in months). Tab titles must follow:
       </p>
       <p>
-        Key columns include Stand Number, customer details, deposit and installment amounts (Columns H, K), the payment 
-        start date (Column L), and monthly installment cells (Columns M–AW) that aggregate receipts by calendar month.
+        <code>Collection Schedule - N Months</code> (N = term length) — for example{" "}
+        <code>Collection Schedule - 36 Months</code>.
+        All customers on the same term (e.g. 36 months) live on that tab. The former <code>Collection Schedule 1</code>{" "}
+        tab maps to the <strong>36‑month</strong> schedule; rename it to <code>Collection Schedule - 36 Months</code> when
+        convenient. Legacy name is still accepted by automation until renamed.
+      </p>
+      <p>
+        Each row is one customer: payment plan, schedule dates per installment, and status for receipts and agreements.
+        This is the <strong>single source of truth</strong> for financial data.
+      </p>
+      <p>
+        Key columns include Stand Number, customer details, deposit and installment amounts (Columns H, K), payment
+        start date (Column L), and monthly installment cells from Column M through the last month column for that term.
       </p>
 
       <h2 id="receipts-intake">2. Receipts_Intake</h2>
