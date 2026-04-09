@@ -2,7 +2,14 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { AlertTriangle, Clock, X } from "lucide-react";
 
-// ── Schedule (all times UTC — EST is UTC-4) ───────────────────
+// Opt-in only. Hosting "maintenance mode" and this UI gate are unrelated — without
+// VITE_SCHEDULED_MAINTENANCE=true the app never shows the full-page gate (avoids
+// surprise outages after a one-day window hardcoded in the bundle).
+const SCHEDULED_MAINTENANCE_ENABLED =
+  import.meta.env.VITE_SCHEDULED_MAINTENANCE === "true" ||
+  import.meta.env.VITE_SCHEDULED_MAINTENANCE === "1";
+
+// ── Schedule (all times UTC — EST is UTC-4) — edit when planning a window ──
 // Ribbon appears:    12:00 AM EST Apr 9 = 04:00 UTC Apr 9
 // Maintenance starts: 2:00 AM EST Apr 9 = 06:00 UTC Apr 9
 // Maintenance ends:   2:00 PM EST Apr 9 = 18:00 UTC Apr 9
@@ -33,8 +40,14 @@ function useSchedule() {
     return () => clearInterval(id);
   }, []);
 
-  const showRibbon = now >= RIBBON_START && now < MAINTENANCE_START;
-  const showMaintenance = now >= MAINTENANCE_START && now < MAINTENANCE_END;
+  const showRibbon =
+    SCHEDULED_MAINTENANCE_ENABLED &&
+    now >= RIBBON_START &&
+    now < MAINTENANCE_START;
+  const showMaintenance =
+    SCHEDULED_MAINTENANCE_ENABLED &&
+    now >= MAINTENANCE_START &&
+    now < MAINTENANCE_END;
 
   return { showRibbon, showMaintenance };
 }
