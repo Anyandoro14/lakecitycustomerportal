@@ -5,7 +5,7 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 // ── Maintenance toggle ─────────────────────────────────────────
 // Set MAINTENANCE_ENABLED = true to block customers immediately.
 // Set it back to false to restore access.
-const MAINTENANCE_ENABLED = true;
+const MAINTENANCE_ENABLED = false;
 
 const MAINTENANCE_MESSAGE =
   "We are performing system maintenance. The site will be back shortly. Thank you for your patience.";
