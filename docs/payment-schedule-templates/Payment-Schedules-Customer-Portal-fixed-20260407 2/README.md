@@ -39,6 +39,10 @@ python3 docs/payment-schedule-templates/fix_collection_schedule_templates.py
 
 The live **`fetch-google-sheets`** logic for **Richcraft / “Collection Schedule 1”** assumes a **fixed** width of monthly columns and fixed positions for totals (see `supabase/functions/fetch-google-sheets/index.ts`). These variable-length templates are correct for **Sheets and finance**, but **customer-facing totals may not align** with that code until Edge Functions resolve columns dynamically (e.g. from headers or **NUMBER OF INSTALLMENTS**). Keep **stand numbers unique** across all tabs if the backend searches a single sheet or combined export.
 
-## Tab naming (customer groups)
+## Tab naming
 
-When copying into the master Google Sheet, rename the tab per your docs: **`{{Customer Group name}} - YYYY-MM-DD`** with date ≥ `2022-01-01`, or use legacy **`Collection Schedule 1`** for Richcraft.
+> **This is a deprecated snapshot.** For current tab naming conventions, see the canonical docs:
+> - **[COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md](../COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md)** — operator playbook
+> - **[README.md](../README.md)** — template folder overview
+>
+> Canonical tab name: **`Collection Schedule - {N}mo`** (e.g. `Collection Schedule - 36mo`, `Collection Schedule - 120mo`). Legacy names (`Collection Schedule 1`, `Collection Schedule - N Months`) are accepted until renamed.
