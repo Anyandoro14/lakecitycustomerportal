@@ -71,6 +71,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <MaintenanceRibbon />
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
