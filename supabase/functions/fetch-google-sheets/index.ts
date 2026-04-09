@@ -538,7 +538,7 @@ serve(async (req) => {
     const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
     const phoneIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('phone') || h && h.toString().toLowerCase().includes('contact'));
     const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
-    const paymentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
+    const paymentIndex = headers.findIndex((h, idx) => idx < PAYMENT_GRID_START_COL && h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
     const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
     const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
     const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
