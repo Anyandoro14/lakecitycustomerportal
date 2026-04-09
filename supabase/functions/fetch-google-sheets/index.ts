@@ -613,7 +613,8 @@ serve(async (req) => {
     console.log(`Receipts found for ${receiptsMap.size} stand(s)`);
 
     // Map all stands to data objects
-    const stands = customerRows.map(customerRow => {
+    const stands = [];
+    for (const customerRow of customerRows) {
       const standNumber = customerRow[standNumIndex];
       
       // Combine first and last name
