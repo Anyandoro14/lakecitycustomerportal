@@ -2,19 +2,16 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { AlertTriangle, Clock, X } from "lucide-react";
 
-// ── Schedule (all times UTC — EST is UTC-4) ───────────────────
-// Ribbon appears:    12:00 AM EST Apr 9 = 04:00 UTC Apr 9
-// Maintenance starts: 2:00 AM EST Apr 9 = 06:00 UTC Apr 9
-// Maintenance ends:   2:00 PM EST Apr 9 = 18:00 UTC Apr 9
-const RIBBON_START = new Date("2026-04-09T04:00:00Z");
-const MAINTENANCE_START = new Date("2026-04-09T06:00:00Z");
-const MAINTENANCE_END = new Date("2026-04-09T18:00:00Z");
+// ── Maintenance toggle ─────────────────────────────────────────
+// Set MAINTENANCE_ENABLED = true to block customers immediately.
+// Set it back to false to restore access.
+const MAINTENANCE_ENABLED = true;
 
 const MAINTENANCE_MESSAGE =
-  "We are doing system maintenance. The site will be unavailable from 2 AM EST – 2 PM EST on April 9. Thank you for your patience.";
+  "We are performing system maintenance. The site will be back shortly. Thank you for your patience.";
 
-const RIBBON_MESSAGE =
-  "Scheduled maintenance: April 9, 2 AM – 2 PM EST. The site will be briefly unavailable.";
+const RIBBON_MESSAGE_TEXT =
+  "Scheduled maintenance in progress. The site may be briefly unavailable.";
 
 // Routes that bypass maintenance (internal staff)
 const BYPASS_PREFIXES = [
@@ -23,20 +20,12 @@ const BYPASS_PREFIXES = [
   "/internal-login",
   "/internal-signup",
 ];
-// ───────────────────────────────────────────────────────────────
 
 function useSchedule() {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const showRibbon = now >= RIBBON_START && now < MAINTENANCE_START;
-  const showMaintenance = now >= MAINTENANCE_START && now < MAINTENANCE_END;
-
-  return { showRibbon, showMaintenance };
+  return {
+    showRibbon: false, // Set to true to show a warning ribbon before blocking
+    showMaintenance: MAINTENANCE_ENABLED,
+  };
 }
 
 /* ── Ribbon (pre-maintenance alert) ──────────────────────────── */
