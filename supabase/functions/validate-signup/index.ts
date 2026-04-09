@@ -64,7 +64,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!standNumber || typeof standNumber !== 'string') {
       return new Response(
         JSON.stringify({ valid: false, error: "Stand number is required" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
