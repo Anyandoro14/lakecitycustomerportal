@@ -3,6 +3,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
 import {
   resolveCollectionScheduleSheetTitle,
+  PAYMENT_GRID_START_COL,
+  PAYMENT_GRID_END_COL,
+  PAYMENT_GRID_BASE_DATE,
+  customerPaymentStartCol,
 } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
@@ -494,8 +498,8 @@ serve(async (req) => {
       `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
     );
 
-    // Fetch the data - extended to BH to include Agreement signed columns
-    const range = encodeURIComponent(`${sheetTitle}!A:BJ`);
+    // Fetch the data — wide enough to cover 168 payment columns + summary + status columns
+    const range = encodeURIComponent(`${sheetTitle}!A:GZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -534,7 +538,7 @@ serve(async (req) => {
     const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
     const phoneIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('phone') || h && h.toString().toLowerCase().includes('contact'));
     const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
-    const paymentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
+    const paymentIndex = headers.findIndex((h, idx) => idx < PAYMENT_GRID_START_COL && h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
     const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
     const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
     const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
@@ -698,8 +702,8 @@ serve(async (req) => {
         paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
           ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
           : 36;
-      const paymentStartCol = 12; // Column M
-      const paymentEndCol = paymentStartCol + termMonths - 1;
+      const paymentStartCol = PAYMENT_GRID_START_COL; // Column M (index 12)
+      const paymentEndCol = PAYMENT_GRID_END_COL;     // Column FX (index 179) — full 168-month grid
 
       const headerStr = (i: number) =>
         headers[i] != null ? String(headers[i]).trim() : "";
@@ -737,24 +741,16 @@ serve(async (req) => {
         /client/i.test(s) && /sign|agreement/i.test(s),
       );
       let agreementOfSaleFileCol = findHeaderCol((s) =>
-        /agreement\s*of\s*sale|drive|file\s*link|google\s*drive/i.test(s),
+        /agreement\s*(of\s*sale)?\s*file|drive|file\s*link|google\s*drive/i.test(s),
       );
-      if (agreementSignedByWarwickshireCol < 0) agreementSignedByWarwickshireCol = 58;
-      if (agreementSignedByClientCol < 0) agreementSignedByClientCol = 59;
-      if (agreementOfSaleFileCol < 0) agreementOfSaleFileCol = 61;
+      // No hardcoded fallbacks — these columns move with the sheet layout
+      // If not found by header name, they will remain -1 (not found)
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
 
-      // Base date for monthly payment columns comes from the header of column O (e.g. "5 November 2025")
-      const firstPaymentHeader = headers[paymentStartCol];
-      let basePaymentDate = customerStartDate;
-      if (firstPaymentHeader) {
-        const parsedHeaderDate = new Date(firstPaymentHeader);
-        if (!isNaN(parsedHeaderDate.getTime())) {
-          basePaymentDate = parsedHeaderDate;
-        }
-      }
+      // Base date for monthly payment columns: Column M = "5 January 2022" (global grid)
+      const basePaymentDate = new Date(PAYMENT_GRID_BASE_DATE);
       
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
       const sheetTotalPaid = customerRow[totalPaidCol] || '$0.00';
