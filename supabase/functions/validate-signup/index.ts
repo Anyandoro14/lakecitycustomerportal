@@ -71,7 +71,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       return new Response(
         JSON.stringify({ valid: false, error: "Phone number is required" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -81,7 +81,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (trimmedStand.length === 0 || trimmedStand.length > 50) {
       return new Response(
         JSON.stringify({ valid: false, error: "Invalid stand number format" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -90,7 +90,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!phoneRegex.test(trimmedPhone)) {
       return new Response(
         JSON.stringify({ valid: false, error: "Invalid phone number format" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -105,7 +105,7 @@ const handler = async (req: Request): Promise<Response> => {
           console.log(`Rate limit exceeded for phone: ${trimmedPhone}`);
           return new Response(
             JSON.stringify({ valid: false, error: "Too many attempts. Please try again later." }),
-            { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
         attemptRecord.count++;
@@ -148,7 +148,7 @@ const handler = async (req: Request): Promise<Response> => {
           error: "An account already exists for this stand number. Please login instead.",
           existingAccount: true
         }),
-        { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -174,7 +174,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.error('Google service account not configured');
       return new Response(
         JSON.stringify({ valid: false, error: "Server configuration error" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -230,7 +230,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.error('Failed to get Google access token');
       return new Response(
         JSON.stringify({ valid: false, error: "Failed to verify credentials" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -240,7 +240,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!spreadsheetId) {
       return new Response(
         JSON.stringify({ valid: false, error: "Server configuration error" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -254,7 +254,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.error('Failed to fetch spreadsheet metadata');
       return new Response(
         JSON.stringify({ valid: false, error: "Failed to verify credentials" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -302,7 +302,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (rows.length === 0) {
       return new Response(
         JSON.stringify({ valid: false, error: "Stand number not found in our records" }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -319,7 +319,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.error('Could not find stand number column in spreadsheet');
       return new Response(
         JSON.stringify({ valid: false, error: "Data source configuration error" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -335,7 +335,7 @@ const handler = async (req: Request): Promise<Response> => {
           valid: false, 
           error: "Stand number not found in our records. Please contact support." 
         }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -367,7 +367,7 @@ const handler = async (req: Request): Promise<Response> => {
               valid: false, 
               error: "The phone number does not match our records for this stand number. Please check and try again." 
             }),
-            { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
         
@@ -401,7 +401,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.error("Error in validate-signup function:", error);
     return new Response(
       JSON.stringify({ valid: false, error: "An unexpected error occurred" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };
