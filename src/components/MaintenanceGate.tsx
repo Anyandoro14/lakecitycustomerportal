@@ -96,7 +96,7 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
         {/* Time window */}
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-5 py-2 text-sm text-muted-foreground">
           <Clock className="h-4 w-4" />
-          <span>April 9 · 2 AM – 2 PM EST</span>
+          <span>April 9 · 5 AM – 5 PM EST</span>
         </div>
       </div>
     </div>
