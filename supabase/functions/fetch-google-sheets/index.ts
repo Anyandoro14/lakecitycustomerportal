@@ -743,9 +743,8 @@ serve(async (req) => {
       let agreementOfSaleFileCol = findHeaderCol((s) =>
         /agreement\s*of\s*sale|drive|file\s*link|google\s*drive/i.test(s),
       );
-      if (agreementSignedByWarwickshireCol < 0) agreementSignedByWarwickshireCol = 58;
-      if (agreementSignedByClientCol < 0) agreementSignedByClientCol = 59;
-      if (agreementOfSaleFileCol < 0) agreementOfSaleFileCol = 61;
+      // No hardcoded fallbacks — these columns move with the sheet layout
+      // If not found by header name, they will remain -1 (not found)
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
