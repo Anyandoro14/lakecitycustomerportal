@@ -1032,6 +1032,18 @@ serve(async (req) => {
         }
       }
       
+      // ── Defensive fallbacks when sheet formula cells are empty / stale ──
+
+      // Current Balance: prefer sheet value; fall back to totalPrice − totalPaid
+      const sheetBalanceNum = parseCurrencyToNumber(currentBalance);
+      const totalPriceNum = parseCurrencyToNumber(totalPrice);
+      let effectiveBalance = currentBalance; // raw sheet string
+      if (sheetBalanceNum === 0 && totalPriceNum > 0 && totalPaidLikeSheet > 0) {
+        const computedBalance = Math.max(0, totalPriceNum - totalPaidLikeSheet);
+        effectiveBalance = `$${computedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        console.log(`Stand ${standNumber}: Sheet balance empty/zero — using computed balance ${effectiveBalance}`);
+      }
+
       // Calculate payment progress percentage from sheet or fallback to calculation
       let progressPercentage = 0;
       
@@ -1039,13 +1051,20 @@ serve(async (req) => {
       const progressStr = paymentProgress.toString().replace('%', '').trim();
       const progressNum = parseFloat(progressStr);
       
-      if (!isNaN(progressNum) && progressNum >= 0) {
+      if (!isNaN(progressNum) && progressNum > 0) {
+        // Only trust sheet value when it's positive (0% with a real deposit means formula is empty)
         progressPercentage = Math.round(progressNum);
       } else {
         // Fallback: progress = (deposit + instalments) / Total price (Column I base)
-        const tpNum = parseCurrencyToNumber(totalPrice);
         progressPercentage =
-          tpNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / tpNum) * 100)) : 0;
+          totalPriceNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / totalPriceNum) * 100)) : 0;
+      }
+
+      // Last Payment: when no monthly columns filled but deposit exists, show deposit
+      if (lastPaymentIndex < 0 && depositAmount > 0) {
+        lastPaymentAmount = `$${depositAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        lastPaymentDate = 'Initial Deposit';
+        console.log(`Stand ${standNumber}: No monthly payments — showing deposit as last payment`);
       }
       
       console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);
@@ -1067,7 +1086,7 @@ serve(async (req) => {
         customerName: fullName || '',
         customerCategory: customerCategory,
         customerPhone: phoneNumber,
-        standBalance: currentBalance,
+        standBalance: effectiveBalance,
         lastPayment: lastPaymentAmount,
         lastPaymentDate: lastPaymentDate,
         nextPayment: nextPaymentAmount,
@@ -1076,7 +1095,7 @@ serve(async (req) => {
         daysOverdue: daysOverdue,
         paymentNotYetDue: paymentNotYetDue,
         paymentStartDate: customerStartDate.toISOString(),
-        currentBalance: currentBalance,
+        currentBalance: effectiveBalance,
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
         nextDueDate: nextPaymentDue,
