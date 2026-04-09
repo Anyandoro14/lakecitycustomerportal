@@ -190,7 +190,7 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
-/** Union of stand numbers across all Collection Schedule - N Months tabs (and legacy tab). */
+/** Union of stand numbers across all Collection Schedule - Nmo tabs (and legacy tabs). */
 async function fetchValidStandNumbersFromAllCollectionTabs(
   accessToken: string,
   spreadsheetId: string,

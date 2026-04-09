@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Renames the Google Sheets tab "Collection Schedule 1" → "Collection Schedule - 36 Months".
+ * Renames the Google Sheets tab "Collection Schedule 1" → "Collection Schedule - 36mo".
  *
  * Requires environment (e.g. `node --env-file=.env` on Node 20+, or export manually):
  *   GOOGLE_SERVICE_ACCOUNT_KEY — JSON string with private_key and client_email (same as Edge Functions)
@@ -12,7 +12,7 @@
 import { createSign } from "node:crypto";
 
 const OLD_TITLE = "Collection Schedule 1";
-const NEW_TITLE = "Collection Schedule - 36 Months";
+const NEW_TITLE = "Collection Schedule - 36mo";
 
 function base64url(str) {
   return Buffer.from(str, "utf8")

@@ -23,23 +23,25 @@ export default function DocsSheets() {
       <h3>Tab naming convention</h3>
       <p>A tab title must match the canonical pattern:</p>
       <pre className="rounded-md bg-muted px-4 py-3 text-sm font-mono my-2">
-        Collection Schedule - {"<N>"} Months
+        Collection Schedule - {"<N>"}mo
       </pre>
       <p>
         where <code>{"<N>"}</code> is a positive integer (e.g. 12, 24, 36, 48, 60, 72, 84, 96, 120).
       </p>
       <p>
-        <strong>Regex:</strong> <code>{"^Collection Schedule - (\\d+) Months$"}</code> (case-insensitive in app helpers).
+        <strong>Canonical regex:</strong> <code>{"^Collection Schedule - (\\d+)mo$"}</code> (case-insensitive in app
+        helpers). The backend also accepts the transition form{" "}
+        <code>{"^Collection Schedule - (\\d+) Months$"}</code>.
       </p>
       <p>
-        <strong>Example:</strong> <code>Collection Schedule - 36 Months</code> is the new name for the original{" "}
-        <code>Collection Schedule 1</code> tab (36‑month cohort).
+        <strong>Example:</strong> <code>Collection Schedule - 36mo</code> replaces the original <code>Collection Schedule 1</code>{" "}
+        tab for the 36‑month cohort.
       </p>
 
-      <h3>Legacy name</h3>
+      <h3>Legacy names</h3>
       <p>
-        <code>Collection Schedule 1</code> remains accepted as the <strong>36‑month</strong> tab until the sheet is
-        renamed. Do not show this legacy label to customers.
+        <code>Collection Schedule 1</code> and <code>Collection Schedule - N Months</code> remain accepted until tabs are
+        renamed. Do not show legacy labels to customers.
       </p>
 
       <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mt-2 mb-4">

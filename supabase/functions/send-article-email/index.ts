@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
       );
       const metaJson = await metaRes.json();
       const tabTitles = listCollectionScheduleDataTabTitles(metaJson.sheets || []);
-      const titles = tabTitles.length > 0 ? tabTitles : ["Collection Schedule - 36 Months"];
+      const titles = tabTitles.length > 0 ? tabTitles : ["Collection Schedule - 36mo"];
 
       const emailSet = new Set<string>();
       for (const sheetTitle of titles) {

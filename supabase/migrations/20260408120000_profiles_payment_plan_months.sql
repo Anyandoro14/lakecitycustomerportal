@@ -1,4 +1,4 @@
--- Maps each customer to their Collection Schedule tab: "Collection Schedule - {N} Months"
+-- Maps each customer to their Collection Schedule tab (canonical naming in 20260408140000)
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS payment_plan_months integer;
 

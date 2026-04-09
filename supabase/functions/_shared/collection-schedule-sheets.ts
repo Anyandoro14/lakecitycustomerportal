@@ -1,8 +1,8 @@
 /**
  * Collection Schedule tab naming and resolution (Google Sheets).
  *
- * Canonical tab title: "Collection Schedule - {N} Months" (e.g. "Collection Schedule - 36 Months").
- * Legacy: "Collection Schedule 1" is treated as the 36-month Richcraft tab until renamed.
+ * Canonical tab title: "Collection Schedule - {N}mo" (e.g. "Collection Schedule - 36mo").
+ * Legacy: "Collection Schedule - {N} Months" and "Collection Schedule 1" (36 mo) until renamed.
  */
 
 export const DEFAULT_PAYMENT_PLAN_MONTHS = 36;
@@ -14,13 +14,22 @@ export type SheetMeta = { properties: SheetProperties };
 /** Exact canonical name for a term length. */
 export function collectionScheduleTabName(months: number): string {
   const n = Number.isFinite(months) && months > 0 ? Math.round(months) : DEFAULT_PAYMENT_PLAN_MONTHS;
+  return `Collection Schedule - ${n}mo`;
+}
+
+/** Legacy alternate title used during transition from "Months" suffix. */
+function collectionScheduleTabNameLegacyMonths(months: number): string {
+  const n = Number.isFinite(months) && months > 0 ? Math.round(months) : DEFAULT_PAYMENT_PLAN_MONTHS;
   return `Collection Schedule - ${n} Months`;
 }
 
-const TAB_REGEX = /^Collection Schedule - (\d+) Months$/i;
+const TAB_REGEX_MO = /^Collection Schedule - (\d+)mo$/i;
+const TAB_REGEX_MONTHS_LEGACY = /^Collection Schedule - (\d+) Months$/i;
 
 export function parseCollectionScheduleTabMonths(title: string): number | null {
-  const m = String(title ?? "").trim().match(TAB_REGEX);
+  const s = String(title ?? "").trim();
+  let m = s.match(TAB_REGEX_MO);
+  if (!m) m = s.match(TAB_REGEX_MONTHS_LEGACY);
   if (!m) return null;
   const n = parseInt(m[1], 10);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -105,6 +114,12 @@ export function resolveCollectionScheduleSheetTitle(
   const byExact = list.find((s) => s.properties?.title === canonical);
   if (byExact?.properties?.title) {
     return { sheetTitle: byExact.properties.title, resolvedMonths: months, source: "canonical" };
+  }
+
+  const legacyMonthsTitle = collectionScheduleTabNameLegacyMonths(months);
+  const byLegacyMonths = list.find((s) => s.properties?.title === legacyMonthsTitle);
+  if (byLegacyMonths?.properties?.title) {
+    return { sheetTitle: byLegacyMonths.properties.title, resolvedMonths: months, source: "legacy_months_suffix" };
   }
 
   if (months === DEFAULT_PAYMENT_PLAN_MONTHS) {

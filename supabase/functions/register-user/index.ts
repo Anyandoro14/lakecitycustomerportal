@@ -16,7 +16,7 @@ interface RegisterUserRequest {
   phoneNumber: string;
   password: string;
   email?: string;
-  /** Matches Collection Schedule tab "Collection Schedule - N Months" from validate-signup */
+  /** Matches Collection Schedule tab "Collection Schedule - Nmo" (or legacy "N Months") from validate-signup */
   paymentPlanMonths?: number;
 }
 

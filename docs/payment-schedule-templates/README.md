@@ -37,8 +37,8 @@ Manual alternative: `python3 -m venv docs/payment-schedule-templates/.venv-xlsx`
 
 ## Portal / Edge Functions note
 
-Edge Functions resolve the correct tab using **`profiles.payment_plan_months`** and the canonical name **`Collection Schedule - N Months`**. Pick the template whose term **N** matches that profile value. Variable-width templates use header-based totals where supported.
+Edge Functions resolve the correct tab using **`profiles.payment_plan_months`** and the canonical name **`Collection Schedule - Nmo`**. Pick the template whose term **N** matches that profile value. Variable-width templates use header-based totals where supported.
 
 ## Tab naming in the master workbook
 
-Use **`Collection Schedule - N Months`** (e.g. **`Collection Schedule - 36 Months`**). Legacy **`Collection Schedule 1`** is still recognized as the 36‑month tab until you rename it.
+Use **`Collection Schedule - Nmo`** (e.g. **`Collection Schedule - 36mo`**). Legacy **`Collection Schedule - N Months`** and **`Collection Schedule 1`** are still recognized until tabs are renamed.
