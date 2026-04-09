@@ -741,7 +741,7 @@ serve(async (req) => {
         /client/i.test(s) && /sign|agreement/i.test(s),
       );
       let agreementOfSaleFileCol = findHeaderCol((s) =>
-        /agreement\s*of\s*sale|drive|file\s*link|google\s*drive/i.test(s),
+        /agreement\s*(of\s*sale)?\s*file|drive|file\s*link|google\s*drive/i.test(s),
       );
       // No hardcoded fallbacks — these columns move with the sheet layout
       // If not found by header name, they will remain -1 (not found)
