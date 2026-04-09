@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { LookingGlassProvider } from "@/contexts/LookingGlassContext";
 import { TenantProvider } from "@/contexts/TenantContext";
-import MaintenanceGate from "@/components/MaintenanceGate";
+import MaintenanceGate, { MaintenanceRibbon } from "@/components/MaintenanceGate";
 
 // Critical path - loaded immediately
 import Login from "./pages/Login";
