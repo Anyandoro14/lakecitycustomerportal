@@ -899,6 +899,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          payment_plan_months: number | null
           payment_start_date: string
           phone_number: string | null
           phone_number_2: string | null
@@ -910,6 +911,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          payment_plan_months?: number | null
           payment_start_date?: string
           phone_number?: string | null
           phone_number_2?: string | null
@@ -921,6 +923,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          payment_plan_months?: number | null
           payment_start_date?: string
           phone_number?: string | null
           phone_number_2?: string | null

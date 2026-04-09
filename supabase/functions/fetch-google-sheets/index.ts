@@ -613,7 +613,8 @@ serve(async (req) => {
     console.log(`Receipts found for ${receiptsMap.size} stand(s)`);
 
     // Map all stands to data objects
-    const stands = customerRows.map(customerRow => {
+    const stands = [];
+    for (const customerRow of customerRows) {
       const standNumber = customerRow[standNumIndex];
       
       // Combine first and last name
@@ -1027,7 +1028,7 @@ serve(async (req) => {
       console.log(`Stand ${standNumber}: Agreement signed by Warwickshire = ${agreementSignedByWarwickshire}, by Client = ${agreementSignedByClient}`);
       console.log(`Stand ${standNumber}: Agreement of Sale File = ${agreementOfSaleFile ? 'Present' : 'Not available'}`);
 
-      return {
+      const standData = {
         customerId: customerRow[standNumIndex] || '',
         standNumber: standNumber || '',
         customerName: fullName || '',
@@ -1056,7 +1057,8 @@ serve(async (req) => {
         deposit: deposit, // Deposit amount from Collection Schedule
         isVatInclusive: isVatInclusive, // VAT indicator: true=inclusive, false=exclusive, null=unknown
       };
-    });
+      stands.push(standData);
+    }
 
     return new Response(
       JSON.stringify({ stands }),
