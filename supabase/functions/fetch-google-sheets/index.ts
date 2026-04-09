@@ -750,15 +750,8 @@ serve(async (req) => {
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
 
-      // Base date for monthly payment columns comes from the header of column O (e.g. "5 November 2025")
-      const firstPaymentHeader = headers[paymentStartCol];
-      let basePaymentDate = customerStartDate;
-      if (firstPaymentHeader) {
-        const parsedHeaderDate = new Date(firstPaymentHeader);
-        if (!isNaN(parsedHeaderDate.getTime())) {
-          basePaymentDate = parsedHeaderDate;
-        }
-      }
+      // Base date for monthly payment columns: Column M = "5 January 2022" (global grid)
+      const basePaymentDate = new Date(PAYMENT_GRID_BASE_DATE);
       
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
       const sheetTotalPaid = customerRow[totalPaidCol] || '$0.00';
