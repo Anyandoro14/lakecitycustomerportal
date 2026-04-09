@@ -6,7 +6,7 @@ Excel workbooks for customer payment grids, aligned with the portal’s **Column
 
 1. **TOTAL PAID** had been defined as `SUM` from Column M through the **Next Payment Column**. That incorrectly included the non-amount “Next Payment Column”. It is now **`SUM` only across true monthly columns** (from M through the column immediately before Next Payment).
 2. **Current Balance** and **Payment Progress** are rewritten so they always reference the **TOTAL PAID** column for that template (required after structural edits).
-3. **`TEMPLATE_INSTRUCTIONS`** was updated so the formula description matches the fix (and per-template column letters).
+3. Formula descriptions were updated to match the fix (and per-template column letters). Note: operator instructions are now maintained in a **standalone document** (`COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md`), not as a tab inside the workbook.
 4. **60-month** workbook was missing from the original zip; it is generated from the 72-month file by removing the last 12 monthly columns.
 
 ## Templates included
@@ -23,7 +23,7 @@ Excel workbooks for customer payment grids, aligned with the portal’s **Column
 | `Collection_Schedule_Template_96mo.xlsx` | 96 |
 | `Collection_Schedule_Template_120mo.xlsx` | 120 |
 
-Each file has a **TEMPLATE_INSTRUCTIONS** sheet and a **Collection Schedule - {N}mo** data sheet.
+Each file has **one** data sheet: **`Collection Schedule - {N}mo`**. Operator setup instructions are in **`COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md`**.
 
 ## Regenerating fixes
 
