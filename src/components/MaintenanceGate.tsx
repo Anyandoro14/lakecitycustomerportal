@@ -44,7 +44,7 @@ export function MaintenanceRibbon() {
     <div className="relative bg-amber-500/90 text-white backdrop-blur-sm">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-2.5 text-sm font-medium">
         <Clock className="h-4 w-4 flex-shrink-0" />
-        <span className="flex-1">{RIBBON_MESSAGE}</span>
+        <span className="flex-1">{RIBBON_MESSAGE_TEXT}</span>
         <button
           onClick={() => setDismissed(true)}
           className="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/20"
