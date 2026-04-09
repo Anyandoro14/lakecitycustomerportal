@@ -29,7 +29,7 @@ Excel workbooks for the **Collection Schedule** tabs in Google Sheets. They impl
 | `Collection_Schedule_Template_96mo.xlsx` | 96 |
 | `Collection_Schedule_Template_120mo.xlsx` | 120 |
 
-Each file has **TEMPLATE_INSTRUCTIONS** and a **Collection Schedule - {N}mo** data sheet.
+Each file has **one** data sheet: **`Collection Schedule - {N}mo`**. Operator setup instructions are in **[COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md](./COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md)**.
 
 ## Regenerating formulas
 
@@ -43,7 +43,7 @@ Then replace or merge the output xlsx files into your master Google Sheet, or up
 
 ## Portal / Edge Functions
 
-`fetch-google-sheets` reads **`profiles.payment_plan_months`** (default 36) to know **how many** month columns (M onward) to include, and finds **TOTAL PAID** / **Current Balance** / **Payment Progress** by **header text** so widened layouts keep working.
+`fetch-google-sheets` reads **`profiles.payment_plan_months`** (default 36) to determine how many month columns (M onward) to include, and **clamps** reads to the column before **Next Payment** (FY). It finds **TOTAL PAID** (FZ) / **Current Balance** / **Payment Progress** by **header text** so the 168-column layout keeps working.
 
 ## Tab naming in the master workbook
 
