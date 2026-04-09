@@ -204,22 +204,36 @@ serve(async (req) => {
       // No body or invalid JSON, continue with normal flow
     }
 
-    // Resolve spreadsheet_id: prefer tenant_id lookup, fall back to env var
+    // Resolve spreadsheet_id: prefer tenant lookup (UUID id or slug e.g. "lakecity"), then env var
     let spreadsheetId: string | null = null;
     const requestTenantId = requestBody.tenant_id;
 
     if (requestTenantId) {
-      const { data: tenant, error: tenantError } = await supabaseClient
+      const { data: byId, error: byIdError } = await supabaseClient
         .from('tenants')
         .select('spreadsheet_id')
         .eq('id', requestTenantId)
-        .single();
+        .maybeSingle();
 
-      if (tenantError) {
-        console.warn('Tenant lookup failed, falling back to env var:', tenantError.message);
-      } else if (tenant?.spreadsheet_id) {
-        spreadsheetId = tenant.spreadsheet_id;
-        console.log(`Using spreadsheet_id from tenant ${requestTenantId}`);
+      if (!byIdError && byId?.spreadsheet_id) {
+        spreadsheetId = byId.spreadsheet_id;
+        console.log(`Using spreadsheet_id from tenant id ${requestTenantId}`);
+      } else {
+        const { data: bySlug, error: bySlugError } = await supabaseClient
+          .from('tenants')
+          .select('spreadsheet_id')
+          .eq('slug', requestTenantId)
+          .maybeSingle();
+
+        if (!bySlugError && bySlug?.spreadsheet_id) {
+          spreadsheetId = bySlug.spreadsheet_id;
+          console.log(`Using spreadsheet_id from tenant slug ${requestTenantId}`);
+        } else if (byIdError || bySlugError) {
+          console.warn(
+            'Tenant lookup failed (try id + slug), falling back to env:',
+            byIdError?.message || bySlugError?.message,
+          );
+        }
       }
     }
 

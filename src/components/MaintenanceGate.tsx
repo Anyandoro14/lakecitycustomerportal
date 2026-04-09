@@ -9,6 +9,9 @@ const SCHEDULED_MAINTENANCE_ENABLED =
   import.meta.env.VITE_SCHEDULED_MAINTENANCE === "true" ||
   import.meta.env.VITE_SCHEDULED_MAINTENANCE === "1";
 
+// April 9, 2026 window is over — keep false until you set new UTC dates below and enable via env.
+const MAINTENANCE_SCHEDULE_ACTIVE = false;
+
 // ── Schedule (all times UTC — EST is UTC-4) — edit when planning a window ──
 // Ribbon appears:    12:00 AM EST Apr 9 = 04:00 UTC Apr 9
 // Maintenance starts: 2:00 AM EST Apr 9 = 06:00 UTC Apr 9
@@ -41,10 +44,12 @@ function useSchedule() {
   }, []);
 
   const showRibbon =
+    MAINTENANCE_SCHEDULE_ACTIVE &&
     SCHEDULED_MAINTENANCE_ENABLED &&
     now >= RIBBON_START &&
     now < MAINTENANCE_START;
   const showMaintenance =
+    MAINTENANCE_SCHEDULE_ACTIVE &&
     SCHEDULED_MAINTENANCE_ENABLED &&
     now >= MAINTENANCE_START &&
     now < MAINTENANCE_END;
