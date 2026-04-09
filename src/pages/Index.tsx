@@ -77,8 +77,8 @@ const Index = () => {
       setLoading(true);
     }
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-customer-data', {
-        body: { tenant_id: tenantId }
+      const { data, error } = await supabase.functions.invoke('fetch-google-sheets', {
+        body: { tenant_id: tenantId },
       });
 
       if (error) {
