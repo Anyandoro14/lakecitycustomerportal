@@ -952,10 +952,15 @@ serve(async (req) => {
       // Format calculated total to match sheet: deposit + instalment cells (see BNPL_SCHEDULE_SPEC.md)
       const calculatedTotalPaid = `$${totalPaidLikeSheet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       
+      // AUTHORITATIVE: prefer the sheet's own Total Paid formula (column FZ) when available.
+      // Only fall back to the computed value when the sheet cell is empty / zero.
       const sheetTotalNum = parseFloat(sheetTotalPaid.toString().replace(/[$,]/g, '')) || 0;
+      const authoritiveTotalPaid = sheetTotalNum > 0 ? sheetTotalNum : totalPaidLikeSheet;
+      const authoritativeTotalPaidStr = `$${authoritiveTotalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
       if (Math.abs(sheetTotalNum - totalPaidLikeSheet) > 0.01) {
         console.warn(
-          `Stand ${standNumber}: DISCREPANCY - Sheet TOTAL PAID ${sheetTotalPaid} (${sheetTotalNum}) vs computed ${calculatedTotalPaid} (${totalPaidLikeSheet})`,
+          `Stand ${standNumber}: DISCREPANCY - Sheet TOTAL PAID ${sheetTotalPaid} (${sheetTotalNum}) vs computed ${calculatedTotalPaid} (${totalPaidLikeSheet}). Using sheet value as authoritative.`,
         );
       }
       
