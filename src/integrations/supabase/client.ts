@@ -2,8 +2,23 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+/**
+ * Both must be non-empty at build time for a working app.
+ * Lovable / CI must inject these; if either is missing, createClient() would throw
+ * during module load and the site would stay a blank white page (no React mount).
+ */
+const rawUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+const rawKey = (
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
+)?.trim();
+
+export const isSupabaseConfigured = Boolean(rawUrl && rawKey);
+
+/** Placeholders only so createClient never throws at import time; requests fail until env is fixed. */
+const SUPABASE_URL = rawUrl || 'https://missing-env.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY =
+  rawKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.missing-publishable-key';
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -13,5 +28,5 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
 });
