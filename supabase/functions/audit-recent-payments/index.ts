@@ -110,6 +110,110 @@ function parseDate(s: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// ── Scan early columns mode: find any non-zero values in columns M,N (Jan/Feb 2022) ──
+async function scanEarlyColumns(
+  accessToken: string,
+  spreadsheetId: string,
+  sheets: any[],
+  fix: boolean,
+  colsToScan: number[] // 0-based column indices
+): Promise<Response> {
+  const collectionTabs = listCollectionScheduleDataTabTitles(sheets);
+  
+  interface EarlyColEntry {
+    sheet_tab: string;
+    row: number;
+    stand_number: string;
+    customer_name: string;
+    column_letter: string;
+    column_index: number;
+    column_date: string;
+    value: string;
+    raw_value: number;
+    action_needed: 'clear' | 'none';
+  }
+
+  const report: EarlyColEntry[] = [];
+  const fixes: { cell: string }[] = [];
+
+  for (const tabTitle of collectionTabs) {
+    const r = encodeURIComponent(`${tabTitle}!A:GZ`);
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${r}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) continue;
+    const d = await res.json();
+    const rows: string[][] = d.values || [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const standNumber = (row[1] || '').trim(); // Column B
+      if (!standNumber) continue;
+      const customerName = (row[0] || '').trim(); // Column A
+
+      for (const colIdx of colsToScan) {
+        const cellVal = (row[colIdx] || '').trim();
+        if (!cellVal) continue;
+        const numVal = parseCurrency(cellVal);
+        if (numVal <= 0) continue;
+
+        // Calculate what date this column represents
+        const monthsFromBase = colIdx - PAYMENT_GRID_START_COL;
+        const colDate = new Date(2022, monthsFromBase, 5);
+        const colDateStr = colDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        const colLetter = columnIndexToA1Letter(colIdx);
+
+        report.push({
+          sheet_tab: tabTitle,
+          row: i + 1,
+          stand_number: standNumber,
+          customer_name: customerName,
+          column_letter: colLetter,
+          column_index: colIdx,
+          column_date: colDateStr,
+          value: cellVal,
+          raw_value: numVal,
+          action_needed: 'clear',
+        });
+
+        if (fix) {
+          fixes.push({ cell: `${tabTitle}!${colLetter}${i + 1}` });
+        }
+      }
+    }
+  }
+
+  // Apply fixes
+  const fixResults: string[] = [];
+  if (fix && fixes.length > 0) {
+    for (const f of fixes) {
+      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(f.cell)}:clear`;
+      await fetch(clearUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      fixResults.push(`Cleared ${f.cell}`);
+      console.log(`[FIX] Cleared ${f.cell}`);
+    }
+  }
+
+  return new Response(JSON.stringify({
+    mode: fix ? 'fix' : 'report_only',
+    scan_type: 'early_columns',
+    summary: {
+      tabs_scanned: collectionTabs.length,
+      misplaced_values_found: report.length,
+      fixes_applied: fix ? fixes.length : 0,
+    },
+    report,
+    ...(fix ? { fix_results: fixResults } : {}),
+  }, null, 2), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    status: 200,
+  });
+}
+
 // ── Main ──
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -117,6 +221,7 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const fix = url.searchParams.get('fix') === 'true';
+    const mode = url.searchParams.get('mode') || 'receipt_audit';
 
     const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
     if (!spreadsheetId) throw new Error('SPREADSHEET_ID not configured');
@@ -131,6 +236,14 @@ serve(async (req) => {
     const meta = await metaRes.json();
     const sheets = meta.sheets || [];
 
+    // Mode: scan_early — scan columns M,N (or custom) for misplaced values
+    if (mode === 'scan_early') {
+      const colsParam = url.searchParams.get('cols') || '12,13'; // M=12, N=13
+      const colsToScan = colsParam.split(',').map(c => parseInt(c.trim(), 10)).filter(n => !isNaN(n));
+      return await scanEarlyColumns(accessToken, spreadsheetId, sheets, fix, colsToScan);
+    }
+
+    // Default mode: receipt_audit (original Apr 8-10 audit)
     // 1) Read Receipts_Intake
     const intakeRange = encodeURIComponent('Receipts_Intake!A:L');
     const intakeRes = await fetch(
