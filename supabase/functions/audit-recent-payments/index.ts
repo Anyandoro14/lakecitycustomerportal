@@ -185,9 +185,9 @@ async function scanEarlyColumns(
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const standNumber = (row[1] || '').trim(); // Column B
+      const standNumber = (row[0] || '').trim(); // Column A = stand number
       if (!standNumber) continue;
-      const customerName = (row[0] || '').trim(); // Column A
+      const customerName = (row[1] || '').trim(); // Column B = customer name
       const standNorm = standNumber.toUpperCase();
 
       for (const colIdx of colsToScan) {
