@@ -119,7 +119,40 @@ async function scanEarlyColumns(
   colsToScan: number[] // 0-based column indices
 ): Promise<Response> {
   const collectionTabs = listCollectionScheduleDataTabTitles(sheets);
-  
+
+  // Fetch Receipts_Intake to cross-reference
+  const intakeRange = encodeURIComponent('Receipts_Intake!A:L');
+  const intakeRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${intakeRange}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  interface IntakeMatch {
+    intake_row: number;
+    intake_id: string;
+    timestamp: string;
+    stand: string;
+    payment_date: string;
+    amount: number;
+    status: string;
+  }
+  const intakeMatches: IntakeMatch[] = [];
+  if (intakeRes.ok) {
+    const intakeData = await intakeRes.json();
+    const intakeRows: string[][] = intakeData.values || [];
+    for (let i = 1; i < intakeRows.length; i++) {
+      const r = intakeRows[i];
+      intakeMatches.push({
+        intake_row: i + 1,
+        intake_id: (r[0] || '').trim(),
+        timestamp: (r[1] || '').trim(),
+        stand: (r[2] || '').trim().toUpperCase(),
+        payment_date: (r[4] || '').trim(),
+        amount: parseCurrency(r[5] || ''),
+        status: (r[10] || '').trim(),
+      });
+    }
+  }
+
   interface EarlyColEntry {
     sheet_tab: string;
     row: number;
@@ -130,11 +163,15 @@ async function scanEarlyColumns(
     column_date: string;
     value: string;
     raw_value: number;
-    action_needed: 'clear' | 'none';
+    receipt_match: IntakeMatch | null;
+    correct_column_letter: string | null;
+    correct_column_date: string | null;
+    action_needed: 'clear_and_repost' | 'flag_no_match' | 'none';
   }
 
   const report: EarlyColEntry[] = [];
-  const fixes: { cell: string }[] = [];
+  interface FixAction { clearCell: string; writeCell: string; value: number; existingTarget: number; rowData: string[] }
+  const fixes: FixAction[] = [];
 
   for (const tabTitle of collectionTabs) {
     const r = encodeURIComponent(`${tabTitle}!A:GZ`);
@@ -151,6 +188,7 @@ async function scanEarlyColumns(
       const standNumber = (row[1] || '').trim(); // Column B
       if (!standNumber) continue;
       const customerName = (row[0] || '').trim(); // Column A
+      const standNorm = standNumber.toUpperCase();
 
       for (const colIdx of colsToScan) {
         const cellVal = (row[colIdx] || '').trim();
@@ -158,11 +196,31 @@ async function scanEarlyColumns(
         const numVal = parseCurrency(cellVal);
         if (numVal <= 0) continue;
 
-        // Calculate what date this column represents
         const monthsFromBase = colIdx - PAYMENT_GRID_START_COL;
         const colDate = new Date(2022, monthsFromBase, 5);
         const colDateStr = colDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         const colLetter = columnIndexToA1Letter(colIdx);
+
+        // Cross-reference: find a Posted receipt for this stand with matching amount
+        // Use the stand from Column A (which holds the stand number in Collection Schedule)
+        const match = intakeMatches.find(m =>
+          m.stand === standNorm && Math.abs(m.amount - numVal) < 0.01 && m.status.toLowerCase() === 'posted'
+        );
+
+        let correctColLetter: string | null = null;
+        let correctColDate: string | null = null;
+        let correctColIdx = -1;
+        if (match) {
+          const pd = parseDate(match.payment_date);
+          if (pd) {
+            correctColIdx = monthColForDate(pd);
+            correctColLetter = columnIndexToA1Letter(correctColIdx);
+            const cd = new Date(2022, correctColIdx - PAYMENT_GRID_START_COL, 5);
+            correctColDate = cd.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          }
+        }
+
+        const action: EarlyColEntry['action_needed'] = match ? 'clear_and_repost' : 'flag_no_match';
 
         report.push({
           sheet_tab: tabTitle,
@@ -174,11 +232,21 @@ async function scanEarlyColumns(
           column_date: colDateStr,
           value: cellVal,
           raw_value: numVal,
-          action_needed: 'clear',
+          receipt_match: match || null,
+          correct_column_letter: correctColLetter,
+          correct_column_date: correctColDate,
+          action_needed: action,
         });
 
-        if (fix) {
-          fixes.push({ cell: `${tabTitle}!${colLetter}${i + 1}` });
+        if (fix && match && correctColIdx >= PAYMENT_GRID_START_COL && correctColIdx <= PAYMENT_GRID_END_COL) {
+          const existingTarget = parseCurrency(row[correctColIdx] || '');
+          fixes.push({
+            clearCell: `${tabTitle}!${colLetter}${i + 1}`,
+            writeCell: `${tabTitle}!${correctColLetter}${i + 1}`,
+            value: numVal,
+            existingTarget,
+            rowData: row,
+          });
         }
       }
     }
@@ -188,22 +256,36 @@ async function scanEarlyColumns(
   const fixResults: string[] = [];
   if (fix && fixes.length > 0) {
     for (const f of fixes) {
-      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(f.cell)}:clear`;
+      // Clear wrong cell
+      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(f.clearCell)}:clear`;
       await fetch(clearUrl, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      fixResults.push(`Cleared ${f.cell}`);
-      console.log(`[FIX] Cleared ${f.cell}`);
+      // Write to correct cell (additive)
+      const newValue = f.existingTarget + f.value;
+      const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(f.writeCell)}?valueInputOption=USER_ENTERED`;
+      await fetch(writeUrl, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [[newValue]] }),
+      });
+      fixResults.push(`Moved $${f.value} from ${f.clearCell} → ${f.writeCell} (new total: ${newValue})`);
+      console.log(`[FIX] ${fixResults[fixResults.length - 1]}`);
     }
   }
 
+  const matched = report.filter(r => r.action_needed === 'clear_and_repost').length;
+  const flagged = report.filter(r => r.action_needed === 'flag_no_match').length;
+
   return new Response(JSON.stringify({
     mode: fix ? 'fix' : 'report_only',
-    scan_type: 'early_columns',
+    scan_type: 'early_columns_with_receipt_xref',
     summary: {
       tabs_scanned: collectionTabs.length,
       misplaced_values_found: report.length,
+      receipt_matched: matched,
+      flagged_no_match: flagged,
       fixes_applied: fix ? fixes.length : 0,
     },
     report,
