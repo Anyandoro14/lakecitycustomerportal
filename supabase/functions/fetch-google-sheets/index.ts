@@ -1061,8 +1061,8 @@ serve(async (req) => {
       const sheetBalanceNum = parseCurrencyToNumber(currentBalance);
       const totalPriceNum = parseCurrencyToNumber(totalPrice);
       let effectiveBalance = currentBalance; // raw sheet string
-      if (sheetBalanceNum === 0 && totalPriceNum > 0 && totalPaidLikeSheet > 0) {
-        const computedBalance = Math.max(0, totalPriceNum - totalPaidLikeSheet);
+      if (sheetBalanceNum === 0 && totalPriceNum > 0 && authoritiveTotalPaid > 0) {
+        const computedBalance = Math.max(0, totalPriceNum - authoritiveTotalPaid);
         effectiveBalance = `$${computedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         console.log(`Stand ${standNumber}: Sheet balance empty/zero — using computed balance ${effectiveBalance}`);
       }
@@ -1080,7 +1080,7 @@ serve(async (req) => {
       } else {
         // Fallback: progress = (deposit + instalments) / Total price (Column I base)
         progressPercentage =
-          totalPriceNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / totalPriceNum) * 100)) : 0;
+          totalPriceNum > 0 ? Math.min(100, Math.round((authoritiveTotalPaid / totalPriceNum) * 100)) : 0;
       }
 
       // Last Payment: when no monthly columns filled but deposit exists, show deposit
@@ -1122,7 +1122,7 @@ serve(async (req) => {
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
         nextDueDate: nextPaymentDue,
-        totalPaid: calculatedTotalPaid, // Use calculated sum, not sheet formula (which may be stale/incorrect)
+        totalPaid: authoritativeTotalPaidStr, // Prefer sheet formula; fall back to computed sum
         progressPercentage: progressPercentage,
         paymentHistory: paymentHistory,
         agreementSignedByWarwickshire: agreementSignedByWarwickshire,
