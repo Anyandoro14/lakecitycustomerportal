@@ -469,8 +469,8 @@ async function fetchStatementDataFromDatabase(
     return { customers: [], itemizedByStand: new Map(), paymentStartDateMap: {} };
   }
 
-  const contractIds = contracts.map((c: { id: string }) => c.id);
-  const stands = [...new Set(contracts.map((c: { stand_number: string }) => c.stand_number))];
+  const contractIds = contracts.map((c: any) => c.id as string);
+  const stands = [...new Set(contracts.map((c: any) => c.stand_number as string))];
 
   const [{ data: balances }, { data: receipts }] = await Promise.all([
     supabase.from("contract_balances").select("*").in("contract_id", contractIds),
@@ -482,7 +482,7 @@ async function fetchStatementDataFromDatabase(
       .in("stand_number", stands),
   ]);
 
-  const balanceById = new Map((balances || []).map((b: { contract_id: string }) => [b.contract_id, b]));
+  const balanceById = new Map((balances || []).map((b: any) => [b.contract_id as string, b]));
 
   const itemizedByStand = new Map<string, ReceiptRecord[]>();
   for (const r of receipts || []) {
@@ -756,7 +756,7 @@ serve(async (req) => {
         );
       }
       console.log('Fetching statement inputs from database (contracts + payment_receipts)...');
-      const db = await fetchStatementDataFromDatabase(supabase, tenantId, targetStand);
+      const db = await fetchStatementDataFromDatabase(supabase as any, tenantId, targetStand);
       customers = db.customers;
       itemizedReceiptsMap = db.itemizedByStand;
       for (const [k, v] of Object.entries(db.paymentStartDateMap)) {
