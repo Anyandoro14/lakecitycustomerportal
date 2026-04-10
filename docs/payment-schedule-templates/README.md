@@ -42,6 +42,14 @@ From the repository root (creates `docs/payment-schedule-templates/.venv-xlsx` o
 bash docs/payment-schedule-templates/run-fix-templates.sh
 ```
 
+## Internal tester row (row 2)
+
+To (re)apply the shared **Internal Tester** sample row on every template (`{{########}}`, Alex Nyandoro, deposit $5,000, total $120,000, etc.):
+
+```bash
+docs/payment-schedule-templates/.venv-xlsx/bin/python docs/payment-schedule-templates/add_internal_tester_row.py
+```
+
 Then replace or merge the output xlsx files into your master Google Sheet, or upload new workbooks built from these templates.
 
 ## Portal / Edge Functions

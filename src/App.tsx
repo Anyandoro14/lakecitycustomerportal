@@ -8,6 +8,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { LookingGlassProvider } from "@/contexts/LookingGlassContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import MaintenanceGate, { MaintenanceRibbon } from "@/components/MaintenanceGate";
+import SupabaseConfigMissing from "@/components/SupabaseConfigMissing";
+import { isSupabaseConfigured } from "@/integrations/supabase/client";
 
 // Critical path - loaded immediately
 import Login from "./pages/Login";
@@ -66,6 +68,9 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        {!isSupabaseConfigured ? (
+          <SupabaseConfigMissing />
+        ) : (
         <TenantProvider>
         <LookingGlassProvider>
           <Toaster />
@@ -122,6 +127,7 @@ const App = () => (
           </BrowserRouter>
         </LookingGlassProvider>
         </TenantProvider>
+        )}
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>

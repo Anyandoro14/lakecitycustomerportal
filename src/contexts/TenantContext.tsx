@@ -5,6 +5,8 @@ import { createContext, useContext, ReactNode } from "react";
  * The app currently operates as a single-tenant (Lake City) instance.
  * This context is kept so existing imports compile; it returns hardcoded
  * Lake City defaults until the tenants table is in production.
+ *
+ * This provider is synchronous (no fetch on mount) and never blocks the tree on loading.
  */
 
 interface TenantConfig {

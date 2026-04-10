@@ -49,8 +49,11 @@ class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
+        <div
+          className="min-h-screen bg-background flex items-center justify-center p-4"
+          style={{ background: '#f4f4f5', color: '#18181b' }}
+        >
+          <Card className="w-full max-w-md" style={{ background: '#fff', border: '1px solid #e4e4e7' }}>
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
                 <AlertTriangle className="h-6 w-6 text-destructive" />

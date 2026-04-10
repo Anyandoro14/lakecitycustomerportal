@@ -213,17 +213,32 @@ serve(async (req) => {
     const requestTenantId = requestBody.tenant_id;
 
     if (requestTenantId) {
-      const { data: tenant, error: tenantError } = await supabaseClient
+      const { data: byId, error: byIdError } = await supabaseClient
         .from('tenants')
         .select('spreadsheet_id')
         .eq('id', requestTenantId)
-        .single();
+        .maybeSingle();
 
-      if (tenantError) {
-        console.warn('Tenant lookup failed, falling back to env var:', tenantError.message);
-      } else if (tenant?.spreadsheet_id) {
-        spreadsheetId = tenant.spreadsheet_id;
-        console.log(`Using spreadsheet_id from tenant ${requestTenantId}`);
+      if (!byIdError && byId?.spreadsheet_id) {
+        spreadsheetId = byId.spreadsheet_id;
+        console.log(`Using spreadsheet_id from tenant id ${requestTenantId}`);
+      } else {
+        const { data: bySlug, error: bySlugError } = await supabaseClient
+          .from('tenants')
+          .select('spreadsheet_id')
+          .eq('slug', requestTenantId)
+          .maybeSingle();
+
+        if (!bySlugError && bySlug?.spreadsheet_id) {
+          spreadsheetId = bySlug.spreadsheet_id;
+          console.log(`Using spreadsheet_id from tenant slug ${requestTenantId}`);
+        } else if (byIdError) {
+          console.warn(
+            'Tenant lookup failed (id + slug), falling back to env var:',
+            byIdError.message,
+            bySlugError?.message,
+          );
+        }
       }
     }
 
@@ -499,7 +514,7 @@ serve(async (req) => {
     );
 
     // Fetch the data — wide enough to cover 168 payment columns + summary + status columns
-    const range = encodeURIComponent(`${sheetTitle}!A:GZ`);
+    const range = encodeURIComponent(`${sheetTitle}!A:ZZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
     const response = await fetch(url, {
@@ -620,7 +635,9 @@ serve(async (req) => {
     const stands = [];
     for (const customerRow of customerRows) {
       const standNumber = customerRow[standNumIndex];
-      
+      const paymentStartCol = PAYMENT_GRID_START_COL;
+      const paymentEndCol = PAYMENT_GRID_END_COL;
+
       // Combine first and last name
       const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
       const lastName = lastNameIndex !== -1 ? (customerRow[lastNameIndex] || '') : '';
@@ -702,8 +719,6 @@ serve(async (req) => {
         paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
           ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
           : 36;
-      const paymentStartCol = PAYMENT_GRID_START_COL; // Column M (index 12)
-      const paymentEndCol = PAYMENT_GRID_END_COL;     // Column FX (index 179) — full 168-month grid
 
       const headerStr = (i: number) =>
         headers[i] != null ? String(headers[i]).trim() : "";
@@ -878,6 +893,7 @@ serve(async (req) => {
         // Update lastPaymentDate to the actual most recent receipt date
         if (itemizedReceipts.length > 0) {
           const mostRecent = itemizedReceipts[0]; // Already sorted most recent first
+          lastPaymentAmount = `$${mostRecent.payment_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           try {
             const receiptDate = new Date(mostRecent.payment_date);
             if (!isNaN(receiptDate.getTime())) {

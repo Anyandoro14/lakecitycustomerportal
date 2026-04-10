@@ -43,6 +43,7 @@ const Index = () => {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
+        setLoading(false);
         navigate("/login");
         return;
       }
@@ -54,6 +55,7 @@ const Index = () => {
         .maybeSingle();
 
       if (internalUser) {
+        setLoading(false);
         navigate("/internal-portal");
         return;
       }
