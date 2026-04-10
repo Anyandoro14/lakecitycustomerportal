@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
 import {
   resolveCollectionScheduleSheetTitle,
+  listCollectionScheduleDataTabTitles,
   PAYMENT_GRID_START_COL,
   PAYMENT_GRID_END_COL,
   PAYMENT_GRID_BASE_DATE,
@@ -484,58 +485,63 @@ serve(async (req) => {
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
 
-    const resolved = resolveCollectionScheduleSheetTitle(sheets, {
-      paymentPlanMonths: paymentPlanMonthsForSchedule,
-      envPreferredName: Deno.env.get('SHEET_NAME'),
-      envPreferredGid: Deno.env.get('SHEET_GID'),
-    });
+    // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
+    const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
 
-    const sheetExists = sheets.some((s: any) => s.properties?.title === resolved.sheetTitle);
-    if (!sheetExists) {
-      console.error(
-        `Collection Schedule tab not found: expected "${resolved.sheetTitle}" (source=${resolved.source}).`,
-      );
+    // ── Multi-tab scan: fetch ALL collection schedule tabs so multi-stand
+    //    customers whose stands span different term-length tabs are matched. ──
+    const allTabTitles = listCollectionScheduleDataTabTitles(sheets);
+    if (allTabTitles.length === 0) {
+      // Fallback: try the resolved single tab
+      const resolved = resolveCollectionScheduleSheetTitle(sheets, {
+        paymentPlanMonths: paymentPlanMonthsForSchedule,
+        envPreferredName: Deno.env.get('SHEET_NAME'),
+        envPreferredGid: Deno.env.get('SHEET_GID'),
+      });
+      if (sheets.some((s: any) => s.properties?.title === resolved.sheetTitle)) {
+        allTabTitles.push(resolved.sheetTitle);
+      }
+    }
+
+    console.log(`Scanning ${allTabTitles.length} collection schedule tab(s): ${allTabTitles.join(', ')}, hasPaymentsLedger: ${hasPaymentsLedger}`);
+
+    if (allTabTitles.length === 0) {
       return new Response(
-        JSON.stringify({
-          error:
-            `Collection Schedule tab "${resolved.sheetTitle}" was not found in the spreadsheet. ` +
-            `Rename the sheet or set profiles.payment_plan_months / SHEET_NAME.`,
-        }),
+        JSON.stringify({ error: 'No Collection Schedule tabs found in the spreadsheet.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const sheetTitle = resolved.sheetTitle;
+    // Fetch data from all tabs and merge rows (all tabs share the same column layout)
+    let rows: string[][] = [];
+    let primarySheetTitle = allTabTitles[0];
+    for (const tabTitle of allTabTitles) {
+      const range = encodeURIComponent(`${tabTitle}!A:ZZ`);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      if (!response.ok) {
+        console.warn(`Failed to fetch tab "${tabTitle}": ${response.status}`);
+        continue;
+      }
+      const data: GoogleSheetsResponse = await response.json();
+      const tabRows = data.values || [];
+      if (tabRows.length < 2) continue;
 
-    // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
-    const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
-    console.log(
-      `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
-    );
-
-    // Fetch the data — wide enough to cover 168 payment columns + summary + status columns
-    const range = encodeURIComponent(`${sheetTitle}!A:ZZ`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-    
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Sheets fetch error:', errorText);
-      return new Response(
-        JSON.stringify({ 
-          error: `Google Sheets API error (${response.status}). Check: 1) Spreadsheet ID is correct, 2) Sheet is shared with ${serviceAccountEmail} as Viewer` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (rows.length === 0) {
+        // First tab: include header + data rows
+        rows = tabRows;
+        primarySheetTitle = tabTitle;
+      } else {
+        // Subsequent tabs: skip header (row 0), append data rows only
+        rows = rows.concat(tabRows.slice(1));
+      }
+      console.log(`Tab "${tabTitle}": ${tabRows.length - 1} data rows`);
     }
 
-    const data: GoogleSheetsResponse = await response.json();
-    const rows = data.values || [];
-    
-    console.log(`Fetched rows: ${rows.length}`);
+    const sheetTitle = primarySheetTitle;
+    console.log(`Total merged rows (incl header): ${rows.length}`);
 
     if (rows.length === 0) {
       return new Response(
