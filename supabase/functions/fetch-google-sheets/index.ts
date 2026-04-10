@@ -3,6 +3,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
 import {
   resolveCollectionScheduleSheetTitle,
+  PAYMENT_GRID_START_COL,
+  PAYMENT_GRID_END_COL,
+  PAYMENT_GRID_BASE_DATE,
+  customerPaymentStartCol,
 } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
@@ -204,7 +208,7 @@ serve(async (req) => {
       // No body or invalid JSON, continue with normal flow
     }
 
-    // Resolve spreadsheet_id: prefer tenant lookup (UUID id or slug e.g. "lakecity"), then env var
+    // Resolve spreadsheet_id: prefer tenant_id lookup, fall back to env var
     let spreadsheetId: string | null = null;
     const requestTenantId = requestBody.tenant_id;
 
@@ -228,10 +232,11 @@ serve(async (req) => {
         if (!bySlugError && bySlug?.spreadsheet_id) {
           spreadsheetId = bySlug.spreadsheet_id;
           console.log(`Using spreadsheet_id from tenant slug ${requestTenantId}`);
-        } else if (byIdError || bySlugError) {
+        } else if (byIdError) {
           console.warn(
-            'Tenant lookup failed (try id + slug), falling back to env:',
-            byIdError?.message || bySlugError?.message,
+            'Tenant lookup failed (id + slug), falling back to env var:',
+            byIdError.message,
+            bySlugError?.message,
           );
         }
       }
@@ -508,8 +513,7 @@ serve(async (req) => {
       `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
     );
 
-    // Fetch full row width: identity A–L, monthly M–FX (repo templates), totals FY–GB, operational/agreement columns.
-    // (Legacy layouts used A:BJ; widened BNPL grids need through ~FZ+ — A:ZZ avoids truncation.)
+    // Fetch the data — wide enough to cover 168 payment columns + summary + status columns
     const range = encodeURIComponent(`${sheetTitle}!A:ZZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
@@ -549,7 +553,7 @@ serve(async (req) => {
     const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
     const phoneIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('phone') || h && h.toString().toLowerCase().includes('contact'));
     const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
-    const paymentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
+    const paymentIndex = headers.findIndex((h, idx) => idx < PAYMENT_GRID_START_COL && h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
     const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
     const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
     const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
@@ -631,8 +635,8 @@ serve(async (req) => {
     const stands = [];
     for (const customerRow of customerRows) {
       const standNumber = customerRow[standNumIndex];
-      // Column M (index 12): first monthly instalment cell — used before start-date fallbacks below
-      const paymentStartCol = 12;
+      const paymentStartCol = PAYMENT_GRID_START_COL;
+      const paymentEndCol = PAYMENT_GRID_END_COL;
 
       // Combine first and last name
       const firstName = firstNameIndex !== -1 ? (customerRow[firstNameIndex] || '') : '';
@@ -710,8 +714,7 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Start date = ${customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`);
 
-      // BNPL: term from profile (12–120); monthly grid from Column M (index 12). Templates use a shared
-      // calendar (e.g. Jan 2022–Dec 2035); do not read past the column before "Next Payment".
+      // BNPL: term from profile (12–120); monthly grid from Column M (index 12). Widen templates through 2035 in Sheets.
       const termMonths =
         paymentPlanMonthsForSchedule != null && paymentPlanMonthsForSchedule > 0
           ? Math.min(120, Math.max(1, Math.round(paymentPlanMonthsForSchedule)))
@@ -729,11 +732,6 @@ serve(async (req) => {
       };
 
       const nextPaymentColIdx = findHeaderCol((s) => /next\s*payment/i.test(s));
-      const termBasedEnd = paymentStartCol + termMonths - 1;
-      const paymentEndCol =
-        nextPaymentColIdx >= 0
-          ? Math.min(termBasedEnd, nextPaymentColIdx - 1)
-          : termBasedEnd;
       let totalPaidCol = findHeaderCol((s) => /total\s*paid/i.test(s));
       let currentBalanceCol = findHeaderCol((s) => /current\s*balance/i.test(s));
       let paymentProgressCol = findHeaderCol((s) => /payment\s*progress/i.test(s));
@@ -758,24 +756,16 @@ serve(async (req) => {
         /client/i.test(s) && /sign|agreement/i.test(s),
       );
       let agreementOfSaleFileCol = findHeaderCol((s) =>
-        /agreement\s*of\s*sale|drive|file\s*link|google\s*drive/i.test(s),
+        /agreement\s*(of\s*sale)?\s*file|drive|file\s*link|google\s*drive/i.test(s),
       );
-      if (agreementSignedByWarwickshireCol < 0) agreementSignedByWarwickshireCol = 58;
-      if (agreementSignedByClientCol < 0) agreementSignedByClientCol = 59;
-      if (agreementOfSaleFileCol < 0) agreementOfSaleFileCol = 61;
+      // No hardcoded fallbacks — these columns move with the sheet layout
+      // If not found by header name, they will remain -1 (not found)
 
       console.log(`Stand ${standNumber}: Row has ${customerRow.length} columns`);
       console.log(`Stand ${standNumber}: Columns 40-50: ${JSON.stringify(customerRow.slice(40, 51))}`);
 
-      // Base date for monthly payment columns comes from the header of column O (e.g. "5 November 2025")
-      const firstPaymentHeader = headers[paymentStartCol];
-      let basePaymentDate = customerStartDate;
-      if (firstPaymentHeader) {
-        const parsedHeaderDate = new Date(firstPaymentHeader);
-        if (!isNaN(parsedHeaderDate.getTime())) {
-          basePaymentDate = parsedHeaderDate;
-        }
-      }
+      // Base date for monthly payment columns: Column M = "5 January 2022" (global grid)
+      const basePaymentDate = new Date(PAYMENT_GRID_BASE_DATE);
       
       const monthlyPayment = paymentIndex !== -1 ? (customerRow[paymentIndex] || '$0.00') : '$0.00';
       const sheetTotalPaid = customerRow[totalPaidCol] || '$0.00';
@@ -839,15 +829,7 @@ serve(async (req) => {
         }
       }
 
-      // When no monthly cells are filled but deposit is paid, show deposit as last payment (not "No payments yet")
       const depositAmount = parseCurrencyToNumber(deposit);
-      if (lastPaymentIndex === -1 && depositAmount > 0) {
-        lastPaymentAmount = `$${depositAmount.toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`;
-        lastPaymentDate = 'Initial Deposit';
-      }
       const firstMonthPayment = parseCurrencyToNumber(paymentColumns[0]?.toString() || "");
       const expectedCombined = depositAmount + monthlyPaymentAmount;
       const isCombinedDepositInstallment =
@@ -908,13 +890,10 @@ serve(async (req) => {
           });
         }
         
-        // Last payment card: use most recent posted receipt for both amount and date
+        // Update lastPaymentDate to the actual most recent receipt date
         if (itemizedReceipts.length > 0) {
           const mostRecent = itemizedReceipts[0]; // Already sorted most recent first
-          lastPaymentAmount = `$${mostRecent.payment_amount.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}`;
+          lastPaymentAmount = `$${mostRecent.payment_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           try {
             const receiptDate = new Date(mostRecent.payment_date);
             if (!isNaN(receiptDate.getTime())) {
@@ -964,18 +943,8 @@ serve(async (req) => {
         }
       }
       
-      // Total Paid / Current Balance / Payment Progress columns may be empty or show $0/0% when formulas are
-      // missing; responses use deposit + monthly instalment cells and Total Price (not those cells alone).
       // Format calculated total to match sheet: deposit + instalment cells (see BNPL_SCHEDULE_SPEC.md)
       const calculatedTotalPaid = `$${totalPaidLikeSheet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-      const tpNum = parseCurrencyToNumber(totalPrice);
-      // BNPL: remaining balance = Total price − (deposit + sum of monthly cells) = I − totalPaidLikeSheet
-      const calculatedBalanceNum = Math.max(0, tpNum - totalPaidLikeSheet);
-      const calculatedCurrentBalance = `$${calculatedBalanceNum.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
       
       const sheetTotalNum = parseFloat(sheetTotalPaid.toString().replace(/[$,]/g, '')) || 0;
       if (Math.abs(sheetTotalNum - totalPaidLikeSheet) > 0.01) {
@@ -1075,13 +1044,42 @@ serve(async (req) => {
         }
       }
       
-      // Progress: derive from amounts (sheet "Payment Progress" can be wrong if formulas/columns shifted)
-      const progressPercentage =
-        tpNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / tpNum) * 100)) : 0;
+      // ── Defensive fallbacks when sheet formula cells are empty / stale ──
 
-      console.log(
-        `Stand ${standNumber}: Progress = ${progressPercentage}% (sheet had "${paymentProgress}", computed from totals)`,
-      );
+      // Current Balance: prefer sheet value; fall back to totalPrice − totalPaid
+      const sheetBalanceNum = parseCurrencyToNumber(currentBalance);
+      const totalPriceNum = parseCurrencyToNumber(totalPrice);
+      let effectiveBalance = currentBalance; // raw sheet string
+      if (sheetBalanceNum === 0 && totalPriceNum > 0 && totalPaidLikeSheet > 0) {
+        const computedBalance = Math.max(0, totalPriceNum - totalPaidLikeSheet);
+        effectiveBalance = `$${computedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        console.log(`Stand ${standNumber}: Sheet balance empty/zero — using computed balance ${effectiveBalance}`);
+      }
+
+      // Calculate payment progress percentage from sheet or fallback to calculation
+      let progressPercentage = 0;
+      
+      // Try to use the payment progress from column AU first
+      const progressStr = paymentProgress.toString().replace('%', '').trim();
+      const progressNum = parseFloat(progressStr);
+      
+      if (!isNaN(progressNum) && progressNum > 0) {
+        // Only trust sheet value when it's positive (0% with a real deposit means formula is empty)
+        progressPercentage = Math.round(progressNum);
+      } else {
+        // Fallback: progress = (deposit + instalments) / Total price (Column I base)
+        progressPercentage =
+          totalPriceNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / totalPriceNum) * 100)) : 0;
+      }
+
+      // Last Payment: when no monthly columns filled but deposit exists, show deposit
+      if (lastPaymentIndex < 0 && depositAmount > 0) {
+        lastPaymentAmount = `$${depositAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        lastPaymentDate = 'Initial Deposit';
+        console.log(`Stand ${standNumber}: No monthly payments — showing deposit as last payment`);
+      }
+      
+      console.log(`Stand ${standNumber}: Progress = ${progressPercentage}%`);
 
       // Get agreement signature status from columns BG and BH
       // Checkbox columns typically have "TRUE" or empty/"FALSE"
@@ -1100,7 +1098,7 @@ serve(async (req) => {
         customerName: fullName || '',
         customerCategory: customerCategory,
         customerPhone: phoneNumber,
-        standBalance: calculatedCurrentBalance,
+        standBalance: effectiveBalance,
         lastPayment: lastPaymentAmount,
         lastPaymentDate: lastPaymentDate,
         nextPayment: nextPaymentAmount,
@@ -1109,7 +1107,7 @@ serve(async (req) => {
         daysOverdue: daysOverdue,
         paymentNotYetDue: paymentNotYetDue,
         paymentStartDate: customerStartDate.toISOString(),
-        currentBalance: calculatedCurrentBalance,
+        currentBalance: effectiveBalance,
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
         nextDueDate: nextPaymentDue,

@@ -7,6 +7,16 @@
 
 export const DEFAULT_PAYMENT_PLAN_MONTHS = 36;
 
+/**
+ * The payment grid covers a global timeline from Jan 2022 to Dec 2035 (168 months).
+ * Column M (index 12) = "5 January 2022", Column FX (index 179) = "5 December 2035".
+ * Each customer's payments land in the columns matching their actual payment dates.
+ */
+export const PAYMENT_GRID_START_COL = 12; // Column M
+export const PAYMENT_GRID_TOTAL_MONTHS = 168; // Jan 2022 – Dec 2035
+export const PAYMENT_GRID_END_COL = PAYMENT_GRID_START_COL + PAYMENT_GRID_TOTAL_MONTHS - 1; // 179 = Column FX
+export const PAYMENT_GRID_BASE_DATE = new Date(2022, 0, 5); // 5 January 2022
+
 export type SheetProperties = { title?: string; sheetId?: number };
 
 export type SheetMeta = { properties: SheetProperties };
@@ -39,12 +49,20 @@ export function isLegacyCollectionSchedule1(title: string): boolean {
   return String(title ?? "").trim() === "Collection Schedule 1";
 }
 
-/** Column M (0-based index 12) through last monthly column for N months. */
-export function paymentColumnBounds(months: number): { start: number; end: number } {
-  const n = Number.isFinite(months) && months > 0 ? Math.round(months) : DEFAULT_PAYMENT_PLAN_MONTHS;
-  const start = 12; // M
-  const end = 12 + n - 1;
-  return { start, end };
+/** Full payment grid bounds (168 columns from M to FX). */
+export function paymentColumnBounds(_months?: number): { start: number; end: number } {
+  return { start: PAYMENT_GRID_START_COL, end: PAYMENT_GRID_END_COL };
+}
+
+/**
+ * Given a customer's start date, return the 0-based column index where their
+ * first payment falls in the global grid.
+ */
+export function customerPaymentStartCol(startDate: Date): number {
+  const baseYear = 2022;
+  const baseMonth = 0; // January
+  const monthsOffset = (startDate.getFullYear() - baseYear) * 12 + (startDate.getMonth() - baseMonth);
+  return PAYMENT_GRID_START_COL + Math.max(0, monthsOffset);
 }
 
 /** Escape sheet title for A1 notation (wrap in single quotes, escape quotes). */

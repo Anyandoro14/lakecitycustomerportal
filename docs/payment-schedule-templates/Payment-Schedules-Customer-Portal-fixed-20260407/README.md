@@ -6,7 +6,7 @@ Excel workbooks for customer payment grids, aligned with the portal’s **Column
 
 1. **TOTAL PAID** had been defined as `SUM` from Column M through the **Next Payment Column**. That incorrectly included the non-amount “Next Payment Column”. It is now **`SUM` only across true monthly columns** (from M through the column immediately before Next Payment).
 2. **Current Balance** and **Payment Progress** are rewritten so they always reference the **TOTAL PAID** column for that template (required after structural edits).
-3. **`TEMPLATE_INSTRUCTIONS`** was updated so the formula description matches the fix (and per-template column letters).
+3. Formula descriptions were updated to match the fix (and per-template column letters). Note: operator instructions are now maintained in a **standalone document** (`COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md`), not as a tab inside the workbook.
 4. **60-month** workbook was missing from the original zip; it is generated from the 72-month file by removing the last 12 monthly columns.
 
 ## Templates included
@@ -23,7 +23,7 @@ Excel workbooks for customer payment grids, aligned with the portal’s **Column
 | `Collection_Schedule_Template_96mo.xlsx` | 96 |
 | `Collection_Schedule_Template_120mo.xlsx` | 120 |
 
-Each file has a **TEMPLATE_INSTRUCTIONS** sheet and a **Collection Schedule - {N}mo** data sheet.
+Each file has **one** data sheet: **`Collection Schedule - {N}mo`**. Operator setup instructions are in **`COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md`**.
 
 ## Regenerating fixes
 
@@ -39,6 +39,10 @@ python3 docs/payment-schedule-templates/fix_collection_schedule_templates.py
 
 The live **`fetch-google-sheets`** logic for **Richcraft / “Collection Schedule 1”** assumes a **fixed** width of monthly columns and fixed positions for totals (see `supabase/functions/fetch-google-sheets/index.ts`). These variable-length templates are correct for **Sheets and finance**, but **customer-facing totals may not align** with that code until Edge Functions resolve columns dynamically (e.g. from headers or **NUMBER OF INSTALLMENTS**). Keep **stand numbers unique** across all tabs if the backend searches a single sheet or combined export.
 
-## Tab naming (customer groups)
+## Tab naming
 
-When copying into the master Google Sheet, rename the tab per your docs: **`{{Customer Group name}} - YYYY-MM-DD`** with date ≥ `2022-01-01`, or use legacy **`Collection Schedule 1`** for Richcraft.
+> **This is a deprecated snapshot.** For current tab naming conventions, see the canonical docs:
+> - **[COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md](../COLLECTION_SCHEDULE_TEMPLATE_INSTRUCTIONS.md)** — operator playbook
+> - **[README.md](../README.md)** — template folder overview
+>
+> Canonical tab name: **`Collection Schedule - {N}mo`** (e.g. `Collection Schedule - 36mo`, `Collection Schedule - 120mo`). Legacy names (`Collection Schedule 1`, `Collection Schedule - N Months`) are accepted until renamed.
