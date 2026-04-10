@@ -249,28 +249,29 @@ serve(async (req) => {
     }
 
     // Parse header row to find column indices
-    const headerRow = rows[0];
-    const standNumberIdx = headerRow.findIndex(h => h?.toLowerCase().includes('stand number'));
-    const firstNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('first name'));
-    const lastNameIdx = headerRow.findIndex(h => h?.toLowerCase().includes('last name'));
-    const emailIdx = headerRow.findIndex(h => h?.toLowerCase().includes('email'));
-    const phoneNumberIdx = headerRow.findIndex(h => h?.toLowerCase().includes('phone') || h?.toLowerCase().includes('mobile') || h?.toLowerCase().includes('cell'));
-    const countryCodeIdx = 3; // Column D (0-indexed: A=0, B=1, C=2, D=3)
-    const customerCategoryIdx = 5; // Column F (0-indexed: A=0, B=1, C=2, D=3, E=4, F=5)
-    const totalPriceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total price'));
-    const totalPaidIdx = headerRow.findIndex(h => h?.toLowerCase().includes('total paid'));
-    const currentBalanceIdx = headerRow.findIndex(h => h?.toLowerCase().includes('current balance'));
-    const progressIdx = headerRow.findIndex(h => h?.toLowerCase().includes('payment progress'));
-    const monthlyPaymentIdx = headerRow.findIndex(
+    if (!headerRow) headerRow = rows[0];
+    const standNumberIdx = headerRow!.findIndex(h => h?.toLowerCase().includes('stand number'));
+    const hr = headerRow!;
+    const firstNameIdx = hr.findIndex(h => h?.toLowerCase().includes('first name'));
+    const lastNameIdx = hr.findIndex(h => h?.toLowerCase().includes('last name'));
+    const emailIdx = hr.findIndex(h => h?.toLowerCase().includes('email'));
+    const phoneNumberIdx = hr.findIndex(h => h?.toLowerCase().includes('phone') || h?.toLowerCase().includes('mobile') || h?.toLowerCase().includes('cell'));
+    const countryCodeIdx = 3;
+    const customerCategoryIdx = 5;
+    const totalPriceIdx = hr.findIndex(h => h?.toLowerCase().includes('total price'));
+    const totalPaidIdx = hr.findIndex(h => h?.toLowerCase().includes('total paid'));
+    const currentBalanceIdx = hr.findIndex(h => h?.toLowerCase().includes('current balance'));
+    const progressIdx = hr.findIndex(h => h?.toLowerCase().includes('payment progress'));
+    const monthlyPaymentIdx = hr.findIndex(
       (h) =>
         h &&
         h.toString().toLowerCase().includes('payment') &&
         !h.toString().toLowerCase().includes('progress'),
     );
-    const startDateIdx = headerRow.findIndex(h => h?.toLowerCase().includes('start date'));
+    const startDateIdx = hr.findIndex(h => h?.toLowerCase().includes('start date'));
 
     const findByIncludes = (sub: string) =>
-      headerRow.findIndex((h) => h && h.toString().toLowerCase().includes(sub));
+      hr.findIndex((h) => h && h.toString().toLowerCase().includes(sub));
 
     const offerReceivedIdx = findByIncludes('offer received');
     const initialPaymentCompletedIdx = findByIncludes('initial payment completed');
@@ -327,8 +328,8 @@ serve(async (req) => {
 
     // Find month columns (starting from column M onwards)
     const monthColumns: Array<{ index: number; month: string }> = [];
-    for (let i = 0; i < headerRow.length; i++) {
-      const header = headerRow[i] || '';
+    for (let i = 0; i < hr.length; i++) {
+      const header = hr[i] || '';
       // Look for date patterns like "5 November 2025"
       if (header.match(/\d+\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/i)) {
         monthColumns.push({ index: i, month: header });

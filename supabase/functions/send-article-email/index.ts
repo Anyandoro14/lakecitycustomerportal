@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
           );
         }
       } catch (err) {
-        console.error(`Exception sending to ${email}:`, err.message);
+        console.error(`Exception sending to ${email}:`, (err as Error).message);
         failCount++;
       }
       // Wait 600ms between each send (max ~1.6 req/sec, under 2 req/sec limit)

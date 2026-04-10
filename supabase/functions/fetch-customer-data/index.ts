@@ -75,8 +75,8 @@ const displayDate = (iso: string) => {
 
 function unwrapProfile(c: ContractRow): ProfileRow {
   const p = c.profiles;
-  if (Array.isArray(p)) return p[0] || {};
-  return p || {};
+  if (Array.isArray(p)) return (p[0] || {}) as ProfileRow;
+  return (p || {}) as ProfileRow;
 }
 
 function buildPaymentHistory(
