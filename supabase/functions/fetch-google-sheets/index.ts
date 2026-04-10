@@ -670,44 +670,53 @@ serve(async (req) => {
         }
       }
 
-      // Get the start date for this customer — prefer profiles.payment_start_date, then sheet column
+      // Get the start date for this customer
+      // Priority: 1) Sheet Column L (operational source of truth), 2) Profile (if not default), 3) Fallbacks
       const startDateStr = startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '';
       let customerStartDate: Date | null = null;
+      const PROFILE_DEFAULT_START = '2025-09-05'; // Default value in profiles table
 
-      // First, try to get payment_start_date from profiles table (authoritative)
-      const standKey_ = standNumber.toString().trim().toUpperCase();
-      const { data: profileWithDate } = await supabaseClient
-        .from('profiles')
-        .select('payment_start_date')
-        .ilike('stand_number', standKey_)
-        .limit(1)
-        .maybeSingle();
-
-      if (profileWithDate?.payment_start_date) {
-        customerStartDate = new Date(profileWithDate.payment_start_date);
-        if (isNaN(customerStartDate.getTime())) customerStartDate = null;
-      }
-
-      // Fallback: parse from sheet column
-      if (!customerStartDate && startDateStr) {
+      // 1) Try to parse from sheet Column L first (operational source of truth)
+      if (startDateStr) {
         try {
           const parsedDate = new Date(startDateStr);
           if (!isNaN(parsedDate.getTime())) {
             customerStartDate = parsedDate;
-            customerStartDate.setDate(5);
+            customerStartDate.setDate(5); // Normalize to 5th
+            console.log(`Stand ${standNumber}: Using sheet Column L start date: ${customerStartDate.toISOString()}`);
           }
         } catch (e) {
           console.log(`Could not parse start date for stand ${standNumber}: ${startDateStr}`);
         }
       }
 
-      // Final fallback: use sheet header date (no hardcoded 2025 date)
+      // 2) If sheet didn't have a date, try profile (but skip the default value)
+      if (!customerStartDate) {
+        const standKey_ = standNumber.toString().trim().toUpperCase();
+        const { data: profileWithDate } = await supabaseClient
+          .from('profiles')
+          .select('payment_start_date')
+          .ilike('stand_number', standKey_)
+          .limit(1)
+          .maybeSingle();
+
+        if (profileWithDate?.payment_start_date && profileWithDate.payment_start_date !== PROFILE_DEFAULT_START) {
+          const profileDate = new Date(profileWithDate.payment_start_date);
+          if (!isNaN(profileDate.getTime())) {
+            customerStartDate = profileDate;
+            console.log(`Stand ${standNumber}: Using non-default profile start date: ${customerStartDate.toISOString()}`);
+          }
+        }
+      }
+
+      // 3) Final fallback: use sheet header date (no hardcoded date)
       if (!customerStartDate) {
         const headerDate = headers[paymentStartCol];
         if (headerDate) {
           const parsed = new Date(headerDate);
           if (!isNaN(parsed.getTime())) {
             customerStartDate = parsed;
+            console.log(`Stand ${standNumber}: Using header date as fallback: ${customerStartDate.toISOString()}`);
           }
         }
       }
