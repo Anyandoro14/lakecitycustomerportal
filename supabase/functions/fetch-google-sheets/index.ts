@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import { getDueDay } from "../_shared/bdo-due-day.ts";
 import {
   resolveCollectionScheduleSheetTitle,
   listCollectionScheduleDataTabTitles,
@@ -682,7 +683,7 @@ serve(async (req) => {
           const parsedDate = new Date(startDateStr);
           if (!isNaN(parsedDate.getTime())) {
             customerStartDate = parsedDate;
-            customerStartDate.setDate(5); // Normalize to 5th
+            // Due day is determined later after we know the customer category
             console.log(`Stand ${standNumber}: Using sheet Column L start date: ${customerStartDate.toISOString()}`);
           }
         } catch (e) {
@@ -839,7 +840,7 @@ serve(async (req) => {
           const monthsFromStart = i;
           const paymentDate = new Date(basePaymentDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
-          paymentDate.setDate(5); // BNPL: due dates on the 5th
+          paymentDate.setDate(getDueDay(standNumber, customerCategory)); // BDO=10th, else 5th
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         }
       }
@@ -1041,7 +1042,7 @@ serve(async (req) => {
         // Calculate next due date from customer's actual start date (not the sheet header)
         const nextDueDate = new Date(customerStartDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + nextUncoveredMonth);
-        nextDueDate.setDate(5);
+        nextDueDate.setDate(getDueDay(standNumber, customerCategory)); // BDO=10th, else 5th
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
         // Calculate remaining amount due for this instalment (if partial payment exists)

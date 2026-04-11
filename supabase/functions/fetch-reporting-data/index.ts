@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { listCollectionScheduleDataTabTitles } from "../_shared/collection-schedule-sheets.ts";
+import { getDueDay } from "../_shared/bdo-due-day.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -502,6 +503,7 @@ serve(async (req) => {
 
       const nextDueDate = new Date(baseDate);
       nextDueDate.setMonth(nextDueDate.getMonth() + coveredMonths);
+      nextDueDate.setDate(getDueDay(standNumber, customerCategory)); // BDO=10th, else 5th
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
