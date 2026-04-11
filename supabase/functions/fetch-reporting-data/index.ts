@@ -211,6 +211,7 @@ serve(async (req) => {
 
     const merged: string[][] = [];
     let headerRow: string[] | null = null;
+    const seenStands = new Set<string>();
 
     for (const sheetName of tabTitles) {
       const range = `${sheetName}!A1:ZZ200`;
@@ -232,8 +233,21 @@ serve(async (req) => {
         headerRow = part[0];
         merged.push(headerRow);
       }
+      let dupeCount = 0;
       for (let r = 1; r < part.length; r++) {
+        const standNum = (part[r]?.[0] || '').toString().trim().toUpperCase();
+        // Skip summary/total rows and deduplicate by stand number
+        if (standNum && standNum !== '' && standNum !== 'TOTAL' && standNum !== 'TOTALS') {
+          if (seenStands.has(standNum)) {
+            dupeCount++;
+            continue; // skip duplicate stand from another tab
+          }
+          seenStands.add(standNum);
+        }
         merged.push(part[r]);
+      }
+      if (dupeCount > 0) {
+        console.log(`Tab "${sheetName}": skipped ${dupeCount} duplicate stands`);
       }
     }
 
