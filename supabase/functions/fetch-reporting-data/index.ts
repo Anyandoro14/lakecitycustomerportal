@@ -426,35 +426,64 @@ serve(async (req) => {
         }
       }
 
-      // Calculate daysOverdue and prepaidDays based on overpayment logic
+      // Calculate daysOverdue and prepaidDays based on customer's actual start date
       const monthlyPaymentAmount = parseFloat(monthlyPayment.replace(/[$,]/g, '')) || 0;
-      let totalPaymentsSum = 0;
-      for (const payment of payments) {
-        totalPaymentsSum += payment.amountNumeric;
-      }
       
-      // Calculate covered months using overpayment logic
+      // Use FZ (Total Paid) directly — it includes deposits + installments
+      const totalPaidNumeric = parseFloat(totalPaid.replace(/[$,]/g, '')) || 0;
+      
+      // Parse the customer's payment start date from Column L
+      let customerStartDate: Date | null = null;
+      if (startDateIdx >= 0) {
+        const rawStartDate = row[startDateIdx] || '';
+        if (rawStartDate) {
+          // Try "5 January 2022" format first
+          const longMatch = rawStartDate.match(/(\d+)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+          if (longMatch) {
+            const day = parseInt(longMatch[1]);
+            const monthName = longMatch[2];
+            const year = parseInt(longMatch[3]);
+            const mIdx = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(monthName.toLowerCase());
+            if (mIdx >= 0) customerStartDate = new Date(year, mIdx, day);
+          }
+          // Try ISO / short date formats
+          if (!customerStartDate) {
+            const parsed = new Date(rawStartDate);
+            if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
+              customerStartDate = parsed;
+            }
+          }
+        }
+      }
+
+      // Parse deposit amount (Column H/I area)
+      const depositAmount = depositIdx >= 0 ? (parseFloat((row[depositIdx] || '0').replace(/[$,]/g, '')) || 0) : 0;
+
+      // Calculate covered months: total paid covers deposit + N installments
+      // Subtract deposit first, then divide remaining by monthly installment
       let coveredMonths = 0;
-      if (monthlyPaymentAmount > 0) {
-        coveredMonths = Math.floor(totalPaymentsSum / monthlyPaymentAmount);
+      if (monthlyPaymentAmount > 0 && totalPaidNumeric > 0) {
+        const afterDeposit = Math.max(0, totalPaidNumeric - depositAmount);
+        coveredMonths = Math.floor(afterDeposit / monthlyPaymentAmount);
       }
       
-      // Find the base payment date from the first month column
-      let basePaymentDate = new Date();
-      if (monthColumns.length > 0) {
+      // Next due date = customer start date + covered months
+      // If no start date found, fall back to first month column header
+      let baseDate = customerStartDate;
+      if (!baseDate && monthColumns.length > 0) {
         const firstMonthHeader = monthColumns[0].month;
         const match = firstMonthHeader.match(/(\d+)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
         if (match) {
           const day = parseInt(match[1]);
           const monthName = match[2];
           const year = parseInt(match[3]);
-          const monthIndex = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(monthName.toLowerCase());
-          basePaymentDate = new Date(year, monthIndex, day);
+          const mIdx = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(monthName.toLowerCase());
+          if (mIdx >= 0) baseDate = new Date(year, mIdx, day);
         }
       }
-      
-      // Calculate next due date based on covered months
-      const nextDueDate = new Date(basePaymentDate);
+      if (!baseDate) baseDate = new Date();
+
+      const nextDueDate = new Date(baseDate);
       nextDueDate.setMonth(nextDueDate.getMonth() + coveredMonths);
       
       const today = new Date();
@@ -467,12 +496,15 @@ serve(async (req) => {
       
       if (!isUnsold && monthlyPaymentAmount > 0) {
         if (today > dueDateNormalized) {
-          // Overdue - due date has passed
           daysOverdue = Math.floor((today.getTime() - dueDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
         } else if (today < dueDateNormalized) {
-          // Prepaid - due date is in the future
           prepaidDays = Math.floor((dueDateNormalized.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         }
+      }
+
+      // Debug log for specific stands
+      if (standNumber === '1772' || standNumber === '3408') {
+        console.log(`[DEBUG] Stand ${standNumber}: startDate=${customerStartDate?.toISOString()}, totalPaid=${totalPaidNumeric}, deposit=${depositAmount}, monthly=${monthlyPaymentAmount}, coveredMonths=${coveredMonths}, nextDue=${nextDueDate.toISOString()}, daysOverdue=${daysOverdue}, prepaid=${prepaidDays}`);
       }
 
       allStands.push({
