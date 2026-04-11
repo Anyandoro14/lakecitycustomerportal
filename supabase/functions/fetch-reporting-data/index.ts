@@ -369,6 +369,9 @@ serve(async (req) => {
       if (!row || row.length === 0) continue;
 
       const standNumber = row[standNumberIdx] || '';
+      // Skip total/summary rows and empty stand numbers
+      const standUpper = standNumber.toString().trim().toUpperCase();
+      if (standUpper === 'TOTAL' || standUpper === 'TOTALS' || standUpper === '') continue;
       const firstName = row[firstNameIdx] || '';
       const lastName = row[lastNameIdx] || '';
       const email = row[emailIdx] || '';
