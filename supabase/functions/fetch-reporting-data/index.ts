@@ -269,6 +269,14 @@ serve(async (req) => {
         !h.toString().toLowerCase().includes('progress'),
     );
     const startDateIdx = hr.findIndex(h => h?.toLowerCase().includes('start date'));
+    const depositIdx = hr.findIndex(h => {
+      const lower = (h || '').toLowerCase();
+      return lower === 'deposit' || lower === 'deposit amount';
+    });
+    const termLengthIdx = hr.findIndex(h => {
+      const lower = (h || '').toLowerCase();
+      return lower.includes('term') && lower.includes('length');
+    });
 
     const findByIncludes = (sub: string) =>
       hr.findIndex((h) => h && h.toString().toLowerCase().includes(sub));
