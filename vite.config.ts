@@ -41,11 +41,10 @@ export default defineConfig(({ mode }) => {
         includeAssets: ["favicon.ico", "lakecity-logo.svg", "icons/*.png"],
         manifest: false, // Using our custom manifest.json
         workbox: {
-          // After each deploy, take control immediately and drop old precaches. Without this,
-          // users can keep a stale SW that serves an old index.html → hashed chunk URLs404 → blank SPA.
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
+          navigateFallbackDenylist: [/^\/~oauth/],
           globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
           runtimeCaching: [
             {
