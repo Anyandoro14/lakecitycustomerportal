@@ -244,7 +244,12 @@ Deno.serve(async (req) => {
     );
 
     // Filter to stands that need provisioning
-    const toProvision = unique.filter((s) => !existingStands.has(s.standNumber));
+    let candidates = unique.filter((s) => !existingStands.has(s.standNumber));
+    // If a specific stand was requested, narrow down
+    if (filterStand) {
+      candidates = candidates.filter((s) => s.standNumber === filterStand);
+    }
+    const toProvision = candidates;
     console.log(`${toProvision.length} stand(s) need provisioning`);
 
     if (dryRun) {
