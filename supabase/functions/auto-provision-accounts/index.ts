@@ -14,7 +14,7 @@ const corsHeaders = {
  * and (optionally) emails the credentials via Resend.
  */
 
-// ── Google auth helpers (same pattern as fetch-google-sheets) ────────────────
+// ── Google auth helpers (mirrors fetch-google-sheets) ────────────────
 async function getGoogleAccessToken(): Promise<string> {
   const keyString = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY") || "";
   const clientEmail = Deno.env.get("GOOGLE_CLIENT_EMAIL") || "";
@@ -22,16 +22,13 @@ async function getGoogleAccessToken(): Promise<string> {
   let privateKeyPem: string;
   let serviceAccountEmail: string;
 
-  if (keyString.startsWith("{") || keyString.startsWith("ey")) {
-    let jsonStr = keyString;
-    if (keyString.startsWith("ey")) {
-      try { jsonStr = atob(keyString); } catch { jsonStr = keyString; }
-    }
-    const parsed = JSON.parse(jsonStr);
-    privateKeyPem = parsed.private_key;
-    serviceAccountEmail = parsed.client_email;
-  } else {
-    privateKeyPem = keyString.replace(/\\n/g, "\n");
+  // Try parsing as JSON first (same as fetch-google-sheets)
+  try {
+    const credentials = JSON.parse(keyString.replace(/\\n/g, "\n"));
+    privateKeyPem = credentials.private_key;
+    serviceAccountEmail = credentials.client_email;
+  } catch {
+    privateKeyPem = keyString;
     serviceAccountEmail = clientEmail;
   }
 
@@ -40,28 +37,33 @@ async function getGoogleAccessToken(): Promise<string> {
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const claims = btoa(JSON.stringify({
+
+  const base64url = (str: string) =>
+    btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  const jwtHeader = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const jwtClaimSet = base64url(JSON.stringify({
     iss: serviceAccountEmail,
     scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
     iat: now, exp: now + 3600,
-  })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }));
+  const signatureInput = `${jwtHeader}.${jwtClaimSet}`;
 
-  const signatureInput = `${header}.${claims}`;
+  // Clean and prepare the private key PEM
+  const extractPemBase64 = (pem: string) => {
+    const normalized = (pem || "").toString().replace(/\r/g, "").replace(/\\n/g, "\n");
+    const match = normalized.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
+    const body = match ? match[1] : normalized;
+    let base64 = body.replace(/[^A-Za-z0-9+/=\n]/g, "").replace(/\n/g, "");
+    const pad = base64.length % 4;
+    if (pad === 2) base64 += "==";
+    else if (pad === 3) base64 += "=";
+    return base64;
+  };
 
-  // Extract PEM base64
-  const pemBody = privateKeyPem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/[\n\r\s]/g, "");
-  let base64 = pemBody.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = base64.length % 4;
-  if (pad === 2) base64 += "==";
-  else if (pad === 3) base64 += "=";
-
-  const raw = atob(base64);
+  const base64Key = extractPemBase64(privateKeyPem);
+  const raw = atob(base64Key);
   const buffer = new ArrayBuffer(raw.length);
   const view = new Uint8Array(buffer);
   for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
@@ -76,15 +78,14 @@ async function getGoogleAccessToken(): Promise<string> {
     "RSASSA-PKCS1-v1_5", privateKey,
     new TextEncoder().encode(signatureInput),
   );
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const sigB64 = base64url(String.fromCharCode(...new Uint8Array(sig)));
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: `${header}.${claims}.${sigB64}`,
+      assertion: `${jwtHeader}.${jwtClaimSet}.${sigB64}`,
     }),
   });
   if (!tokenRes.ok) throw new Error(`Token exchange failed: ${await tokenRes.text()}`);
