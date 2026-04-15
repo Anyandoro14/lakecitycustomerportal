@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.training-ai-assistant]
 verify_jwt = false
+
+[functions.auto-provision-accounts]
+verify_jwt = false
