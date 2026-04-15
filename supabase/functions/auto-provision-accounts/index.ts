@@ -128,9 +128,11 @@ Deno.serve(async (req) => {
 
     // Parse optional body
     let dryRun = false;
+    let filterStand: string | null = null;
     try {
       const body = await req.json();
       dryRun = body.dryRun === true;
+      if (body.filterStand) filterStand = body.filterStand.toString().trim().toUpperCase();
     } catch { /* no body */ }
 
     // Resolve spreadsheet ID
