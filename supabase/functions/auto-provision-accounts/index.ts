@@ -274,6 +274,7 @@ Deno.serve(async (req) => {
     for (const stand of toProvision) {
       try {
         const tempPassword = generatePassword();
+        const bypassCode = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
         const fullName = `${stand.firstName} ${stand.lastName}`.trim();
 
         // Check if email already exists in auth
