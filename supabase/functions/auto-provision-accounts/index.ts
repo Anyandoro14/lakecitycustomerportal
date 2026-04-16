@@ -349,7 +349,8 @@ Deno.serve(async (req) => {
           let phone = stand.phone.replace(/\s+/g, "");
           if (!phone.startsWith("+")) phone = `+${phone}`;
 
-          const smsBody = `StandLedger Portal\n\nYour account has been created for Stand ${stand.standNumber}.\n\nEmail: ${stand.email}\nTemp Password: ${tempPassword}\n\nLogin: lakecity.standledger.io\nPlease change your password after login.`;
+          const bypassCodePreview = String(Math.floor(100000 + Math.random() * 900000));
+          const smsBody = `StandLedger Portal\n\nYour account has been created for Stand ${stand.standNumber}.\n\nEmail: ${stand.email}\nTemp Password: ${tempPassword}\nVerification Code: ${bypassCodePreview}\n\nLogin: lakecity.standledger.io\nUse the verification code when prompted.\nPlease change your password after login.`;
 
           try {
             const smsParams: Record<string, string> = {
