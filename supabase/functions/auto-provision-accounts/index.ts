@@ -350,8 +350,7 @@ Deno.serve(async (req) => {
           let phone = stand.phone.replace(/\s+/g, "");
           if (!phone.startsWith("+")) phone = `+${phone}`;
 
-          const bypassCodePreview = String(Math.floor(100000 + Math.random() * 900000));
-          const smsBody = `StandLedger Portal\n\nYour account has been created for Stand ${stand.standNumber}.\n\nEmail: ${stand.email}\nTemp Password: ${tempPassword}\nVerification Code: ${bypassCodePreview}\n\nLogin: lakecity.standledger.io\nUse the verification code when prompted.\nPlease change your password after login.`;
+          const smsBody = `StandLedger Portal\n\nYour account has been created for Stand ${stand.standNumber}.\n\nEmail: ${stand.email}\nTemp Password: ${tempPassword}\nVerification Code: ${bypassCode}\n\nLogin: lakecity.standledger.io\nUse the verification code when prompted.\nPlease change your password after login.`;
 
           try {
             const smsParams: Record<string, string> = {
@@ -411,7 +410,7 @@ Deno.serve(async (req) => {
                     <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
                       <p style="margin: 4px 0;"><strong>Email:</strong> ${stand.email}</p>
                       <p style="margin: 4px 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
-                    </div>
+                      <p style="margin: 4px 0;"><strong>Verification Code:</strong> ${bypassCode}</p>
                     <p>Log in at <a href="https://lakecity.standledger.io">lakecity.standledger.io</a> and change your password.</p>
                   </div>
                 `,
@@ -426,8 +425,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Auto-generate a 2FA bypass code so the customer can log in
-        const bypassCode = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+        // Store the 2FA bypass code so the customer can log in
         const bypassExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
         let normalizedPhone = (stand.phone || "").replace(/\s+/g, "");
         if (normalizedPhone && !normalizedPhone.startsWith("+")) normalizedPhone = `+${normalizedPhone}`;
