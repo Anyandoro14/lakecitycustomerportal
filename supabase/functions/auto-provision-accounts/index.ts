@@ -338,8 +338,53 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Send welcome email with temp password
-        if (resendApiKey) {
+        // Send temp password via SMS (preferred) or email fallback
+        const twilioSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+        const twilioAuth = Deno.env.get("TWILIO_AUTH_TOKEN");
+        const twilioFrom = Deno.env.get("TWILIO_PHONE_NUMBER");
+        const twilioMsgSvcSid = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID");
+
+        if (stand.phone && (twilioSid && twilioAuth)) {
+          // Normalize phone to E.164
+          let phone = stand.phone.replace(/\s+/g, "");
+          if (!phone.startsWith("+")) phone = `+${phone}`;
+
+          const smsBody = `StandLedger Portal\n\nYour account has been created for Stand ${stand.standNumber}.\n\nEmail: ${stand.email}\nTemp Password: ${tempPassword}\n\nLogin: lakecity.standledger.io\nPlease change your password after login.`;
+
+          try {
+            const smsParams: Record<string, string> = {
+              To: phone,
+              Body: smsBody,
+            };
+            if (twilioMsgSvcSid) {
+              smsParams.MessagingServiceSid = twilioMsgSvcSid;
+            } else if (twilioFrom) {
+              smsParams.From = twilioFrom;
+            }
+
+            const smsRes = await fetch(
+              `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/x-www-form-urlencoded",
+                  Authorization: `Basic ${btoa(`${twilioSid}:${twilioAuth}`)}`,
+                },
+                body: new URLSearchParams(smsParams),
+              },
+            );
+
+            if (!smsRes.ok) {
+              const smsErr = await smsRes.json();
+              console.warn(`SMS failed for ${stand.phone}: ${smsErr.message || smsRes.status}`);
+            } else {
+              console.log(`SMS sent to ${stand.phone} for Stand ${stand.standNumber}`);
+            }
+          } catch (smsErr) {
+            console.warn(`SMS error for ${stand.phone}:`, smsErr);
+          }
+        } else if (resendApiKey) {
+          // Fallback to email if no phone or Twilio not configured
           try {
             const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
             const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -360,20 +405,19 @@ Deno.serve(async (req) => {
                     <h1 style="font-family: 'Playfair Display', serif; color: #1a1a2e;">Welcome to StandLedger</h1>
                     <p>Dear ${fullName || "Valued Customer"},</p>
                     <p>Your portal account has been created for Stand <strong>${stand.standNumber}</strong>.</p>
-                    <p>Here are your login credentials:</p>
+                    <p>Login credentials:</p>
                     <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
                       <p style="margin: 4px 0;"><strong>Email:</strong> ${stand.email}</p>
                       <p style="margin: 4px 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
                     </div>
-                    <p>Please log in at <a href="https://lakecity.standledger.io">lakecity.standledger.io</a> and change your password immediately.</p>
-                    <p style="color: #666; font-size: 14px; margin-top: 32px;">If you did not expect this email, please ignore it.</p>
+                    <p>Log in at <a href="https://lakecity.standledger.io">lakecity.standledger.io</a> and change your password.</p>
                   </div>
                 `,
               }),
             });
 
             if (!emailRes.ok) {
-              console.warn(`Email send failed for ${stand.email}: ${emailRes.status}`);
+              console.warn(`Email failed for ${stand.email}: ${emailRes.status}`);
             }
           } catch (emailErr) {
             console.warn(`Email error for ${stand.email}:`, emailErr);
