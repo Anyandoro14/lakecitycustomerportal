@@ -424,7 +424,23 @@ Deno.serve(async (req) => {
           }
         }
 
-        results.push({ standNumber: stand.standNumber, email: stand.email, status: "created" });
+        // Auto-generate a 2FA bypass code so the customer can log in
+        const bypassCode = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+        const bypassExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+        let normalizedPhone = (stand.phone || "").replace(/\s+/g, "");
+        if (normalizedPhone && !normalizedPhone.startsWith("+")) normalizedPhone = `+${normalizedPhone}`;
+
+        await supabaseAdmin.from("twofa_bypass_codes").insert({
+          bypass_code: bypassCode,
+          phone_number: normalizedPhone || "no-phone",
+          stand_number: stand.standNumber,
+          customer_name: fullName || null,
+          is_reusable: true,
+          expires_at: bypassExpiry,
+        });
+        console.log(`2FA bypass code ${bypassCode} created for Stand ${stand.standNumber}`);
+
+        results.push({ standNumber: stand.standNumber, email: stand.email, status: "created", bypassCode });
         console.log(`✓ Provisioned: Stand ${stand.standNumber} → ${stand.email}`);
 
         // Small delay to avoid rate limits
