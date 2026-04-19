@@ -489,6 +489,49 @@ serve(async (req) => {
     // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
     const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
 
+    const normalizeHeaderCell = (value: unknown) =>
+      String(value ?? '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const findHeaderRowIndex = (tabRows: string[][]): number => {
+      const scanLimit = Math.min(8, tabRows.length);
+      let bestIndex = -1;
+      let bestScore = -1;
+
+      for (let i = 0; i < scanLimit; i++) {
+        const candidate = tabRows[i] || [];
+        const normalized = candidate.map(normalizeHeaderCell);
+        const score =
+          Number(normalized.some((cell) => cell === 'stand number' || cell === 'stand' || cell === 'stand no')) +
+          Number(normalized.some((cell) => cell.includes('email'))) +
+          Number(normalized.some((cell) => cell.includes('first name') || cell === 'first')) +
+          Number(normalized.some((cell) => cell.includes('last name') || cell === 'last')) +
+          Number(normalized.some((cell) => cell.includes('deposit'))) +
+          Number(normalized.some((cell) => cell.includes('start date'))) +
+          Number(normalized.some((cell) => cell.includes('total price')));
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+
+      return bestScore > 0 ? bestIndex : -1;
+    };
+
+    const findColumnIndex = (headers: string[], matchers: Array<(header: string) => boolean>, fallback?: number): number => {
+      for (let i = 0; i < headers.length; i++) {
+        const normalized = normalizeHeaderCell(headers[i]);
+        if (!normalized) continue;
+        if (matchers.some((matcher) => matcher(normalized))) {
+          return i;
+        }
+      }
+      return fallback ?? -1;
+    };
+
     // ── Multi-tab scan: fetch ALL collection schedule tabs so multi-stand
     //    customers whose stands span different term-length tabs are matched. ──
     const allTabTitles = listCollectionScheduleDataTabTitles(sheets);
@@ -513,7 +556,8 @@ serve(async (req) => {
       );
     }
 
-    // Fetch data from all tabs and merge rows (all tabs share the same column layout)
+    // Fetch data from all tabs and normalize each tab to its actual header row
+    // before merging so title/branding rows never poison the combined dataset.
     let rows: string[][] = [];
     let primarySheetTitle = allTabTitles[0];
     for (const tabTitle of allTabTitles) {
@@ -528,17 +572,27 @@ serve(async (req) => {
       }
       const data: GoogleSheetsResponse = await response.json();
       const tabRows = data.values || [];
-      if (tabRows.length < 2) continue;
+      if (tabRows.length === 0) continue;
+
+      const headerRowIdx = findHeaderRowIndex(tabRows);
+      if (headerRowIdx === -1) {
+        console.warn(`Skipping tab "${tabTitle}" because no recognizable header row was found`);
+        continue;
+      }
+
+      const normalizedTabRows = tabRows.slice(headerRowIdx);
+      if (normalizedTabRows.length < 2) {
+        console.warn(`Skipping tab "${tabTitle}" because it has no data rows after header normalization`);
+        continue;
+      }
 
       if (rows.length === 0) {
-        // First tab: include header + data rows
-        rows = tabRows;
+        rows = normalizedTabRows;
         primarySheetTitle = tabTitle;
       } else {
-        // Subsequent tabs: skip header (row 0), append data rows only
-        rows = rows.concat(tabRows.slice(1));
+        rows = rows.concat(normalizedTabRows.slice(1));
       }
-      console.log(`Tab "${tabTitle}": ${tabRows.length - 1} data rows`);
+      console.log(`Tab "${tabTitle}": header row ${headerRowIdx}, ${normalizedTabRows.length - 1} data rows`);
     }
 
     const sheetTitle = primarySheetTitle;
