@@ -278,7 +278,6 @@ const handler = async (req: Request): Promise<Response> => {
         break;
       }
     }
-    }
 
     if (!customerRow || resolvedEmailIndex < 0) {
       console.log(`No account found in Google Sheets for stand number: ${trimmedStand}`);
