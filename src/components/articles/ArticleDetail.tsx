@@ -67,7 +67,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
           <div className="mt-8 flex items-center gap-3">
             <div className="h-px flex-1 max-w-[40px] bg-primary-foreground/20" />
             <div className="flex items-center gap-2 text-xs sm:text-sm font-body text-primary-foreground/50">
-              <span className="font-medium text-primary-foreground/70">{article.author_name || "The Directors"}</span>
+              <span className="font-medium text-primary-foreground/70">{article.author_name || "Tech at LakeCity"}</span>
               <span className="text-primary-foreground/30">·</span>
               <span>{publishedDate}</span>
             </div>
