@@ -603,12 +603,24 @@ serve(async (req) => {
 
     const headers = rows[0] || [];
     console.log(`Using normalized merged header; sample headers: ${JSON.stringify(headers.slice(0, 12))}`);
+    const looksLikeLakeCityColumnALayout =
+      normalizeHeaderCell(headers[0]) === '' &&
+      ['first', 'first name'].includes(normalizeHeaderCell(headers[1])) &&
+      ['last', 'last name'].includes(normalizeHeaderCell(headers[2])) &&
+      normalizeHeaderCell(headers[4]).includes('email');
+
     const standNumIndex = findColumnIndex(headers, [
       (header) => header === 'stand number',
       (header) => header === 'stand',
       (header) => header === 'stand no',
+      (header) => header === 'stand #',
       (header) => header.includes('stand number'),
-    ], 1);
+      (header) => header.includes('stand no'),
+    ], looksLikeLakeCityColumnALayout ? 0 : -1);
+
+    if (looksLikeLakeCityColumnALayout) {
+      console.log('Stand Number header is blank; using Lake City Column A layout fallback at index 0');
+    }
     const firstNameIndex = findColumnIndex(headers, [
       (header) => header === 'first',
       (header) => header === 'first name',
