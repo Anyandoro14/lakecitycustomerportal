@@ -277,11 +277,7 @@ const handler = async (req: Request): Promise<Response> => {
         resolvedEmailIndex = emailIndex;
         break;
       }
-      if (hit && hit[emailIndex]) {
-        customerRow = hit;
-        resolvedEmailIndex = emailIndex;
-        break;
-      }
+    }
     }
 
     if (!customerRow || resolvedEmailIndex < 0) {
