@@ -202,8 +202,6 @@ const Updates = () => {
           <p className="mt-4 text-sm sm:text-base text-primary-foreground/70 max-w-md leading-relaxed font-mono font-medium">
             Official communications from LakeCity tech team.
           </p>
-            Official communications from The Directors at Warwickshire Pvt Ltd — keeping you informed on your investment.
-          </p>
         </div>
       </div>
 
