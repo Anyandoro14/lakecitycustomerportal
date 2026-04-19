@@ -8,7 +8,6 @@ import {
   PAYMENT_GRID_START_COL,
   PAYMENT_GRID_END_COL,
   PAYMENT_GRID_BASE_DATE,
-  customerPaymentStartCol,
 } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
@@ -595,7 +594,6 @@ serve(async (req) => {
       console.log(`Tab "${tabTitle}": header row ${headerRowIdx}, ${normalizedTabRows.length - 1} data rows`);
     }
 
-    const sheetTitle = primarySheetTitle;
     console.log(`Total merged rows (incl header): ${rows.length}`);
 
     if (rows.length === 0) {
