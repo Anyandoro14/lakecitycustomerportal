@@ -199,7 +199,7 @@ const Updates = () => {
             Updates &<br className="hidden sm:block" /> Announcements
           </h1>
           <div className="mt-6 h-px w-16 bg-primary-foreground/20" />
-          <p className="mt-4 text-sm sm:text-base font-body font-light text-primary-foreground/70 max-w-md leading-relaxed">
+          <p className="mt-4 text-sm sm:text-base text-primary-foreground/70 max-w-md leading-relaxed font-mono font-medium">
             Official communications from The Directors at Warwickshire Pvt Ltd — keeping you informed on your investment.
           </p>
         </div>
