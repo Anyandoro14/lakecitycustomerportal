@@ -8,7 +8,6 @@ import {
   PAYMENT_GRID_START_COL,
   PAYMENT_GRID_END_COL,
   PAYMENT_GRID_BASE_DATE,
-  customerPaymentStartCol,
 } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
@@ -489,6 +488,49 @@ serve(async (req) => {
     // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
     const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
 
+    const normalizeHeaderCell = (value: unknown) =>
+      String(value ?? '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const findHeaderRowIndex = (tabRows: string[][]): number => {
+      const scanLimit = Math.min(8, tabRows.length);
+      let bestIndex = -1;
+      let bestScore = -1;
+
+      for (let i = 0; i < scanLimit; i++) {
+        const candidate = tabRows[i] || [];
+        const normalized = candidate.map(normalizeHeaderCell);
+        const score =
+          Number(normalized.some((cell) => cell === 'stand number' || cell === 'stand' || cell === 'stand no')) +
+          Number(normalized.some((cell) => cell.includes('email'))) +
+          Number(normalized.some((cell) => cell.includes('first name') || cell === 'first')) +
+          Number(normalized.some((cell) => cell.includes('last name') || cell === 'last')) +
+          Number(normalized.some((cell) => cell.includes('deposit'))) +
+          Number(normalized.some((cell) => cell.includes('start date'))) +
+          Number(normalized.some((cell) => cell.includes('total price')));
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+
+      return bestScore > 0 ? bestIndex : -1;
+    };
+
+    const findColumnIndex = (headers: string[], matchers: Array<(header: string) => boolean>, fallback?: number): number => {
+      for (let i = 0; i < headers.length; i++) {
+        const normalized = normalizeHeaderCell(headers[i]);
+        if (!normalized) continue;
+        if (matchers.some((matcher) => matcher(normalized))) {
+          return i;
+        }
+      }
+      return fallback ?? -1;
+    };
+
     // ── Multi-tab scan: fetch ALL collection schedule tabs so multi-stand
     //    customers whose stands span different term-length tabs are matched. ──
     const allTabTitles = listCollectionScheduleDataTabTitles(sheets);
@@ -513,9 +555,9 @@ serve(async (req) => {
       );
     }
 
-    // Fetch data from all tabs and merge rows (all tabs share the same column layout)
+    // Fetch data from all tabs and normalize each tab to its actual header row
+    // before merging so title/branding rows never poison the combined dataset.
     let rows: string[][] = [];
-    let primarySheetTitle = allTabTitles[0];
     for (const tabTitle of allTabTitles) {
       const range = encodeURIComponent(`${tabTitle}!A:ZZ`);
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
@@ -528,20 +570,28 @@ serve(async (req) => {
       }
       const data: GoogleSheetsResponse = await response.json();
       const tabRows = data.values || [];
-      if (tabRows.length < 2) continue;
+      if (tabRows.length === 0) continue;
+
+      const headerRowIdx = findHeaderRowIndex(tabRows);
+      if (headerRowIdx === -1) {
+        console.warn(`Skipping tab "${tabTitle}" because no recognizable header row was found`);
+        continue;
+      }
+
+      const normalizedTabRows = tabRows.slice(headerRowIdx);
+      if (normalizedTabRows.length < 2) {
+        console.warn(`Skipping tab "${tabTitle}" because it has no data rows after header normalization`);
+        continue;
+      }
 
       if (rows.length === 0) {
-        // First tab: include header + data rows
-        rows = tabRows;
-        primarySheetTitle = tabTitle;
+        rows = normalizedTabRows;
       } else {
-        // Subsequent tabs: skip header (row 0), append data rows only
-        rows = rows.concat(tabRows.slice(1));
+        rows = rows.concat(normalizedTabRows.slice(1));
       }
-      console.log(`Tab "${tabTitle}": ${tabRows.length - 1} data rows`);
+      console.log(`Tab "${tabTitle}": header row ${headerRowIdx}, ${normalizedTabRows.length - 1} data rows`);
     }
 
-    const sheetTitle = primarySheetTitle;
     console.log(`Total merged rows (incl header): ${rows.length}`);
 
     if (rows.length === 0) {
@@ -551,50 +601,74 @@ serve(async (req) => {
       );
     }
 
-    // Find header row and get column indices.
-    // Some Collection Schedule tabs have a title/branding row above the actual
-    // header. Scan the first few rows to locate the one that contains a
-    // "Stand Number" column so we don't fail with a misleading 400 when the
-    // header isn't on row 0.
-    let headerRowIdx = 0;
-    for (let i = 0; i < Math.min(5, rows.length); i++) {
-      const candidate = rows[i] || [];
-      const hasStand = candidate.some(h => h && h.toString().toLowerCase().includes('stand'));
-      if (hasStand) {
-        headerRowIdx = i;
-        break;
-      }
-    }
-    const headers = rows[headerRowIdx] || [];
-    console.log(`Using header row index ${headerRowIdx}; sample headers: ${JSON.stringify(headers.slice(0, 12))}`);
-    // Drop everything above the header row so downstream slice(1) logic still works.
-    if (headerRowIdx > 0) {
-      rows = rows.slice(headerRowIdx);
-    }
-    const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
-    const firstNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('first'));
-    const lastNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('last'));
-    const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
+    const headers = rows[0] || [];
+    console.log(`Using normalized merged header; sample headers: ${JSON.stringify(headers.slice(0, 12))}`);
+    const standNumIndex = findColumnIndex(headers, [
+      (header) => header === 'stand number',
+      (header) => header === 'stand',
+      (header) => header === 'stand no',
+      (header) => header.includes('stand number'),
+    ], 1);
+    const firstNameIndex = findColumnIndex(headers, [
+      (header) => header === 'first',
+      (header) => header === 'first name',
+      (header) => header.includes('first name'),
+    ], 2);
+    const lastNameIndex = findColumnIndex(headers, [
+      (header) => header === 'last',
+      (header) => header === 'last name',
+      (header) => header.includes('last name'),
+      (header) => header.includes('surname'),
+    ], 3);
+    const emailIndex = findColumnIndex(headers, [
+      (header) => header === 'email',
+      (header) => header.includes('email'),
+      (header) => header.includes('e-mail'),
+    ], 4);
     const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
-    const phoneIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('phone') || h && h.toString().toLowerCase().includes('contact'));
-    const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
-    const paymentIndex = headers.findIndex((h, idx) => idx < PAYMENT_GRID_START_COL && h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
-    const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
-    const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
-    const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
+    const phoneIndex = findColumnIndex(headers, [
+      (header) => header.includes('phone'),
+      (header) => header.includes('contact'),
+      (header) => header.includes('mobile'),
+      (header) => header.includes('cell'),
+      (header) => header.includes('tel'),
+    ], 6);
+    const totalPriceIndex = findColumnIndex(headers, [
+      (header) => header === 'total price',
+      (header) => header.includes('total price'),
+      (header) => header.includes('purchase price'),
+      (header) => header === 'price',
+    ], 8);
+    const paymentIndex = findColumnIndex(headers, [
+      (header) => header.includes('payment') && !header.includes('installment'),
+      (header) => header.includes('instalment') && !header.includes('next'),
+      (header) => header.includes('installment') && !header.includes('next'),
+    ], 10);
+    const startDateIndex = findColumnIndex(headers, [
+      (header) => header === 'start date',
+      (header) => header.includes('start date'),
+      (header) => header.includes('payment start'),
+    ], 11);
+    const depositIndex = findColumnIndex(headers, [
+      (header) => header === 'deposit',
+      (header) => header.includes('deposit'),
+    ], 7);
     // VAT indicator - look for columns that might indicate VAT inclusion/exclusion
-    const vatInclusiveIndex = headers.findIndex(h => h && (h.toString().toLowerCase().includes('vat') || h.toString().toLowerCase().includes('inclusive')));
+    const vatInclusiveIndex = findColumnIndex(headers, [
+      (header) => header.includes('vat'),
+      (header) => header.includes('inclusive'),
+    ]);
     
     if (standNumIndex === -1) {
       return new Response(
-        JSON.stringify({ error: 'Could not find "Stand Number" column in spreadsheet' }),
+        JSON.stringify({ error: `Could not find "Stand Number" column in spreadsheet. Headers seen: ${JSON.stringify(headers.slice(0, 12))}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (emailIndex === -1) {
       return new Response(
-        JSON.stringify({ error: 'Could not find "Email" column in spreadsheet' }),
+        JSON.stringify({ error: `Could not find "Email" column in spreadsheet. Headers seen: ${JSON.stringify(headers.slice(0, 12))}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
