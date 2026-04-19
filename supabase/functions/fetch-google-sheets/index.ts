@@ -608,7 +608,8 @@ serve(async (req) => {
           return true;
         }
         
-        // Match by stand number from profile (for users with placeholder emails)
+        // Always allow stand-number fallback so the Collection Schedule remains
+        // the source of truth even when the sheet email is missing/outdated.
         if (profileStandNumber && rowStandNumber === profileStandNumber) {
           return true;
         }
