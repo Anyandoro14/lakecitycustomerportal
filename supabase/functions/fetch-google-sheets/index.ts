@@ -551,8 +551,26 @@ serve(async (req) => {
       );
     }
 
-    // Find header row and get column indices
-    const headers = rows[0];
+    // Find header row and get column indices.
+    // Some Collection Schedule tabs have a title/branding row above the actual
+    // header. Scan the first few rows to locate the one that contains a
+    // "Stand Number" column so we don't fail with a misleading 400 when the
+    // header isn't on row 0.
+    let headerRowIdx = 0;
+    for (let i = 0; i < Math.min(5, rows.length); i++) {
+      const candidate = rows[i] || [];
+      const hasStand = candidate.some(h => h && h.toString().toLowerCase().includes('stand'));
+      if (hasStand) {
+        headerRowIdx = i;
+        break;
+      }
+    }
+    const headers = rows[headerRowIdx] || [];
+    console.log(`Using header row index ${headerRowIdx}; sample headers: ${JSON.stringify(headers.slice(0, 12))}`);
+    // Drop everything above the header row so downstream slice(1) logic still works.
+    if (headerRowIdx > 0) {
+      rows = rows.slice(headerRowIdx);
+    }
     const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
     const firstNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('first'));
     const lastNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('last'));
