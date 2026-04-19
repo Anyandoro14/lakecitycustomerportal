@@ -558,7 +558,6 @@ serve(async (req) => {
     // Fetch data from all tabs and normalize each tab to its actual header row
     // before merging so title/branding rows never poison the combined dataset.
     let rows: string[][] = [];
-    let primarySheetTitle = allTabTitles[0];
     for (const tabTitle of allTabTitles) {
       const range = encodeURIComponent(`${tabTitle}!A:ZZ`);
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
@@ -587,7 +586,6 @@ serve(async (req) => {
 
       if (rows.length === 0) {
         rows = normalizedTabRows;
-        primarySheetTitle = tabTitle;
       } else {
         rows = rows.concat(normalizedTabRows.slice(1));
       }
