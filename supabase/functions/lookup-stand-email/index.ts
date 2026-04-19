@@ -230,11 +230,44 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (rows.length === 0) continue;
 
-      const headers = rows[0];
-      const standNumIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('stand'));
-      const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
+      // Find header row (scan first 8 rows for one containing stand/email keywords)
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(8, rows.length); i++) {
+        const r = rows[i] || [];
+        const joined = r.map((c: any) => (c ?? '').toString().toLowerCase()).join('|');
+        if (/stand|email|first name|last name|payment/.test(joined)) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+      const headers = rows[headerRowIdx] || [];
+      const norm = (h: any) => (h ?? '').toString().toLowerCase().trim();
 
-      if (standNumIndex === -1 || emailIndex === -1) continue;
+      let standNumIndex = headers.findIndex((h: any) => {
+        const n = norm(h);
+        return n === 'stand number' || n === 'stand no' || n === 'stand #' || n === 'stand' || n.startsWith('stand ');
+      });
+      const emailIndex = headers.findIndex((h: any) => {
+        const n = norm(h);
+        return n === 'email' || n === 'e-mail' || n.includes('email');
+      });
+
+      // Lake City layout: Column A header is blank but contains stand numbers; B/C are names
+      if (standNumIndex === -1) {
+        const a = norm(headers[0]);
+        const b = norm(headers[1]);
+        const c = norm(headers[2]);
+        if (a === '' && (b.includes('first') || b.includes('name')) && (c.includes('last') || c.includes('name'))) {
+          standNumIndex = 0;
+        }
+      }
+
+      if (standNumIndex === -1 || emailIndex === -1) {
+        console.log(`Tab "${sheetTitle}": skipped — stand=${standNumIndex}, email=${emailIndex}, headers=${JSON.stringify(headers.slice(0, 8))}`);
+        continue;
+      }
+
+      const dataRows = rows.slice(headerRowIdx + 1);
 
       const hit = rows.slice(1).find((row: string[]) =>
         row[standNumIndex] && row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase()
