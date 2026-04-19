@@ -269,9 +269,14 @@ const handler = async (req: Request): Promise<Response> => {
 
       const dataRows = rows.slice(headerRowIdx + 1);
 
-      const hit = rows.slice(1).find((row: string[]) =>
+      const hit = dataRows.find((row: string[]) =>
         row[standNumIndex] && row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase()
       );
+      if (hit && hit[emailIndex]) {
+        customerRow = hit;
+        resolvedEmailIndex = emailIndex;
+        break;
+      }
       if (hit && hit[emailIndex]) {
         customerRow = hit;
         resolvedEmailIndex = emailIndex;
