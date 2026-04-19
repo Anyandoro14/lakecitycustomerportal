@@ -1,0 +1,1 @@
+UPDATE public.articles SET author_name = 'Tech at LakeCity', updated_at = NOW() WHERE slug = 'service-update-login-disruption-april-2026';
