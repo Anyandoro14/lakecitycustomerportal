@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
           </div>
         </div>
         <div style="background:#0B3D2E;padding:20px 32px;text-align:center;">
-          <p style="color:rgba(255,255,255,0.6);font-size:11px;margin:0;">LakeCity Residential Estates &bull; Transparency &bull; Integrity &bull; Honesty</p>
+          <p style="color:rgba(255,255,255,0.6);font-size:11px;margin:0;">LakeCity &bull; Honesty, Integrity, Transparency</p>
         </div>
       </div>
     </body></html>`;
