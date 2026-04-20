@@ -130,7 +130,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
             if (paragraph.startsWith("- ") || paragraph.startsWith("• ")) {
               const items = paragraph.split("\n").filter(Boolean);
               return (
-                <ul key={i} className="space-y-3 ml-1 my-6">
+                <ul key={i} className="space-y-3 ml-1 my-6 font-serif">
                   {items.map((item, j) => (
                     <li key={j} className="flex items-start gap-4 font-body text-base text-muted-foreground leading-relaxed">
                       <span className="mt-2.5 h-1 w-1 rounded-full bg-secondary flex-shrink-0" />
@@ -148,7 +148,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
               );
             }
             return (
-              <p key={i} className={`font-body text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
+              <p key={i} className={`font-sans text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
                 i === 0 ? "text-foreground/90 text-lg sm:text-xl leading-[1.7] font-normal" : ""
               }`}>
                 {renderInline(paragraph)}
