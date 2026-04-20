@@ -125,7 +125,7 @@ const ArticleEmailComposer = ({ article, onClose }: ArticleEmailComposerProps) =
         </div>
       </div>
       <div style="background: #0B3D2E; padding: 20px; text-align: center;">
-        <p style="color: rgba(255,255,255,0.7); font-size: 12px; margin: 0;">LakeCity Residential Estates</p>
+        <p style="color: rgba(255,255,255,0.7); font-size: 12px; margin: 0;">LakeCity &bull; Honesty, Integrity, Transparency</p>
       </div>
     </div>
   `;
