@@ -75,6 +75,30 @@ const ArticleEmailComposer = ({ article, onClose }: ArticleEmailComposerProps) =
     }
   };
 
+  const renderInline = (value: string) => {
+    let html = value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    html = html.replace(
+      /\*\*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)\*\*/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#0B5ED7;text-decoration:underline;font-weight:700;">$1</a>'
+    );
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#0B5ED7;text-decoration:underline;font-weight:600;">$1</a>'
+    );
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong style="font-weight:700;color:#111827;">$1</strong>');
+
+    return html.replace(/\n/g, "<br />");
+  };
+
+  const previewParagraphs = article.content.split("\n\n");
+  const previewSignOffIndex = previewParagraphs.findIndex((paragraph) => /^(kind regards|regards|warm regards),?$/i.test(paragraph.trim()));
+
   // Simple HTML preview
   const previewHtml = `
     <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
@@ -85,11 +109,20 @@ const ArticleEmailComposer = ({ article, onClose }: ArticleEmailComposerProps) =
         <h1 style="color: #0B3D2E; font-size: 22px; margin: 0 0 16px;">${subject}</h1>
         ${customIntro ? `<p style="color: #374151; font-size: 15px; line-height: 1.7;">${customIntro}</p>` : ""}
         <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 20px 0;" />
-        ${article.content.split("\n\n").map(p => {
-          if (p.startsWith("## ")) return `<h2 style="color: #0B3D2E; font-size: 18px;">${p.replace("## ", "")}</h2>`;
-          if (p.startsWith("### ")) return `<h3 style="color: #0B3D2E; font-size: 16px;">${p.replace("### ", "")}</h3>`;
-          return `<p style="color: #374151; font-size: 14px; line-height: 1.7;">${p}</p>`;
+        ${previewParagraphs.map((p, index) => {
+          const trimmed = p.trim();
+          if (trimmed.startsWith("## ")) return `<h2 style="color: #0B3D2E; font-size: 18px;">${renderInline(trimmed.replace("## ", ""))}</h2>`;
+          if (trimmed.startsWith("### ")) return `<h3 style="color: #0B3D2E; font-size: 16px;">${renderInline(trimmed.replace("### ", ""))}</h3>`;
+          if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+            const items = trimmed.split("\n").filter(Boolean).map(item => `<li style="margin:4px 0;">${renderInline(item.replace(/^[-•]\s*/, ""))}</li>`).join("");
+            return `<ul style="color: #374151; font-size: 14px; line-height: 1.7; padding-left: 20px;">${items}</ul>`;
+          }
+          const margin = previewSignOffIndex !== -1 && index > previewSignOffIndex ? "4px 0" : "12px 0";
+          return `<p style="color: #374151; font-size: 14px; line-height: 1.7; margin: ${margin};">${renderInline(trimmed)}</p>`;
         }).join("")}
+        <div style="text-align: center; margin: 20px 0 8px;">
+          <img src="/lakecity-logo.svg" alt="LakeCity" width="180" style="display:block;margin:0 auto;height:auto;" />
+        </div>
       </div>
       <div style="background: #0B3D2E; padding: 20px; text-align: center;">
         <p style="color: rgba(255,255,255,0.7); font-size: 12px; margin: 0;">LakeCity Residential Estates</p>
