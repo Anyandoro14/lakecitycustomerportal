@@ -149,7 +149,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
             }
             return (
               <p key={i} className={`font-body text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
-                i === 0 ? "text-foreground/90 font-light text-lg sm:text-xl leading-[1.7]" : ""
+                i === 0 ? "text-foreground/90 text-lg sm:text-xl leading-[1.7] font-normal" : ""
               }`}>
                 {renderInline(paragraph)}
               </p>
