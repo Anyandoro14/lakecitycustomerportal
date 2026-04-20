@@ -15,7 +15,7 @@ const ArticleCard = ({ article, readStatus, isFirst, onClick }: ArticleCardProps
     ? format(new Date(article.published_at), "d MMMM yyyy")
     : format(new Date(article.created_at), "d MMMM yyyy");
 
-  const categoryLabel = article.category === "welcome" ? "Welcome" : "Press Release";
+  const categoryLabel = article.category === "welcome" ? "Welcome" : "Customer Portal Announcement";
 
   return (
     <button

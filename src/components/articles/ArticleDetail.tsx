@@ -18,7 +18,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
     ? format(new Date(article.published_at), "d MMMM yyyy")
     : format(new Date(article.created_at), "d MMMM yyyy");
 
-  const categoryLabel = article.category === "welcome" ? "Welcome" : "Press Release";
+  const categoryLabel = article.category === "welcome" ? "Welcome" : "Customer Portal Announcement";
 
   return (
     <div className="min-h-screen bg-background">
