@@ -66,16 +66,45 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    const escapeHtml = (value: string) => value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const renderInline = (value: string) => {
+      let html = escapeHtml(value);
+
+      html = html.replace(
+        /\*\*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)\*\*/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#0B5ED7;text-decoration:underline;font-weight:700;">$1</a>'
+      );
+      html = html.replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#0B5ED7;text-decoration:underline;font-weight:600;">$1</a>'
+      );
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong style="font-weight:700;color:#111827;">$1</strong>');
+
+      return html.replace(/\n/g, '<br />');
+    };
+
     // Build email HTML
-    const contentHtml = article.content.split('\n\n').map((p: string) => {
-      if (p.startsWith('## ')) return `<h2 style="color:#0B3D2E;font-size:18px;font-weight:600;margin:24px 0 12px;">${p.replace('## ', '')}</h2>`;
-      if (p.startsWith('### ')) return `<h3 style="color:#0B3D2E;font-size:16px;font-weight:600;margin:20px 0 8px;">${p.replace('### ', '')}</h3>`;
-      if (p.startsWith('- ') || p.startsWith('• ')) {
-        const items = p.split('\n').filter(Boolean).map(i => `<li style="margin:4px 0;">${i.replace(/^[-•]\s*/, '')}</li>`).join('');
+    const paragraphs = article.content.split('\n\n');
+    const signOffIndex = paragraphs.findIndex((paragraph: string) => /^(kind regards|regards|warm regards),?$/i.test(paragraph.trim()));
+    const contentHtml = paragraphs.map((p: string, index: number) => {
+      const trimmed = p.trim();
+      if (trimmed.startsWith('## ')) return `<h2 style="color:#0B3D2E;font-size:18px;font-weight:600;margin:24px 0 12px;">${renderInline(trimmed.replace('## ', ''))}</h2>`;
+      if (trimmed.startsWith('### ')) return `<h3 style="color:#0B3D2E;font-size:16px;font-weight:600;margin:20px 0 8px;">${renderInline(trimmed.replace('### ', ''))}</h3>`;
+      if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+        const items = trimmed.split('\n').filter(Boolean).map(i => `<li style="margin:4px 0;">${renderInline(i.replace(/^[-•]\s*/, ''))}</li>`).join('');
         return `<ul style="color:#374151;font-size:14px;line-height:1.7;padding-left:20px;">${items}</ul>`;
       }
-      if (p.startsWith('> ')) return `<blockquote style="border-left:3px solid #6BAB8F;padding-left:16px;color:#6B7280;font-style:italic;margin:16px 0;">${p.replace(/^>\s*/, '')}</blockquote>`;
-      return `<p style="color:#374151;font-size:14px;line-height:1.7;margin:12px 0;">${p}</p>`;
+      if (trimmed.startsWith('> ')) return `<blockquote style="border-left:3px solid #6BAB8F;padding-left:16px;color:#6B7280;font-style:italic;margin:16px 0;">${renderInline(trimmed.replace(/^>\s*/, ''))}</blockquote>`;
+
+      const isSignatureLine = signOffIndex !== -1 && index > signOffIndex;
+      const margin = isSignatureLine ? '4px 0' : '12px 0';
+      return `<p style="color:#374151;font-size:14px;line-height:1.7;margin:${margin};">${renderInline(trimmed)}</p>`;
     }).join('');
 
     const emailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -90,6 +119,9 @@ Deno.serve(async (req) => {
           <h1 style="color:#0B3D2E;font-size:22px;font-weight:600;margin:0 0 20px;text-align:center;">${subject}</h1>
           ${customIntro ? `<p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 20px;">${customIntro}</p><hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0;" />` : ''}
           ${contentHtml}
+          <div style="text-align:center;margin:20px 0 8px;">
+            <img src="https://lakecity.standledger.io/lakecity-logo.svg" alt="LakeCity" width="180" style="display:block;margin:0 auto;height:auto;" />
+          </div>
           <div style="text-align:center;margin:32px 0 16px;">
             <a href="https://lakecity.standledger.io/updates" style="background:#0B3D2E;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;">Read on Portal</a>
           </div>
