@@ -12,6 +12,36 @@ interface ArticleDetailProps {
   onSubmitFeedback: (articleId: string, comment: string) => Promise<boolean>;
 }
 
+const renderInline = (text: string) => {
+  // Tokenize for [label](url) and **bold**
+  const regex = /\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*/g;
+  const nodes: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    if (match[1] && match[2]) {
+      nodes.push(
+        <a
+          key={key++}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-foreground underline underline-offset-4 decoration-secondary hover:decoration-foreground transition-colors"
+        >
+          {match[1]}
+        </a>
+      );
+    } else if (match[3]) {
+      nodes.push(<strong key={key++} className="font-semibold text-foreground">{match[3]}</strong>);
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+};
+
 const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeedback }: ArticleDetailProps) => {
   const isRead = readStatus?.is_read || false;
   const publishedDate = article.published_at
@@ -121,7 +151,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
               <p key={i} className={`font-body text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
                 i === 0 ? "text-foreground/90 font-light text-lg sm:text-xl leading-[1.7]" : ""
               }`}>
-                {paragraph}
+                {renderInline(paragraph)}
               </p>
             );
           })}
