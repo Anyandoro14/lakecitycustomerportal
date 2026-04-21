@@ -9,60 +9,82 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Google service account auth -> access token
+// Google service account auth -> access token (robust PEM/JSON parser)
 async function getAccessToken(): Promise<string> {
-  const rawKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
-  if (!rawKey) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY missing');
+  const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
+  const clientEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL') || '';
 
-  let serviceAccount: any;
+  let privateKeyPem: string;
+  let serviceAccountEmail: string;
   try {
-    serviceAccount = JSON.parse(rawKey);
+    const credentials = JSON.parse(keyString.replace(/\\n/g, '\n'));
+    privateKeyPem = credentials.private_key;
+    serviceAccountEmail = credentials.client_email;
   } catch {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not valid JSON');
+    privateKeyPem = keyString;
+    serviceAccountEmail = clientEmail;
+  }
+  const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  if (!serviceAccountEmail || !emailRegex.test(serviceAccountEmail)) {
+    throw new Error('Invalid or missing service account email');
   }
 
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: serviceAccount.client_email,
+  const claimSet = {
+    iss: serviceAccountEmail,
     scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
     aud: 'https://oauth2.googleapis.com/token',
     exp: now + 3600,
     iat: now,
   };
-
-  const b64url = (s: string) =>
+  const base64url = (s: string) =>
     btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const encoder = new TextEncoder();
-  const headerB64 = b64url(JSON.stringify(header));
-  const payloadB64 = b64url(JSON.stringify(payload));
-  const signingInput = `${headerB64}.${payloadB64}`;
+  const jwtHeader = base64url(JSON.stringify(header));
+  const jwtClaimSet = base64url(JSON.stringify(claimSet));
+  const signatureInput = `${jwtHeader}.${jwtClaimSet}`;
 
-  const pemContents = serviceAccount.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-  const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+  const extractPemBase64 = (pem: string) => {
+    const normalized = (pem || '').toString().replace(/\r/g, '').replace(/\\n/g, '\n');
+    const match = normalized.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
+    const body = match ? match[1] : normalized;
+    let b = body.replace(/[^A-Za-z0-9+/=\n]/g, '').replace(/\n/g, '');
+    const pad = b.length % 4;
+    if (pad === 2) b += '==';
+    else if (pad === 3) b += '=';
+    else if (pad === 1) throw new Error('Invalid base64 length');
+    return b;
+  };
 
-  const cryptoKey = await crypto.subtle.importKey(
+  const base64Key = extractPemBase64(privateKeyPem);
+  const raw = atob(base64Key);
+  const buffer = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+
+  const privateKey = await crypto.subtle.importKey(
     'pkcs8',
-    binaryDer,
+    buffer,
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign'],
   );
+  const encoder = new TextEncoder();
   const signature = await crypto.subtle.sign(
     'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    encoder.encode(signingInput),
+    privateKey,
+    encoder.encode(signatureInput),
   );
-  const sigB64 = b64url(String.fromCharCode(...new Uint8Array(signature)));
-  const jwt = `${signingInput}.${sigB64}`;
+  const sigB64 = base64url(String.fromCharCode(...new Uint8Array(signature)));
+  const jwt = `${signatureInput}.${sigB64}`;
 
   const tokRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }).toString(),
   });
   if (!tokRes.ok) throw new Error(`Token exchange failed: ${await tokRes.text()}`);
   const tok = await tokRes.json();
