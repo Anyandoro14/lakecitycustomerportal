@@ -118,7 +118,7 @@ serve(async (req: Request) => {
     const seenStands = new Set<string>();
 
     for (const tabTitle of tabTitles) {
-      const range = encodeURIComponent(quoteSheetRange(tabTitle, 'A1:G3000'));
+      const range = encodeURIComponent(quoteSheetRange(tabTitle, 'A1:L3000'));
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -131,26 +131,52 @@ serve(async (req: Request) => {
       const rows: string[][] = data.values || [];
       if (rows.length < 2) continue;
 
-      // Find header row (look for row containing "First" / "Email" or "Customer Category")
-      let headerIdx = 0;
-      for (let i = 0; i < Math.min(rows.length, 5); i++) {
+      // Find header row (search up to 10 rows because some tabs have blank/banner rows on top)
+      let headerIdx = -1;
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
         const r = (rows[i] || []).map((c) => String(c || '').toLowerCase().trim());
         if (r.some((c) => c.includes('first')) && r.some((c) => c.includes('email'))) {
           headerIdx = i;
           break;
         }
       }
+      if (headerIdx === -1) {
+        console.warn(`No header row in "${tabTitle}"`);
+        continue;
+      }
+      const headerRow = (rows[headerIdx] || []).map((c) => String(c || '').toLowerCase().trim());
 
-      // Layout: A=Stand, B=blank?, C=First, D=Last, E=Email, F=Customer Category, G=Phone
-      // Based on fetch-google-sheets: stand=0, first=2, last=3, email=4, category=5, phone=6
+      // Detect column indices dynamically per tab
+      const findIdx = (preds: Array<(h: string) => boolean>, fallback = -1) => {
+        for (const pred of preds) {
+          const idx = headerRow.findIndex((h) => pred(h));
+          if (idx !== -1) return idx;
+        }
+        return fallback;
+      };
+      const standIdx = findIdx([
+        (h) => h === 'stand number' || h === 'stand' || h === 'stand no' || h === 'stand #',
+        (h) => h.includes('stand'),
+      ], 0);
+      const firstIdx = findIdx([(h) => h === 'first' || h === 'first name', (h) => h.includes('first')], 2);
+      const lastIdx = findIdx([(h) => h === 'last' || h === 'last name', (h) => h.includes('last') || h.includes('surname')], 3);
+      const emailIdx = findIdx([(h) => h === 'email' || h.includes('email') || h.includes('e-mail')], 4);
+      const categoryIdx = findIdx([(h) => h.includes('category')], 5);
+      const phoneIdx = findIdx([
+        (h) => h === 'phone' || h === 'contact' || h === 'mobile' || h === 'cell',
+        (h) => h.includes('phone') || h.includes('contact') || h.includes('mobile') || h.includes('cell') || h.includes('tel'),
+      ], 6);
+
+      console.log(`Tab "${tabTitle}" headers[0..11]=${JSON.stringify(headerRow.slice(0, 12))} | indices: stand=${standIdx} first=${firstIdx} last=${lastIdx} email=${emailIdx} cat=${categoryIdx} phone=${phoneIdx}`);
+
       for (let i = headerIdx + 1; i < rows.length; i++) {
         const r = rows[i] || [];
-        const stand = String(r[0] || '').trim();
-        const first = String(r[2] || '').trim();
-        const last = String(r[3] || '').trim();
-        const email = String(r[4] || '').trim();
-        const category = String(r[5] || '').trim();
-        const phone = String(r[6] || '').trim();
+        const stand = String(r[standIdx] || '').trim();
+        const first = String(r[firstIdx] || '').trim();
+        const last = String(r[lastIdx] || '').trim();
+        const email = String(r[emailIdx] || '').trim();
+        const category = String(r[categoryIdx] || '').trim();
+        const phone = String(r[phoneIdx] || '').trim();
 
         if (!stand) continue;
         if (category.toUpperCase() !== 'BDO') continue;
