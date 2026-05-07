@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_import_schedule_wizard_form" model="ir.ui.view">
+        <field name="name">lakecity.import.schedule.wizard.form</field>
+        <field name="model">lakecity.import.schedule.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Collection Schedule">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        Upload one of the legacy
+                        <code>Collection_Schedule_Template_*.xlsx</code> files.
+                        Imports are idempotent — re-uploading updates rows by
+                        Stand Number.
+                    </div>
+                    <group>
+                        <field name="file_data" filename="file_name"/>
+                        <field name="file_name" invisible="1"/>
+                        <field name="term_override"/>
+                        <field name="create_partners"/>
+                    </group>
+                    <group string="Result" invisible="not log">
+                        <field name="log" nolabel="1" readonly="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_import" type="object"
+                            string="Import" class="btn-primary"
+                            invisible="log"/>
+                    <button name="action_open_schedules" type="object"
+                            string="Open Schedules" class="btn-primary"
+                            invisible="not log"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_import_schedule_wizard" model="ir.actions.act_window">
+        <field name="name">Import from XLSX</field>
+        <field name="res_model">lakecity.import.schedule.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_lakecity_import"
+              name="Import from XLSX"
+              parent="menu_lakecity_config"
+              action="action_import_schedule_wizard"
+              sequence="10"/>
+
+</odoo>

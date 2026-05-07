@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_collection_payment_list" model="ir.ui.view">
+        <field name="name">lakecity.collection.payment.list</field>
+        <field name="model">lakecity.collection.payment</field>
+        <field name="arch" type="xml">
+            <list string="Monthly Payments" multi_edit="1"
+                  decoration-success="is_paid"
+                  decoration-muted="not is_paid">
+                <field name="schedule_id"/>
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <field name="month_index"/>
+                <field name="due_date"/>
+                <field name="expected_amount"/>
+                <field name="amount_paid"/>
+                <field name="paid_date"/>
+                <field name="is_paid"/>
+                <field name="note"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_collection_payment_form" model="ir.ui.view">
+        <field name="name">lakecity.collection.payment.form</field>
+        <field name="model">lakecity.collection.payment</field>
+        <field name="arch" type="xml">
+            <form string="Monthly Payment">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="schedule_id"/>
+                            <field name="stand_number"/>
+                            <field name="partner_id"/>
+                            <field name="month_index"/>
+                        </group>
+                        <group>
+                            <field name="due_date"/>
+                            <field name="expected_amount"/>
+                            <field name="amount_paid"/>
+                            <field name="paid_date"/>
+                            <field name="is_paid"/>
+                        </group>
+                    </group>
+                    <field name="note"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Pivot view: rows = stand, columns = month, value = amount.
+         This reproduces the spreadsheet feel month-by-month. -->
+    <record id="view_collection_payment_pivot" model="ir.ui.view">
+        <field name="name">lakecity.collection.payment.pivot</field>
+        <field name="model">lakecity.collection.payment</field>
+        <field name="arch" type="xml">
+            <pivot string="Payments by Month" sample="1">
+                <field name="stand_number" type="row"/>
+                <field name="due_date" interval="month" type="col"/>
+                <field name="amount_paid" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_collection_payment_graph" model="ir.ui.view">
+        <field name="name">lakecity.collection.payment.graph</field>
+        <field name="model">lakecity.collection.payment</field>
+        <field name="arch" type="xml">
+            <graph string="Payments" type="bar">
+                <field name="due_date" interval="month"/>
+                <field name="amount_paid" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_collection_payment_search" model="ir.ui.view">
+        <field name="name">lakecity.collection.payment.search</field>
+        <field name="model">lakecity.collection.payment</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="schedule_id"/>
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <filter string="Paid" name="paid" domain="[('is_paid','=',True)]"/>
+                <filter string="Outstanding" name="outstanding" domain="[('is_paid','=',False)]"/>
+                <filter string="Due This Month" name="due_this_month"
+                        domain="[('due_date','&gt;=', (context_today()).strftime('%Y-%m-01'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Stand" name="g_stand" context="{'group_by':'stand_number'}"/>
+                    <filter string="Customer" name="g_partner" context="{'group_by':'partner_id'}"/>
+                    <filter string="Due Month" name="g_due" context="{'group_by':'due_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_collection_payment" model="ir.actions.act_window">
+        <field name="name">Monthly Payments</field>
+        <field name="res_model">lakecity.collection.payment</field>
+        <field name="view_mode">list,pivot,graph,form</field>
+        <field name="search_view_id" ref="view_collection_payment_search"/>
+    </record>
+
+</odoo>

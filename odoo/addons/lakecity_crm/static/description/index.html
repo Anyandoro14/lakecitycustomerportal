@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Lakecity CRM — Collection Schedule</title>
+</head>
+<body>
+    <section style="font-family: -apple-system, system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 32px;">
+        <h1 style="font-size: 36px; margin-bottom: 0;">Lakecity CRM — Collection Schedule</h1>
+        <p style="color: #555;">A clean Odoo CRM module that mirrors the legacy
+        Lakecity Collection Schedule spreadsheet, field-for-field.</p>
+
+        <h2>Why</h2>
+        <p>Operate the existing collection workflow inside Odoo with
+        zero changes to how staff already think about Stands, deposits,
+        monthly payments, agreements and registration.</p>
+
+        <h2>Features</h2>
+        <ul>
+            <li>One CRM record per Stand (chatter, activities, kanban stage board).</li>
+            <li>Every spreadsheet column ported: Stand, customer, deposit, total
+            price, term (12 → 120 mo), monthly payments grid, agreement
+            workflow, registration.</li>
+            <li>Spreadsheet formulas reproduced as stored computed fields:
+            Monthly Payment, Total Paid, Current Balance, Payment Progress, Next Due.</li>
+            <li>Bulk import wizard for the legacy
+            <code>Collection_Schedule_Template_*.xlsx</code> files.</li>
+            <li>Printable PDF report that matches the spreadsheet layout.</li>
+            <li>Pivot view (rows = Stand, cols = month) reproduces the spreadsheet feel.</li>
+            <li>Multi-company aware. User &amp; Manager security groups out of the box.</li>
+        </ul>
+
+        <h2>Business rule preserved</h2>
+        <p>Recurring installments are due on the 5th of every month — enforced by
+        Python constraints on both the schedule's start date and each payment
+        line's due date, exactly as documented in the legacy template.</p>
+
+        <h2>Designed for Odoo.sh</h2>
+        <p>Ships with a per-module <code>requirements.txt</code> so dependencies
+        (<code>openpyxl</code>) are auto-installed at build time. Manifest version
+        follows the <code>17.0.x.y.z</code> convention required by the platform.</p>
+    </section>
+</body>
+</html>

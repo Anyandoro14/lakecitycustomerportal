@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <record id="module_category_lakecity" model="ir.module.category">
+            <field name="name">Lakecity CRM</field>
+            <field name="description">Lakecity Collection Schedule access levels.</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="group_lakecity_user" model="res.groups">
+            <field name="name">User: Read &amp; Update</field>
+            <field name="category_id" ref="module_category_lakecity"/>
+            <field name="comment">Can view and edit schedules and capture monthly payments.</field>
+        </record>
+
+        <record id="group_lakecity_manager" model="res.groups">
+            <field name="name">Manager: Full Access</field>
+            <field name="category_id" ref="module_category_lakecity"/>
+            <field name="implied_ids" eval="[(4, ref('group_lakecity_user'))]"/>
+            <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+            <field name="comment">Full access including create/delete and configuration.</field>
+        </record>
+
+        <!-- Multi-company record rule on the schedule -->
+        <record id="rule_collection_schedule_company" model="ir.rule">
+            <field name="name">Collection Schedule: multi-company</field>
+            <field name="model_id" ref="model_lakecity_collection_schedule"/>
+            <field name="domain_force">[('company_id','in', company_ids)]</field>
+        </record>
+
+        <record id="rule_collection_payment_company" model="ir.rule">
+            <field name="name">Collection Payment: multi-company</field>
+            <field name="model_id" ref="model_lakecity_collection_payment"/>
+            <field name="domain_force">[('company_id','in', company_ids)]</field>
+        </record>
+
+    </data>
+</odoo>

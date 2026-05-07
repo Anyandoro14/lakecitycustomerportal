@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_lakecity_root"
+              name="Lakecity"
+              web_icon="lakecity_crm,static/description/icon.png"
+              sequence="20"/>
+
+    <menuitem id="menu_lakecity_schedules"
+              name="Collection Schedules"
+              parent="menu_lakecity_root"
+              action="action_collection_schedule"
+              sequence="10"/>
+
+    <menuitem id="menu_lakecity_payments"
+              name="Monthly Payments"
+              parent="menu_lakecity_root"
+              action="action_collection_payment"
+              sequence="20"/>
+
+    <menuitem id="menu_lakecity_config"
+              name="Configuration"
+              parent="menu_lakecity_root"
+              groups="lakecity_crm.group_lakecity_manager"
+              sequence="100"/>
+
+</odoo>

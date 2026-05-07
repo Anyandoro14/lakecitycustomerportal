@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Customer Categories on the legacy Collection Schedule are modeled
+         as a Selection on lakecity.collection.schedule (clean & simple).
+
+         If you need additional categories, extend the selection in
+         models/collection_schedule.py rather than seeding records. -->
+</odoo>

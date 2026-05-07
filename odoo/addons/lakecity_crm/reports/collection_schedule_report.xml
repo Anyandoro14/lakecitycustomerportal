@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_collection_schedule" model="ir.actions.report">
+        <field name="name">Collection Schedule</field>
+        <field name="model">lakecity.collection.schedule</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">lakecity_crm.report_collection_schedule_document</field>
+        <field name="report_file">lakecity_crm.report_collection_schedule_document</field>
+        <field name="binding_model_id" ref="model_lakecity_collection_schedule"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="base.paperformat_us"/>
+    </record>
+
+    <template id="report_collection_schedule_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>
+                            Collection Schedule
+                            <span class="float-end">
+                                <t t-out="doc.term_months"/> mo
+                            </span>
+                        </h2>
+                        <h4>
+                            Stand <span t-field="doc.stand_number"/>
+                            — <span t-field="doc.partner_id.name"/>
+                        </h4>
+
+                        <div class="row mt-3">
+                            <div class="col-6">
+                                <strong>Customer</strong>
+                                <table class="table table-sm">
+                                    <tr><td>Name</td>
+                                        <td>
+                                            <span t-field="doc.first_name"/>
+                                            <span t-field="doc.last_name"/>
+                                        </td></tr>
+                                    <tr><td>Email</td><td><span t-field="doc.email"/></td></tr>
+                                    <tr><td>Contact</td><td><span t-field="doc.contact_number"/></td></tr>
+                                    <tr><td>Category</td><td><span t-field="doc.customer_category"/></td></tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <strong>Pricing</strong>
+                                <table class="table table-sm">
+                                    <tr><td>Documentation Fee</td>
+                                        <td><span t-field="doc.documentation_fee"
+                                                  t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td></tr>
+                                    <tr><td>Deposit</td>
+                                        <td><span t-field="doc.deposit"
+                                                  t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td></tr>
+                                    <tr><td>Total Price</td>
+                                        <td><strong><span t-field="doc.total_price"
+                                                  t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></strong></td></tr>
+                                    <tr><td>Monthly Payment</td>
+                                        <td><span t-field="doc.payment_amount"
+                                                  t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td></tr>
+                                    <tr><td>Start Date</td><td><span t-field="doc.start_date"/></td></tr>
+                                    <tr><td># Installments</td><td><span t-field="doc.number_of_installments"/></td></tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <strong>Progress</strong>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td>Total Paid</td>
+                                        <td><span t-field="doc.total_paid"
+                                                  t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></td>
+                                        <td>Current Balance</td>
+                                        <td><strong><span t-field="doc.current_balance"
+                                                  t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/></strong></td>
+                                        <td>Progress</td>
+                                        <td>
+                                            <t t-out="round((doc.payment_progress or 0.0) * 100, 1)"/>%
+                                        </td>
+                                        <td>Next Due</td>
+                                        <td><span t-field="doc.next_payment_date"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <h4 class="mt-3">Monthly Payments</h4>
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Due Date</th>
+                                    <th class="text-end">Expected</th>
+                                    <th class="text-end">Paid</th>
+                                    <th>Paid On</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="doc.payment_line_ids" t-as="line">
+                                    <td><span t-field="line.month_index"/></td>
+                                    <td><span t-field="line.due_date"/></td>
+                                    <td class="text-end">
+                                        <span t-field="line.expected_amount"
+                                              t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                    </td>
+                                    <td class="text-end">
+                                        <span t-field="line.amount_paid"
+                                              t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                    </td>
+                                    <td><span t-field="line.paid_date"/></td>
+                                    <td><span t-field="line.note"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h4 class="mt-3">Operational / Legal</h4>
+                        <table class="table table-sm">
+                            <tr>
+                                <td>Present Y</td><td><span t-field="doc.present_y"/></td>
+                                <td>Offer Received</td><td><span t-field="doc.offer_received"/></td>
+                                <td>Initial Payment</td><td><span t-field="doc.initial_payment_completed"/></td>
+                            </tr>
+                            <tr>
+                                <td>Agreement Requested</td><td><span t-field="doc.agreement_requested"/></td>
+                                <td>Signed (Warwickshire)</td><td><span t-field="doc.agreement_signed_by_warwickshire"/></td>
+                                <td>Signed (Client)</td><td><span t-field="doc.agreement_signed_by_client"/></td>
+                            </tr>
+                            <tr>
+                                <td>Agreement Type</td><td><span t-field="doc.agreement_type"/></td>
+                                <td>Registered</td><td><span t-field="doc.registered"/></td>
+                                <td>Registered Date</td><td><span t-field="doc.registered_date"/></td>
+                            </tr>
+                        </table>
+
+                        <div t-if="doc.receipts_notes" class="mt-3">
+                            <strong>Receipts</strong>
+                            <pre t-out="doc.receipts_notes"/>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

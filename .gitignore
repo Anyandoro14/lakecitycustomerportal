@@ -33,3 +33,10 @@ node.pkg
 
 # Local venv for xlsx maintenance scripts (docs/payment-schedule-templates)
 .venv-xlsx/
+
+# Python build artifacts (Odoo addons under odoo/addons/)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/

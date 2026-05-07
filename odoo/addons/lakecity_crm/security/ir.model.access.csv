@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_collection_schedule_user,collection.schedule.user,model_lakecity_collection_schedule,group_lakecity_user,1,1,1,0
+access_collection_schedule_manager,collection.schedule.manager,model_lakecity_collection_schedule,group_lakecity_manager,1,1,1,1
+access_collection_payment_user,collection.payment.user,model_lakecity_collection_payment,group_lakecity_user,1,1,1,1
+access_collection_payment_manager,collection.payment.manager,model_lakecity_collection_payment,group_lakecity_manager,1,1,1,1

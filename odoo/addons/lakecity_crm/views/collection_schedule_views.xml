@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================== -->
+    <!-- Form view                                                          -->
+    <!-- ================================================================== -->
+    <record id="view_collection_schedule_form" model="ir.ui.view">
+        <field name="name">lakecity.collection.schedule.form</field>
+        <field name="model">lakecity.collection.schedule</field>
+        <field name="arch" type="xml">
+            <form string="Collection Schedule">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="lead,offer,deposit,agreement,signed,registered"/>
+                    <button name="action_mark_initial_payment" type="object"
+                            string="Mark Initial Payment Completed"
+                            class="oe_highlight"
+                            invisible="initial_payment_completed"/>
+                    <button name="action_register" type="object"
+                            string="Mark Registered"
+                            class="oe_highlight"
+                            invisible="registered"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_payment_lines" type="object"
+                                class="oe_stat_button" icon="fa-calendar">
+                            <field name="number_of_installments" widget="statinfo"
+                                   string="Months"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="stand_number" string="Stand Number"/>
+                        <h1><field name="stand_number" placeholder="e.g. 24000"/></h1>
+                        <field name="display_name" invisible="1"/>
+                    </div>
+
+                    <group>
+                        <group string="Customer">
+                            <field name="partner_id"/>
+                            <field name="first_name"/>
+                            <field name="last_name"/>
+                            <field name="contact_number"/>
+                            <field name="email" widget="email"/>
+                            <field name="customer_category"/>
+                        </group>
+                        <group string="Pricing">
+                            <field name="documentation_fee"/>
+                            <field name="deposit"/>
+                            <field name="total_price"/>
+                            <field name="term_months"/>
+                            <field name="number_of_installments"/>
+                            <field name="payment_amount"/>
+                            <field name="start_date"/>
+                            <field name="end_date"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <group string="Progress">
+                        <group>
+                            <field name="total_paid"/>
+                            <field name="current_balance"/>
+                        </group>
+                        <group>
+                            <field name="next_payment_date"/>
+                            <field name="payment_progress" widget="progressbar"
+                                   options="{'max_value': 1.0, 'editable': false}"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Monthly Payments" name="payments">
+                            <field name="payment_line_ids"
+                                   context="{'default_schedule_id': id}">
+                                <list editable="bottom" decoration-success="is_paid"
+                                      decoration-muted="not is_paid">
+                                    <field name="month_index" string="#" readonly="1"/>
+                                    <field name="due_date"/>
+                                    <field name="expected_amount" readonly="1"/>
+                                    <field name="amount_paid"/>
+                                    <field name="paid_date"/>
+                                    <field name="note"/>
+                                    <field name="is_paid" widget="boolean_toggle" readonly="1"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Operational / Legal" name="ops">
+                            <group>
+                                <group string="Pre-Agreement">
+                                    <field name="present_y"/>
+                                    <field name="offer_received"/>
+                                    <field name="offer_received_date"
+                                           invisible="not offer_received"/>
+                                    <field name="initial_payment_completed"/>
+                                    <field name="initial_payment_date"
+                                           invisible="not initial_payment_completed"/>
+                                </group>
+                                <group string="Agreement">
+                                    <field name="agreement_requested"/>
+                                    <field name="agreement_requested_date"
+                                           invisible="not agreement_requested"/>
+                                    <field name="agreement_signed_by_warwickshire"/>
+                                    <field name="agreement_signed_by_warwickshire_date"
+                                           invisible="not agreement_signed_by_warwickshire"/>
+                                    <field name="agreement_signed_by_client"/>
+                                    <field name="agreement_signed_by_client_date"
+                                           invisible="not agreement_signed_by_client"/>
+                                    <field name="agreement_type"/>
+                                    <field name="agreement_of_sale_file"
+                                           filename="agreement_of_sale_filename"/>
+                                    <field name="agreement_of_sale_filename" invisible="1"/>
+                                </group>
+                            </group>
+                            <group string="Registration">
+                                <field name="registered"/>
+                                <field name="registered_date"
+                                       invisible="not registered"/>
+                            </group>
+                        </page>
+                        <page string="Receipts" name="receipts">
+                            <field name="receipts_notes"
+                                   placeholder="Paste receipt references, one per line. Attach scans via the chatter below."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================== -->
+    <!-- List view                                                          -->
+    <!-- ================================================================== -->
+    <record id="view_collection_schedule_list" model="ir.ui.view">
+        <field name="name">lakecity.collection.schedule.list</field>
+        <field name="model">lakecity.collection.schedule</field>
+        <field name="arch" type="xml">
+            <list string="Collection Schedules" multi_edit="1"
+                  decoration-success="state == 'registered'"
+                  decoration-info="state in ('signed','agreement')"
+                  decoration-warning="current_balance > 0 and state != 'registered'">
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <field name="customer_category"/>
+                <field name="term_months"/>
+                <field name="start_date"/>
+                <field name="total_price" sum="Total"/>
+                <field name="deposit" sum="Deposits"/>
+                <field name="payment_amount"/>
+                <field name="total_paid" sum="Paid"/>
+                <field name="current_balance" sum="Outstanding"/>
+                <field name="payment_progress" widget="progressbar"
+                       options="{'max_value': 1.0}"/>
+                <field name="next_payment_date"/>
+                <field name="state"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================== -->
+    <!-- Kanban view (CRM-style stage board)                                -->
+    <!-- ================================================================== -->
+    <record id="view_collection_schedule_kanban" model="ir.ui.view">
+        <field name="name">lakecity.collection.schedule.kanban</field>
+        <field name="model">lakecity.collection.schedule</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state">
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex justify-content-between">
+                            <field name="stand_number" class="fw-bold fs-5"/>
+                            <span class="badge text-bg-secondary">
+                                <field name="customer_category"/>
+                            </span>
+                        </div>
+                        <field name="partner_id" class="text-muted"/>
+                        <div class="mt-2">
+                            Balance: <field name="current_balance" widget="monetary"/>
+                        </div>
+                        <div t-if="record.next_payment_date.raw_value">
+                            Next: <field name="next_payment_date"/>
+                        </div>
+                        <field name="payment_progress" widget="progressbar"
+                               options="{'max_value': 1.0}"
+                               class="mt-2"/>
+                        <field name="currency_id" invisible="1"/>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ================================================================== -->
+    <!-- Search / filters                                                   -->
+    <!-- ================================================================== -->
+    <record id="view_collection_schedule_search" model="ir.ui.view">
+        <field name="name">lakecity.collection.schedule.search</field>
+        <field name="model">lakecity.collection.schedule</field>
+        <field name="arch" type="xml">
+            <search string="Collection Schedules">
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <field name="email"/>
+                <field name="contact_number"/>
+                <separator/>
+                <filter string="Outstanding Balance" name="has_balance"
+                        domain="[('current_balance','>',0)]"/>
+                <filter string="Fully Paid" name="fully_paid"
+                        domain="[('current_balance','&lt;=',0)]"/>
+                <filter string="Registered" name="registered"
+                        domain="[('registered','=',True)]"/>
+                <filter string="Awaiting Agreement" name="agreement_pending"
+                        domain="[('agreement_requested','=',True),('agreement_signed_by_client','=',False)]"/>
+                <filter string="Initial Payment Done" name="initial_done"
+                        domain="[('initial_payment_completed','=',True)]"/>
+                <separator/>
+                <filter string="Internal Tester" name="cat_internal"
+                        domain="[('customer_category','=','internal_tester')]"/>
+                <filter string="VIP" name="cat_vip"
+                        domain="[('customer_category','=','vip')]"/>
+                <separator/>
+                <filter string="Term: 12 mo"  name="term12"  domain="[('term_months','=','12')]"/>
+                <filter string="Term: 24 mo"  name="term24"  domain="[('term_months','=','24')]"/>
+                <filter string="Term: 36 mo"  name="term36"  domain="[('term_months','=','36')]"/>
+                <filter string="Term: 48 mo"  name="term48"  domain="[('term_months','=','48')]"/>
+                <filter string="Term: 60 mo"  name="term60"  domain="[('term_months','=','60')]"/>
+                <filter string="Term: 72 mo"  name="term72"  domain="[('term_months','=','72')]"/>
+                <filter string="Term: 84 mo"  name="term84"  domain="[('term_months','=','84')]"/>
+                <filter string="Term: 96 mo"  name="term96"  domain="[('term_months','=','96')]"/>
+                <filter string="Term: 120 mo" name="term120" domain="[('term_months','=','120')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Stage" name="group_state" context="{'group_by':'state'}"/>
+                    <filter string="Customer Category" name="group_category" context="{'group_by':'customer_category'}"/>
+                    <filter string="Term" name="group_term" context="{'group_by':'term_months'}"/>
+                    <filter string="Start Month" name="group_start" context="{'group_by':'start_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ================================================================== -->
+    <!-- Action                                                             -->
+    <!-- ================================================================== -->
+    <record id="action_collection_schedule" model="ir.actions.act_window">
+        <field name="name">Collection Schedules</field>
+        <field name="res_model">lakecity.collection.schedule</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_collection_schedule_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Collection Schedule
+            </p>
+            <p>
+                Each Stand becomes one schedule. All fields from the legacy
+                Excel template (deposit, monthly payments, agreement workflow,
+                registration) live here.
+            </p>
+        </field>
+    </record>
+
+</odoo>
