@@ -1,7 +1,13 @@
-# Deploying `lakecity_crm` to Odoo.sh
+# Deploying `lakecity_crm` to Odoo.sh + Lovable Cloud
 
 This runbook covers everything specific to **Odoo.sh** for the
-`odoo/addons/lakecity_crm` module.
+`odoo/addons/lakecity_crm` module **and** the Lovable Cloud backend that
+talks to it.
+
+> **Two platforms, one git push.** Pushing to a connected branch deploys
+> the addon to Odoo.sh **and** the Supabase migration + edge function to
+> Lovable Cloud at the same time. Production safety therefore depends on
+> branch mapping in *both* control panels — see Section 4.
 
 ---
 
@@ -116,15 +122,26 @@ kanban template — are all 18+); just change the leading `19.0` to `18.0`.
 
 ---
 
-## 4. Branches → environments
+## 4. Branches → environments (BOTH platforms)
 
-Odoo.sh maps git branches to environments. Recommended convention:
+Both Odoo.sh and Lovable Cloud auto-deploy on git push. Recommended
+convention so you never accidentally hit production:
 
-| Branch | Stage on Odoo.sh | Purpose |
-|---|---|---|
-| `main` (or `master`) | **Production** | Live customer data |
-| `staging-uat` | **Staging** | Pre-prod UAT (auto-rebased weekly) |
-| `dev/*` | **Dev** | Throwaway test databases |
+| Git branch | Odoo.sh stage | Lovable Cloud env | Purpose |
+|---|---|---|---|
+| `main` (or `master`) | **Production** | **Production** | Live customer-facing |
+| `staging-uat` | **Staging** | **Preview / Staging** | Pre-prod UAT |
+| `wip/*`, `feature/*`, `dev/*` | **Dev** (or unmapped) | **Preview** | Throwaway test envs |
+
+### Verify before pushing — checklist
+
+1. **Odoo.sh project → Branches**: confirm the branch you're pushing is
+   either unmapped or mapped to a Dev/Staging stage (not Production).
+2. **Lovable project → Settings → Branches**: confirm only `main` (or
+   your designated production branch) is connected to your live
+   environment.
+3. Pushing a feature branch should produce a Lovable preview URL **not**
+   the customer-facing domain.
 
 When you push to a stage branch, Odoo.sh rebuilds and re-installs the
 addon. To pick up Python dep changes (e.g. bumping `openpyxl`), force a
@@ -155,47 +172,82 @@ In production, after install:
 
 ---
 
-## 7. Wiring Supabase → Odoo.sh
+## 7. Wiring Lovable Cloud → Odoo.sh
 
-The `supabase/functions/odoo-push-schedule` edge function pushes
-`contracts` rows into `lakecity.collection.schedule` on Odoo.sh via
-JSON-RPC. You need:
+> **Lovable Cloud auto-deploys on git push.** This project's backend lives
+> on **Lovable Cloud**, which is a Supabase-compatible managed backend.
+> The migration file in `supabase/migrations/` and the edge function in
+> `supabase/functions/odoo-push-schedule/` deploy **automatically** when
+> the branch is pushed — there is no `supabase db push` or
+> `supabase functions deploy` step.
 
-- **Per-tenant Vault secrets** (already used by `odoo-sync-payment`):
-  - `odoo_url_<tenant_id>`     → e.g. `https://<your-org>.odoo.com`
-  - `odoo_db_<tenant_id>`      → Odoo.sh DB name (visible in the
-    Odoo.sh project → "Settings" panel)
-  - `odoo_uid_<tenant_id>`     → numeric user ID (e.g. `2` for the
-    integration user)
-  - `odoo_api_key_<tenant_id>` → API key generated in Odoo from
-    "Preferences → Account Security → New API Key"
-- `tenants.crm_provider = 'odoo'` for the tenant
-- Migration applied: `supabase/migrations/20260506230000_contracts_odoo_schedule_id.sql`
+### What ships on `git push`
 
-Deploy the function:
+| File path | What Lovable Cloud does |
+|---|---|
+| `supabase/migrations/20260506230000_contracts_odoo_schedule_id.sql` | Runs once against the connected Postgres on next deploy. Adds the `contracts.odoo_schedule_id` column and index. |
+| `supabase/functions/odoo-push-schedule/index.ts` | Built and deployed as a Deno Edge Function. Becomes available at `https://<project>.lovable.app/functions/v1/odoo-push-schedule` (or the Supabase URL that Lovable surfaces in the project settings). |
+| `supabase/migrations/...` (other agent's migrations) | Same — applied on next deploy. |
+
+### One-time setup the auto-deploy can NOT do for you
+
+You still need to populate four Vault secrets (per Lakecity tenant) so
+the edge function can talk to Odoo.sh:
+
+  - `odoo_url_<tenant_id>`     → e.g. `https://lakecity.odoo.com`
+  - `odoo_db_<tenant_id>`      → real Odoo.sh DB name (e.g.
+    `lakecity-production-NNNNN`, **not** the slug `lakecity`).
+    Visible in the Odoo.sh project → Settings panel.
+  - `odoo_uid_<tenant_id>`     → numeric Odoo user id of the integrator
+    user (often `7` for admin or higher for a dedicated integrator).
+  - `odoo_api_key_<tenant_id>` → API key generated in Odoo
+    (incognito → log in as that user → enable 2FA → Preferences →
+    Account Security → New API Key)
+
+`<tenant_id>` is the **UUID** from `public.tenants WHERE slug='lakecity'`,
+**not** the slug. Use the SQL helper checked in at
+`docs/sql/lakecity-odoo-vault-secrets.sql` (or the wrapper script
+`scripts/setup-lakecity-odoo-vault.sh`) — it's idempotent and read-back
+verifies all four secrets after writing.
 
 ```bash
-supabase functions deploy odoo-push-schedule
+# Recommended: run via the wrapper which prompts for values.
+bash scripts/setup-lakecity-odoo-vault.sh
 ```
 
-Test from the Supabase dashboard or with curl:
+The wrapper resolves the tenant UUID, calls `vault.create_secret`/
+`vault.update_secret` for each of the four keys, and prints a verification
+table at the end (the API key is masked). Re-runs are safe — values get
+upserted in place.
+
+### Test the wired-up function (no UI side effects)
+
+The edge function only runs when something invokes it. To test against
+the staging tenant without disturbing the production customer UI:
 
 ```bash
-curl -X POST "$SUPABASE_URL/functions/v1/odoo-push-schedule" \
-  -H "Authorization: Bearer $USER_JWT" \
+# Replace <project>, <user_jwt>, <contract_id> with your values.
+curl -X POST "https://<project>.supabase.co/functions/v1/odoo-push-schedule" \
+  -H "Authorization: Bearer <user_jwt>" \
   -H "Content-Type: application/json" \
-  -d '{"contract_id":"<uuid>"}'
+  -d '{"contract_id":"<contract-uuid>"}'
 ```
+
+A successful response is `{"status":"ok","action":"created","odoo_schedule_id":<int>}`.
+If the Vault secrets are missing it returns
+`{"error":"Missing Vault secret: odoo_api_key_<tenant_id>"}` — that's the
+signal to run the vault setup script above.
 
 ---
 
-## 8. Optional: incoming Odoo → Supabase webhook for schedules
+## 8. Optional: incoming Odoo → Lovable Cloud webhook for schedules
 
-The existing `supabase/functions/odoo-webhook` already routes
-`res.partner`, `sale.order`, `account.payment`, `account.move`. If you
-want changes made *inside Odoo* on a schedule to flow back to Supabase,
-add a server action in Odoo that POSTs to that webhook. The webhook
-shared secret is already loaded from Vault per tenant.
+The existing `supabase/functions/odoo-webhook` (which Lovable Cloud
+already auto-deploys with the rest of the project) routes `res.partner`,
+`sale.order`, `account.payment`, and `account.move`. To have changes
+made *inside Odoo* on a `lakecity.collection.schedule` flow back, add a
+server action in Odoo that POSTs to that endpoint. The webhook shared
+secret is already loaded from Lovable Cloud's Vault per tenant.
 
 A minimal Odoo automation example (Settings → Technical → Automation
 Rules) on `lakecity.collection.schedule`:
@@ -229,8 +281,8 @@ Rules) on `lakecity.collection.schedule`:
   ```
 
 (You'll need to add a `lakecity.collection.schedule` branch in
-`supabase/functions/odoo-webhook/index.ts` for that data to be
-persisted.)
+`supabase/functions/odoo-webhook/index.ts` — once committed, Lovable
+Cloud picks it up on the next push.)
 
 ---
 

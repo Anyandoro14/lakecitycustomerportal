@@ -68,9 +68,11 @@ model handles all the legacy template variants.
 3. Restart Odoo with `--update=all` once, or update the apps list in the UI
    and install **Lakecity CRM — Collection Schedule**.
 
-### On Odoo.sh (Odoo 19)
+### On Odoo.sh + Lovable Cloud (auto-deploy on git push)
 
-This addon is **built for Odoo.sh / Odoo 19 out of the box**:
+This addon is **built for Odoo.sh / Odoo 19 out of the box**, and the
+backend pieces (Supabase migration + edge function) are built for
+**Lovable Cloud**, which auto-deploys both on `git push`.
 
 * Per-module `requirements.txt` — Odoo.sh auto-installs `openpyxl` at build.
 * Manifest version follows the required `19.0.x.y.z` convention.
@@ -83,10 +85,13 @@ This addon is **built for Odoo.sh / Odoo 19 out of the box**:
   preinstalled on Odoo.sh).
 * Dependencies kept light (`base`, `mail`, `contacts`) so the addon installs
   on stripped-down Odoo.sh projects without surprises.
+* No `supabase` CLI commands required — Lovable Cloud auto-applies
+  migrations from `supabase/migrations/` and auto-deploys edge functions
+  from `supabase/functions/` on each git push.
 
 See [`docs/ODOO_SH_DEPLOY.md`](../../../docs/ODOO_SH_DEPLOY.md) at the repo
-root for the full runbook (repo layout options, per-tenant Vault secrets,
-Supabase ↔ Odoo.sh wiring, gotchas).
+root for the full runbook (branch ↔ environment mapping for both Odoo.sh
+**and** Lovable Cloud, per-tenant Vault secrets, gotchas).
 
 ### Demo data
 
