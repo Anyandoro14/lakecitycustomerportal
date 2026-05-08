@@ -83,9 +83,6 @@ const App = () => (
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/under-construction" element={<UnderConstruction />} />
-                  <Route path="/internal-login" element={<InternalLogin />} />
-                  <Route path="/internal" element={<InternalPortal />} />
-                  <Route path="/internal-portal" element={<InternalPortal />} />
                   <Route path="*" element={<UnderConstruction />} />
                 </Routes>
               </Suspense>
