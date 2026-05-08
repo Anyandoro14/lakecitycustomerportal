@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
 import {
   DEFAULT_PAYMENT_PLAN_MONTHS,
+  PAYMENT_GRID_BASE_DATE,
   listCollectionScheduleDataTabTitles,
   parseCollectionScheduleTabMonths,
   paymentColumnBounds,
@@ -252,7 +253,7 @@ async function fetchCollectionScheduleData(
 
   console.log(`Fetching Collection Schedule data from: "${sheetTitle}" (${paymentPlanMonths} mo)`);
 
-  const range = encodeURIComponent(`${sheetTitle}!A:BA`);
+  const range = encodeURIComponent(`${sheetTitle}!A:GZ`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
 
   const response = await fetch(url, {
@@ -552,10 +553,8 @@ function parseReceiptDate(dateStr: string): Date | null {
   return null;
 }
 
-// Get the column index for a given month
-// Column M (12) = September 2025, N (13) = October 2025, etc.
+// Column index for a payment's month. Column M (index 12) = baseDate month (Jan 2022).
 function getMonthColumnIndex(paymentDate: Date, baseDate: Date, paymentColumnStart: number, paymentColumnEnd: number): number {
-  // Calculate months difference from base date (September 2025 = Column M = index 12)
   const baseYear = baseDate.getFullYear();
   const baseMonth = baseDate.getMonth();
   const payYear = paymentDate.getFullYear();
@@ -596,7 +595,7 @@ async function postReceiptsToCollectionSchedule(
 
   // Parse the base date from the first payment column header (Column M)
   // This is the reference point for calculating which column corresponds to which month
-  let baseDate = new Date(2025, 8, 5); // Default: September 5, 2025
+  let baseDate = new Date(PAYMENT_GRID_BASE_DATE); // Jan 5, 2022 — matches Column M header
   const firstPaymentHeader = scheduleData.headerRow[scheduleData.paymentColumnStart];
   if (firstPaymentHeader) {
     const parsedHeaderDate = new Date(firstPaymentHeader);
@@ -725,7 +724,9 @@ async function postReceiptsToCollectionSchedule(
   return posted;
 }
 
-// Helper function to find next empty column (fallback for receipts without valid dates)
+// Find next empty column AFTER the last filled payment cell (not from the left).
+// With the widened M–FX grid, early columns (2022–2024) are empty for most
+// customers — scanning left-to-right would place payments years in the past.
 function findNextEmptyColumn(
   rowData: string[],
   paymentColumnStart: number,
@@ -733,20 +734,23 @@ function findNextEmptyColumn(
   cellUpdates: Map<string, { rowNum: number; col: number; currentValue: number; addedAmount: number }>,
   rowNum: number
 ): number {
-  for (let col = paymentColumnStart; col <= paymentColumnEnd; col++) {
+  let lastFilledCol = -1;
+  for (let col = paymentColumnEnd; col >= paymentColumnStart; col--) {
     const cellKey = `${rowNum}-${col}`;
-    
-    // Skip if we already have pending updates for this cell
     if (cellUpdates.has(cellKey)) {
-      continue;
+      lastFilledCol = col;
+      break;
     }
-    
     const cellValue = rowData[col]?.toString().trim() || '';
-    if (!cellValue || cellValue === '0' || cellValue === '$0' || cellValue === '$0.00') {
-      return col;
+    if (cellValue && cellValue !== '0' && cellValue !== '$0' && cellValue !== '$0.00') {
+      lastFilledCol = col;
+      break;
     }
   }
-  return -1; // No empty column found
+  const nextCol = lastFilledCol + 1;
+  if (nextCol < paymentColumnStart) return paymentColumnStart;
+  if (nextCol > paymentColumnEnd) return -1;
+  return nextCol;
 }
 
 // Mark receipts as "Posted" in the Receipts_Intake sheet

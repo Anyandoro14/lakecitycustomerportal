@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_loan_installment_tree" model="ir.ui.view">
+        <field name="name">lakecity.loan.installment.tree</field>
+        <field name="model">lakecity.loan.installment</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="contract_id"/>
+                <field name="sequence"/>
+                <field name="due_date"/>
+                <field name="amount_due"/>
+                <field name="amount_paid"/>
+                <field name="amount_outstanding"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_lakecity_loan_installment" model="ir.actions.act_window">
+        <field name="name">Installments</field>
+        <field name="res_model">lakecity.loan.installment</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

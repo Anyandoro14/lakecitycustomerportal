@@ -54,6 +54,7 @@ const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
 const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
+const OdooAuditPage = lazy(() => import("./pages/internal/OdooAuditPage"));
 
 const queryClient = new QueryClient();
 
@@ -118,6 +119,7 @@ const App = () => (
                   <Route path="/crm-specs" element={<CrmSpecifications />} />
                   <Route path="/crm-specs/technical" element={<CrmTechnicalSpecs />} />
                   <Route path="/admin/qc-queue" element={<QcQueue />} />
+                  <Route path="/internal/odoo-audit" element={<OdooAuditPage />} />
                   <Route path="/training" element={<TrainingCenter />} />
                   <Route path="/training/:path/:moduleId" element={<TrainingModule />} />
                   <Route path="*" element={<NotFound />} />

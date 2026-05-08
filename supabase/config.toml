@@ -107,3 +107,18 @@ verify_jwt = false
 
 [functions.training-ai-assistant]
 verify_jwt = false
+
+[functions.odoo-webhook]
+verify_jwt = false
+
+[functions.odoo-sync-payment]
+verify_jwt = false
+
+[functions.odoo-push-schedule]
+verify_jwt = false
+
+[functions.odoo-accounting-data]
+verify_jwt = true
+
+[functions.odoo-audit-data]
+verify_jwt = true

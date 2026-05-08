@@ -73,6 +73,8 @@ const displayDate = (iso: string) => {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 };
 
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 function unwrapProfile(c: ContractRow): ProfileRow {
   const p = c.profiles;
   if (Array.isArray(p)) return (p[0] || {}) as ProfileRow;
@@ -152,14 +154,17 @@ function computeStandPayload(
   const totalPriceNum = Number(contract.total_price);
   const monthlyNum = Number(contract.monthly_installment);
   const depositNum = Number(contract.deposit_amount ?? 0);
+  const termMonths = Math.max(1, Number(contract.term_months) || 1);
+  // Recurring invoice amount: (total price less deposit) / term
+  const recurringInvoiceNum = round2(Math.max(0, totalPriceNum - depositNum) / termMonths);
 
-  const totalPaidNum = balance ? Number(balance.total_paid) : receipts.reduce((s, r) => s + Number(r.amount), 0);
-  const currentBalNum = balance
-    ? Number(balance.current_balance)
-    : Math.max(0, totalPriceNum - totalPaidNum);
+  const paidFromReceipts = receipts.reduce((s, r) => s + Number(r.amount), 0);
+  // Starting balance context from finance note: paid-to-date includes deposit + all posted payments.
+  const totalPaidNum = round2(depositNum + (balance ? Number(balance.total_paid) : paidFromReceipts));
+  const currentBalNum = round2(Math.max(0, totalPriceNum - totalPaidNum));
 
   const progressPercentage = balance?.progress_percentage != null
-    ? Math.round(Number(balance.progress_percentage))
+    ? Math.round((totalPaidNum / Math.max(totalPriceNum, 1)) * 100)
     : totalPriceNum > 0
     ? Math.round((totalPaidNum / totalPriceNum) * 100)
     : 0;
@@ -167,7 +172,8 @@ function computeStandPayload(
   const sortedInst = [...installments].sort(
     (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
   );
-  const pending = sortedInst.filter((i) => i.status === "pending");
+  const actionableStatuses = new Set(["pending", "partial", "overdue"]);
+  const pending = sortedInst.filter((i) => actionableStatuses.has((i.status || "").toLowerCase()));
 
   const paymentStart = new Date(contract.payment_start_date);
   const startOk = !isNaN(paymentStart.getTime());
@@ -182,9 +188,25 @@ function computeStandPayload(
   }
 
   let nextPaymentDue = "";
-  let nextPaymentAmountStr = formatMoney(monthlyNum, currency);
+  let nextPaymentAmountNum = recurringInvoiceNum;
+  let nextPaymentAmountStr = formatMoney(recurringInvoiceNum, currency);
   let isOverdue = false;
   let daysOverdue = 0;
+
+  const overdueInstallments = pending.filter((i) => {
+    const due = new Date(i.due_date);
+    due.setHours(0, 0, 0, 0);
+    return today > due;
+  });
+  const accruedPastDueNum = round2(
+    overdueInstallments.reduce((sum, i) => sum + Number(i.amount || 0), 0),
+  );
+  const currentDueInstallment = pending.find((i) => {
+    const due = new Date(i.due_date);
+    due.setHours(0, 0, 0, 0);
+    return due >= today;
+  });
+  const currentDueNum = round2(Number(currentDueInstallment?.amount ?? recurringInvoiceNum));
 
   const lastReceipt = receipts.length
     ? [...receipts].sort(
@@ -202,19 +224,31 @@ function computeStandPayload(
 
   if (paymentNotYetDue) {
     nextPaymentDue = startOk ? displayDate(contract.payment_start_date) : "";
-    nextPaymentAmountStr = formatMoney(monthlyNum, currency);
+    nextPaymentAmountNum = recurringInvoiceNum;
+    nextPaymentAmountStr = formatMoney(recurringInvoiceNum, currency);
   } else if (pending.length === 0) {
     nextPaymentDue = "";
+    nextPaymentAmountNum = 0;
     nextPaymentAmountStr = formatMoney(0, currency);
   } else {
-    const next = pending[0];
+    const next = currentDueInstallment || pending[0];
     nextPaymentDue = displayDate(next.due_date);
-    nextPaymentAmountStr = formatMoney(Number(next.amount), currency);
-    const due = new Date(next.due_date);
-    due.setHours(0, 0, 0, 0);
-    if (today > due) {
+    // Next payment due = past-due accrued + current due installment.
+    nextPaymentAmountNum = round2(accruedPastDueNum + currentDueNum);
+    nextPaymentAmountStr = formatMoney(nextPaymentAmountNum, currency);
+
+    if (accruedPastDueNum > 0) {
       isOverdue = true;
-      daysOverdue = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+      const oldest = overdueInstallments
+        .map((i) => new Date(i.due_date))
+        .sort((a, b) => a.getTime() - b.getTime())[0];
+      if (oldest && !isNaN(oldest.getTime())) {
+        oldest.setHours(0, 0, 0, 0);
+        daysOverdue = Math.max(
+          0,
+          Math.floor((today.getTime() - oldest.getTime()) / (1000 * 60 * 60 * 24)),
+        );
+      }
     }
   }
 
@@ -222,7 +256,7 @@ function computeStandPayload(
   const standBalanceStr = formatMoney(currentBalNum, currency);
   const totalPriceStr = totalPriceNum > 0 ? formatMoney(totalPriceNum, currency) : "";
   const depositStr = depositNum > 0 ? formatMoney(depositNum, currency) : "";
-  const monthlyPaymentStr = formatMoney(monthlyNum, currency);
+  const monthlyPaymentStr = formatMoney(recurringInvoiceNum, currency);
 
   const fullName = (profile.full_name || "").trim();
   const paymentHistory = buildPaymentHistory(depositNum, receipts, currency);
@@ -245,6 +279,15 @@ function computeStandPayload(
     currentBalance: standBalanceStr,
     lastDueDate: contract.payment_start_date || "",
     monthlyPayment: monthlyPaymentStr,
+    recurringInvoiceAmount: monthlyPaymentStr,
+    startingBalanceAsOfToday: totalPaidStr,
+    accruedAmount: formatMoney(accruedPastDueNum, currency),
+    currentDueAmount: formatMoney(currentDueNum, currency),
+    nextPaymentBreakdown: {
+      accrued: formatMoney(accruedPastDueNum, currency),
+      currentDue: formatMoney(currentDueNum, currency),
+      totalDue: formatMoney(nextPaymentAmountNum, currency),
+    },
     nextDueDate: nextPaymentDue,
     totalPaid: totalPaidStr,
     progressPercentage,

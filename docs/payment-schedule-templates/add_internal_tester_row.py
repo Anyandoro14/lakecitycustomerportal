@@ -2,6 +2,11 @@
 """
 Populate row 2 on each Collection_Schedule_Template_*.xlsx with a shared internal tester contract.
 
+Stand number and TOTAL PRICE (column I) are both (term months × 1000), e.g. 36mo → 36000.
+
+For FY/FZ/GA/GB and the full M–FX grid, templates must already match the production workbook
+(use sync_templates_from_reference.py from COLLECTION SCHEDULE.xlsx first).
+
 Run from repo root (after venv from run-fix-templates.sh):
 
   docs/payment-schedule-templates/.venv-xlsx/bin/python \\
@@ -19,7 +24,6 @@ from openpyxl import load_workbook
 BASE = Path(__file__).resolve().parent / "Payment Schedules - Customer Portal"
 
 TESTER = {
-    "stand": "{{########}}",
     "first": "Alex",
     "last": "Nyandoro",
     "phone": "+17785808657",
@@ -27,10 +31,13 @@ TESTER = {
     "category": "Internal Tester",
     "documentation_fee": 0,
     "deposit": 5000,
-    "total_price": 120_000,
     # Flexible start (5th of month); aligns with BNPL “due on the 5th”
     "start_date": datetime(2026, 5, 5),
 }
+
+
+def stand_for_term_months(n: int) -> int:
+    return n * 1000
 
 
 def collection_sheet(wb):
@@ -57,10 +64,11 @@ def main() -> None:
 
     for path in paths:
         n = term_months_from_filename(path)
+        stand = stand_for_term_months(n)
         wb = load_workbook(path)
         ws = collection_sheet(wb)
 
-        ws["A2"] = TESTER["stand"]
+        ws["A2"] = stand
         ws["B2"] = TESTER["first"]
         ws["C2"] = TESTER["last"]
         ws["D2"] = TESTER["phone"]
@@ -68,15 +76,14 @@ def main() -> None:
         ws["F2"] = TESTER["category"]
         ws["G2"] = TESTER["documentation_fee"]
         ws["H2"] = TESTER["deposit"]
-        ws["I2"] = TESTER["total_price"]
+        ws["I2"] = stand
         ws["J2"] = n
-        # Financed amount split equally: (Total price − Deposit) / N
         ws["K2"] = "=IF(J2=0,\"\",ROUND((I2-H2)/J2,2))"
         ws["L2"] = TESTER["start_date"]
 
         wb.save(path)
         wb.close()
-        print(f"OK {path.name}: row 2 = internal tester, N={n}, PAYMENT = K2 formula")
+        print(f"OK {path.name}: row 2 stand/price={stand}, N={n}, PAYMENT = K2 formula")
 
 
 if __name__ == "__main__":

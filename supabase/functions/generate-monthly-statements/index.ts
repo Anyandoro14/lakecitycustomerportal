@@ -451,7 +451,7 @@ async function fetchStatementDataFromDatabase(
   let cq = supabase
     .from("contracts")
     .select(
-      `id, stand_number, total_price, payment_start_date,
+      `id, stand_number, total_price, deposit_amount, payment_start_date,
        profiles ( email, full_name, payment_start_date )`,
     )
     .eq("tenant_id", tenantId)
@@ -524,6 +524,7 @@ async function fetchStatementDataFromDatabase(
     id: string;
     stand_number: string;
     total_price: number | string;
+    deposit_amount?: number | string | null;
     payment_start_date: string;
     profiles: { email?: string; full_name?: string; payment_start_date?: string } | null;
   }>) {
@@ -532,8 +533,10 @@ async function fetchStatementDataFromDatabase(
     const email = prof?.email?.trim().toLowerCase() || `stand-${c.stand_number}@lakecity.portal`;
     const name = (prof?.full_name || "").trim();
     const totalPrice = Number(c.total_price);
-    const totalPaid = bal ? Number(bal.total_paid) : 0;
-    const currentBalance = bal ? Number(bal.current_balance) : Math.max(0, totalPrice - totalPaid);
+    const depositAmount = Number(c.deposit_amount ?? 0);
+    // Follow finance rule: paid-to-date includes deposit + posted payments.
+    const totalPaid = (bal ? Number(bal.total_paid) : 0) + depositAmount;
+    const currentBalance = Math.max(0, totalPrice - totalPaid);
     const standKey = c.stand_number.toString().trim().toUpperCase();
     const startRaw = prof?.payment_start_date || c.payment_start_date;
     const start = new Date(startRaw);
@@ -730,7 +733,11 @@ serve(async (req) => {
     let targetStand: string | null = null;
     let refreshMode: boolean = false;
     let tenantId: string | null = null;
-    let source: 'sheets' | 'database' = 'sheets';
+    // Cutover default: Odoo CRM is the system of record post-2026-05.
+    // payment_receipts is fed by odoo-webhook on lakecity.collection.payment
+    // events, so the database mode now produces the authoritative numbers.
+    // Pass source='sheets' explicitly to use the legacy Google Sheet path.
+    let source: 'sheets' | 'database' = 'database';
 
     try {
       const body = await req.json();
@@ -738,9 +745,11 @@ serve(async (req) => {
       targetStand = body.target_stand || null;
       refreshMode = body.refresh === true;
       tenantId = body.tenant_id || null;
-      source = body.source === 'database' ? 'database' : 'sheets';
+      if (body.source === 'sheets' || body.source === 'database') {
+        source = body.source;
+      }
     } catch {
-      // No body provided, generate all
+      // No body provided, use defaults (database source).
     }
 
     let customers: CustomerData[];
@@ -749,6 +758,21 @@ serve(async (req) => {
     let earliestPaymentStart: Date | null = null;
 
     if (source === 'database') {
+      if (!tenantId) {
+        const authHeader = req.headers.get('authorization') || '';
+        const bearerToken = authHeader.replace('Bearer ', '').trim();
+        if (bearerToken && bearerToken !== supabaseServiceKey) {
+          const { data: { user } } = await supabase.auth.getUser(bearerToken);
+          if (user?.id) {
+            const { data: callerProfile } = await supabase
+              .from('profiles')
+              .select('tenant_id')
+              .eq('id', user.id)
+              .maybeSingle();
+            tenantId = callerProfile?.tenant_id || null;
+          }
+        }
+      }
       if (!tenantId) {
         return new Response(
           JSON.stringify({ success: false, error: 'tenant_id is required when source=database' }),

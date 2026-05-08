@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_loan_contract_tree" model="ir.ui.view">
+        <field name="name">lakecity.loan.contract.tree</field>
+        <field name="model">lakecity.loan.contract</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="external_uid"/>
+                <field name="partner_id"/>
+                <field name="stand_number"/>
+                <field name="state"/>
+                <field name="payment_start_date"/>
+                <field name="term_months"/>
+                <field name="recurring_invoice_amount"/>
+                <field name="accrued_amount"/>
+                <field name="next_payment_due_amount"/>
+                <field name="current_balance"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_lakecity_loan_contract_form" model="ir.ui.view">
+        <field name="name">lakecity.loan.contract.form</field>
+        <field name="model">lakecity.loan.contract</field>
+        <field name="arch" type="xml">
+            <form string="Loan Contract">
+                <header>
+                    <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_generate_schedule" type="object" string="Generate Schedule"/>
+                    <button name="action_close" type="object" string="Close" invisible="state == 'closed'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,active,closed,defaulted"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="external_uid"/>
+                            <field name="partner_id"/>
+                            <field name="stand_number"/>
+                            <field name="product_id"/>
+                            <field name="term_months"/>
+                            <field name="payment_start_date"/>
+                            <field name="due_day"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group>
+                            <field name="total_price"/>
+                            <field name="deposit_amount"/>
+                            <field name="is_vat_inclusive"/>
+                            <field name="tax_rate" invisible="is_vat_inclusive"/>
+                            <field name="total_with_tax" readonly="1"/>
+                            <field name="recurring_invoice_amount" readonly="1"/>
+                            <field name="total_paid" readonly="1"/>
+                            <field name="current_balance" readonly="1"/>
+                            <field name="accrued_amount" readonly="1"/>
+                            <field name="current_due_amount" readonly="1"/>
+                            <field name="next_payment_due_amount" readonly="1"/>
+                            <field name="next_payment_date" readonly="1"/>
+                            <field name="days_overdue" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Installments">
+                            <field name="installment_ids" readonly="1">
+                                <list>
+                                    <field name="sequence"/>
+                                    <field name="due_date"/>
+                                    <field name="amount_due"/>
+                                    <field name="amount_paid"/>
+                                    <field name="amount_outstanding"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Payments">
+                            <field name="payment_ids">
+                                <list editable="bottom">
+                                    <field name="name" readonly="1"/>
+                                    <field name="payment_date"/>
+                                    <field name="amount"/>
+                                    <field name="source"/>
+                                    <field name="reference"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Agreement">
+                            <group>
+                                <field name="agreement_signed_seller"/>
+                                <field name="agreement_signed_buyer"/>
+                                <field name="agreement_file_url"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_lakecity_loan_contract" model="ir.actions.act_window">
+        <field name="name">Loan Contracts</field>
+        <field name="res_model">lakecity.loan.contract</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>
