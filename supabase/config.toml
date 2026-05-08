@@ -122,3 +122,6 @@ verify_jwt = true
 
 [functions.odoo-audit-data]
 verify_jwt = true
+
+[functions.odoo-loan-module-sync]
+verify_jwt = false
