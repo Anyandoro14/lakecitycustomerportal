@@ -40,6 +40,7 @@ export default defineConfig(({ mode }) => {
         injectRegister: "script-defer", // Defer SW registration to avoid render-blocking
         includeAssets: ["favicon.ico", "lakecity-logo.svg", "icons/*.png"],
         manifest: false, // Using our custom manifest.json
+        selfDestroying: true,
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
