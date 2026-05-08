@@ -82,48 +82,8 @@ const App = () => (
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<SignUp />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/monthly-statements" element={<MonthlyStatements />} />
-                  <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
-                  <Route path="/reporting" element={<Reporting />} />
-                  <Route path="/account-management" element={<AccountManagement />} />
-                  <Route path="/guide" element={<Guide />} />
-                  <Route path="/support" element={<SupportRequest />} />
-                  <Route path="/standsledger" element={<StandLedgerLanding />} />
-                  <Route path="/internal" element={<InternalPortal />} />
-                  <Route path="/internal-portal" element={<InternalPortal />} />
-                  <Route path="/internal-login" element={<InternalLogin />} />
-                  <Route path="/internal-signup" element={<InternalSignUp />} />
-                  <Route path="/looking-glass" element={<LookingGlassView />} />
-                  <Route path="/support-guide" element={<CustomerSupportGuide />} />
-                  <Route path="/customer-update" element={<CustomerUpdate />} />
-                  <Route path="/updates" element={<Updates />} />
-                  <Route path="/article-feedback" element={<ArticleFeedbackDashboard />} />
-                  <Route path="/collections" element={<CollectionsCommandCenter />} />
-                  <Route path="/collections-guide" element={<CollectionsGuide />} />
-                  <Route path="/payment-gateway" element={<PaymentGatewayProposal />} />
-                  <Route path="/payment-gateway/specifications" element={<PaymentGatewaySpecifications />} />
-                  <Route path="/docs" element={<DocsHome />} />
-                  <Route path="/docs/glossary" element={<DocsGlossary />} />
-                  <Route path="/docs/quickstart" element={<DocsQuickstart />} />
-                  <Route path="/docs/data-models" element={<DocsDataModels />} />
-                  <Route path="/docs/sheets" element={<DocsSheets />} />
-                  <Route path="/docs/api-reference" element={<DocsApiReference />} />
-                  <Route path="/docs/endpoints" element={<DocsEndpoints />} />
-                  <Route path="/docs/webhooks" element={<DocsWebhooks />} />
-                  <Route path="/docs/authentication" element={<DocsAuthentication />} />
-                  <Route path="/docs/errors" element={<DocsErrors />} />
-                  <Route path="/crm-specs" element={<CrmSpecifications />} />
-                  <Route path="/crm-specs/technical" element={<CrmTechnicalSpecs />} />
-                  <Route path="/admin/qc-queue" element={<QcQueue />} />
-                  <Route path="/training" element={<TrainingCenter />} />
-                  <Route path="/training/:path/:moduleId" element={<TrainingModule />} />
                   <Route path="/under-construction" element={<UnderConstruction />} />
-                  <Route path="*" element={<NotFound />} />
+                  <Route path="*" element={<UnderConstruction />} />
                 </Routes>
               </Suspense>
             </MaintenanceGate>
