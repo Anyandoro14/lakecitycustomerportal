@@ -33,3 +33,7 @@ node.pkg
 
 # Local venv for xlsx maintenance scripts (docs/payment-schedule-templates)
 .venv-xlsx/
+
+# Odoo addons (Python bytecode — never commit)
+odoo/**/*.pyc
+odoo/**/__pycache__/

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem
+        id="menu_lakecity_loan_root"
+        name="Lakecity Loans"
+        sequence="10"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_loan_contracts"
+        name="Loan Contracts"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_loan_contract"
+        sequence="10"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_loan_payments"
+        name="Payments"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_loan_payment"
+        sequence="20"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_loan_installments"
+        name="Installments"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_loan_installment"
+        sequence="30"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_loan_products"
+        name="Loan Products"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_loan_product"
+        sequence="40"
+        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+</odoo>
