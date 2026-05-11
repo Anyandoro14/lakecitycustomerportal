@@ -1,12 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+import { getDueDay } from "../_shared/bdo-due-day.ts";
 import {
   resolveCollectionScheduleSheetTitle,
+  listCollectionScheduleDataTabTitles,
   PAYMENT_GRID_START_COL,
   PAYMENT_GRID_END_COL,
   PAYMENT_GRID_BASE_DATE,
-  customerPaymentStartCol,
 } from "../_shared/collection-schedule-sheets.ts";
 
 const corsHeaders = {
@@ -484,58 +485,114 @@ serve(async (req) => {
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
 
-    const resolved = resolveCollectionScheduleSheetTitle(sheets, {
-      paymentPlanMonths: paymentPlanMonthsForSchedule,
-      envPreferredName: Deno.env.get('SHEET_NAME'),
-      envPreferredGid: Deno.env.get('SHEET_GID'),
-    });
+    // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
+    const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
 
-    const sheetExists = sheets.some((s: any) => s.properties?.title === resolved.sheetTitle);
-    if (!sheetExists) {
-      console.error(
-        `Collection Schedule tab not found: expected "${resolved.sheetTitle}" (source=${resolved.source}).`,
-      );
+    const normalizeHeaderCell = (value: unknown) =>
+      String(value ?? '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const findHeaderRowIndex = (tabRows: string[][]): number => {
+      const scanLimit = Math.min(8, tabRows.length);
+      let bestIndex = -1;
+      let bestScore = -1;
+
+      for (let i = 0; i < scanLimit; i++) {
+        const candidate = tabRows[i] || [];
+        const normalized = candidate.map(normalizeHeaderCell);
+        const score =
+          Number(normalized.some((cell) => cell === 'stand number' || cell === 'stand' || cell === 'stand no')) +
+          Number(normalized.some((cell) => cell.includes('email'))) +
+          Number(normalized.some((cell) => cell.includes('first name') || cell === 'first')) +
+          Number(normalized.some((cell) => cell.includes('last name') || cell === 'last')) +
+          Number(normalized.some((cell) => cell.includes('deposit'))) +
+          Number(normalized.some((cell) => cell.includes('start date'))) +
+          Number(normalized.some((cell) => cell.includes('total price')));
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+
+      return bestScore > 0 ? bestIndex : -1;
+    };
+
+    const findColumnIndex = (headers: string[], matchers: Array<(header: string) => boolean>, fallback?: number): number => {
+      for (let i = 0; i < headers.length; i++) {
+        const normalized = normalizeHeaderCell(headers[i]);
+        if (!normalized) continue;
+        if (matchers.some((matcher) => matcher(normalized))) {
+          return i;
+        }
+      }
+      return fallback ?? -1;
+    };
+
+    // ── Multi-tab scan: fetch ALL collection schedule tabs so multi-stand
+    //    customers whose stands span different term-length tabs are matched. ──
+    const allTabTitles = listCollectionScheduleDataTabTitles(sheets);
+    if (allTabTitles.length === 0) {
+      // Fallback: try the resolved single tab
+      const resolved = resolveCollectionScheduleSheetTitle(sheets, {
+        paymentPlanMonths: paymentPlanMonthsForSchedule,
+        envPreferredName: Deno.env.get('SHEET_NAME'),
+        envPreferredGid: Deno.env.get('SHEET_GID'),
+      });
+      if (sheets.some((s: any) => s.properties?.title === resolved.sheetTitle)) {
+        allTabTitles.push(resolved.sheetTitle);
+      }
+    }
+
+    console.log(`Scanning ${allTabTitles.length} collection schedule tab(s): ${allTabTitles.join(', ')}, hasPaymentsLedger: ${hasPaymentsLedger}`);
+
+    if (allTabTitles.length === 0) {
       return new Response(
-        JSON.stringify({
-          error:
-            `Collection Schedule tab "${resolved.sheetTitle}" was not found in the spreadsheet. ` +
-            `Rename the sheet or set profiles.payment_plan_months / SHEET_NAME.`,
-        }),
+        JSON.stringify({ error: 'No Collection Schedule tabs found in the spreadsheet.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const sheetTitle = resolved.sheetTitle;
+    // Fetch data from all tabs and normalize each tab to its actual header row
+    // before merging so title/branding rows never poison the combined dataset.
+    let rows: string[][] = [];
+    for (const tabTitle of allTabTitles) {
+      const range = encodeURIComponent(`${tabTitle}!A:ZZ`);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      if (!response.ok) {
+        console.warn(`Failed to fetch tab "${tabTitle}": ${response.status}`);
+        continue;
+      }
+      const data: GoogleSheetsResponse = await response.json();
+      const tabRows = data.values || [];
+      if (tabRows.length === 0) continue;
 
-    // Detect Payments_Ledger tab (row-based payments for tenants like Lake City)
-    const hasPaymentsLedger = sheets.some((s: any) => s.properties.title === 'Payments_Ledger');
-    console.log(
-      `Using sheet: "${sheetTitle}" (payment_plan_months=${paymentPlanMonthsForSchedule ?? "default"}, source=${resolved.source}), hasPaymentsLedger: ${hasPaymentsLedger}`,
-    );
+      const headerRowIdx = findHeaderRowIndex(tabRows);
+      if (headerRowIdx === -1) {
+        console.warn(`Skipping tab "${tabTitle}" because no recognizable header row was found`);
+        continue;
+      }
 
-    // Fetch the data — wide enough to cover 168 payment columns + summary + status columns
-    const range = encodeURIComponent(`${sheetTitle}!A:ZZ`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
-    
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
+      const normalizedTabRows = tabRows.slice(headerRowIdx);
+      if (normalizedTabRows.length < 2) {
+        console.warn(`Skipping tab "${tabTitle}" because it has no data rows after header normalization`);
+        continue;
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Sheets fetch error:', errorText);
-      return new Response(
-        JSON.stringify({ 
-          error: `Google Sheets API error (${response.status}). Check: 1) Spreadsheet ID is correct, 2) Sheet is shared with ${serviceAccountEmail} as Viewer` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (rows.length === 0) {
+        rows = normalizedTabRows;
+      } else {
+        rows = rows.concat(normalizedTabRows.slice(1));
+      }
+      console.log(`Tab "${tabTitle}": header row ${headerRowIdx}, ${normalizedTabRows.length - 1} data rows`);
     }
 
-    const data: GoogleSheetsResponse = await response.json();
-    const rows = data.values || [];
-    
-    console.log(`Fetched rows: ${rows.length}`);
+    console.log(`Total merged rows (incl header): ${rows.length}`);
 
     if (rows.length === 0) {
       return new Response(
@@ -544,32 +601,86 @@ serve(async (req) => {
       );
     }
 
-    // Find header row and get column indices
-    const headers = rows[0];
-    const standNumIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('stand'));
-    const firstNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('first'));
-    const lastNameIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('last'));
-    const emailIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('email'));
+    const headers = rows[0] || [];
+    console.log(`Using normalized merged header; sample headers: ${JSON.stringify(headers.slice(0, 12))}`);
+    const looksLikeLakeCityColumnALayout =
+      normalizeHeaderCell(headers[0]) === '' &&
+      ['first', 'first name'].includes(normalizeHeaderCell(headers[1])) &&
+      ['last', 'last name'].includes(normalizeHeaderCell(headers[2])) &&
+      normalizeHeaderCell(headers[4]).includes('email');
+
+    const standNumIndex = findColumnIndex(headers, [
+      (header) => header === 'stand number',
+      (header) => header === 'stand',
+      (header) => header === 'stand no',
+      (header) => header === 'stand #',
+      (header) => header.includes('stand number'),
+      (header) => header.includes('stand no'),
+    ], looksLikeLakeCityColumnALayout ? 0 : -1);
+
+    if (looksLikeLakeCityColumnALayout) {
+      console.log('Stand Number header is blank; using Lake City Column A layout fallback at index 0');
+    }
+    const firstNameIndex = findColumnIndex(headers, [
+      (header) => header === 'first',
+      (header) => header === 'first name',
+      (header) => header.includes('first name'),
+    ], 2);
+    const lastNameIndex = findColumnIndex(headers, [
+      (header) => header === 'last',
+      (header) => header === 'last name',
+      (header) => header.includes('last name'),
+      (header) => header.includes('surname'),
+    ], 3);
+    const emailIndex = findColumnIndex(headers, [
+      (header) => header === 'email',
+      (header) => header.includes('email'),
+      (header) => header.includes('e-mail'),
+    ], 4);
     const customerCategoryIndex = 5; // Column F (0-indexed = 5) - Customer Category
-    const phoneIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('phone') || h && h.toString().toLowerCase().includes('contact'));
-    const totalPriceIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('total price'));
-    const paymentIndex = headers.findIndex((h, idx) => idx < PAYMENT_GRID_START_COL && h && h.toString().toLowerCase().includes('payment') && !h.toString().toLowerCase().includes('installment'));
-    const startDateIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('start date'));
-    const nextInstallmentIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('next installment'));
-    const depositIndex = headers.findIndex(h => h && h.toString().toLowerCase().includes('deposit'));
+    const phoneIndex = findColumnIndex(headers, [
+      (header) => header.includes('phone'),
+      (header) => header.includes('contact'),
+      (header) => header.includes('mobile'),
+      (header) => header.includes('cell'),
+      (header) => header.includes('tel'),
+    ], 6);
+    const totalPriceIndex = findColumnIndex(headers, [
+      (header) => header === 'total price',
+      (header) => header.includes('total price'),
+      (header) => header.includes('purchase price'),
+      (header) => header === 'price',
+    ], 8);
+    const paymentIndex = findColumnIndex(headers, [
+      (header) => header.includes('payment') && !header.includes('installment'),
+      (header) => header.includes('instalment') && !header.includes('next'),
+      (header) => header.includes('installment') && !header.includes('next'),
+    ], 10);
+    const startDateIndex = findColumnIndex(headers, [
+      (header) => header === 'start date',
+      (header) => header.includes('start date'),
+      (header) => header.includes('payment start'),
+    ], 11);
+    const depositIndex = findColumnIndex(headers, [
+      (header) => header === 'deposit',
+      (header) => header.includes('deposit'),
+    ], 7);
     // VAT indicator - look for columns that might indicate VAT inclusion/exclusion
-    const vatInclusiveIndex = headers.findIndex(h => h && (h.toString().toLowerCase().includes('vat') || h.toString().toLowerCase().includes('inclusive')));
+    const vatInclusiveIndex = findColumnIndex(headers, [
+      (header) => header.includes('vat'),
+      (header) => header.includes('inclusive'),
+    ]);
     
     if (standNumIndex === -1) {
       return new Response(
-        JSON.stringify({ error: 'Could not find "Stand Number" column in spreadsheet' }),
+        JSON.stringify({ error: `Could not find "Stand Number" column in spreadsheet. Headers seen: ${JSON.stringify(headers.slice(0, 12))}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (emailIndex === -1) {
       return new Response(
-        JSON.stringify({ error: 'Could not find "Email" column in spreadsheet' }),
+        JSON.stringify({ error: `Could not find "Email" column in spreadsheet. Headers seen: ${JSON.stringify(headers.slice(0, 12))}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -601,7 +712,8 @@ serve(async (req) => {
           return true;
         }
         
-        // Match by stand number from profile (for users with placeholder emails)
+        // Always allow stand-number fallback so the Collection Schedule remains
+        // the source of truth even when the sheet email is missing/outdated.
         if (profileStandNumber && rowStandNumber === profileStandNumber) {
           return true;
         }
@@ -664,44 +776,53 @@ serve(async (req) => {
         }
       }
 
-      // Get the start date for this customer — prefer profiles.payment_start_date, then sheet column
+      // Get the start date for this customer
+      // Priority: 1) Sheet Column L (operational source of truth), 2) Profile (if not default), 3) Fallbacks
       const startDateStr = startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '';
       let customerStartDate: Date | null = null;
+      const PROFILE_DEFAULT_START = '2025-09-05'; // Default value in profiles table
 
-      // First, try to get payment_start_date from profiles table (authoritative)
-      const standKey_ = standNumber.toString().trim().toUpperCase();
-      const { data: profileWithDate } = await supabaseClient
-        .from('profiles')
-        .select('payment_start_date')
-        .ilike('stand_number', standKey_)
-        .limit(1)
-        .maybeSingle();
-
-      if (profileWithDate?.payment_start_date) {
-        customerStartDate = new Date(profileWithDate.payment_start_date);
-        if (isNaN(customerStartDate.getTime())) customerStartDate = null;
-      }
-
-      // Fallback: parse from sheet column
-      if (!customerStartDate && startDateStr) {
+      // 1) Try to parse from sheet Column L first (operational source of truth)
+      if (startDateStr) {
         try {
           const parsedDate = new Date(startDateStr);
           if (!isNaN(parsedDate.getTime())) {
             customerStartDate = parsedDate;
-            customerStartDate.setDate(5);
+            // Due day is determined later after we know the customer category
+            console.log(`Stand ${standNumber}: Using sheet Column L start date: ${customerStartDate.toISOString()}`);
           }
         } catch (e) {
           console.log(`Could not parse start date for stand ${standNumber}: ${startDateStr}`);
         }
       }
 
-      // Final fallback: use sheet header date (no hardcoded 2025 date)
+      // 2) If sheet didn't have a date, try profile (but skip the default value)
+      if (!customerStartDate) {
+        const standKey_ = standNumber.toString().trim().toUpperCase();
+        const { data: profileWithDate } = await supabaseClient
+          .from('profiles')
+          .select('payment_start_date')
+          .ilike('stand_number', standKey_)
+          .limit(1)
+          .maybeSingle();
+
+        if (profileWithDate?.payment_start_date && profileWithDate.payment_start_date !== PROFILE_DEFAULT_START) {
+          const profileDate = new Date(profileWithDate.payment_start_date);
+          if (!isNaN(profileDate.getTime())) {
+            customerStartDate = profileDate;
+            console.log(`Stand ${standNumber}: Using non-default profile start date: ${customerStartDate.toISOString()}`);
+          }
+        }
+      }
+
+      // 3) Final fallback: use sheet header date (no hardcoded date)
       if (!customerStartDate) {
         const headerDate = headers[paymentStartCol];
         if (headerDate) {
           const parsed = new Date(headerDate);
           if (!isNaN(parsed.getTime())) {
             customerStartDate = parsed;
+            console.log(`Stand ${standNumber}: Using header date as fallback: ${customerStartDate.toISOString()}`);
           }
         }
       }
@@ -824,7 +945,7 @@ serve(async (req) => {
           const monthsFromStart = i;
           const paymentDate = new Date(basePaymentDate);
           paymentDate.setMonth(paymentDate.getMonth() + monthsFromStart);
-          paymentDate.setDate(5); // BNPL: due dates on the 5th
+          paymentDate.setDate(getDueDay(standNumber, customerCategory)); // BDO=10th, else 5th
           lastPaymentDate = paymentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         }
       }
@@ -946,10 +1067,15 @@ serve(async (req) => {
       // Format calculated total to match sheet: deposit + instalment cells (see BNPL_SCHEDULE_SPEC.md)
       const calculatedTotalPaid = `$${totalPaidLikeSheet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       
+      // AUTHORITATIVE: prefer the sheet's own Total Paid formula (column FZ) when available.
+      // Only fall back to the computed value when the sheet cell is empty / zero.
       const sheetTotalNum = parseFloat(sheetTotalPaid.toString().replace(/[$,]/g, '')) || 0;
+      const authoritiveTotalPaid = sheetTotalNum > 0 ? sheetTotalNum : totalPaidLikeSheet;
+      const authoritativeTotalPaidStr = `$${authoritiveTotalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
       if (Math.abs(sheetTotalNum - totalPaidLikeSheet) > 0.01) {
         console.warn(
-          `Stand ${standNumber}: DISCREPANCY - Sheet TOTAL PAID ${sheetTotalPaid} (${sheetTotalNum}) vs computed ${calculatedTotalPaid} (${totalPaidLikeSheet})`,
+          `Stand ${standNumber}: DISCREPANCY - Sheet TOTAL PAID ${sheetTotalPaid} (${sheetTotalNum}) vs computed ${calculatedTotalPaid} (${totalPaidLikeSheet}). Using sheet value as authoritative.`,
         );
       }
       
@@ -1021,7 +1147,7 @@ serve(async (req) => {
         // Calculate next due date from customer's actual start date (not the sheet header)
         const nextDueDate = new Date(customerStartDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + nextUncoveredMonth);
-        nextDueDate.setDate(5);
+        nextDueDate.setDate(getDueDay(standNumber, customerCategory)); // BDO=10th, else 5th
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
         // Calculate remaining amount due for this instalment (if partial payment exists)
@@ -1050,8 +1176,8 @@ serve(async (req) => {
       const sheetBalanceNum = parseCurrencyToNumber(currentBalance);
       const totalPriceNum = parseCurrencyToNumber(totalPrice);
       let effectiveBalance = currentBalance; // raw sheet string
-      if (sheetBalanceNum === 0 && totalPriceNum > 0 && totalPaidLikeSheet > 0) {
-        const computedBalance = Math.max(0, totalPriceNum - totalPaidLikeSheet);
+      if (sheetBalanceNum === 0 && totalPriceNum > 0 && authoritiveTotalPaid > 0) {
+        const computedBalance = Math.max(0, totalPriceNum - authoritiveTotalPaid);
         effectiveBalance = `$${computedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         console.log(`Stand ${standNumber}: Sheet balance empty/zero — using computed balance ${effectiveBalance}`);
       }
@@ -1069,7 +1195,7 @@ serve(async (req) => {
       } else {
         // Fallback: progress = (deposit + instalments) / Total price (Column I base)
         progressPercentage =
-          totalPriceNum > 0 ? Math.min(100, Math.round((totalPaidLikeSheet / totalPriceNum) * 100)) : 0;
+          totalPriceNum > 0 ? Math.min(100, Math.round((authoritiveTotalPaid / totalPriceNum) * 100)) : 0;
       }
 
       // Last Payment: when no monthly columns filled but deposit exists, show deposit
@@ -1111,7 +1237,7 @@ serve(async (req) => {
         lastDueDate: startDateIndex !== -1 ? (customerRow[startDateIndex] || '') : '',
         monthlyPayment: monthlyPayment,
         nextDueDate: nextPaymentDue,
-        totalPaid: calculatedTotalPaid, // Use calculated sum, not sheet formula (which may be stale/incorrect)
+        totalPaid: authoritativeTotalPaidStr, // Prefer sheet formula; fall back to computed sum
         progressPercentage: progressPercentage,
         paymentHistory: paymentHistory,
         agreementSignedByWarwickshire: agreementSignedByWarwickshire,

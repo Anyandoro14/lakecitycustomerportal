@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,19 +71,24 @@ const InternalLogin = () => {
   const handleGoogleSignIn = async () => {
     setSigningIn(true);
     try {
-      const redirectUrl = `${window.location.origin}/internal-portal`;
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            hd: 'lakecity.co.zw', // Restrict to LakeCity domain at Google level
-          }
-        }
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: {
+          hd: "lakecity.co.zw",
+          prompt: "select_account",
+        },
       });
 
-      if (error) throw error;
+      if (result.error) {
+        throw result.error;
+      }
+
+      if (result.redirected) {
+        return;
+      }
+
+      // Session set — navigate to portal
+      navigate("/internal-portal");
     } catch (error: any) {
       console.error('Sign in error:', error);
       toast.error("Failed to sign in. Please try again.");

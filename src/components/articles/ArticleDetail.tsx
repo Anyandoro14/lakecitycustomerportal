@@ -12,13 +12,43 @@ interface ArticleDetailProps {
   onSubmitFeedback: (articleId: string, comment: string) => Promise<boolean>;
 }
 
+const renderInline = (text: string) => {
+  // Tokenize for [label](url) and **bold**
+  const regex = /\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*/g;
+  const nodes: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    if (match[1] && match[2]) {
+      nodes.push(
+        <a
+          key={key++}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-foreground underline underline-offset-4 decoration-secondary hover:decoration-foreground transition-colors"
+        >
+          {match[1]}
+        </a>
+      );
+    } else if (match[3]) {
+      nodes.push(<strong key={key++} className="font-semibold text-foreground">{match[3]}</strong>);
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+};
+
 const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeedback }: ArticleDetailProps) => {
   const isRead = readStatus?.is_read || false;
   const publishedDate = article.published_at
     ? format(new Date(article.published_at), "d MMMM yyyy")
     : format(new Date(article.created_at), "d MMMM yyyy");
 
-  const categoryLabel = article.category === "welcome" ? "Welcome" : "Press Release";
+  const categoryLabel = article.category === "welcome" ? "Welcome" : "Customer Portal Announcement";
 
   return (
     <div className="min-h-screen bg-background">
@@ -67,7 +97,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
           <div className="mt-8 flex items-center gap-3">
             <div className="h-px flex-1 max-w-[40px] bg-primary-foreground/20" />
             <div className="flex items-center gap-2 text-xs sm:text-sm font-body text-primary-foreground/50">
-              <span className="font-medium text-primary-foreground/70">{article.author_name || "The Directors"}</span>
+              <span className="font-medium text-primary-foreground/70">{article.author_name || "Tech at LakeCity"}</span>
               <span className="text-primary-foreground/30">·</span>
               <span>{publishedDate}</span>
             </div>
@@ -100,7 +130,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
             if (paragraph.startsWith("- ") || paragraph.startsWith("• ")) {
               const items = paragraph.split("\n").filter(Boolean);
               return (
-                <ul key={i} className="space-y-3 ml-1 my-6">
+                <ul key={i} className="space-y-3 ml-1 my-6 font-serif">
                   {items.map((item, j) => (
                     <li key={j} className="flex items-start gap-4 font-body text-base text-muted-foreground leading-relaxed">
                       <span className="mt-2.5 h-1 w-1 rounded-full bg-secondary flex-shrink-0" />
@@ -118,10 +148,10 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
               );
             }
             return (
-              <p key={i} className={`font-body text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
-                i === 0 ? "text-foreground/90 font-light text-lg sm:text-xl leading-[1.7]" : ""
+              <p key={i} className={`font-sans text-base sm:text-[17px] leading-[1.8] text-muted-foreground ${
+                i === 0 ? "text-foreground/90 text-lg sm:text-xl leading-[1.7] font-normal" : ""
               }`}>
-                {paragraph}
+                {renderInline(paragraph)}
               </p>
             );
           })}
