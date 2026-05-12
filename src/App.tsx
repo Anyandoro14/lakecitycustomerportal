@@ -1,4 +1,4 @@
-/* build-refresh 2026-04-10 */
+/* build-refresh 2026-05-12 */
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -55,11 +55,9 @@ const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
 const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
-const UnderConstruction = lazy(() => import("./pages/UnderConstruction"));
 
 const queryClient = new QueryClient();
 
-// Minimal loading fallback to avoid layout shift
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
     <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -82,8 +80,48 @@ const App = () => (
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                  <Route path="/under-construction" element={<UnderConstruction />} />
-                  <Route path="*" element={<UnderConstruction />} />
+                  <Route path="/" element={<StandLedgerLanding />} />
+                  <Route path="/index" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<SignUp />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/monthly-statements" element={<MonthlyStatements />} />
+                  <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
+                  <Route path="/reporting" element={<Reporting />} />
+                  <Route path="/account-management" element={<AccountManagement />} />
+                  <Route path="/guide" element={<Guide />} />
+                  <Route path="/support" element={<SupportRequest />} />
+                  <Route path="/support-request" element={<SupportRequest />} />
+                  <Route path="/customer-support-guide" element={<CustomerSupportGuide />} />
+                  <Route path="/customer-update" element={<CustomerUpdate />} />
+                  <Route path="/updates" element={<Updates />} />
+                  <Route path="/article-feedback" element={<ArticleFeedbackDashboard />} />
+                  <Route path="/internal" element={<InternalPortal />} />
+                  <Route path="/internal-portal" element={<InternalPortal />} />
+                  <Route path="/internal-login" element={<InternalLogin />} />
+                  <Route path="/internal-signup" element={<InternalSignUp />} />
+                  <Route path="/looking-glass" element={<LookingGlassView />} />
+                  <Route path="/collections" element={<CollectionsCommandCenter />} />
+                  <Route path="/collections-guide" element={<CollectionsGuide />} />
+                  <Route path="/training" element={<TrainingCenter />} />
+                  <Route path="/training/:moduleId" element={<TrainingModule />} />
+                  <Route path="/payment-gateway-proposal" element={<PaymentGatewayProposal />} />
+                  <Route path="/payment-gateway-specifications" element={<PaymentGatewaySpecifications />} />
+                  <Route path="/docs" element={<DocsHome />} />
+                  <Route path="/docs/glossary" element={<DocsGlossary />} />
+                  <Route path="/docs/data-models" element={<DocsDataModels />} />
+                  <Route path="/docs/sheets" element={<DocsSheets />} />
+                  <Route path="/docs/api-reference" element={<DocsApiReference />} />
+                  <Route path="/docs/endpoints" element={<DocsEndpoints />} />
+                  <Route path="/docs/webhooks" element={<DocsWebhooks />} />
+                  <Route path="/docs/authentication" element={<DocsAuthentication />} />
+                  <Route path="/docs/quickstart" element={<DocsQuickstart />} />
+                  <Route path="/docs/errors" element={<DocsErrors />} />
+                  <Route path="/crm-specifications" element={<CrmSpecifications />} />
+                  <Route path="/crm-technical-specs" element={<CrmTechnicalSpecs />} />
+                  <Route path="/admin/qc-queue" element={<QcQueue />} />
+                  <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
             </MaintenanceGate>
