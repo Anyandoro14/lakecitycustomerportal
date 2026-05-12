@@ -49,8 +49,13 @@ class LakecityLoanApiController(http.Controller):
             partner = Partner.search([("email", "=", email)], limit=1)
         if not partner and phone:
             partner = Partner.search([("phone", "=", phone)], limit=1)
+        partner_vals = {"name": name, "email": email or False, "phone": phone or False}
+        # Sales/Accounting: makes the contact show as a Customer (when module provides the field).
+        if "customer_rank" in Partner._fields:
+            partner_vals["customer_rank"] = 1
+
         if not partner:
-            partner = Partner.create({"name": name, "email": email or False, "phone": phone or False})
+            partner = Partner.create(partner_vals)
         else:
             updates = {}
             if name and not partner.name:
@@ -59,9 +64,38 @@ class LakecityLoanApiController(http.Controller):
                 updates["email"] = email
             if phone and not partner.phone:
                 updates["phone"] = phone
+            if "customer_rank" in Partner._fields and not partner.customer_rank:
+                updates["customer_rank"] = 1
             if updates:
                 partner.write(updates)
         return partner
+
+    def _ensure_lakecity_crm_lead_first(self, external_uid, stand_number, partner_payload):
+        """Create or reuse a CRM lead **before** partner/contract when strict CRM-first is requested."""
+        Lead = request.env["crm.lead"].sudo()
+        existing = Lead.search([("lakecity_contract_external_uid", "=", external_uid)], limit=1)
+        if existing:
+            return existing
+
+        pname = (partner_payload.get("name") or "").strip() or "Lakecity Customer"
+        team = request.env["crm.team"].sudo().search([], order="sequence,id", limit=1)
+
+        vals = {
+            "name": "Stand %s — %s" % (stand_number, pname),
+            "contact_name": pname,
+            "email_from": (partner_payload.get("email") or "").strip() or False,
+            "phone": (partner_payload.get("phone") or "").strip() or False,
+            "type": "opportunity",
+            "description": (
+                "LakeCity BNPL import (CRM-first).\n"
+                "Contract external_uid: %s\nStand: %s\n" % (external_uid, stand_number)
+            ),
+            "lakecity_contract_external_uid": external_uid,
+            "lakecity_stand_number": stand_number,
+        }
+        if team:
+            vals["team_id"] = team.id
+        return Lead.create(vals)
 
     def _contract_payload(self, contract):
         installments = contract.installment_ids.sorted(key=lambda l: (l.due_date or fields.Date.today(), l.sequence))
@@ -115,7 +149,16 @@ class LakecityLoanApiController(http.Controller):
                 status=400,
             )
 
+        create_crm_first = bool(payload.get("create_crm_lead_first"))
+        crm_lead = request.env["crm.lead"]
+        if create_crm_first:
+            crm_lead = self._ensure_lakecity_crm_lead_first(external_uid, stand_number, partner_payload)
+
         partner = self._upsert_partner(partner_payload)
+
+        if create_crm_first and crm_lead:
+            crm_lead.write({"partner_id": partner.id})
+
         Contract = request.env["lakecity.loan.contract"].sudo()
         contract = Contract.search([("external_uid", "=", external_uid)], limit=1)
 
@@ -147,7 +190,10 @@ class LakecityLoanApiController(http.Controller):
         if bool(payload.get("activate", False)) and contract.state == "draft":
             contract.action_activate()
 
-        return self._json_response({"ok": True, "contract": self._contract_payload(contract)})
+        out = {"ok": True, "contract": self._contract_payload(contract)}
+        if create_crm_first and crm_lead:
+            out["crm_lead_id"] = crm_lead.id
+        return self._json_response(out)
 
     @http.route("/lakecity/api/v1/loan/get", type="http", auth="public", methods=["GET"], csrf=False)
     def get_loan(self, **kwargs):

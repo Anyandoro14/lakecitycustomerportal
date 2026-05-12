@@ -13,7 +13,11 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "migrate:odoo-bnpl": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs",
+    "migrate:odoo-bnpl:preflight": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --preflight-only",
+    "migrate:odoo-bnpl:dry-run": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --dry-run",
+    "import:collection-csv": "node --env-file=.env scripts/import-collection-schedule-csv-to-odoo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -50,6 +54,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "csv-parse": "^5.6.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",

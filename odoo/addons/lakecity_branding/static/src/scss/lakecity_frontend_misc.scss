@@ -1,0 +1,21 @@
+// Gentle StandLedger-ish backdrop on auth/database screens (scoped body class).
+
+body.lakecity-auth-surface {
+    background-color: #f4f9f8;
+    background-image: radial-gradient(
+            circle at 12% -20%,
+            rgba(212, 168, 83, 0.16),
+            transparent 45%
+        ),
+        radial-gradient(circle at 88% 120%, rgba(11, 61, 46, 0.06), transparent 52%);
+    min-height: 100vh;
+}
+
+body.lakecity-auth-surface .o_database_list {
+    border-radius: 12px !important;
+    box-shadow: 0 28px 64px rgba(11, 61, 46, 0.1);
+}
+
+body.lakecity-auth-surface .btn-primary:focus-visible {
+    box-shadow: 0 0 0 0.2rem rgba(212, 168, 83, 0.45);
+}

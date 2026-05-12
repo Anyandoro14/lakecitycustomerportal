@@ -32,7 +32,7 @@ Set Odoo system parameter:
 Endpoints (Bearer token required):
 
 - `GET /lakecity/api/v1/health`
-- `POST /lakecity/api/v1/loan/upsert`
+- `POST /lakecity/api/v1/loan/upsert` — optional JSON key **`create_crm_lead_first`**: when **true**, creates (or reuses) a **`crm.lead`** **before** `res.partner` and `lakecity.loan.contract`, then links **`partner_id`**. Response may include **`crm_lead_id`**. Requires **`crm`** (installed automatically as a dependency of this module **19.0.1.0.4+**).
 - `GET /lakecity/api/v1/loan/get?external_uid=...`
 - `GET /lakecity/api/v1/loan/installments?external_uid=...`
 - `POST /lakecity/api/v1/payment/post`

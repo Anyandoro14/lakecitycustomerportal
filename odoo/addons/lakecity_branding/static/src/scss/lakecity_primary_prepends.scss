@@ -1,0 +1,31 @@
+// -----------------------------------------------------------------------------
+// LakeCity / StandLedger palette — loaded before addons/web/static/src/scss/
+// primary_variables.scss so Odoo/Bootstrap `$o-*` bindings pick up ERP colors.
+//
+// Mirrors portal/email: forest green primary (#0b3d2e / LC sea green spectrum), StandLedger-ish gold accents.
+// -----------------------------------------------------------------------------
+$o-community-color: #0b3d2e;
+$o-enterprise-color: #0b3d2e;
+$o-community-color: #0b3d2e;
+$o-enterprise-color: #0b3d2e;
+$o-enterprise-action-color: #d4a853;
+
+$o-main-favorite-color: #d4a853;
+
+// Match customer portal typography (Inter-first).
+$o-system-fonts: (
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Ubuntu,
+    "Noto Sans",
+    Arial,
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol",
+    "Noto Color Emoji",
+);
