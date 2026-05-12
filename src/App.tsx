@@ -80,7 +80,8 @@ const App = () => (
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                  <Route path="/" element={<StandLedgerLanding />} />
+                  <Route path="/" element={<Login />} />
+                  <Route path="/landing" element={<StandLedgerLanding />} />
                   <Route path="/index" element={<Index />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<SignUp />} />
