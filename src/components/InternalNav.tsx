@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Landmark,
   GraduationCap,
+  MapPin,
 } from "lucide-react";
 
 interface InternalNavProps {
@@ -38,6 +39,7 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
     if (location.pathname.includes('account-management')) return 'access';
     if (location.pathname.includes('looking-glass')) return 'looking-glass';
     if (location.pathname.includes('internal-portal')) return 'portal';
+    if (location.pathname.includes('stand-inventory')) return 'stand-inventory';
     return '';
   })();
 
@@ -49,6 +51,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       icon: Shield,
       path: '/internal-portal',
       visible: true, // All internal users can access
+    },
+    {
+      id: 'stand-inventory',
+      label: 'Stand inventory',
+      icon: MapPin,
+      path: '/stand-inventory',
+      visible: true,
     },
     {
       id: 'collections',

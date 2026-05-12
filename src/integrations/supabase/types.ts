@@ -932,6 +932,118 @@ export type Database = {
         }
         Relationships: []
       }
+      stand_inventory: {
+        Row: {
+          id: string
+          tenant_id: string
+          stand_number: string
+          land_use: string | null
+          area_sqm: number | null
+          phase: string | null
+          rights: string | null
+          status: string | null
+          purchase_price: number | null
+          agreement_requested: string | null
+          agreement_signed_warwickshire: string | null
+          agreement_signed_by_client: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          stand_number: string
+          land_use?: string | null
+          area_sqm?: number | null
+          phase?: string | null
+          rights?: string | null
+          status?: string | null
+          purchase_price?: number | null
+          agreement_requested?: string | null
+          agreement_signed_warwickshire?: string | null
+          agreement_signed_by_client?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          stand_number?: string
+          land_use?: string | null
+          area_sqm?: number | null
+          phase?: string | null
+          rights?: string | null
+          status?: string | null
+          purchase_price?: number | null
+          agreement_requested?: string | null
+          agreement_signed_warwickshire?: string | null
+          agreement_signed_by_client?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_inventory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stand_inventory_buyer: {
+        Row: {
+          id: string
+          stand_inventory_id: string
+          first_name: string | null
+          surname: string | null
+          id_number: string | null
+          phone: string | null
+          email: string | null
+          address: string | null
+          allocation: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          stand_inventory_id: string
+          first_name?: string | null
+          surname?: string | null
+          id_number?: string | null
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          allocation?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          stand_inventory_id?: string
+          first_name?: string | null
+          surname?: string | null
+          id_number?: string | null
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          allocation?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_inventory_buyer_stand_inventory_id_fkey"
+            columns: ["stand_inventory_id"]
+            isOneToOne: false
+            referencedRelation: "stand_inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_cases: {
         Row: {
           case_number: string

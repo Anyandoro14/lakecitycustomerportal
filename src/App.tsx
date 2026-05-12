@@ -55,6 +55,7 @@ const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
 const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
+const StandInventory = lazy(() => import("./pages/StandInventory"));
 
 const queryClient = new QueryClient();
 
@@ -122,6 +123,7 @@ const App = () => (
                   <Route path="/crm-specifications" element={<CrmSpecifications />} />
                   <Route path="/crm-technical-specs" element={<CrmTechnicalSpecs />} />
                   <Route path="/admin/qc-queue" element={<QcQueue />} />
+                  <Route path="/stand-inventory" element={<StandInventory />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
