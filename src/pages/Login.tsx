@@ -319,27 +319,27 @@ const Login = () => {
 
       if (error) throw error;
 
-      if (data.verified) {
+      if (data?.verified) {
         // Re-authenticate user after successful 2FA using stored email
         const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
           email: userEmail,
           password: loginPassword,
         });
-        
+
         if (signInError) throw signInError;
 
         // Sync stand number after 2FA re-auth
         if (authData.user && userStandNumber) {
           await syncStandNumberToProfile(authData.user.id, userStandNumber);
         }
-        
+
         toast({
           title: "Verification successful",
           description: "You have been logged in",
         });
         navigate("/");
       } else {
-        throw new Error("Invalid verification code");
+        throw new Error(data?.error || "Incorrect code. Please try again or request a new one.");
       }
     } catch (error: any) {
       toast({
