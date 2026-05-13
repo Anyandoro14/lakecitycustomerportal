@@ -131,6 +131,9 @@ const Login = () => {
       });
 
       if (verifyError) throw verifyError;
+      if (data && data.success === false) {
+        throw new Error(data.error || 'Unable to send verification code. Please try again.');
+      }
       
       // Determine actual channel from Twilio's send_code_attempts
       // If all attempts show 'sms', Twilio fell back to SMS
