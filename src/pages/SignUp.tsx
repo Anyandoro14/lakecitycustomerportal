@@ -82,7 +82,7 @@ const SignUp = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        navigate("/");
+        navigate("/index", { replace: true });
       }
     };
     checkAuth();
@@ -350,7 +350,7 @@ const SignUp = () => {
       
       // Redirect after a short delay
       setTimeout(() => {
-        navigate("/");
+        navigate("/index", { replace: true });
       }, 2000);
       
     } catch (error: any) {
@@ -420,7 +420,7 @@ const SignUp = () => {
             <p className="text-muted-foreground mb-4">
               Redirecting you to the dashboard...
             </p>
-            <Button onClick={() => navigate("/")} className="w-full">
+            <Button onClick={() => navigate("/index")} className="w-full">
               Go to Dashboard
             </Button>
           </CardContent>

@@ -84,7 +84,7 @@ const Login = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && !showVerification) {
-        navigate("/");
+        navigate("/index", { replace: true });
       }
     };
     checkAuth();
@@ -226,7 +226,7 @@ const Login = () => {
           }
         } else {
           // No phone number, proceed without 2FA
-          navigate("/");
+          navigate("/index", { replace: true });
         }
       }
     } catch (error: any) {
@@ -340,7 +340,7 @@ const Login = () => {
           title: "Verification successful",
           description: "You have been logged in",
         });
-        navigate("/");
+        navigate("/index", { replace: true });
       } else {
         throw new Error(data?.error || "Incorrect code. Please try again or request a new one.");
       }
