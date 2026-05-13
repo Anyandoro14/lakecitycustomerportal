@@ -92,10 +92,15 @@ const handler = async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("Error in send-2fa-code function:", error);
+    // Return 200 so the frontend can show a meaningful message
+    // instead of the opaque "Edge Function returned a non-2xx status code".
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        success: false,
+        error: error?.message || 'Unable to send verification code right now. Please try again or contact support.',
+      }),
       {
-        status: 500,
+        status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
