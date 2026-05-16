@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_receipt_intake_tree" model="ir.ui.view">
+        <field name="name">lakecity.receipt.intake.tree</field>
+        <field name="model">lakecity.receipt.intake</field>
+        <field name="arch" type="xml">
+            <list string="Receipt intakes" decoration-info="state=='pending_qc'" decoration-success="state=='posted'" decoration-danger="state=='rejected'">
+                <field name="name"/>
+                <field name="intake_uuid"/>
+                <field name="create_date" string="Received"/>
+                <field name="stand_number"/>
+                <field name="customer_name"/>
+                <field name="payment_date"/>
+                <field name="payment_amount"/>
+                <field name="payment_method_raw"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_lakecity_receipt_intake_form" model="ir.ui.view">
+        <field name="name">lakecity.receipt.intake.form</field>
+        <field name="model">lakecity.receipt.intake</field>
+        <field name="arch" type="xml">
+            <form string="Receipt intake">
+                <header>
+                    <button name="action_qc_post_to_bnpl" type="object" string="Approve &amp; post to BNPL" class="btn-primary"
+                            invisible="state != 'pending_qc'"
+                            groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+                    <button name="action_qc_reject" type="object" string="Reject"
+                            invisible="state != 'pending_qc'"
+                            groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+                    <button name="action_open_payment" type="object" string="Open BNPL payment" invisible="not loan_payment_id"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending_qc,posted,rejected"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="intake_uuid" readonly="1"/>
+                            <field name="timestamp_received" readonly="1"/>
+                            <field name="stand_number"/>
+                            <field name="customer_name"/>
+                            <field name="payment_date"/>
+                            <field name="payment_amount"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
+                        </group>
+                        <group>
+                            <field name="payment_method_raw"/>
+                            <field name="reference"/>
+                            <field name="receipt_url" widget="url"/>
+                            <field name="entered_by"/>
+                            <field name="contract_id" readonly="1"/>
+                            <field name="loan_payment_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="QC">
+                        <field name="qc_notes" placeholder="Optional notes recorded when approving…"/>
+                        <field name="rejection_reason"
+                               invisible="state == 'posted'"
+                               readonly="state == 'rejected'"
+                               placeholder="If rejecting: explain why (required)."/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_lakecity_receipt_intake" model="ir.actions.act_window">
+        <field name="name">Receipt intakes</field>
+        <field name="res_model">lakecity.receipt.intake</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_pending_qc': 1}</field>
+    </record>
+
+    <record id="view_lakecity_receipt_intake_search" model="ir.ui.view">
+        <field name="name">lakecity.receipt.intake.search</field>
+        <field name="model">lakecity.receipt.intake</field>
+        <field name="arch" type="xml">
+            <search>
+                <filter name="pending_qc" string="Pending QC" domain="[('state', '=', 'pending_qc')]"/>
+                <filter name="posted" string="Posted" domain="[('state', '=', 'posted')]"/>
+                <filter name="rejected" string="Rejected" domain="[('state', '=', 'rejected')]"/>
+                <field name="stand_number"/>
+                <field name="intake_uuid"/>
+                <field name="customer_name"/>
+            </search>
+        </field>
+    </record>
+</odoo>

@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
+import logging
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools.float_utils import float_is_zero
+
+_logger = logging.getLogger(__name__)
 
 
 class LakecityLoanContract(models.Model):
@@ -13,7 +17,7 @@ class LakecityLoanContract(models.Model):
 
     name = fields.Char(default="New", readonly=True, copy=False, tracking=True)
     external_uid = fields.Char(copy=False, tracking=True, index=True)
-    partner_id = fields.Many2one("res.partner", required=True, tracking=True)
+    partner_id = fields.Many2one("res.partner", string="Customer", required=True, tracking=True)
     stand_number = fields.Char(required=True, tracking=True)
     product_id = fields.Many2one("lakecity.loan.product", tracking=True)
     term_months = fields.Integer(required=True, default=36, tracking=True)
@@ -21,6 +25,20 @@ class LakecityLoanContract(models.Model):
     payment_start_date = fields.Date(required=True, default=fields.Date.context_today, tracking=True)
 
     currency_id = fields.Many2one("res.currency", default=lambda self: self.env.company.currency_id.id, required=True)
+    company_id = fields.Many2one(
+        "res.company",
+        string="Company",
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+    )
+    lakecity_future_receivable_move_id = fields.Many2one(
+        "account.move",
+        string="Future receivable (GL)",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
     total_price = fields.Monetary(required=True, tracking=True)
     deposit_amount = fields.Monetary(default=0.0, tracking=True)
     tax_rate = fields.Float(string="Tax Rate (%)", default=0.0, tracking=True)
@@ -93,6 +111,7 @@ class LakecityLoanContract(models.Model):
                 vals["term_months"] = product.term_months
         records = super().create(vals_list)
         records._lakecity_sync_partner_customer_and_crm()
+        records._lakecity_sync_future_receivable_gl()
         return records
 
     def write(self, vals):
@@ -100,13 +119,22 @@ class LakecityLoanContract(models.Model):
             vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
         res = super().write(vals)
         self._lakecity_sync_partner_customer_and_crm()
+        if not self.env.context.get("skip_lakecity_bnpl_gl_sync"):
+            self._lakecity_sync_future_receivable_gl()
         return res
+
+    def unlink(self):
+        self._lakecity_clear_future_receivable_gl()
+        return super().unlink()
 
     def _lakecity_sync_partner_customer_and_crm(self):
         """Every BNPL debtor: Accounting customer partner + CRM opportunity keyed with stand + contract UID."""
         for rec in self:
-            if rec.partner_id and rec.external_uid and rec.stand_number:
+            if rec.partner_id:
                 rec._lakecity_ensure_partner_is_customer()
+                if rec.external_uid:
+                    rec.partner_id.commercial_partner_id._lakecity_ensure_dedicated_receivable_accounts()
+            if rec.partner_id and rec.external_uid and rec.stand_number:
                 rec._lakecity_sync_crm_opportunity()
 
     def _lakecity_ensure_partner_is_customer(self):

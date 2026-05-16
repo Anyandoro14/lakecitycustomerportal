@@ -10,7 +10,9 @@ class LakecityLoanPayment(models.Model):
     name = fields.Char(default="New", readonly=True, copy=False)
     external_uid = fields.Char(copy=False, index=True)
     contract_id = fields.Many2one("lakecity.loan.contract", required=True, ondelete="cascade")
-    partner_id = fields.Many2one(related="contract_id.partner_id", store=True, readonly=True)
+    partner_id = fields.Many2one(
+        related="contract_id.partner_id", string="Customer", store=True, readonly=True
+    )
     stand_number = fields.Char(related="contract_id.stand_number", store=True, readonly=True)
     payment_date = fields.Date(required=True, default=fields.Date.context_today)
     amount = fields.Monetary(required=True)
@@ -26,6 +28,7 @@ class LakecityLoanPayment(models.Model):
             ("mobile_money", "Mobile Money"),
             ("bank_transfer", "Bank Transfer"),
             ("cash", "Cash"),
+            ("ecocash", "EcoCash"),
             ("card", "Card"),
         ],
         default="manual",

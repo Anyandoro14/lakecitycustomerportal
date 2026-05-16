@@ -38,6 +38,138 @@ class LakecityLoanApiController(http.Controller):
         except Exception:
             return {}
 
+    def _lakecity_receipt_pick(self, payload, answers, keys):
+        """First non-empty match from payload dict then answers dict."""
+        for key in keys:
+            val = payload.get(key)
+            if val not in (None, "", False):
+                return val
+            if isinstance(answers, dict):
+                aval = answers.get(key)
+                if aval not in (None, "", False):
+                    return aval
+        return ""
+
+    def _lakecity_parse_amount(self, raw):
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _lakecity_parse_payment_date(self, raw):
+        if not raw:
+            return False
+        try:
+            return fields.Date.to_date(fields.Datetime.to_datetime(raw))
+        except Exception:
+            pass
+        try:
+            return fields.Date.from_string(str(raw)[:10])
+        except Exception:
+            return False
+
+    def _lakecity_parse_received_ts(self, raw):
+        if not raw:
+            return fields.Datetime.now()
+        try:
+            return fields.Datetime.to_datetime(raw)
+        except Exception:
+            return fields.Datetime.now()
+
+    def _flatten_receipt_intake_payload(self, payload):
+        answers = payload.get("answers") if isinstance(payload.get("answers"), dict) else {}
+        uid = str(self._lakecity_receipt_pick(payload, answers, "uuid", "intake_uuid", "Intake_ID") or "").strip()
+        stand_raw = str(self._lakecity_receipt_pick(payload, answers, "stand_number", "Stand_Number", "Stand Number") or "").strip()
+        stand = request.env["lakecity.loan.contract"].sudo()._lakecity_normalize_stand(stand_raw)
+
+        fn = str(self._lakecity_receipt_pick(payload, answers, "first_name", "First Name") or "").strip()
+        ln = str(self._lakecity_receipt_pick(payload, answers, "last_name", "Last Name") or "").strip()
+        customer_name = str(self._lakecity_receipt_pick(payload, answers, "customer_name", "Customer_Name", "Customer Name") or "").strip()
+        if not customer_name:
+            customer_name = ("%s %s" % (fn, ln)).strip()
+
+        amt_raw = self._lakecity_receipt_pick(payload, answers, "amount", "Payment_Amount", "Amount")
+        payment_method = str(self._lakecity_receipt_pick(payload, answers, "payment_method", "Payment_Method", "Payment Method") or "").strip()
+        receipt_url = str(self._lakecity_receipt_pick(payload, answers, "receipt_url", "Receipt_URL", "Receipt") or "").strip()
+        reference = str(self._lakecity_receipt_pick(payload, answers, "reference", "Reference") or "").strip()
+        entered_by = str(self._lakecity_receipt_pick(payload, answers, "entered_by", "Entered_By", "Receipt Entered by") or "").strip()
+        ts_raw = self._lakecity_receipt_pick(payload, answers, "timestamp", "Timestamp")
+        pay_date_raw = self._lakecity_receipt_pick(payload, answers, "payment_date", "Payment_Date", "Receipt Date")
+
+        return {
+            "intake_uuid": uid,
+            "stand_number": stand,
+            "customer_name": customer_name or False,
+            "payment_amount": self._lakecity_parse_amount(amt_raw),
+            "payment_method_raw": payment_method or False,
+            "receipt_url": receipt_url or False,
+            "reference": reference or False,
+            "entered_by": entered_by or False,
+            "timestamp_received": self._lakecity_parse_received_ts(ts_raw),
+            "payment_date": self._lakecity_parse_payment_date(pay_date_raw),
+        }
+
+    @http.route("/lakecity/api/v1/receipt/intake", type="http", auth="public", methods=["POST"], csrf=False)
+    def receipt_intake(self, **kwargs):
+        """Receive receipt submissions from Make.com (QC happens inside Odoo)."""
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        payload = self._parse_json_body()
+        flat = self._flatten_receipt_intake_payload(payload)
+
+        if not flat["intake_uuid"]:
+            return self._json_response({"ok": False, "error": "uuid_required"}, status=400)
+        if not flat["stand_number"]:
+            return self._json_response({"ok": False, "error": "stand_number_required"}, status=400)
+        if flat["payment_amount"] <= 0:
+            return self._json_response({"ok": False, "error": "positive_amount_required"}, status=400)
+        if not flat["receipt_url"] or not str(flat["receipt_url"]).startswith("https://"):
+            return self._json_response({"ok": False, "error": "https_receipt_url_required"}, status=400)
+
+        Intake = request.env["lakecity.receipt.intake"].sudo()
+        existing = Intake.search([("intake_uuid", "=", flat["intake_uuid"])], limit=1)
+        vals = {
+            "intake_uuid": flat["intake_uuid"],
+            "timestamp_received": flat["timestamp_received"],
+            "stand_number": flat["stand_number"],
+            "customer_name": flat["customer_name"],
+            "payment_date": flat["payment_date"],
+            "payment_amount": flat["payment_amount"],
+            "currency_id": request.env.company.currency_id.id,
+            "payment_method_raw": flat["payment_method_raw"],
+            "reference": flat["reference"],
+            "receipt_url": flat["receipt_url"],
+            "entered_by": flat["entered_by"],
+            "state": "pending_qc",
+        }
+        if existing:
+            if existing.state != "pending_qc":
+                return self._json_response(
+                    {
+                        "ok": False,
+                        "error": "intake_already_processed",
+                        "state": existing.state,
+                        "intake_id": existing.id,
+                    },
+                    status=409,
+                )
+            existing.write(vals)
+            record = existing
+        else:
+            record = Intake.create(vals)
+
+        return self._json_response(
+            {
+                "ok": True,
+                "intake_id": record.id,
+                "state": record.state,
+                "stand_number": record.stand_number,
+                "next_step": "Lakecity Loans → Receipt intakes (QC) → approve when validated.",
+            }
+        )
+
     def _upsert_partner(self, payload):
         Partner = request.env["res.partner"].sudo()
         email = (payload.get("email") or "").strip().lower()

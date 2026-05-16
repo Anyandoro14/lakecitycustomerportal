@@ -23,6 +23,14 @@
         groups="lakecity_loan_management.group_lakecity_loan_user"/>
 
     <menuitem
+        id="menu_lakecity_receipt_intake"
+        name="Receipt intakes (QC)"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_receipt_intake"
+        sequence="15"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
         id="menu_lakecity_loan_installments"
         name="Installments"
         parent="menu_lakecity_loan_root"

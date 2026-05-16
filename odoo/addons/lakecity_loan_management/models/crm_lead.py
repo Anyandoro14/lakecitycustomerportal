@@ -6,6 +6,29 @@ from odoo.exceptions import ValidationError
 class CrmLead(models.Model):
     _inherit = "crm.lead"
 
+    # ------------------------------------------------------------------
+    # Accounting / Contacts alignment
+    # ------------------------------------------------------------------
+    # Linked CRM leads should represent sale-side debtors: promote the
+    # commercial partner as an Accounting customer so AR sub-accounts can
+    # be provisioned (see ``res.partner`` extension).
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        leads = super().create(vals_list)
+        leads._lakecity_promote_linked_partner_customer()
+        return leads
+
+    def write(self, vals):
+        res = super().write(vals)
+        self._lakecity_promote_linked_partner_customer()
+        return res
+
+    def _lakecity_promote_linked_partner_customer(self):
+        linked = self.filtered("partner_id")
+        if linked:
+            linked.partner_id.commercial_partner_id._lakecity_promote_customer_from_crm()
+
     lakecity_contract_external_uid = fields.Char(
         string="Lakecity contract external UID",
         index=True,
