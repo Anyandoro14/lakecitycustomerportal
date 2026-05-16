@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import calendar
 import logging
 from dateutil.relativedelta import relativedelta
 
@@ -21,7 +22,11 @@ class LakecityLoanContract(models.Model):
     stand_number = fields.Char(required=True, tracking=True)
     product_id = fields.Many2one("lakecity.loan.product", tracking=True)
     term_months = fields.Integer(required=True, default=36, tracking=True)
-    due_day = fields.Integer(default=5, tracking=True)
+    due_day = fields.Integer(
+        default=5,
+        tracking=True,
+        help="Payments target this calendar day each month after schedule generation (default 5 = 5th).",
+    )
     payment_start_date = fields.Date(required=True, default=fields.Date.context_today, tracking=True)
 
     currency_id = fields.Many2one("res.currency", default=lambda self: self.env.company.currency_id.id, required=True)
@@ -66,10 +71,10 @@ class LakecityLoanContract(models.Model):
     total_with_tax = fields.Monetary(compute="_compute_totals", store=True)
     financed_amount = fields.Monetary(compute="_compute_totals", store=True)
     recurring_invoice_amount = fields.Monetary(
-        string="Recurring Invoice Amount",
+        string="Monthly payment",
         compute="_compute_totals",
         store=True,
-        help="(Total including tax - deposit) / term.",
+        help="Rounded equal installment (shown). Schedule generation allocates any currency remainder on the last installment so lines sum to the financed amount.",
     )
     total_paid = fields.Monetary(compute="_compute_collection_metrics", store=True)
     current_balance = fields.Monetary(compute="_compute_collection_metrics", store=True)
@@ -79,9 +84,10 @@ class LakecityLoanContract(models.Model):
     next_payment_date = fields.Date(compute="_compute_collection_metrics", store=True)
     days_overdue = fields.Integer(compute="_compute_collection_metrics", store=True)
 
-    _sql_constraints = [
-        ("lakecity_loan_contract_external_uid_unique", "unique(external_uid)", "External contract UID must be unique."),
-    ]
+    _lakecity_loan_contract_external_uid_unique = models.Constraint(
+        "unique(external_uid)",
+        "External contract UID must be unique.",
+    )
 
     @api.model
     def _lakecity_normalize_stand(self, stand):
@@ -98,6 +104,37 @@ class LakecityLoanContract(models.Model):
             if dup:
                 raise ValidationError(_("Stand %s already has a Lakecity loan contract.") % stand)
 
+    @api.constrains("due_day")
+    def _check_due_day(self):
+        for rec in self:
+            if rec.due_day < 1 or rec.due_day > 31:
+                raise ValidationError(_("Contract due day must be between 1 and 31."))
+
+    @staticmethod
+    def _lakecity_clamp_day_in_month(year, month, day_desired):
+        last = calendar.monthrange(year, month)[1]
+        return min(max(day_desired, 1), last)
+
+    def _lakecity_nth_installment_due_date(self, index):
+        """Return due date for installment index >= 0: same calendar day monthly, first ≥ payment_start_date."""
+        self.ensure_one()
+        anchor = fields.Date.to_date(self.payment_start_date or fields.Date.context_today(self))
+        tgt = min(max(self.due_day or 5, 1), 31)
+        yy, mm = anchor.year, anchor.month
+        d0 = self._lakecity_clamp_day_in_month(yy, mm, tgt)
+        cand = anchor.replace(day=d0)
+        if cand < anchor:
+            cand = cand + relativedelta(months=1)
+            d1 = self._lakecity_clamp_day_in_month(cand.year, cand.month, tgt)
+            first_due = cand.replace(day=d1)
+        else:
+            first_due = cand
+        if index <= 0:
+            return first_due
+        nxt = first_due + relativedelta(months=index)
+        dd = self._lakecity_clamp_day_in_month(nxt.year, nxt.month, tgt)
+        return nxt.replace(day=dd)
+
     @api.model_create_multi
     def create(self, vals_list):
         seq = self.env["ir.sequence"]
@@ -106,9 +143,12 @@ class LakecityLoanContract(models.Model):
                 vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
             if vals.get("name", "New") == "New":
                 vals["name"] = seq.next_by_code("lakecity.loan.contract") or "New"
-            if vals.get("product_id") and not vals.get("term_months"):
+            if vals.get("product_id"):
                 product = self.env["lakecity.loan.product"].browse(vals["product_id"])
-                vals["term_months"] = product.term_months
+                if "term_months" not in vals:
+                    vals["term_months"] = product.term_months
+                if "due_day" not in vals:
+                    vals["due_day"] = product.due_day
         records = super().create(vals_list)
         records._lakecity_sync_partner_customer_and_crm()
         records._lakecity_sync_future_receivable_gl()
@@ -173,8 +213,12 @@ class LakecityLoanContract(models.Model):
     @api.onchange("product_id")
     def _onchange_product_id(self):
         for rec in self:
-            if rec.product_id and rec.product_id.term_months:
+            if not rec.product_id:
+                continue
+            if rec.product_id.term_months:
                 rec.term_months = rec.product_id.term_months
+            if rec.product_id.due_day:
+                rec.due_day = rec.product_id.due_day
 
     @api.depends("total_price", "tax_rate", "is_vat_inclusive", "deposit_amount", "term_months")
     def _compute_totals(self):
@@ -236,18 +280,25 @@ class LakecityLoanContract(models.Model):
             rec.installment_ids.unlink()
             if rec.term_months <= 0:
                 continue
-            amount = rec.recurring_invoice_amount
-            base_date = rec.payment_start_date or fields.Date.context_today(self)
+            financed = rec.financed_amount or 0.0
+            n = rec.term_months
+            cur = rec.currency_id or rec.company_id.currency_id
+            per = cur.round(financed / n) if n else 0.0
             lines = []
-            for i in range(rec.term_months):
-                due = fields.Date.to_date(base_date) + relativedelta(months=i)
-                due = due.replace(day=min(max(rec.due_day or 5, 1), 28))
+            acc = 0.0
+            for i in range(n):
+                due = rec._lakecity_nth_installment_due_date(i)
+                if i < n - 1:
+                    amt = per
+                else:
+                    amt = cur.round(financed - acc)
+                acc = cur.round(acc + amt)
                 lines.append(
                     {
                         "contract_id": rec.id,
                         "sequence": i + 1,
                         "due_date": due,
-                        "amount_due": amount,
+                        "amount_due": amt,
                         "amount_paid": 0.0,
                     }
                 )

@@ -51,9 +51,10 @@ class LakecityReceiptIntake(models.Model):
     contract_id = fields.Many2one("lakecity.loan.contract", string="Loan contract", readonly=True)
     loan_payment_id = fields.Many2one("lakecity.loan.payment", string="BNPL payment", readonly=True)
 
-    _sql_constraints = [
-        ("lakecity_receipt_intake_uuid_uniq", "unique(intake_uuid)", "This intake UUID was already submitted."),
-    ]
+    _lakecity_receipt_intake_uuid_uniq = models.Constraint(
+        "unique(intake_uuid)",
+        "This intake UUID was already submitted.",
+    )
 
     @api.depends("intake_uuid", "stand_number")
     def _compute_name(self):

@@ -37,13 +37,10 @@ class CrmLead(models.Model):
     )
     lakecity_stand_number = fields.Char(string="Lakecity stand", copy=False, index=True)
 
-    _sql_constraints = [
-        (
-            "lakecity_crm_lead_contract_uid_uniq",
-            "unique(lakecity_contract_external_uid)",
-            "Another CRM lead already uses this Lakecity contract external UID.",
-        ),
-    ]
+    _lakecity_crm_lead_contract_uid_uniq = models.Constraint(
+        "unique(lakecity_contract_external_uid)",
+        "Another CRM lead already uses this Lakecity contract external UID.",
+    )
 
     @api.constrains("lakecity_stand_number", "lakecity_contract_external_uid")
     def _lakecity_check_stand_unique_per_bnpl(self):

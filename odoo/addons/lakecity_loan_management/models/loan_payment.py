@@ -56,9 +56,10 @@ class LakecityLoanPayment(models.Model):
         check_company=True,
     )
 
-    _sql_constraints = [
-        ("lakecity_loan_payment_external_uid_unique", "unique(external_uid)", "External payment UID must be unique."),
-    ]
+    _lakecity_loan_payment_external_uid_unique = models.Constraint(
+        "unique(external_uid)",
+        "External payment UID must be unique.",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
