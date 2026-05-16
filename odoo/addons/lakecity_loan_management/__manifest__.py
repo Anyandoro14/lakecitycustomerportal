@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.13",
+    "version": "19.0.1.0.14",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     "description": """
 Lakecity BNPL Loan Management
@@ -44,6 +44,7 @@ Implements a dedicated BNPL loan module with:
         "views/loan_menus.xml",
         "views/crm_lead_views.xml",
         "views/account_payment_register_views.xml",
+        "views/res_company_views.xml",
         "views/res_partner_views.xml",
         "views/product_template_views.xml",
     ],

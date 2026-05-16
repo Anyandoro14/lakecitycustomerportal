@@ -223,8 +223,8 @@ class LakecityLoanContract(models.Model):
                 rec.days_overdue = 0
 
     def action_activate(self):
+        self.write({"state": "active"})
         for rec in self:
-            rec.state = "active"
             if not rec.installment_ids:
                 rec.action_generate_schedule()
 
@@ -254,6 +254,124 @@ class LakecityLoanContract(models.Model):
             self.env["lakecity.loan.installment"].create(lines)
             rec._rebuild_payment_allocations()
 
+    def _lakecity_bnpl_gl_outstanding_balance(self):
+        """Outstanding contract balance = total due − deposit − posted loan payments (cash basis)."""
+        self.ensure_one()
+        posted_payments = sum(p.amount for p in self.payment_ids if p.state == "posted")
+        total_paid = (self.deposit_amount or 0.0) + posted_payments
+        raw = max((self.total_with_tax or 0.0) - total_paid, 0.0)
+        if self.currency_id:
+            return self.currency_id.round(raw)
+        return raw
+
+    def _lakecity_clear_future_receivable_gl(self):
+        """Remove the mirror journal entry (draft/unlink), detach FK first."""
+        if "account.move" not in self.env:
+            return
+        for rec in self:
+            move = rec.lakecity_future_receivable_move_id
+            if not move:
+                continue
+            move = move.sudo()
+            rec.with_context(skip_lakecity_bnpl_gl_sync=True).write({"lakecity_future_receivable_move_id": False})
+            try:
+                if move.state == "posted":
+                    move.button_draft()
+                if move.state == "draft":
+                    move.unlink()
+                elif move.state == "cancel":
+                    move.unlink()
+            except Exception as err:
+                _logger.warning(
+                    "Lakecity BNPL: could not remove GL mirror move id=%s for %s: %s",
+                    move.id,
+                    rec.display_name,
+                    err,
+                )
+
+    def _lakecity_sync_future_receivable_gl(self):
+        """Post/update one miscellaneous entry: Dr trade receivable / Cr BNPL clearing (future installments)."""
+        if "account.move" not in self.env:
+            return
+        Move = self.env["account.move"].sudo()
+        today = fields.Date.context_today(self)
+        for rec in self:
+            company = rec.company_id.sudo()
+            if not company.lakecity_bnpl_future_receivable_gl_enabled:
+                rec._lakecity_clear_future_receivable_gl()
+                continue
+            if rec.state not in ("active", "defaulted"):
+                rec._lakecity_clear_future_receivable_gl()
+                continue
+
+            partner = rec.partner_id.commercial_partner_id
+            ar_acc = partner.with_company(company).property_account_receivable_id
+            if not ar_acc:
+                _logger.warning(
+                    "Lakecity BNPL: partner %s has no receivable account; skip GL mirror for loan %s",
+                    partner.display_name,
+                    rec.display_name,
+                )
+                continue
+
+            balance = rec._lakecity_bnpl_gl_outstanding_balance()
+            rnd = rec.currency_id.rounding if rec.currency_id else 0.01
+            if float_is_zero(balance, precision_rounding=rnd):
+                rec._lakecity_clear_future_receivable_gl()
+                continue
+
+            journal = company._lakecity_bnpl_ensure_journal()
+            clearing = company._lakecity_bnpl_ensure_clearing_account()
+            label = _("Lakecity BNPL future receivable — %s (stand %s)") % (
+                rec.name,
+                rec.stand_number or "",
+            )
+            line_specs = [
+                {
+                    "account_id": ar_acc.id,
+                    "partner_id": partner.id,
+                    "name": label,
+                    "debit": balance,
+                    "credit": 0.0,
+                },
+                {
+                    "account_id": clearing.id,
+                    "partner_id": False,
+                    "name": label,
+                    "debit": 0.0,
+                    "credit": balance,
+                },
+            ]
+            vals_base = {
+                "move_type": "entry",
+                "journal_id": journal.id,
+                "company_id": company.id,
+                "currency_id": rec.currency_id.id,
+                "date": today,
+                "ref": rec.name,
+                "lakecity_loan_contract_id": rec.id,
+                "partner_id": partner.id,
+            }
+            move = rec.lakecity_future_receivable_move_id.sudo()
+            try:
+                if move:
+                    if move.state == "posted":
+                        move.button_draft()
+                    move.write(dict(vals_base, line_ids=[(5, 0, 0)] + [(0, 0, ln) for ln in line_specs]))
+                    move.action_post()
+                else:
+                    move = Move.create(dict(vals_base, line_ids=[(0, 0, ln) for ln in line_specs]))
+                    move.action_post()
+                    rec.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+                        {"lakecity_future_receivable_move_id": move.id}
+                    )
+            except Exception as err:
+                _logger.warning(
+                    "Lakecity BNPL: GL mirror failed for contract %s: %s",
+                    rec.display_name,
+                    err,
+                )
+
     def _rebuild_payment_allocations(self):
         for rec in self:
             for inst in rec.installment_ids:
@@ -265,3 +383,4 @@ class LakecityLoanContract(models.Model):
                 pay = min(inst.amount_due, remaining_pool)
                 inst.amount_paid = pay
                 remaining_pool -= pay
+        self._lakecity_sync_future_receivable_gl()
