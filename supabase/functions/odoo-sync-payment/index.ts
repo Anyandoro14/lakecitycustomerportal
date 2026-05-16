@@ -14,210 +14,179 @@
 // Kuva-Pending-QC tag.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
-import { getOdooConfig, odooSearchRead, odooWrite } from '../_shared/odoo-client.ts';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
+import { mapGatewayToOdooSource } from "../_shared/map-gateway-to-odoo-source.ts";
+import { getSupabaseServiceClient, lakecityPostLoanPayment } from "../_shared/odoo-loan-http.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function startOfMonth(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
-}
+async function isAuthorizedCaller(
+  supabaseUrl: string,
+  serviceKey: string,
+  bearer: string,
+): Promise<boolean> {
+  if (!bearer) return false;
+  if (bearer === serviceKey) return true;
 
-function endOfMonth(iso: string): string {
-  const d = new Date(iso);
-  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
-  return `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, '0')}-${String(last.getUTCDate()).padStart(2, '0')}`;
+  const ac = createClient(supabaseUrl, serviceKey);
+  const { data: { user }, error } = await ac.auth.getUser(bearer);
+  if (error || !user) return false;
+  return true;
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = getSupabaseServiceClient();
 
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
+  try {
+    const authHeader = req.headers.get("authorization") || "";
+    const bearer = authHeader.replace("Bearer ", "").trim();
+
+    const okCaller = await isAuthorizedCaller(supabaseUrl, serviceKey, bearer);
+    if (!okCaller) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const bearerToken = authHeader.replace('Bearer ', '').trim();
-    const internalServiceCall = bearerToken === supabaseServiceKey;
-    if (!internalServiceCall) {
-      const { data: { user }, error: userError } = await supabase.auth.getUser(bearerToken);
-      if (userError || !user) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
     const body = await req.json();
-    const { receipt_id } = body;
+    const { receipt_id } = body as { receipt_id?: string };
+
     if (!receipt_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing receipt_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Missing receipt_id" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const { data: receipt, error: receiptError } = await supabase
-      .from('payment_receipts')
-      .select('*, tenant:tenants(id, slug, crm_provider)')
-      .eq('id', receipt_id)
+      .from("payment_receipts")
+      .select("*, tenant:tenants(id, slug, crm_provider)")
+      .eq("id", receipt_id)
       .single();
 
     if (receiptError || !receipt) {
       return new Response(
-        JSON.stringify({ error: 'Receipt not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Receipt not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    if (receipt.tenant?.crm_provider !== 'odoo') {
-      console.log(`Tenant ${receipt.tenant?.slug} does not use Odoo, skipping sync`);
+    if (receipt.qc_status !== "approved") {
       return new Response(
-        JSON.stringify({ status: 'skipped', reason: 'Tenant does not use Odoo' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Receipt must be approved before syncing to Odoo" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    if (receipt.odoo_collection_payment_id) {
-      console.log(
-        `Receipt ${receipt.id} already linked to lakecity.collection.payment ` +
-        `${receipt.odoo_collection_payment_id}, skipping`
-      );
+    const tenant = receipt.tenant as { id: string; slug?: string; crm_provider?: string } | null;
+    if (tenant?.crm_provider !== "odoo") {
+      console.log(`Tenant ${tenant?.slug} does not use Odoo, skipping sync`);
       return new Response(
-        JSON.stringify({
-          status: 'already_linked',
-          odoo_collection_payment_id: receipt.odoo_collection_payment_id,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ status: "skipped", reason: "Tenant does not use Odoo" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
+    if (String(receipt.gateway || "").toLowerCase() === "odoo") {
+      console.log(`Receipt ${receipt_id} originated in Odoo; skip push-back`);
+      return new Response(
+        JSON.stringify({ status: "skipped", reason: "Receipt already recorded in Odoo" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const meta = receipt.gateway_metadata as Record<string, unknown> | null | undefined;
+    const stand = (receipt.stand_number || "").trim();
     const { data: contract } = await supabase
-      .from('contracts')
-      .select('id, odoo_schedule_id')
-      .eq('tenant_id', receipt.tenant_id)
-      .eq('stand_number', receipt.stand_number)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .from("contracts")
+      .select("id")
+      .eq("tenant_id", receipt.tenant_id)
+      .ilike("stand_number", stand)
+      .eq("status", "active")
       .maybeSingle();
 
-    const odooConfig = await getOdooConfig(receipt.tenant_id);
-
-    const monthStart = startOfMonth(receipt.payment_date);
-    const monthEnd = endOfMonth(receipt.payment_date);
-
-    const baseDomain: any[] = [
-      ['stand_number', '=', receipt.stand_number],
-      ['due_date', '>=', monthStart],
-      ['due_date', '<=', monthEnd],
-    ];
-    if (contract?.odoo_schedule_id) {
-      baseDomain.unshift(['schedule_id', '=', contract.odoo_schedule_id]);
-    }
-
-    let lines = await odooSearchRead(
-      'lakecity.collection.payment',
-      baseDomain,
-      ['id', 'schedule_id', 'stand_number', 'due_date', 'amount_paid', 'is_paid', 'note'],
-      odooConfig,
-      { limit: 1, order: 'due_date asc' },
-    );
-
-    if (lines.length === 0) {
-      lines = await odooSearchRead(
-        'lakecity.collection.payment',
-        [
-          ['stand_number', '=', receipt.stand_number],
-          ['is_paid', '=', false],
-        ],
-        ['id', 'schedule_id', 'stand_number', 'due_date'],
-        odooConfig,
-        { limit: 1, order: 'due_date asc' },
-      );
-    }
-
-    if (lines.length === 0) {
-      console.warn(
-        `No matching lakecity.collection.payment line found for stand ` +
-        `${receipt.stand_number}, payment_date ${receipt.payment_date}`
-      );
+    if (!contract?.id) {
       await supabase
-        .from('payment_receipts')
-        .update({ odoo_sync_status: 'no_match' })
-        .eq('id', receipt.id);
+        .from("payment_receipts")
+        .update({ odoo_sync_status: "failed" })
+        .eq("id", receipt_id);
+
       return new Response(
         JSON.stringify({
-          status: 'no_match',
-          reason: 'No collection.payment line in Odoo for this stand/month',
+          error: "No contract found for this stand. Create/sync the contract first.",
         }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const matched = lines[0];
-    const matchedScheduleId = Array.isArray(matched.schedule_id)
-      ? Number(matched.schedule_id[0])
-      : null;
+    const source = mapGatewayToOdooSource(receipt.gateway, meta);
+    const ref = (receipt.gateway_reference || "").trim() || null;
+    const noteParts = [`portal receipt ${receipt_id}`, receipt.gateway ? `gateway=${receipt.gateway}` : ""].filter(Boolean);
+    const note = noteParts.join(" | ").slice(0, 2000);
 
-    const noteParts: string[] = [];
-    if (matched.note) noteParts.push(String(matched.note));
-    noteParts.push(
-      `[Kuva ${receipt.gateway_reference || receipt.id}] amount=${Number(receipt.amount).toFixed(2)} ` +
-      `pending QC (receipt ${receipt.id})`
-    );
-    const note = noteParts.join(' | ').slice(0, 512);
+    try {
+      const result = await lakecityPostLoanPayment(
+        receipt.tenant_id,
+        {
+          external_uid: receipt_id,
+          contract_external_uid: contract.id,
+          amount: Number(receipt.amount),
+          payment_date: String(receipt.payment_date),
+          source,
+          reference: ref,
+          note,
+          state: "posted",
+        },
+        supabase,
+      );
 
-    await odooWrite(
-      'lakecity.collection.payment',
-      [matched.id],
-      { note },
-      odooConfig,
-    );
+      await supabase
+        .from("payment_receipts")
+        .update({
+          odoo_payment_id: result.payment_id,
+          odoo_sync_status: "synced",
+        })
+        .eq("id", receipt_id);
 
-    await supabase
-      .from('payment_receipts')
-      .update({
-        odoo_collection_payment_id: matched.id,
-        odoo_collection_schedule_id: matchedScheduleId,
-        odoo_sync_status: 'pending_qc_in_odoo',
-      })
-      .eq('id', receipt.id);
+      console.log(`Synced receipt ${receipt_id} → Odoo loan payment ${result.payment_id}`);
 
-    console.log(
-      `Linked receipt ${receipt.id} to lakecity.collection.payment ` +
-      `${matched.id} (schedule ${matchedScheduleId})`
-    );
+      return new Response(
+        JSON.stringify({
+          status: "ok",
+          odoo_payment_id: result.payment_id,
+          payment_name: result.payment_name,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Odoo BNPL sync error:", msg);
+      await supabase
+        .from("payment_receipts")
+        .update({ odoo_sync_status: "failed" })
+        .eq("id", receipt_id);
 
+      return new Response(
+        JSON.stringify({ error: msg }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal server error";
+    console.error("odoo-sync-payment:", error);
     return new Response(
-      JSON.stringify({
-        status: 'ok',
-        odoo_collection_payment_id: matched.id,
-        odoo_collection_schedule_id: matchedScheduleId,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error: any) {
-    console.error('Odoo sync error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 0% interest; equal monthly payments = (total incl. tax − deposit) ÷ term; due day 5th (default on contract). -->
+    <data noupdate="1">
+        <record id="lakecity_loan_product_plan_06" model="lakecity.loan.product">
+            <field name="name">6 Month Plan</field>
+            <field name="code">PLAN06</field>
+            <field name="term_months">6</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_12" model="lakecity.loan.product">
+            <field name="name">12 Month Plan</field>
+            <field name="code">PLAN12</field>
+            <field name="term_months">12</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_18" model="lakecity.loan.product">
+            <field name="name">18 Month Plan</field>
+            <field name="code">PLAN18</field>
+            <field name="term_months">18</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_24" model="lakecity.loan.product">
+            <field name="name">24 Month Plan</field>
+            <field name="code">PLAN24</field>
+            <field name="term_months">24</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_36" model="lakecity.loan.product">
+            <field name="name">36 Month Plan</field>
+            <field name="code">PLAN36</field>
+            <field name="term_months">36</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_48" model="lakecity.loan.product">
+            <field name="name">48 Month Plan</field>
+            <field name="code">PLAN48</field>
+            <field name="term_months">48</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_60" model="lakecity.loan.product">
+            <field name="name">60 Month Plan</field>
+            <field name="code">PLAN60</field>
+            <field name="term_months">60</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+        <record id="lakecity_loan_product_plan_72" model="lakecity.loan.product">
+            <field name="name">72 Month Plan</field>
+            <field name="code">PLAN72</field>
+            <field name="term_months">72</field>
+            <field name="annual_rate">0</field>
+            <field name="due_day">5</field>
+            <field name="grace_days">0</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

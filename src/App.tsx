@@ -1,3 +1,4 @@
+/* build-refresh 2026-05-12 */
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -54,11 +55,10 @@ const DocsErrors = lazy(() => import("./pages/docs/DocsErrors"));
 const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
-const OdooAuditPage = lazy(() => import("./pages/internal/OdooAuditPage"));
+const StandInventory = lazy(() => import("./pages/StandInventory"));
 
 const queryClient = new QueryClient();
 
-// Minimal loading fallback to avoid layout shift
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
     <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -81,7 +81,9 @@ const App = () => (
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                  <Route path="/" element={<Index />} />
+                  <Route path="/" element={<Login />} />
+                  <Route path="/landing" element={<StandLedgerLanding />} />
+                  <Route path="/index" element={<Index />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<SignUp />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -92,36 +94,36 @@ const App = () => (
                   <Route path="/account-management" element={<AccountManagement />} />
                   <Route path="/guide" element={<Guide />} />
                   <Route path="/support" element={<SupportRequest />} />
-                  <Route path="/standsledger" element={<StandLedgerLanding />} />
+                  <Route path="/support-request" element={<SupportRequest />} />
+                  <Route path="/customer-support-guide" element={<CustomerSupportGuide />} />
+                  <Route path="/customer-update" element={<CustomerUpdate />} />
+                  <Route path="/updates" element={<Updates />} />
+                  <Route path="/article-feedback" element={<ArticleFeedbackDashboard />} />
                   <Route path="/internal" element={<InternalPortal />} />
                   <Route path="/internal-portal" element={<InternalPortal />} />
                   <Route path="/internal-login" element={<InternalLogin />} />
                   <Route path="/internal-signup" element={<InternalSignUp />} />
                   <Route path="/looking-glass" element={<LookingGlassView />} />
-                  <Route path="/support-guide" element={<CustomerSupportGuide />} />
-                  <Route path="/customer-update" element={<CustomerUpdate />} />
-                  <Route path="/updates" element={<Updates />} />
-                  <Route path="/article-feedback" element={<ArticleFeedbackDashboard />} />
                   <Route path="/collections" element={<CollectionsCommandCenter />} />
                   <Route path="/collections-guide" element={<CollectionsGuide />} />
-                  <Route path="/payment-gateway" element={<PaymentGatewayProposal />} />
-                  <Route path="/payment-gateway/specifications" element={<PaymentGatewaySpecifications />} />
+                  <Route path="/training" element={<TrainingCenter />} />
+                  <Route path="/training/:moduleId" element={<TrainingModule />} />
+                  <Route path="/payment-gateway-proposal" element={<PaymentGatewayProposal />} />
+                  <Route path="/payment-gateway-specifications" element={<PaymentGatewaySpecifications />} />
                   <Route path="/docs" element={<DocsHome />} />
                   <Route path="/docs/glossary" element={<DocsGlossary />} />
-                  <Route path="/docs/quickstart" element={<DocsQuickstart />} />
                   <Route path="/docs/data-models" element={<DocsDataModels />} />
                   <Route path="/docs/sheets" element={<DocsSheets />} />
                   <Route path="/docs/api-reference" element={<DocsApiReference />} />
                   <Route path="/docs/endpoints" element={<DocsEndpoints />} />
                   <Route path="/docs/webhooks" element={<DocsWebhooks />} />
                   <Route path="/docs/authentication" element={<DocsAuthentication />} />
+                  <Route path="/docs/quickstart" element={<DocsQuickstart />} />
                   <Route path="/docs/errors" element={<DocsErrors />} />
-                  <Route path="/crm-specs" element={<CrmSpecifications />} />
-                  <Route path="/crm-specs/technical" element={<CrmTechnicalSpecs />} />
+                  <Route path="/crm-specifications" element={<CrmSpecifications />} />
+                  <Route path="/crm-technical-specs" element={<CrmTechnicalSpecs />} />
                   <Route path="/admin/qc-queue" element={<QcQueue />} />
-                  <Route path="/internal/odoo-audit" element={<OdooAuditPage />} />
-                  <Route path="/training" element={<TrainingCenter />} />
-                  <Route path="/training/:path/:moduleId" element={<TrainingModule />} />
+                  <Route path="/stand-inventory" element={<StandInventory />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

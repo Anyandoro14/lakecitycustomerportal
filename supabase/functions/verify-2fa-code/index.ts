@@ -112,14 +112,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (!response.ok) {
       console.error('Twilio error:', data);
-      throw new Error(data.message || 'Failed to verify code');
+      // Twilio returns 404 when verification has expired or already been consumed.
+      // Return 200 so supabase-js exposes the body to the client (per project standard).
+      const message = (data as any)?.message || 'The code has expired or is no longer valid. Please request a new one.';
+      return new Response(
+        JSON.stringify({ verified: false, status: 'failed', error: message }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
     const verified = data.status === 'approved';
-    console.log(`Verification result: ${verified ? 'success' : 'failed'}`);
+    console.log(`Verification result: ${verified ? 'success' : 'failed'} (status=${data.status})`);
 
     return new Response(
-      JSON.stringify({ verified, status: data.status }),
+      JSON.stringify({
+        verified,
+        status: data.status,
+        error: verified ? undefined : 'Incorrect code. Please double-check and try again, or request a new one.',
+      }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -127,10 +137,16 @@ const handler = async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("Error in verify-2fa-code function:", error);
+    // Return 200 with verified:false so the client can show a friendly message
+    // instead of the opaque "Edge Function returned a non-2xx status code".
     return new Response(
-      JSON.stringify({ error: error.message, verified: false }),
+      JSON.stringify({
+        verified: false,
+        status: 'error',
+        error: error?.message || 'Verification service is temporarily unavailable. Please try again.',
+      }),
       {
-        status: 500,
+        status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_partner_view_form_lakecity_bnpl" model="ir.ui.view">
+        <field name="name">res.partner.form.lakecity.bnpl</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="Lakecity BNPL">
+                    <field name="lakecity_stand_list"/>
+                    <field name="lakecity_loan_contract_ids" mode="list" colspan="2">
+                        <list>
+                            <field name="name"/>
+                            <field name="stand_number"/>
+                            <field name="state"/>
+                            <field name="current_balance"/>
+                        </list>
+                    </field>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

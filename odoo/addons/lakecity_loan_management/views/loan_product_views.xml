@@ -9,6 +9,7 @@
                 <field name="code"/>
                 <field name="term_months"/>
                 <field name="annual_rate"/>
+                <field name="due_day"/>
                 <field name="grace_days"/>
                 <field name="active"/>
             </list>
@@ -26,6 +27,7 @@
                         <field name="code"/>
                         <field name="term_months"/>
                         <field name="annual_rate"/>
+                        <field name="due_day"/>
                         <field name="grace_days"/>
                         <field name="active"/>
                     </group>

@@ -111,38 +111,8 @@ serve(async (req) => {
       );
     }
 
-    const standNumber = (payload.stand_number || payload.metadata?.stand_number)?.toString().trim().toUpperCase();
-    if (standNumber) {
-      const { data: contract } = await supabase
-        .from('contracts')
-        .select('id')
-        .eq('stand_number', standNumber)
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (contract) {
-        const { data: installment } = await supabase
-          .from('installments')
-          .select('id')
-          .eq('contract_id', contract.id)
-          .eq('status', 'pending')
-          .order('due_date', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        if (installment) {
-          await supabase
-            .from('installments')
-            .update({ status: 'paid', synced_at: new Date().toISOString() })
-            .eq('id', installment.id);
-
-          console.log(`Marked installment ${installment.id} as paid for stand ${standNumber}`);
-        }
-      }
-    }
-
-    // Broadcast via Supabase Realtime (clients subscribe to payment_receipts changes)
+    // Realtime: clients subscribe to `payment_receipts` for instant balance updates.
+    // Odoo BNPL allocation is applied via odoo-sync-payment → lakecity.loan.payment.
     // The insert above already triggers Realtime for subscribed clients
 
     // Trigger Odoo sync asynchronously (fire and forget)

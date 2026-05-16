@@ -10,13 +10,21 @@
     "test:env:serve-functions": "bash scripts/serve-test-functions.sh",
     "sheet:rename-collection-schedule-tab": "node --env-file=.env scripts/rename-collection-schedule-sheet-tab.mjs",
     "supabase:deploy-functions": "bash scripts/deploy-supabase-functions.sh",
+    "deploy:git": "bash scripts/deploy-git.sh",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "migrate:odoo-bnpl": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs",
+    "migrate:odoo-bnpl:preflight": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --preflight-only",
+    "migrate:odoo-bnpl:dry-run": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --dry-run",
+    "import:collection-csv": "node --env-file=.env scripts/import-collection-schedule-csv-to-odoo.mjs",
+    "import:collection-xlsx": "node --env-file=.env scripts/import-collection-schedule-xlsx-to-odoo.mjs",
+    "odoo:bnpl:health": "node --env-file=.env scripts/odoo-bnpl-health.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@lovable.dev/cloud-auth-js": "^1.1.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -49,6 +57,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "csv-parse": "^5.6.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
@@ -66,6 +75,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "vite-plugin-pwa": "^1.2.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {

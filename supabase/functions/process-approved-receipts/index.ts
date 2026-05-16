@@ -555,6 +555,7 @@ function parseReceiptDate(dateStr: string): Date | null {
 
 // Column index for a payment's month. Column M (index 12) = baseDate month (Jan 2022).
 function getMonthColumnIndex(paymentDate: Date, baseDate: Date, paymentColumnStart: number, paymentColumnEnd: number): number {
+  // Calculate months difference from base date
   const baseYear = baseDate.getFullYear();
   const baseMonth = baseDate.getMonth();
   const payYear = paymentDate.getFullYear();
@@ -593,16 +594,8 @@ async function postReceiptsToCollectionSchedule(
   const posted: PostedReceipt[] = [];
   const paymentColumnEnd = scheduleData.paymentColumnEnd;
 
-  // Parse the base date from the first payment column header (Column M)
-  // This is the reference point for calculating which column corresponds to which month
-  let baseDate = new Date(PAYMENT_GRID_BASE_DATE); // Jan 5, 2022 — matches Column M header
-  const firstPaymentHeader = scheduleData.headerRow[scheduleData.paymentColumnStart];
-  if (firstPaymentHeader) {
-    const parsedHeaderDate = new Date(firstPaymentHeader);
-    if (!isNaN(parsedHeaderDate.getTime())) {
-      baseDate = parsedHeaderDate;
-    }
-  }
+  // Base date anchored to the global grid start: Jan 5, 2022 = Column M
+  const baseDate = new Date(PAYMENT_GRID_BASE_DATE);
   console.log(`Base date for payment columns: ${baseDate.toLocaleDateString()}`);
   
   // Track cell updates for each stand/column combination
@@ -724,9 +717,9 @@ async function postReceiptsToCollectionSchedule(
   return posted;
 }
 
-// Find next empty column AFTER the last filled payment cell (not from the left).
-// With the widened M–FX grid, early columns (2022–2024) are empty for most
-// customers — scanning left-to-right would place payments years in the past.
+// Helper function to find next empty column (fallback for receipts without valid dates).
+// Scans right-to-left to find the last filled cell, then returns the column after it.
+// This prevents back-filling empty historical cells from 2022–2024.
 function findNextEmptyColumn(
   rowData: string[],
   paymentColumnStart: number,
@@ -735,6 +728,7 @@ function findNextEmptyColumn(
   rowNum: number
 ): number {
   let lastFilledCol = -1;
+
   for (let col = paymentColumnEnd; col >= paymentColumnStart; col--) {
     const cellKey = `${rowNum}-${col}`;
     if (cellUpdates.has(cellKey)) {
@@ -747,6 +741,7 @@ function findNextEmptyColumn(
       break;
     }
   }
+
   const nextCol = lastFilledCol + 1;
   if (nextCol < paymentColumnStart) return paymentColumnStart;
   if (nextCol > paymentColumnEnd) return -1;

@@ -25,6 +25,11 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <header>
+                        <button name="action_open_account_payment" string="Accounting payment"
+                                type="object" class="oe_highlight" invisible="not account_payment_id"
+                                groups="account.group_account_invoice"/>
+                    </header>
                     <group>
                         <field name="name" readonly="1"/>
                         <field name="external_uid"/>
@@ -36,6 +41,7 @@
                         <field name="source"/>
                         <field name="reference"/>
                         <field name="state"/>
+                        <field name="account_payment_id" readonly="1" groups="account.group_account_invoice"/>
                         <field name="note"/>
                     </group>
                 </sheet>

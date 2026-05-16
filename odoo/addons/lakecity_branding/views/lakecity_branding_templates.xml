@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Public HTML shell (login, portals that use frontend_layout): fonts + cohesion -->
+    <template id="lakecity_frontend_layout_fonts" inherit_id="web.frontend_layout">
+        <xpath expr="//meta[@name='viewport']" position="after">
+            <link rel="preconnect" href="https://fonts.googleapis.com"/>
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+            <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&amp;display=swap"
+                rel="stylesheet"
+            />
+        </xpath>
+    </template>
+
+    <!-- Backend SPA shell: toolbar color + typography -->
+    <template id="lakecity_webclient_bootstrap_identity" inherit_id="web.webclient_bootstrap">
+        <xpath expr="//meta[@name='theme-color']" position="attributes">
+            <attribute name="content">#0b3d2e</attribute>
+        </xpath>
+        <xpath expr="//meta[@name='viewport']" position="after">
+            <link rel="preconnect" href="https://fonts.googleapis.com"/>
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+            <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&amp;display=swap"
+                rel="stylesheet"
+            />
+        </xpath>
+    </template>
+
+    <!-- Auth surfaces (Odoo loads `web.assets_frontend` here) -->
+    <template id="lakecity_login_surface" inherit_id="web.login_layout">
+        <xpath expr="//t[@t-set='body_classname']" position="replace">
+            <t t-set="body_classname" t-value="'lakecity-auth-surface'"/>
+        </xpath>
+    </template>
+</odoo>

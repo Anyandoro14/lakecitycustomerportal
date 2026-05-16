@@ -56,6 +56,9 @@ serve(async (req) => {
     const amount = parseAmount(payload.amount);
     const payment_date = (payload.payment_date as string)?.toString().trim() || "";
     const payment_method = (payload.payment_method as string)?.toString().trim() || "";
+    /** Optional: manual, google_form, cash, bank_transfer, mobile_money, card, paystack, … */
+    const gatewayRaw = (payload.gateway as string)?.toString().trim() || "";
+    const gateway = gatewayRaw || "google_form";
     const reference = (payload.reference as string)?.toString().trim() || null;
     const receipt_file_url = payload.receipt_file_url
       ? (payload.receipt_file_url as string).toString().trim() || null
@@ -75,9 +78,13 @@ serve(async (req) => {
         stand_number,
         amount,
         payment_date,
-        gateway: "google_form",
+        gateway,
         gateway_reference: reference,
-        gateway_metadata: { payment_method, source: "receipt-intake-webhook" },
+        gateway_metadata: {
+          payment_method,
+          source: "receipt-intake-webhook",
+          payment_channel: payment_method,
+        },
         receipt_file_url,
         qc_status: "pending_qc",
       })
