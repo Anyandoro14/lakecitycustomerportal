@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class LakecityLoanContract(models.Model):
@@ -64,16 +65,82 @@ class LakecityLoanContract(models.Model):
         ("lakecity_loan_contract_external_uid_unique", "unique(external_uid)", "External contract UID must be unique."),
     ]
 
+    @api.model
+    def _lakecity_normalize_stand(self, stand):
+        return str(stand or "").strip().upper()
+
+    @api.constrains("stand_number")
+    def _lakecity_check_stand_unique(self):
+        """Stand number is the master key: one active loan shell per physical stand."""
+        for rec in self:
+            stand = self._lakecity_normalize_stand(rec.stand_number)
+            if not stand:
+                raise ValidationError(_("Stand number is required on a Lakecity loan contract."))
+            dup = self.search_count([("stand_number", "=", stand), ("id", "!=", rec.id)])
+            if dup:
+                raise ValidationError(_("Stand %s already has a Lakecity loan contract.") % stand)
+
     @api.model_create_multi
     def create(self, vals_list):
         seq = self.env["ir.sequence"]
         for vals in vals_list:
+            if vals.get("stand_number"):
+                vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
             if vals.get("name", "New") == "New":
                 vals["name"] = seq.next_by_code("lakecity.loan.contract") or "New"
             if vals.get("product_id") and not vals.get("term_months"):
                 product = self.env["lakecity.loan.product"].browse(vals["product_id"])
                 vals["term_months"] = product.term_months
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records._lakecity_sync_partner_customer_and_crm()
+        return records
+
+    def write(self, vals):
+        if vals.get("stand_number"):
+            vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
+        res = super().write(vals)
+        self._lakecity_sync_partner_customer_and_crm()
+        return res
+
+    def _lakecity_sync_partner_customer_and_crm(self):
+        """Every BNPL debtor: Accounting customer partner + CRM opportunity keyed with stand + contract UID."""
+        for rec in self:
+            if rec.partner_id and rec.external_uid and rec.stand_number:
+                rec._lakecity_ensure_partner_is_customer()
+                rec._lakecity_sync_crm_opportunity()
+
+    def _lakecity_ensure_partner_is_customer(self):
+        """Visible under Accounting → Customers when customer_rank exists (Sales / Accounting modules)."""
+        self.ensure_one()
+        partner = self.partner_id.sudo()
+        if "customer_rank" not in partner._fields:
+            return
+        if not partner.customer_rank:
+            partner.write({"customer_rank": 1})
+
+    def _lakecity_sync_crm_opportunity(self):
+        """Keep CRM in lockstep with the loan (stand_number on lead + matching partner_id)."""
+        self.ensure_one()
+        Lead = self.env["crm.lead"].sudo()
+        lead = Lead.search([("lakecity_contract_external_uid", "=", self.external_uid)], limit=1)
+        pname = self.partner_id.name or _("Lakecity Customer")
+        vals = {
+            "name": "Stand %s — %s" % (self.stand_number, pname),
+            "partner_id": self.partner_id.id,
+            "contact_name": pname,
+            "email_from": self.partner_id.email or False,
+            "phone": self.partner_id.phone or False,
+            "lakecity_contract_external_uid": self.external_uid,
+            "lakecity_stand_number": self.stand_number,
+            "type": "opportunity",
+        }
+        team = self.env["crm.team"].sudo().search([], order="sequence,id", limit=1)
+        if team:
+            vals["team_id"] = team.id
+        if lead:
+            lead.write(vals)
+        else:
+            Lead.create(vals)
 
     @api.onchange("product_id")
     def _onchange_product_id(self):

@@ -17,7 +17,8 @@
     "migrate:odoo-bnpl": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs",
     "migrate:odoo-bnpl:preflight": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --preflight-only",
     "migrate:odoo-bnpl:dry-run": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --dry-run",
-    "import:collection-csv": "node --env-file=.env scripts/import-collection-schedule-csv-to-odoo.mjs"
+    "import:collection-csv": "node --env-file=.env scripts/import-collection-schedule-csv-to-odoo.mjs",
+    "odoo:bnpl:health": "node --env-file=.env scripts/odoo-bnpl-health.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

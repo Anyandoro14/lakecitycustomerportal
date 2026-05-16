@@ -155,8 +155,15 @@ async function odooPost(path, body) {
 }
 
 async function main() {
-  if (!csvPath || !fs.existsSync(csvPath)) {
-    console.error("Provide path to CSV as first argument or COLLECTION_CSV_PATH=…");
+  if (!csvPath) {
+    console.error("Missing CSV path. Pass the file as the first argument, e.g.");
+    console.error('  node scripts/import-collection-schedule-csv-to-odoo.mjs "/Users/you/Downloads/schedule.csv" --skip-internal');
+    console.error("Or set COLLECTION_CSV_PATH=/absolute/path/to/file.csv");
+    process.exit(1);
+  }
+  if (!fs.existsSync(csvPath)) {
+    console.error("CSV file not found:", csvPath);
+    console.error("Use the real path to your file — not the placeholder /path/to/your/file.csv");
     process.exit(1);
   }
 

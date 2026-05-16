@@ -17,6 +17,8 @@ This describes how **one contact** (`res.partner`) flows through **CRM**, **Acco
 
 The API used by this repo’s import script creates/updates the **partner** when you call **`/lakecity/api/v1/loan/upsert`**. As of **`lakecity_loan_management` 19.0.1.0.3+**, that upsert sets **`customer_rank = 1`** when the field exists, so the contact appears as a **Customer** for Accounting/Invoicing workflows **without a second import**. **19.0.1.0.4+** adds optional **CRM lead first** (see below).
 
+**19.0.1.0.6+** — **loan contract saves drive alignment**: whenever a **`lakecity.loan.contract`** is created or written, Odoo (**a**) ensures **`partner_id`** is flagged as customer when Sales/Accounting is installed and (**b**) finds or creates a **`crm.lead`** keyed by **`lakecity_contract_external_uid`**, **`lakecity_stand_number`**, and **`partner_id`**. **Stand numbers** must be globally unique among contracts (and among BNPL-tagged CRM leads with a non-empty **`lakecity_contract_external_uid`**). Clean duplicate historical data **before** saving conflicting contracts.
+
 ## Recommended apps on the database
 
 Install at minimum:
@@ -34,7 +36,7 @@ Upgrade **`lakecity_loan_management` to 19.0.1.0.4+** and **upgrade the app** on
 1. **`crm.lead`** — created or reused by `lakecity_contract_external_uid` (= loan `external_uid`).
 2. **`res.partner`** — upserted (Accounting **customer** when `customer_rank` exists).
 3. **`lakecity.loan.contract`** — upserted as before.
-4. Response includes **`crm_lead_id`** when the flag is set.
+4. Response includes **`crm_lead_id`**, **`partner_id`**, and **`stand_number`** whenever a **`crm.lead`** with that **`lakecity_contract_external_uid`** exists (not only when the flag was set).
 
 The import script sends this **by default**; use **`--skip-crm-lead`** to turn it off.
 
@@ -82,4 +84,4 @@ The script warns when **TOTAL PAID** disagrees with **TOTAL PRICE − Current Ba
 
 ## Upgrade note
 
-Deploy addon **`lakecity_loan_management` ≥ 19.0.1.0.4** on Odoo.sh for **CRM-first** imports and **`crm`** dependency.
+Deploy addon **`lakecity_loan_management` ≥ 19.0.1.0.4** on Odoo.sh for **CRM-first** imports and **`crm`** dependency; use **≥ 19.0.1.0.6** for automatic customer + CRM alignment on **every contract save**.

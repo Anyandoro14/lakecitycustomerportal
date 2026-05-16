@@ -19,13 +19,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
-/**
- * QC Queue — placeholder UI.
- *
- * The `payment_receipts` table is not yet deployed, so all Supabase queries
- * are stubbed out. Once the table is created via migration, restore the
- * original queries.
- */
+/** Review manually submitted receipts; approval triggers Odoo BNPL sync for Odoo tenants. */
 
 interface PaymentReceipt {
   id: string;
@@ -44,7 +38,8 @@ const QcQueue = () => {
   const navigate = useNavigate();
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [internalUserId, setInternalUserId] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentReceipt | null>(null);
   const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
   const [qcNotes, setQcNotes] = useState("");
@@ -54,6 +49,23 @@ const QcQueue = () => {
     checkAccessAndLoad();
   }, []);
 
+  const loadReceipts = async (tid: string) => {
+    const { data, error } = await supabase
+      .from("payment_receipts")
+      .select(
+        "id, stand_number, amount, payment_date, gateway, gateway_reference, receipt_file_url, qc_status, qc_notes, created_at",
+      )
+      .eq("tenant_id", tid)
+      .order("created_at", { ascending: false })
+      .limit(250);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setReceipts((data || []) as PaymentReceipt[]);
+  };
+
   const checkAccessAndLoad = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -61,44 +73,90 @@ const QcQueue = () => {
       return;
     }
 
-    const { data: internalUser } = await supabase
-      .from('internal_users')
-      .select('role')
-      .eq('user_id', session.user.id)
-      .single();
+    const { data: internalUser, error: iuErr } = await supabase
+      .from("internal_users")
+      .select("id, role, tenant_id")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
 
-    if (!internalUser) {
+    if (iuErr || !internalUser) {
       navigate("/internal-login");
       return;
     }
 
-    const allowedRoles = ['admin', 'super_admin', 'director'];
+    const allowedRoles = ["admin", "super_admin", "director"];
     if (!allowedRoles.includes(internalUser.role)) {
       toast.error("You do not have access to the QC Queue");
       navigate("/internal-portal");
       return;
     }
 
-    setUserRole(internalUser.role);
-    // payment_receipts table not yet deployed — load empty
-    setReceipts([]);
+    setInternalUserId(internalUser.id);
+    setTenantId(internalUser.tenant_id);
+
+    await loadReceipts(internalUser.tenant_id);
     setLoading(false);
   };
 
-  const loadReceipts = async () => {
-    // Stub: payment_receipts table not yet in schema
-    toast.info("QC Queue will be available once the payment receipts table is deployed.");
-    setReceipts([]);
-  };
-
   const handleAction = async () => {
-    if (!selectedReceipt || !actionType) return;
+    if (!selectedReceipt || !actionType || !internalUserId || !tenantId) return;
     setProcessing(true);
-    toast.info("QC actions will be available once the payment receipts table is deployed.");
-    setSelectedReceipt(null);
-    setActionType(null);
-    setQcNotes("");
-    setProcessing(false);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Session expired");
+        return;
+      }
+
+      const qc_status = actionType === "approve" ? "approved" : "rejected";
+      const { error: updErr } = await supabase
+        .from("payment_receipts")
+        .update({
+          qc_status,
+          qc_notes: qcNotes.trim() || null,
+          qc_reviewed_at: new Date().toISOString(),
+          qc_reviewer_id: internalUserId,
+        })
+        .eq("id", selectedReceipt.id)
+        .eq("tenant_id", tenantId);
+
+      if (updErr) {
+        toast.error(updErr.message);
+        return;
+      }
+
+      if (actionType === "approve") {
+        const base = import.meta.env.VITE_SUPABASE_URL;
+        const syncRes = await fetch(`${base}/functions/v1/odoo-sync-payment`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ receipt_id: selectedReceipt.id }),
+        });
+        const syncJson = await syncRes.json().catch(() => ({}));
+        if (!syncRes.ok && syncJson?.status !== "skipped") {
+          toast.error(
+            typeof syncJson?.error === "string" ? syncJson.error : "Accounting sync failed — receipt is still approved.",
+          );
+        } else if (syncJson?.status === "skipped") {
+          toast.info(syncJson?.reason || "Skipped Odoo (non-Odoo tenant or receipt already recorded in Odoo).");
+        } else {
+          toast.success("Receipt approved and posted to the BNPL ledger.");
+        }
+      } else {
+        toast.success("Receipt rejected.");
+      }
+
+      await loadReceipts(tenantId);
+    } finally {
+      setSelectedReceipt(null);
+      setActionType(null);
+      setQcNotes("");
+      setProcessing(false);
+    }
   };
 
   // Stats for chart
@@ -133,7 +191,11 @@ const QcQueue = () => {
               Review and approve payment receipts ({pendingReceipts.length} pending)
             </p>
           </div>
-          <Button variant="outline" onClick={loadReceipts}>
+          <Button
+            variant="outline"
+            onClick={() => tenantId && loadReceipts(tenantId)}
+            disabled={!tenantId}
+          >
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </div>

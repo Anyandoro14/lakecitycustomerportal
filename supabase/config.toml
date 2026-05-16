@@ -90,7 +90,10 @@ verify_jwt = false
 [functions.send-internal-welcome]
 verify_jwt = false
 
-[functions.crm-conversations]
+[functions.odoo-sync-payment]
+verify_jwt = false
+
+[functions.kuva-webhook]
 verify_jwt = false
 
 [functions.incoming-message-webhook]
