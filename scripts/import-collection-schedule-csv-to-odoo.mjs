@@ -125,7 +125,7 @@ function isInternalStand(stand, category) {
   const s = String(stand).trim().toUpperCase();
   const cat = String(category || "").toLowerCase();
   if (["999999", "777777", "5555577"].includes(s)) return true;
-  if (skipInternal && (cat === "internal" || cat === "tester")) return true;
+  if (skipInternal && (cat.includes("internal") || cat.includes("tester"))) return true;
   return false;
 }
 

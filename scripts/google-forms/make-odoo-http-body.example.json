@@ -1,0 +1,12 @@
+{
+  "uuid": "{{1.uuid}}",
+  "timestamp": "{{1.timestamp}}",
+  "stand_number": "{{1.stand_number}}",
+  "receipt_link": "{{1.receipt_link}}",
+  "amount": "{{1.amount}}",
+  "payer_name": "{{1.payer_name}}",
+  "payment_method": "{{1.payment_method}}",
+  "payment_date": "{{1.payment_date}}",
+  "entered_by": "{{1.entered_by}}",
+  "answers": "{{1.answers}}"
+}

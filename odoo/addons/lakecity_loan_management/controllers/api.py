@@ -84,13 +84,35 @@ class LakecityLoanApiController(http.Controller):
 
         fn = str(self._lakecity_receipt_pick(payload, answers, "first_name", "First Name") or "").strip()
         ln = str(self._lakecity_receipt_pick(payload, answers, "last_name", "Last Name") or "").strip()
-        customer_name = str(self._lakecity_receipt_pick(payload, answers, "customer_name", "Customer_Name", "Customer Name") or "").strip()
+        customer_name = str(self._lakecity_receipt_pick(payload, answers, "customer_name", "Customer_Name", "Customer Name", "payer_name", "Payer Name", "Full Name", "Name") or "").strip()
         if not customer_name:
             customer_name = ("%s %s" % (fn, ln)).strip()
 
         amt_raw = self._lakecity_receipt_pick(payload, answers, "amount", "Payment_Amount", "Amount")
-        payment_method = str(self._lakecity_receipt_pick(payload, answers, "payment_method", "Payment_Method", "Payment Method") or "").strip()
-        receipt_url = str(self._lakecity_receipt_pick(payload, answers, "receipt_url", "Receipt_URL", "Receipt") or "").strip()
+        payment_method = str(
+            self._lakecity_receipt_pick(
+                payload,
+                answers,
+                "payment_method",
+                "Payment_Method",
+                "Payment Method",
+            )
+            or ""
+        ).strip()
+        receipt_url = str(
+            self._lakecity_receipt_pick(
+                payload,
+                answers,
+                "receipt_url",
+                "Receipt_URL",
+                "Receipt",
+                "receipt_link",
+                "Receipt Link",
+                "Link to receipt",
+                "Receipt URL",
+            )
+            or ""
+        ).strip()
         reference = str(self._lakecity_receipt_pick(payload, answers, "reference", "Reference") or "").strip()
         entered_by = str(self._lakecity_receipt_pick(payload, answers, "entered_by", "Entered_By", "Receipt Entered by") or "").strip()
         ts_raw = self._lakecity_receipt_pick(payload, answers, "timestamp", "Timestamp")

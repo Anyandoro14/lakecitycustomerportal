@@ -44,7 +44,7 @@
                             <field name="due_day"/>
                             <field name="currency_id"/>
                             <field name="company_id" groups="base.group_multi_company"/>
-                            <field name="lakecity_future_receivable_move_id" groups="account.group_account_readonly"/>
+                            <field name="lakecity_future_receivable_move_id" groups="account.group_account_invoice"/>
                         </group>
                         <group>
                             <field name="total_price"/>

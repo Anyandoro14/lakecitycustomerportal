@@ -18,6 +18,7 @@
     "migrate:odoo-bnpl:preflight": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --preflight-only",
     "migrate:odoo-bnpl:dry-run": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --dry-run",
     "import:collection-csv": "node --env-file=.env scripts/import-collection-schedule-csv-to-odoo.mjs",
+    "import:collection-xlsx": "node --env-file=.env scripts/import-collection-schedule-xlsx-to-odoo.mjs",
     "odoo:bnpl:health": "node --env-file=.env scripts/odoo-bnpl-health.mjs"
   },
   "dependencies": {
@@ -73,6 +74,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "vite-plugin-pwa": "^1.2.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
