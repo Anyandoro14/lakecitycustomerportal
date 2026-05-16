@@ -14,6 +14,7 @@ class LakecityLoanPayment(models.Model):
         readonly=True,
         index=True,
     )
+    name = fields.Char(default="New", readonly=True, copy=False)
     external_uid = fields.Char(copy=False, index=True)
     contract_id = fields.Many2one("lakecity.loan.contract", required=True, ondelete="cascade")
     partner_id = fields.Many2one(
