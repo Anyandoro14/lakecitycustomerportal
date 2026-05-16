@@ -9,8 +9,11 @@
                 <page string="Lakecity BNPL" groups="account.group_account_manager">
                     <group string="Loan balances on GL">
                         <field name="lakecity_bnpl_future_receivable_gl_enabled"/>
-                        <field name="lakecity_bnpl_journal_id"/>
-                        <field name="lakecity_bnpl_installment_clearing_account_id"/>
+                        <field name="lakecity_bnpl_journal_id" invisible="not lakecity_bnpl_future_receivable_gl_enabled"/>
+                        <field name="lakecity_bnpl_installment_clearing_account_id" invisible="not lakecity_bnpl_future_receivable_gl_enabled"/>
+                        <separator string="Recognition of BNPL receipts"/>
+                        <field name="lakecity_bnpl_post_bank_payment_per_receipt"/>
+                        <field name="lakecity_bnpl_collections_journal_id" invisible="not lakecity_bnpl_post_bank_payment_per_receipt"/>
                     </group>
                 </page>
             </xpath>

@@ -297,6 +297,9 @@ class LakecityLoanContract(models.Model):
         today = fields.Date.context_today(self)
         for rec in self:
             company = rec.company_id.sudo()
+            if company.lakecity_bnpl_post_bank_payment_per_receipt:
+                rec._lakecity_clear_future_receivable_gl()
+                continue
             if not company.lakecity_bnpl_future_receivable_gl_enabled:
                 rec._lakecity_clear_future_receivable_gl()
                 continue

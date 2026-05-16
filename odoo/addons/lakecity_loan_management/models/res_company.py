@@ -11,7 +11,25 @@ class ResCompany(models.Model):
         help="When enabled, each active loan keeps one posted journal entry: Debit the "
         "customer receivable for the outstanding balance, Credit a BNPL clearing "
         "(current liability) account — so unpaid installments appear on the GL as "
-        "trade receivables with an offsetting clearing line.",
+        "trade receivables with an offsetting clearing line. "
+        "Leave off when using “Post bank payment per BNPL receipt” (recommended) "
+        "so receivable is tracked only from real receipts.",
+    )
+    lakecity_bnpl_post_bank_payment_per_receipt = fields.Boolean(
+        string="Post bank payment per BNPL receipt",
+        default=False,
+        help="For each posted Lakecity BNPL receipt, create and confirm a standard "
+        "customer payment on the collections journal (bank or cash liquidity → partner "
+        "receivable). Installment allocation stays on the BNPL loan; Accounting gets "
+        "one journal entry per receipt. While this is on, GL mirror moves above are skipped.",
+    )
+    lakecity_bnpl_collections_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL collections journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Bank or cash journal used for inbound customer payments created from BNPL receipts. "
+        "Must have at least one inbound payment method configured.",
     )
     lakecity_bnpl_journal_id = fields.Many2one(
         "account.journal",

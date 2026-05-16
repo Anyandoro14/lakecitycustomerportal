@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import account_move
+from . import account_payment_bnpl
 from . import account_payment_method
 from . import account_payment_register
 from . import product_template

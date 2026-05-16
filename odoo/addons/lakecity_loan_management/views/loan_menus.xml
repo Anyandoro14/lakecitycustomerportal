@@ -31,6 +31,14 @@
         groups="lakecity_loan_management.group_lakecity_loan_user"/>
 
     <menuitem
+        id="menu_lakecity_bank_payment_backfill"
+        name="Backfill bank payments"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_bank_payment_backfill_wizard"
+        sequence="16"
+        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+
+    <menuitem
         id="menu_lakecity_loan_installments"
         name="Installments"
         parent="menu_lakecity_loan_root"
