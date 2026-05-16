@@ -29,7 +29,7 @@
         <field name="name">Lakecity Loan Manager</field>
         <field name="privilege_id" ref="res_groups_privilege_lakecity_loans"/>
         <field name="implied_ids" eval="[(4, ref('group_lakecity_loan_user'))]"/>
-        <!-- Bootstrap: Settings admins see BNPL menus without manual group assignment -->
-        <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+        <!-- Bootstrap: admins get Loan Manager (Odoo 19: user_ids replaces removed field "users"). -->
+        <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
     </record>
 </odoo>

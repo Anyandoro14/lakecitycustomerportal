@@ -18,7 +18,7 @@ class ResPartner(models.Model):
         string="Lakecity stands",
         compute="_compute_lakecity_stand_list",
         store=True,
-        help="Comma-separated stands from BNPL contracts (Accounting / CRM join via loan contract rows).",
+        help="Comma-separated stands from BNPL contracts; links Accounting and CRM via loan contracts.",
     )
 
     @api.depends("lakecity_loan_contract_ids.stand_number")
