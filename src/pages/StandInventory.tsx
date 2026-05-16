@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import {
   buyerDisplayName,
+  formatBuyersShort,
   isAvailableForSaleStatus,
   isOfficiallySoldStatus,
   normalizeStandNumber,
@@ -299,6 +300,42 @@ const StandInventory = () => {
     init();
   }, [navigate, load]);
 
+  useEffect(() => {
+    if (!isInternal) return;
+    const channel = supabase
+      .channel("stand_inventory_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stand_inventory" },
+        () => {
+          load();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isInternal, load]);
+
+  const syncOdooProducts = useCallback(async (standIds: string[], archive = false): Promise<boolean> => {
+    if (!standIds.length) return true;
+    const body =
+      standIds.length === 1
+        ? { stand_id: standIds[0], archive }
+        : { stand_ids: standIds, archive };
+    const { data, error } = await supabase.functions.invoke("sync-stand-odoo-product", { body });
+    if (error) {
+      console.error(error);
+      toast.error("Odoo product sync failed. Deploy sync-stand-odoo-product and set ODOO_ORIGIN + LAKECITY_LOAN_API_TOKEN.");
+      return false;
+    }
+    if (!data?.ok) {
+      toast.error(typeof data?.error === "string" ? data.error : "Odoo sync rejected");
+      return false;
+    }
+    return true;
+  }, []);
+
   const stats = useMemo(() => {
     let marketable = 0;
     let sold = 0;
@@ -402,6 +439,8 @@ const StandInventory = () => {
         agreement_signed_by_client: form.agreement_signed_by_client.trim() || null,
       };
 
+      let standId = form.id;
+
       if (form.id) {
         const { error } = await supabase.from("stand_inventory").update(payload).eq("id", form.id);
         if (error) throw error;
@@ -410,12 +449,18 @@ const StandInventory = () => {
       } else {
         const { data, error } = await supabase.from("stand_inventory").insert(payload).select("id").single();
         if (error) throw error;
+        standId = data.id;
         await persistBuyers(data.id, form.buyers);
         toast.success("Stand created.");
       }
 
       setDialogOpen(false);
       await load();
+      if (standId) {
+        const synced = await syncOdooProducts([standId], false);
+        if (!synced) toast.warning("Stand saved locally; Odoo product/stock may be stale.");
+        else await load();
+      }
     } catch (e: unknown) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "Save failed (duplicate stand number?)");
@@ -426,6 +471,10 @@ const StandInventory = () => {
 
   const deleteStand = async (s: StandWithBuyers) => {
     if (!confirm(`Delete stand ${s.stand_number} and all linked buyers?`)) return;
+    const synced = await syncOdooProducts([s.id], true);
+    if (!synced) {
+      toast.warning("Odoo archive may have failed; continuing with delete.");
+    }
     const { error } = await supabase.from("stand_inventory").delete().eq("id", s.id);
     if (error) {
       toast.error("Delete failed");
@@ -540,6 +589,7 @@ const StandInventory = () => {
       }
 
       let n = 0;
+      const importedIds: string[] = [];
       for (const [, g] of groups) {
         const payload = {
           tenant_id: tenantUuid,
@@ -562,6 +612,8 @@ const StandInventory = () => {
           .single();
 
         if (error) throw error;
+
+        importedIds.push(data.id);
 
         const { error: delErr } = await supabase
           .from("stand_inventory_buyer")
@@ -590,6 +642,17 @@ const StandInventory = () => {
 
       toast.success(`Imported / updated ${n} stand(s).`);
       await load();
+      if (importedIds.length) {
+        const CHUNK = 400;
+        let allOk = true;
+        for (let i = 0; i < importedIds.length; i += CHUNK) {
+          const chunk = importedIds.slice(i, i + CHUNK);
+          const ok = await syncOdooProducts(chunk, false);
+          if (!ok) allOk = false;
+        }
+        if (!allOk) toast.warning("CSV saved; some Odoo product batches may have failed.");
+        else await load();
+      }
     } catch (e: unknown) {
       console.error(e);
       toast.error("CSV import failed.");
@@ -671,7 +734,9 @@ const StandInventory = () => {
             <div>
               <CardTitle>Stands</CardTitle>
               <CardDescription>
-                Status drives sold vs unsold; only blank or Available (without Sold) are offered for sale.
+                Status drives sold vs unsold; only blank or Available (without Sold) are offered for sale. Each stand maps
+                to one Odoo Sales product; stock is 1 unit when marketable and 0 otherwise (synced on save). Enable
+                Supabase Realtime on <code className="text-xs">stand_inventory</code> so open sessions refresh live.
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -740,13 +805,14 @@ const StandInventory = () => {
                     <TableHead>Rights</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="whitespace-nowrap">Odoo</TableHead>
                     <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12">
                         No stands match this view. Add a stand or adjust filters.
                       </TableCell>
                     </TableRow>
@@ -790,6 +856,15 @@ const StandInventory = () => {
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {s.purchase_price != null ? s.purchase_price : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {s.odoo_product_id ? (
+                              <Badge variant="outline" className="font-normal" title={s.odoo_synced_at ?? ""}>
+                                #{s.odoo_product_id}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right space-x-1">
                             <Button variant="ghost" size="icon" onClick={() => openEdit(s)} aria-label="Edit">

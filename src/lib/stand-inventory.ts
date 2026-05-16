@@ -32,6 +32,9 @@ export type StandInventoryRow = {
   agreement_requested: string | null;
   agreement_signed_warwickshire: string | null;
   agreement_signed_by_client: string | null;
+  odoo_product_tmpl_id?: number | null;
+  odoo_product_id?: number | null;
+  odoo_synced_at?: string | null;
   created_at: string;
   updated_at: string;
 };

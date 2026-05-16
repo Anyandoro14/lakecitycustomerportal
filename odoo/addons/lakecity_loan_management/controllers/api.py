@@ -190,9 +190,17 @@ class LakecityLoanApiController(http.Controller):
         if bool(payload.get("activate", False)) and contract.state == "draft":
             contract.action_activate()
 
-        out = {"ok": True, "contract": self._contract_payload(contract)}
-        if create_crm_first and crm_lead:
-            out["crm_lead_id"] = crm_lead.id
+        crm_row = request.env["crm.lead"].sudo().search(
+            [("lakecity_contract_external_uid", "=", external_uid)], limit=1
+        )
+        out = {
+            "ok": True,
+            "contract": self._contract_payload(contract),
+            "stand_number": contract.stand_number,
+            "partner_id": partner.id,
+        }
+        if crm_row:
+            out["crm_lead_id"] = crm_row.id
         return self._json_response(out)
 
     @http.route("/lakecity/api/v1/loan/get", type="http", auth="public", methods=["GET"], csrf=False)
@@ -313,3 +321,170 @@ class LakecityLoanApiController(http.Controller):
         if status == "active" and not contract.installment_ids:
             contract.action_generate_schedule()
         return self._json_response({"ok": True, "contract": self._contract_payload(contract)})
+
+    def _lakecity_stand_marketable(self, status):
+        """Align with customer portal: sold if 'sold' in status; marketable if blank or exactly 'available'."""
+        s = (status or "").strip()
+        if "sold" in s.lower():
+            return False
+        if not s:
+            return True
+        return s.lower() == "available"
+
+    def _lakecity_default_stock_location(self):
+        wh = request.env["stock.warehouse"].sudo().search([("company_id", "=", request.env.company.id)], limit=1)
+        return wh.lot_stock_id if wh else False
+
+    def _lakecity_set_variant_stock_qty(self, product_product, location, qty):
+        if not product_product:
+            return False, "no_product"
+        if not location:
+            return False, "no_stock_location"
+        Quant = request.env["stock.quant"].sudo()
+        quant = Quant.search([("product_id", "=", product_product.id), ("location_id", "=", location.id)], limit=1)
+        ctx = dict(request.env.context, inventory_mode=True)
+        q = float(qty)
+        try:
+            if quant:
+                quant.with_context(**ctx).write({"inventory_quantity": q})
+            else:
+                Quant.with_context(**ctx).create(
+                    {"product_id": product_product.id, "location_id": location.id, "inventory_quantity": q}
+                )
+        except Exception as err:
+            return False, str(err)
+        return True, None
+
+    def _lakecity_sync_stand_product_item(self, item):
+        stand_number = (item.get("stand_number") or "").strip().upper()
+        if not stand_number:
+            return {"ok": False, "error": "stand_number_required", "stand_number": stand_number}
+
+        archive = bool(item.get("archive"))
+        status = item.get("status")
+        marketable = self._lakecity_stand_marketable(status) and not archive
+
+        tmpl = request.env["product.template"].sudo().search([("lakecity_stand_number", "=", stand_number)], limit=1)
+
+        lp = item.get("purchase_price")
+        try:
+            list_price = float(lp) if lp is not None and lp != "" else 0.0
+        except (TypeError, ValueError):
+            list_price = 0.0
+
+        name = "Stand %s — Lake City" % stand_number
+        desc_lines = []
+        if item.get("land_use"):
+            desc_lines.append("Land use: %s" % item["land_use"])
+        if item.get("phase"):
+            desc_lines.append("Phase: %s" % item["phase"])
+        if item.get("rights"):
+            desc_lines.append("Rights: %s" % item["rights"])
+        if item.get("agreement_requested"):
+            desc_lines.append("Agreement requested: %s" % item["agreement_requested"])
+        if item.get("agreement_signed_warwickshire"):
+            desc_lines.append("Agreement signed (Warwickshire): %s" % item["agreement_signed_warwickshire"])
+        if item.get("agreement_signed_by_client"):
+            desc_lines.append("Agreement signed (client): %s" % item["agreement_signed_by_client"])
+        description = "\n".join(desc_lines) if desc_lines else False
+
+        active = not archive
+        sale_ok = marketable
+
+        if tmpl:
+            write_vals = {
+                "name": name,
+                "type": "product",
+                "sale_ok": sale_ok,
+                "purchase_ok": False,
+                "list_price": list_price,
+                "active": active,
+            }
+            if description:
+                write_vals["description"] = description
+            if not tmpl.lakecity_stand_number:
+                write_vals["lakecity_stand_number"] = stand_number
+            if not tmpl.default_code:
+                write_vals["default_code"] = stand_number
+            tmpl.write(write_vals)
+        else:
+            create_vals = {
+                "name": name,
+                "type": "product",
+                "sale_ok": sale_ok,
+                "purchase_ok": False,
+                "lakecity_stand_number": stand_number,
+                "default_code": stand_number,
+                "list_price": list_price,
+                "active": active,
+            }
+            if description:
+                create_vals["description"] = description
+            tmpl = request.env["product.template"].sudo().create(create_vals)
+
+        variant = tmpl.product_variant_ids[:1]
+        if not variant:
+            return {
+                "ok": False,
+                "error": "no_product_variant",
+                "stand_number": stand_number,
+                "product_tmpl_id": tmpl.id,
+            }
+        product_product = variant[0]
+        loc = self._lakecity_default_stock_location()
+        target_qty = 1.0 if marketable and not archive else 0.0
+        stock_ok, stock_err = self._lakecity_set_variant_stock_qty(product_product, loc, target_qty)
+
+        quants = request.env["stock.quant"].sudo().search([("product_id", "=", product_product.id)])
+        free_qty = sum(quants.mapped("quantity"))
+
+        return {
+            "ok": True,
+            "stand_number": stand_number,
+            "product_tmpl_id": tmpl.id,
+            "product_id": product_product.id,
+            "marketable": marketable,
+            "inventory_qty": target_qty,
+            "stock_location_applied": bool(loc) and stock_ok,
+            "stock_warn": None if stock_ok else stock_err,
+            "free_qty": free_qty,
+            "no_warehouse": not bool(loc),
+        }
+
+    def _stand_item_from_payload(self, payload):
+        return {
+            "stand_number": payload.get("stand_number"),
+            "status": payload.get("status"),
+            "purchase_price": payload.get("purchase_price"),
+            "land_use": payload.get("land_use"),
+            "phase": payload.get("phase"),
+            "rights": payload.get("rights"),
+            "agreement_requested": payload.get("agreement_requested"),
+            "agreement_signed_warwickshire": payload.get("agreement_signed_warwickshire"),
+            "agreement_signed_by_client": payload.get("agreement_signed_by_client"),
+            "archive": payload.get("archive"),
+        }
+
+    @http.route("/lakecity/api/v1/stand/product-sync", type="http", auth="public", methods=["POST"], csrf=False)
+    def stand_product_sync(self, **kwargs):
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+        payload = self._parse_json_body()
+        result = self._lakecity_sync_stand_product_item(self._stand_item_from_payload(payload))
+        http_status = 200 if result.get("ok") else 400
+        return self._json_response(result, status=http_status)
+
+    @http.route("/lakecity/api/v1/stand/product-sync-batch", type="http", auth="public", methods=["POST"], csrf=False)
+    def stand_product_sync_batch(self, **kwargs):
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+        payload = self._parse_json_body()
+        items = payload.get("items")
+        if not isinstance(items, list) or len(items) == 0:
+            return self._json_response({"ok": False, "error": "items_array_required"}, status=400)
+        if len(items) > 500:
+            return self._json_response({"ok": False, "error": "max_500_items"}, status=400)
+        results = [self._lakecity_sync_stand_product_item(self._stand_item_from_payload(raw)) for raw in items]
+        return self._json_response({"ok": True, "count": len(results), "results": results})

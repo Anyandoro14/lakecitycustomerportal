@@ -12,7 +12,8 @@ Ensure this repo path is available in your Odoo.sh build:
 ## 2) Install module
 
 1. Update Apps List.
-2. Install **Lakecity BNPL Loan Management** (pulls in **LakeCity Branding** for ERP + login visuals).
+2. Install **Inventory** (Stock) and **Sales** if not already present.
+3. Install **Lakecity BNPL Loan Management** (pulls in **LakeCity Branding** for ERP + login visuals, plus **Stock** and **Sales** for stand SKUs).
 
 Standalone theming-only: install **LakeCity Branding** without BNPL where appropriate.
 
