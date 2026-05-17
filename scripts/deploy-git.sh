@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Push this repo to GitHub so connected services pick up changes:
-#   - Lovable Cloud (frontend — deploy/trigger from the Lovable dashboard as usual)
-#   - Odoo.sh / Standledger (custom addons synced from Git)
+# Push this repo to GitHub — primary workflow when hosting on Lovable Cloud only:
+#   - Lovable Cloud builds/deploys the app from your connected Git repo (see Lovable dashboard).
+#   - If you also sync this repo to Odoo.sh / Standledger, custom addons update from the same push.
 #
-# This project does not run Supabase here; omit db/functions unless you add them back.
-#
-# Usage: npm run deploy:git
+# Usage: npm run deploy   OR   npm run deploy:git
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,4 +14,4 @@ echo "== Git push → origin/$BRANCH"
 git push origin "$BRANCH"
 
 echo ""
-echo "Done. Use Lovable Cloud for app hosting/deploy; Odoo addons still flow via Standledger/Git when you sync them."
+echo "Done. Trigger or verify deploy in Lovable Cloud; Odoo addons follow Git only if you link that repo."
