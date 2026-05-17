@@ -42,7 +42,7 @@ class ResCompany(models.Model):
         "account.account",
         string="BNPL installment clearing account",
         check_company=True,
-        domain="[('deprecated', '=', False), ('account_type', '=', 'liability_current')]",
+        domain="[('active', '=', True), ('account_type', '=', 'liability_current')]",
         help="Credit side of the mirror entry (control / deferred-installment obligation). "
         "Configure explicitly or leave empty to auto-create next to your chart.",
     )
@@ -80,7 +80,7 @@ class ResCompany(models.Model):
         template = Account.search(
             [
                 ("account_type", "=", "liability_current"),
-                ("deprecated", "=", False),
+                ("active", "=", True),
                 *Account._check_company_domain(company),
             ],
             limit=1,

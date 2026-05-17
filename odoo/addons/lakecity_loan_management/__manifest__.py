@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.22",
+    "version": "19.0.1.0.23",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     "description": """
 Lakecity BNPL Loan Management

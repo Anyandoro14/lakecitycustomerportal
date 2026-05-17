@@ -6,7 +6,8 @@
         <field name="model">res.company</field>
         <field name="inherit_id" ref="base.view_company_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
+            <!-- One notebook sits under sheet in standard company form (chatter is after sheet). -->
+            <xpath expr="//sheet/notebook" position="inside">
                 <!-- Multiple groups → OR (any match): loan managers rarely have Billing admins. -->
                 <page string="Lakecity BNPL"
                       groups="account.group_account_manager,lakecity_loan_management.group_lakecity_loan_manager">

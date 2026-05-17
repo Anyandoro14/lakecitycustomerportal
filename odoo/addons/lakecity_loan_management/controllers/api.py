@@ -38,8 +38,8 @@ class LakecityLoanApiController(http.Controller):
         except Exception:
             return {}
 
-    def _lakecity_receipt_pick(self, payload, answers, keys):
-        """First non-empty match from payload dict then answers dict."""
+    def _lakecity_receipt_pick(self, payload, answers, *keys):
+        """First non-empty match from payload dict then answers dict, in key order."""
         for key in keys:
             val = payload.get(key)
             if val not in (None, "", False):

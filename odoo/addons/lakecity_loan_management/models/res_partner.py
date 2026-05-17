@@ -115,7 +115,7 @@ class ResPartner(models.Model):
         Account = self.env["account.account"]
         domain = [
             ("account_type", "=", account_type),
-            ("deprecated", "=", False),
+            ("active", "=", True),
             *Account._check_company_domain(company),
         ]
         return (

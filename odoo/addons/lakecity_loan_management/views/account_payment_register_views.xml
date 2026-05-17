@@ -5,13 +5,14 @@
         <field name="model">account.payment.register</field>
         <field name="inherit_id" ref="account.view_account_payment_register_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='payment_method_line_id']" position="after">
+            <!-- Narrow xpath: avoids ambiguous matches when other modules inherit the same wizard form. -->
+            <xpath expr="//group[@name='group1']/field[@name='payment_method_line_id']" position="after">
                 <field name="lakecity_payment_receipt_filename" invisible="1"/>
+                <!-- Enforcement stays in Python (action_create_payments); conditional required+binary breaks some view checks. -->
                 <field
                     name="lakecity_payment_receipt"
                     filename="lakecity_payment_receipt_filename"
                     invisible="partner_type != 'customer' or payment_type != 'inbound'"
-                    required="partner_type == 'customer' and payment_type == 'inbound'"
                 />
             </xpath>
         </field>
