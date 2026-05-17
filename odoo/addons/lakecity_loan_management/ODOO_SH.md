@@ -57,6 +57,16 @@ Ensure this repo path is available in your Odoo.sh build:
 
 Standalone theming-only: install **LakeCity Branding** without BNPL where appropriate.
 
+## 2b) Git deploy → you must **Upgrade** the addon
+
+Python/XML changes from Git **do not run** until Odoo loads the new module version:
+
+1. Wait for an Odoo.sh **green build** (or rebuild the branch).
+2. **Apps** → menu **Update Apps List** (if needed).
+3. Search **Lakecity BNPL Loan Management** → open → **Upgrade**.
+
+If installment lines show **Amount due = 0** and **Paid** incorrectly, open the contract → **Generate Schedule** again (after confirming **Total price** / **Deposit** so **financed** amount is correct). Stored computed fields (`Next payment date`, etc.) refresh after upgrade + schedule rebuild.
+
 ## 3) Configure API token
 
 Set Odoo system parameter:

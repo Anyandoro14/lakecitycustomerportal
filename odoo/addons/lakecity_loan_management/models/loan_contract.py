@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools.float_utils import float_is_zero
+from odoo.tools.float_utils import float_is_zero, float_round
 
 _logger = logging.getLogger(__name__)
 
@@ -138,6 +138,35 @@ class LakecityLoanContract(models.Model):
         nxt = first_due + relativedelta(months=index)
         dd = self._lakecity_clamp_day_in_month(nxt.year, nxt.month, tgt)
         return nxt.replace(day=dd)
+
+    def _lakecity_split_financed_into_installments(self, financed, n):
+        """Split principal into *n* rounded lines that sum to *financed* (minor units).
+
+        Using ``round(financed / n)`` per line can yield **0** on every line except the last when
+        ``financed / n`` is below half a rounding unit — or corrupt schedules when combined with
+        bad imports. Splitting integer minor units keeps amounts consistent.
+        """
+        self.ensure_one()
+        cur = self.currency_id or self.company_id.currency_id
+        rnd = cur.rounding or 0.01
+        if n <= 0:
+            return []
+        if float_is_zero(financed, precision_rounding=rnd):
+            return [0.0] * n
+        units = int(round(financed / rnd))
+        if units <= 0:
+            out = [0.0] * n
+            out[-1] = float_round(financed, precision_rounding=rnd)
+            return out
+        q, rem = divmod(units, n)
+        amounts = []
+        for i in range(n):
+            slice_u = q + (1 if i < rem else 0)
+            amounts.append(slice_u * rnd)
+        delta = float_round(financed - sum(amounts), precision_rounding=rnd)
+        if not float_is_zero(delta, precision_rounding=rnd):
+            amounts[-1] = float_round(amounts[-1] + delta, precision_rounding=rnd)
+        return amounts
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -299,22 +328,16 @@ class LakecityLoanContract(models.Model):
                         "Set Total price (and VAT if applicable) above the deposit so the BNPL principal is positive."
                     )
                 )
-            per = cur.round(financed / n) if n else 0.0
+            amounts = rec._lakecity_split_financed_into_installments(financed, n)
             lines = []
-            acc = 0.0
             for i in range(n):
                 due = rec._lakecity_nth_installment_due_date(i)
-                if i < n - 1:
-                    amt = per
-                else:
-                    amt = cur.round(financed - acc)
-                acc = cur.round(acc + amt)
                 lines.append(
                     {
                         "contract_id": rec.id,
                         "sequence": i + 1,
                         "due_date": due,
-                        "amount_due": amt,
+                        "amount_due": amounts[i],
                         "amount_paid": 0.0,
                     }
                 )
