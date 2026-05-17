@@ -9,13 +9,18 @@ _logger = logging.getLogger(__name__)
 
 
 def post_init_hook(cr, registry):
-    """Backfill GL mirror rows for loans already active after module upgrade."""
+    """Install-only hooks (module **upgrade** uses ``migrations/*/post-migrate.py``)."""
     try:
         from odoo import SUPERUSER_ID, api
 
         env = api.Environment(cr, SUPERUSER_ID, {})
-        env["lakecity.loan.contract"].sudo().search(
-            [("state", "in", ("active", "defaulted"))]
-        )._lakecity_sync_future_receivable_gl()
+        Contract = env["lakecity.loan.contract"].sudo()
+        Contract.search([("state", "in", ("active", "defaulted"))])._lakecity_sync_future_receivable_gl()
+        fixed = 0
+        for c in Contract.search([]):
+            if c._lakecity_try_repair_zero_schedule():
+                fixed += 1
+        if fixed:
+            _logger.info("Lakecity BNPL post_init: repaired %s zero-amount schedules", fixed)
     except Exception:
-        _logger.exception("Lakecity BNPL: post_init_hook GL sync aborted (non-fatal)")
+        _logger.exception("Lakecity BNPL: post_init_hook aborted (non-fatal)")

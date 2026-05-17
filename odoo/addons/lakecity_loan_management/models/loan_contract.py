@@ -344,6 +344,60 @@ class LakecityLoanContract(models.Model):
             self.env["lakecity.loan.installment"].create(lines)
             rec._rebuild_payment_allocations()
 
+    def _lakecity_try_repair_zero_schedule(self):
+        """Regenerate schedule when every line has zero due but financed principal is positive.
+
+        Typical bad data: legacy rounding/import produced all-zero ``amount_due`` rows.
+        Returns True if a regeneration ran.
+        """
+        self.ensure_one()
+        lines = self.installment_ids
+        if not lines:
+            return False
+        cur = self.currency_id or self.company_id.currency_id
+        rnd = cur.rounding or 0.01
+        financed = self.financed_amount or 0.0
+        if float_is_zero(financed, precision_rounding=rnd):
+            return False
+        if not all(float_is_zero(l.amount_due, precision_rounding=rnd) for l in lines):
+            return False
+        self.action_generate_schedule()
+        return True
+
+    def action_repair_zero_amount_schedule(self):
+        """Button / batch action: fix contracts whose installments are all zero-due incorrectly."""
+        repaired = self.browse()
+        for rec in self:
+            if rec._lakecity_try_repair_zero_schedule():
+                repaired |= rec
+        if len(self) == 1 and not repaired:
+            rec = self
+            cur = rec.currency_id or rec.company_id.currency_id
+            rnd = cur.rounding or 0.01
+            fin = rec.financed_amount or 0.0
+            if not rec.installment_ids:
+                raise ValidationError(_("Create installments first (Generate Schedule)."))
+            if float_is_zero(fin, precision_rounding=rnd):
+                raise ValidationError(_("Financed amount is zero; raise Total price above Deposit first."))
+            raise ValidationError(
+                _("This contract is not in the “all installment dues are zero” state; use Generate Schedule if you need a full rebuild.")
+            )
+        msg = (
+            _("Repaired %(n)s contract(s) with zero installment amounts.") % {"n": len(repaired)}
+            if repaired
+            else _("No contracts matched (need financed > 0 and every installment Amount due = 0).")
+        )
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Schedule repair"),
+                "message": msg,
+                "type": "success" if repaired else "warning",
+                "sticky": bool(repaired),
+            },
+        }
+
     def _lakecity_bnpl_gl_outstanding_balance(self):
         """Outstanding contract balance = total due − deposit − posted loan payments (cash basis)."""
         self.ensure_one()

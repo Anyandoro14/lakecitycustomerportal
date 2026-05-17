@@ -29,6 +29,12 @@
                     <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_generate_schedule" type="object" string="Generate Schedule"/>
                     <button
+                        name="action_repair_zero_amount_schedule"
+                        type="object"
+                        string="Repair zero‑due schedule"
+                        groups="lakecity_loan_management.group_lakecity_loan_manager"
+                        title="Use when every installment shows Amount due = 0 but the contract has positive financed amount (bad import/rounding). Regenerates lines and re-applies posted payments."/>
+                    <button
                         name="action_recompute_installment_states"
                         type="object"
                         string="Recompute installments"

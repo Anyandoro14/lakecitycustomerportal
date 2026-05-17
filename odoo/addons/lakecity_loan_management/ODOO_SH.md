@@ -61,11 +61,14 @@ Standalone theming-only: install **LakeCity Branding** without BNPL where approp
 
 Python/XML changes from Git **do not run** until Odoo loads the new module version:
 
-1. Wait for an Odoo.sh **green build** (or rebuild the branch).
-2. **Apps** → menu **Update Apps List** (if needed).
-3. Search **Lakecity BNPL Loan Management** → open → **Upgrade**.
+1. Confirm Odoo.sh is building **this** Git repo + branch (wrong repo = “no change” forever).
+2. Wait for an Odoo.sh **green build** (or **Rebuild** the branch).
+3. **Apps** → menu **Update Apps List** (if needed).
+4. Remove the **Apps** filter → search **Lakecity BNPL Loan Management** → open the module form → **Upgrade** (not only browser refresh).
 
-If installment lines show **Amount due = 0** and **Paid** incorrectly, open the contract → **Generate Schedule** again (after confirming **Total price** / **Deposit** so **financed** amount is correct). Stored computed fields (`Next payment date`, etc.) refresh after upgrade + schedule rebuild.
+**Important:** `post_init_hook` runs on **install**, not on **upgrade**. Upgrade-time fixes ship in `migrations/<version>/post-migrate.py` (e.g. repairing all‑zero installment schedules).
+
+If installment lines still show **Amount due = 0** after upgrade: open the loan → **Repair zero‑due schedule** (manager button), or **Generate Schedule** again after checking **Total price** / **Deposit**.
 
 ## 3) Configure API token
 
