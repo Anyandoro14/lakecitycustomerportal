@@ -28,6 +28,11 @@
                 <header>
                     <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_generate_schedule" type="object" string="Generate Schedule"/>
+                    <button
+                        name="action_recompute_installment_states"
+                        type="object"
+                        string="Recompute installments"
+                        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
                     <button name="action_close" type="object" string="Close" invisible="state == 'closed'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,active,closed,defaulted"/>
                 </header>

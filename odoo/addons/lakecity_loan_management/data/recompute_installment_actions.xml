@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Runs payment → installment allocation then refreshes stored Outstanding + State -->
+    <record id="action_server_lakecity_contract_recompute_installments" model="ir.actions.server">
+        <field name="name">Recompute installment allocations &amp; states</field>
+        <field name="model_id" ref="model_lakecity_loan_contract"/>
+        <field name="binding_model_id" ref="model_lakecity_loan_contract"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="groups_id" eval="[(4, ref('group_lakecity_loan_manager'))]"/>
+        <field name="code">action = records.action_recompute_installment_states()</field>
+    </record>
+
+    <!-- Low-level refresh when amounts already match DB but stored computes lag -->
+    <record id="action_server_lakecity_installment_refresh_computes" model="ir.actions.server">
+        <field name="name">Refresh installment outstanding &amp; state</field>
+        <field name="model_id" ref="model_lakecity_loan_installment"/>
+        <field name="binding_model_id" ref="model_lakecity_loan_installment"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="groups_id" eval="[(4, ref('group_lakecity_loan_manager'))]"/>
+        <field name="code">records.action_lakecity_refresh_stored_computes()</field>
+    </record>
+</odoo>

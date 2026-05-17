@@ -283,6 +283,13 @@ class LakecityLoanContract(models.Model):
             financed = rec.financed_amount or 0.0
             n = rec.term_months
             cur = rec.currency_id or rec.company_id.currency_id
+            if float_is_zero(financed, precision_rounding=cur.rounding):
+                raise ValidationError(
+                    _(
+                        "Cannot generate installments: financed amount is zero. "
+                        "Set Total price (and VAT if applicable) above the deposit so the BNPL principal is positive."
+                    )
+                )
             per = cur.round(financed / n) if n else 0.0
             lines = []
             acc = 0.0
@@ -425,6 +432,25 @@ class LakecityLoanContract(models.Model):
                     rec.display_name,
                     err,
                 )
+
+    def action_recompute_installment_states(self):
+        """Rebuild posted-payment allocation onto lines, then refresh stored installment computes."""
+        contracts = self
+        contracts._rebuild_payment_allocations()
+        installments = contracts.mapped("installment_ids")
+        if installments:
+            installments.action_lakecity_refresh_stored_computes()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Installments updated"),
+                "message": _("Rebuilt allocations and recomputed installment states for %s contract(s).")
+                % len(contracts),
+                "type": "success",
+                "sticky": False,
+            },
+        }
 
     def _rebuild_payment_allocations(self):
         for rec in self:
