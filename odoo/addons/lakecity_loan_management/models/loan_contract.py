@@ -43,6 +43,9 @@ class LakecityLoanContract(models.Model):
         readonly=True,
         copy=False,
         check_company=True,
+        help="Posted mirror journal (Dr receivable / Cr BNPL clearing). Amount follows posted BNPL "
+        "receipts via installment allocation. If Total with tax is 0, it uses installment balances. "
+        "Empty when the company posts a bank payment per BNPL receipt instead of mirroring.",
     )
     total_price = fields.Monetary(required=True, tracking=True)
     deposit_amount = fields.Monetary(default=0.0, tracking=True)
@@ -399,11 +402,27 @@ class LakecityLoanContract(models.Model):
         }
 
     def _lakecity_bnpl_gl_outstanding_balance(self):
-        """Outstanding contract balance = total due − deposit − posted loan payments (cash basis)."""
+        """Amount to mirror on GL: contract balance, or installment Schedule fallback.
+
+        Uses ``total_with_tax − deposit − posted payments`` when **Total with tax** is set.
+        When it is **0 / missing** (bad imports), falls back to **sum of installment
+        balances still due** so the mirror tracks receipts as installments are allocated.
+        """
         self.ensure_one()
         posted_payments = sum(p.amount for p in self.payment_ids if p.state == "posted")
         total_paid = (self.deposit_amount or 0.0) + posted_payments
-        raw = max((self.total_with_tax or 0.0) - total_paid, 0.0)
+        rnd = self.currency_id.rounding if self.currency_id else 0.01
+
+        contract_raw = max((self.total_with_tax or 0.0) - total_paid, 0.0)
+        sched_raw = 0.0
+        for line in self.installment_ids:
+            sched_raw += max(line.amount_due - line.amount_paid, 0.0)
+
+        if float_is_zero(self.total_with_tax or 0.0, precision_rounding=rnd) and self.installment_ids:
+            raw = sched_raw
+        else:
+            raw = contract_raw
+
         if self.currency_id:
             return self.currency_id.round(raw)
         return raw
