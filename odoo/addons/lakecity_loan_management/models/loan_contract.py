@@ -81,7 +81,11 @@ class LakecityLoanContract(models.Model):
     accrued_amount = fields.Monetary(compute="_compute_collection_metrics", store=True)
     current_due_amount = fields.Monetary(compute="_compute_collection_metrics", store=True)
     next_payment_due_amount = fields.Monetary(compute="_compute_collection_metrics", store=True)
-    next_payment_date = fields.Date(compute="_compute_collection_metrics", store=True)
+    next_payment_date = fields.Date(
+        compute="_compute_collection_metrics",
+        store=True,
+        help="Due date of the oldest installment with a balance (includes overdue lines).",
+    )
     days_overdue = fields.Integer(compute="_compute_collection_metrics", store=True)
 
     _lakecity_loan_contract_external_uid_unique = models.Constraint(
@@ -258,7 +262,12 @@ class LakecityLoanContract(models.Model):
             ).sorted(key=lambda l: l.due_date)
             rec.current_due_amount = current_lines[0].amount_outstanding if current_lines else 0.0
             rec.next_payment_due_amount = rec.accrued_amount + rec.current_due_amount
-            rec.next_payment_date = current_lines[0].due_date if current_lines else False
+            # Next due *date* must reflect the oldest unpaid installment (including overdue).
+            # Using only future-due lines pushed next_payment_date forward whenever arrears existed.
+            unpaid_any = rec.installment_ids.filtered(lambda l: l.amount_outstanding > 0).sorted(
+                key=lambda l: (l.due_date or fields.Date.today(), l.sequence)
+            )
+            rec.next_payment_date = unpaid_any[0].due_date if unpaid_any else False
 
             if overdue_lines:
                 oldest = min(overdue_lines.mapped("due_date"))

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.25",
+    "version": "19.0.1.0.26",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     "description": """
 Lakecity BNPL Loan Management
@@ -18,6 +18,7 @@ Implements a dedicated BNPL loan module with:
   * total_paid = deposit + posted payments
   * accrued_amount = past-due unpaid amount
   * next_payment_due_amount = accrued + current due
+  * next_payment_date = earliest unpaid installment due date (overdue or upcoming)
 """,
     "author": "Lakecity",
     "license": "LGPL-3",
