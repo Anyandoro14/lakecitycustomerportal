@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.32",
+    "version": "19.0.1.0.34",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
-    "description": """
-Lakecity BNPL Loan Management
-=============================
-
-Implements BNPL loan products, contracts per customer/stand, installment schedules,
-oldest-due-first payment allocation, and customer-portal KPIs (balances,
-accrued amounts, next payment date and amount). See README in this addon for formula detail.
-
-Monthly installment splits financed principal evenly by currency minor units;
-due dates follow the loan due-day cadence (default 5th of month).
-""",
+    # Avoid RST-looking multi-line Python docstrings with indented wraps in this addon; Odoo feeds
+    # them through docutils during registry load and logs "(ERROR/3) Unexpected indentation".
+    "description": (
+        "Lakecity BNPL Loan Management: loan products, per-customer contracts and stands, "
+        "auto installment schedules, oldest-due-first payment allocation, receipt intake, "
+        "and portal-facing balances and KPIs. Schedule math and KPI definitions are in README.md."
+    ),
     "author": "Lakecity",
     "license": "LGPL-3",
     "category": "Accounting/Accounting",

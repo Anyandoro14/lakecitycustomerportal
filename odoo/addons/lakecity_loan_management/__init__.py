@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 
 
 def post_init_hook(cr, registry):
-    """Install-only hooks (module **upgrade** uses ``migrations/*/post-migrate.py``)."""
+    """Install-only hooks; module upgrades run migrations/post-migrate.py instead."""
     try:
         from odoo import SUPERUSER_ID, api
 

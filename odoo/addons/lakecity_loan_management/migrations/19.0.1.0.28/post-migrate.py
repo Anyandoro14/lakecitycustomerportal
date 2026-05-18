@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Runs on module upgrade to 19.0.1.0.28 — ``post_init_hook`` does NOT run on upgrade."""
+"""Runs on module upgrade to 19.0.1.0.28 (post_init_hook does not run on upgrade)."""
 import logging
 
 from odoo import SUPERUSER_ID, api

@@ -49,11 +49,7 @@ class LakecityLoanInstallment(models.Model):
                 line.state = "pending"
 
     def action_lakecity_refresh_stored_computes(self):
-        """Redo stored derives (Outstanding, State) from current Due/Paid amounts.
-
-        Prefer ``loan.contract.action_recompute_installment_states`` to also
-        re-allocate posted payments oldest-due-first.
-        """
+        """Refresh stored Outstanding and State from current due/paid amounts (use loan.contract action_recompute_installment_states to re-allocate payments too)."""
         if not self:
             return True
         self._compute_amount_outstanding()

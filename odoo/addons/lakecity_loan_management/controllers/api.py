@@ -225,7 +225,7 @@ class LakecityLoanApiController(http.Controller):
         return partner
 
     def _ensure_lakecity_crm_lead_first(self, external_uid, stand_number, partner_payload):
-        """Create or reuse a CRM lead **before** partner/contract when strict CRM-first is requested."""
+        """Create or reuse a CRM lead before partner or contract when strict CRM-first is requested."""
         Lead = request.env["crm.lead"].sudo()
         existing = Lead.search([("lakecity_contract_external_uid", "=", external_uid)], limit=1)
         if existing:

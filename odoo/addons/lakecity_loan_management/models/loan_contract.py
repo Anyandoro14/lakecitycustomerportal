@@ -143,12 +143,7 @@ class LakecityLoanContract(models.Model):
         return nxt.replace(day=dd)
 
     def _lakecity_split_financed_into_installments(self, financed, n):
-        """Split principal into *n* rounded lines that sum to *financed* (minor units).
-
-        Using ``round(financed / n)`` per line can yield **0** on every line except the last when
-        ``financed / n`` is below half a rounding unit — or corrupt schedules when combined with
-        bad imports. Splitting integer minor units keeps amounts consistent.
-        """
+        """Split financed principal into n rounded installment amounts using currency minor units (consistent totals)."""
         self.ensure_one()
         cur = self.currency_id or self.company_id.currency_id
         rnd = cur.rounding or 0.01
@@ -348,11 +343,7 @@ class LakecityLoanContract(models.Model):
             rec._rebuild_payment_allocations()
 
     def _lakecity_try_repair_zero_schedule(self):
-        """Regenerate schedule when every line has zero due but financed principal is positive.
-
-        Typical bad data: legacy rounding/import produced all-zero ``amount_due`` rows.
-        Returns True if a regeneration ran.
-        """
+        """Regenerate schedule when financed principal is positive but every installment amount due is zero; returns True if a run occurred."""
         self.ensure_one()
         lines = self.installment_ids
         if not lines:
@@ -402,12 +393,7 @@ class LakecityLoanContract(models.Model):
         }
 
     def _lakecity_bnpl_gl_outstanding_balance(self):
-        """Amount to mirror on GL: contract balance, or installment Schedule fallback.
-
-        Uses ``total_with_tax − deposit − posted payments`` when **Total with tax** is set.
-        When it is **0 / missing** (bad imports), falls back to **sum of installment
-        balances still due** so the mirror tracks receipts as installments are allocated.
-        """
+        """Outstanding balance for BNPL GL mirror: contract formula when total_with_tax is set, else sum of unpaid installment balances."""
         self.ensure_one()
         posted_payments = sum(p.amount for p in self.payment_ids if p.state == "posted")
         total_paid = (self.deposit_amount or 0.0) + posted_payments
