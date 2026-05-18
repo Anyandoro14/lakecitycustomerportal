@@ -191,14 +191,14 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
-/** Union of stand numbers across all Collection Schedule - Nmo tabs (and legacy tabs). */
-async function fetchValidStandNumbersFromAllCollectionTabs(
+/** Map stand_number -> sheetTitle across all Collection Schedule tabs. */
+async function fetchStandToTabMap(
   accessToken: string,
   spreadsheetId: string,
   sheets: { properties?: { title?: string } }[],
-): Promise<Set<string>> {
+): Promise<Map<string, string>> {
   const tabTitles = listCollectionScheduleDataTabTitles(sheets as { properties: { title?: string } }[]);
-  const validStands = new Set<string>();
+  const standToTab = new Map<string, string>();
 
   for (const sheetTitle of tabTitles) {
     const range = encodeURIComponent(`${sheetTitle}!A:E`);
@@ -225,12 +225,14 @@ async function fetchValidStandNumbersFromAllCollectionTabs(
 
     for (let i = 1; i < rows.length; i++) {
       const standNum = rows[i][standNumIndex]?.toString().trim();
-      if (standNum) validStands.add(standNum);
+      if (standNum && !standToTab.has(standNum)) {
+        standToTab.set(standNum, sheetTitle);
+      }
     }
   }
 
-  console.log(`Found ${validStands.size} valid stand numbers across ${tabTitles.length} collection tab(s)`);
-  return validStands;
+  console.log(`Mapped ${standToTab.size} stand numbers across ${tabTitles.length} collection tab(s)`);
+  return standToTab;
 }
 
 // Fetch one Collection Schedule tab with row mappings for posting
