@@ -370,11 +370,11 @@ class LakecityLoanContract(models.Model):
     def action_repair_zero_amount_schedule(self):
         """Button / batch action: fix contracts whose installments are all zero-due incorrectly."""
         repaired = self.browse()
-        for rec in self:
+        for rec in self.sudo():
             if rec._lakecity_try_repair_zero_schedule():
                 repaired |= rec
         if len(self) == 1 and not repaired:
-            rec = self
+            rec = self.sudo()
             cur = rec.currency_id or rec.company_id.currency_id
             rnd = cur.rounding or 0.01
             fin = rec.financed_amount or 0.0
@@ -540,7 +540,8 @@ class LakecityLoanContract(models.Model):
 
     def action_recompute_installment_states(self):
         """Rebuild posted-payment allocation onto lines, then refresh stored installment computes."""
-        contracts = self
+        # sudo: loan users often have read-only ACL on installments; allocation must write amount_paid.
+        contracts = self.sudo()
         contracts._rebuild_payment_allocations()
         installments = contracts.mapped("installment_ids")
         if installments:
