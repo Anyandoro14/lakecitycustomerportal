@@ -312,7 +312,9 @@ class LakecityLoanContract(models.Model):
         self.write({"state": "closed"})
 
     def action_generate_schedule(self):
-        for rec in self:
+        # sudo(): regenerate deletes/recreates installments; Loan Users only have read ACL on
+        # installment lines, but must still run schedule/recompute flows from the contract form.
+        for rec in self.sudo():
             rec.installment_ids.unlink()
             if rec.term_months <= 0:
                 continue
@@ -339,7 +341,7 @@ class LakecityLoanContract(models.Model):
                         "amount_paid": 0.0,
                     }
                 )
-            self.env["lakecity.loan.installment"].create(lines)
+            rec.env["lakecity.loan.installment"].create(lines)
             rec._rebuild_payment_allocations()
 
     def _lakecity_try_repair_zero_schedule(self):

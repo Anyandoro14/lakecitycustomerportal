@@ -22,6 +22,13 @@ This module provides a dedicated loan engine in Odoo for BNPL operations.
 - `lakecity.loan.installment`
 - `lakecity.loan.payment`
 
+## Roles (Lakecity Loan User vs Manager)
+
+- **Lakecity Loan User** (`group_lakecity_loan_user`) — operational staff with loan menus and **write access on contracts only**, so header/form buttons (**Activate**, **Generate Schedule**, **Recompute installments**, etc.) work in Odoo 19 (Odoo requires model write permission before executing object buttons).
+- **Lakecity Loan Manager** (`group_lakecity_loan_manager`) — full CRUD on loan products, contracts, installments, payments, receipt intake, and backfill wizard.
+
+If buttons appear disabled or clicks raise **Access Error**, assign **Loan Manager** or confirm your login has **Lakecity Loan User** plus **write on contracts** (upgrade module **19.0.1.0.37+** if missing).
+
 ## Workflow
 
 1. Create Loan Product.
