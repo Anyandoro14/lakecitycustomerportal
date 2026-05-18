@@ -27,20 +27,25 @@
             <form string="Loan Contract">
                 <header>
                     <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
+                    <!-- Keep Recompute early: some clients collapse trailing header buttons into a menu. -->
+                    <button name="action_recompute_installment_states" type="object" string="Recompute installments" class="btn-secondary"/>
                     <button name="action_generate_schedule" type="object" string="Generate Schedule"/>
                     <button
                         name="action_repair_zero_amount_schedule"
                         type="object"
                         string="Repair zero‑due schedule"
                         title="Use when every installment shows Amount due = 0 but the contract has positive financed amount (bad import/rounding). Regenerates lines and re-applies posted payments."/>
-                    <button
-                        name="action_recompute_installment_states"
-                        type="object"
-                        string="Recompute installments"/>
                     <button name="action_close" type="object" string="Close" invisible="state == 'closed'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,active,closed,defaulted"/>
                 </header>
                 <sheet>
+                    <!-- Always-visible fallback if header buttons are hidden by theme / overflow / stale assets -->
+                    <div class="alert alert-info mb-3" role="region" aria-label="Schedule tools">
+                        <span class="fw-bold me-2">Schedule tools</span>
+                        <button name="action_recompute_installment_states" type="object" string="Recompute installments" class="btn btn-primary btn-sm"/>
+                        <button name="action_repair_zero_amount_schedule" type="object" string="Repair zero‑due schedule" class="btn btn-secondary btn-sm ms-1"/>
+                        <span class="text-muted ms-2">Applies posted BNPL payments to installment lines (also works when the contract is Closed).</span>
+                    </div>
                     <group>
                         <group>
                             <field name="name" readonly="1"/>
