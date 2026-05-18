@@ -1,24 +1,18 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.31",
+    "version": "19.0.1.0.32",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     "description": """
 Lakecity BNPL Loan Management
 =============================
 
-Implements a dedicated BNPL loan module with:
-- Loan products and term templates
-- Loan contracts per customer/stand
-- Auto-generated installment schedules
-- Payment posting with oldest-due-first allocation
-- Core financial KPIs used by the customer portal:
-  * monthly payment = (total_with_tax - deposit) / term (flat; 0% products use principal-only split)
-  * installment due dates align to Loan Product due day monthly (default 5th)
-  * total_paid = deposit + posted payments
-  * accrued_amount = past-due unpaid amount
-  * next_payment_due_amount = accrued + current due
-  * next_payment_date = earliest unpaid installment due date (overdue or upcoming)
+Implements BNPL loan products, contracts per customer/stand, installment schedules,
+oldest-due-first payment allocation, and customer-portal KPIs (balances,
+accrued amounts, next payment date and amount). See README in this addon for formula detail.
+
+Monthly installment splits financed principal evenly by currency minor units;
+due dates follow the loan due-day cadence (default 5th of month).
 """,
     "author": "Lakecity",
     "license": "LGPL-3",
