@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from . import ir_module_module
 from . import account_move
 from . import account_payment_bnpl
 from . import account_payment_method

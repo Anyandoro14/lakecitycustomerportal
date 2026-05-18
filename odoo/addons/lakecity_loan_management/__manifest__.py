@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.37",
+    "version": "19.0.1.0.38",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     # Avoid RST-looking multi-line Python docstrings with indented wraps in this addon; Odoo feeds
     # them through docutils during registry load and logs "(ERROR/3) Unexpected indentation".

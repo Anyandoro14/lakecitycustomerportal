@@ -29,6 +29,10 @@ This module provides a dedicated loan engine in Odoo for BNPL operations.
 
 If buttons appear disabled or clicks raise **Access Error**, assign **Loan Manager** or confirm your login has **Lakecity Loan User** plus **write on contracts** (upgrade module **19.0.1.0.37+** if missing).
 
+### Docutils / “Unexpected indentation” in Odoo.sh logs
+
+Odoo renders Apps descriptions with docutils when HTML is missing. This addon ships `static/description/index.html` **and** extends `ir.module.module._get_desc` for `lakecity_loan_management` so RST is never used for our module (avoids stderr noise if paths differ on the host).
+
 ## Workflow
 
 1. Create Loan Product.
