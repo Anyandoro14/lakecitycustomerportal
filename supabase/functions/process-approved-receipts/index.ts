@@ -851,13 +851,14 @@ serve(async (req) => {
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
 
-    // Step 1: Valid stands = union across all collection schedule tabs
-    console.log('Step 1: Loading stand numbers from all Collection Schedule tabs...');
-    const validStands = await fetchValidStandNumbersFromAllCollectionTabs(
+    // Step 1: Build stand -> tab map across all collection schedule tabs
+    console.log('Step 1: Mapping stands to Collection Schedule tabs...');
+    const standToTab = await fetchStandToTabMap(
       accessToken,
       spreadsheetId,
       sheets,
     );
+    const validStands = new Set(standToTab.keys());
 
     // Step 2: Fetch and validate receipts from Receipts_Intake
     console.log('Step 2: Processing receipts from Receipts_Intake...');
@@ -879,22 +880,33 @@ serve(async (req) => {
       standToMonths.set(sn, m);
     }
 
-    // Step 3: Post per tab (group receipts by resolved Collection Schedule tab)
+    // Step 3: Post per tab — resolve tab from the actual sheet location of each stand
+    // (authoritative), falling back to profile.payment_plan_months only if the stand is
+    // somehow not in the map.
     console.log('Step 3: Posting approved receipts to Collection Schedule...');
     const posted: PostedReceipt[] = [];
 
     const groups = new Map<string, ApprovedReceipt[]>();
     for (const rec of approved) {
-      const sn = rec.stand_number?.toString().trim().toUpperCase() || '';
-      const months = standToMonths.get(sn) ?? DEFAULT_PAYMENT_PLAN_MONTHS;
-      const resolved = resolveCollectionScheduleSheetTitle(sheets, {
-        paymentPlanMonths: months,
-        envPreferredName: Deno.env.get('SHEET_NAME'),
-        envPreferredGid: Deno.env.get('SHEET_GID'),
-      });
-      const key = resolved.sheetTitle;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(rec);
+      const snRaw = rec.stand_number?.toString().trim() || '';
+      const sn = snRaw.toUpperCase();
+      // PRIMARY: use the tab the stand actually lives in
+      let sheetTitle = standToTab.get(snRaw) || standToTab.get(sn);
+      if (!sheetTitle) {
+        // FALLBACK: profile months → canonical tab name
+        const months = standToMonths.get(sn) ?? DEFAULT_PAYMENT_PLAN_MONTHS;
+        const resolved = resolveCollectionScheduleSheetTitle(sheets, {
+          paymentPlanMonths: months,
+          envPreferredName: Deno.env.get('SHEET_NAME'),
+          envPreferredGid: Deno.env.get('SHEET_GID'),
+        });
+        sheetTitle = resolved.sheetTitle;
+        console.warn(`[FALLBACK TAB] Stand ${snRaw} not found in any tab; using "${sheetTitle}"`);
+      } else {
+        console.log(`[TAB MATCH] Stand ${snRaw} -> "${sheetTitle}"`);
+      }
+      if (!groups.has(sheetTitle)) groups.set(sheetTitle, []);
+      groups.get(sheetTitle)!.push(rec);
     }
 
     for (const [sheetTitle, tabReceipts] of groups) {
