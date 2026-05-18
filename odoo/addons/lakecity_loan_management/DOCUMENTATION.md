@@ -1,5 +1,7 @@
 # Lakecity BNPL Loan Management (Odoo)
 
+Developer-facing notes for this addon. This file is intentionally **not** named `README.md`: Odoo’s manifest loader treats `README.md` as the module description when the manifest omits `description`, and Markdown is parsed through docutils as RST, which spuriously logs `Unexpected indentation` during builds.
+
 This module provides a dedicated loan engine in Odoo for BNPL operations.
 
 ## Core formulas implemented
