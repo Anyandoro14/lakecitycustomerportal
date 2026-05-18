@@ -70,6 +70,37 @@ Python/XML changes from Git **do not run** until Odoo loads the new module versi
 
 If installment lines still show **Amount due = 0** after upgrade: open the loan → **Repair zero‑due schedule** (manager button), or **Generate Schedule** again after checking **Total price** / **Deposit**.
 
+## 2c) **Force** upgrade when the UI looks unchanged
+
+Try in order:
+
+1. **Prove Git reached Odoo.sh**  
+   Odoo.sh → **Branches** → your branch → latest **Build** → **Logs**. Confirm checkout lists commit SHA that contains `odoo/addons/lakecity_loan_management` changes. If the build is **red/yellow**, fix it first—upgrade won’t load new code reliably.
+
+2. **Rebuild**  
+   Same branch screen → **Rebuild** (or push an empty commit). Wait until the build is **green**.
+
+3. **Developer mode + refresh module list**  
+   Settings → scroll down → **Activate the developer mode**.  
+   **Apps** → **Update Apps List** → confirm.
+
+4. **Upgrade from the module form (not only Kanban)**  
+   Apps → remove **“Apps”** filter → search **Lakecity BNPL** → **open the module row** (form view) → **Upgrade**.  
+   If **Upgrade** is missing, the DB may think nothing changed: bump `version` in `__manifest__.py` (already bumped in Git), rebuild, repeat steps 2–4.
+
+5. **CLI force (Odoo.sh shell, when available)**  
+   Open **Web Shell** / SSH for that **staging** build (Odoo docs vary by project). Typical pattern (adjust DB name and Odoo binary path—often `/home/odoo/src/user/` or platform docs):
+
+   ```bash
+   odoo-bin -c odoo.conf -d YOUR_DATABASE_NAME -u lakecity_loan_management --stop-after-init
+   ```
+
+   Run only on **staging** until you’re confident; production equivalent is usually Odoo.sh **Scheduled Action / Support** guidance.
+
+6. **Hard refresh browser** after upgrade (`Ctrl+F5` / clear cache)—views are heavily cached.
+
+If **version** on the module form never increases vs Git `__manifest__.py`, the running server is **not** using this repository path or branch—fix **Odoo.sh project → Git submodule / addons path** first.
+
 ## 3) Configure API token
 
 Set Odoo system parameter:
