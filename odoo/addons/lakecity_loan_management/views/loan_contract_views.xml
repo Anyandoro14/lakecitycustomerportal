@@ -79,7 +79,7 @@
                     <notebook>
                         <page string="Installments">
                             <field name="installment_ids" readonly="1">
-                                <list default_order="due_date asc, sequence asc" decoration-success="state == 'paid'" decoration-warning="state == 'partial'" decoration-danger="state == 'overdue'">
+                                <list>
                                     <field name="currency_id" column_invisible="1"/>
                                     <field name="sequence"/>
                                     <field name="due_date"/>

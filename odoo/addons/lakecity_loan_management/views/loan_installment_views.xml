@@ -4,7 +4,7 @@
         <field name="name">lakecity.loan.installment.tree</field>
         <field name="model">lakecity.loan.installment</field>
         <field name="arch" type="xml">
-            <list default_order="due_date asc, sequence asc" decoration-success="state == 'paid'" decoration-warning="state == 'partial'" decoration-danger="state == 'overdue'">
+            <list>
                 <field name="contract_id"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="sequence"/>
