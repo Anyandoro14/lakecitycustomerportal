@@ -4,13 +4,14 @@
         <field name="name">lakecity.loan.installment.tree</field>
         <field name="model">lakecity.loan.installment</field>
         <field name="arch" type="xml">
-            <list>
+            <list default_order="due_date asc, sequence asc" decoration-success="state == 'paid'" decoration-warning="state == 'partial'" decoration-danger="state == 'overdue'">
                 <field name="contract_id"/>
+                <field name="currency_id" column_invisible="1"/>
                 <field name="sequence"/>
                 <field name="due_date"/>
-                <field name="amount_due"/>
-                <field name="amount_paid"/>
-                <field name="amount_outstanding"/>
+                <field name="amount_due" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="amount_paid" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="amount_outstanding" widget="monetary" options="{'currency_field': 'currency_id'}"/>
                 <field name="state"/>
             </list>
         </field>
