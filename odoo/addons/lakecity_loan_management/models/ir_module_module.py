@@ -14,7 +14,7 @@ import os
 import lxml.html
 from markupsafe import escape
 
-from odoo import models
+from odoo import api, models
 from odoo.tools import file_open, html_sanitize
 
 _logger = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ class IrModuleModule(models.Model):
                 element.set("src", "/%s/static/description/%s" % (module.name, src))
         return html_sanitize(lxml.html.tostring(html, encoding="unicode"))
 
+    @api.depends("name", "description")
     def _get_desc(self):
         ours = self.filtered(lambda m: m.name == LAKECITY_LOAN_MODULE)
         rest = self - ours

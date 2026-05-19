@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 import logging
 
+try:
+    from odoo.addons.lakecity_branding import lakecity_docutils_quiet as _lakecity_docutils_quiet
+except ImportError:
+    _lakecity_docutils_quiet = None
+else:
+    _lakecity_docutils_quiet.apply_patch()
+
 from . import models
 from . import wizard
 from . import controllers

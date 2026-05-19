@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "LakeCity Branding",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.2",
     "summary": "LakeCity ERP theming aligned with portal / StandLedger visual language.",
     "author": "Lakecity",
     "license": "LGPL-3",
