@@ -38,7 +38,63 @@ Operational loop when a build goes **red**:
 2. Find the **first** `ERROR`/`Traceback` **that belongs to build creation**, not sporadic runtime (e.g. AI tools firing after login).
 3. Fix that root cause, push, hit **Rebuild** if needed.
 
+### “`… is not a valid action on lakecity.loan.contract`” (view validation)
+
+Odoo **19** checks every **`type="object"`** button against the **Python model class**. That error means **`getattr(lakecity.loan.contract, button_name)` failed** — usually **Git mismatch**: the **view XML** on the server references a method that is **not** in **`loan_contract.py`** on that same build (e.g. XML merged from one machine/repo but **`models/loan_contract.py` not pushed** to **Standledger**, or an old build).
+
+On **Web Shell**, confirm Python and XML are from the same revision:
+
+```bash
+grep -n "action_recompute_installment_states" /home/odoo/src/user/odoo/addons/lakecity_loan_management/models/loan_contract.py
+grep -F "action_recompute_installment_states" /home/odoo/src/user/odoo/addons/lakecity_loan_management/views/loan_contract_views.xml
+git -C /home/odoo/src/user rev-parse HEAD
+```
+
+If the first `grep` prints nothing but the second matches, **push `loan_contract.py`** (and any related files) to **Standledger**, **Rebuild**, then **`-u lakecity_loan_management`** again.
+
+**Note:** `~/logs/odoo.log` is often empty on Odoo.sh while **`~/logs/update.log`** captures **`odoo-bin --stop-after-init`** output — tail **`update.log`** after upgrades.
+
 **Note:** Warnings such as **`Model attribute '_sql_constraints' is no longer supported`** usually come from **other** installed Odoo/community/enterprise models, **not** from Lakecity addons (which declare **`models.Constraint`**). They rarely explain a red build by themselves unless your project treats warnings as failures.
+
+---
+
+## SSH / Web Shell: read Odoo logs (when the Logs UI is empty)
+
+Odoo.sh containers write logs under **`$HOME/logs/`** (usually **`/home/odoo/logs/`**). Module **install/upgrade** errors often appear in **`update.log`**; live server tracebacks in **`odoo.log`**.
+
+From the shell your **current directory is often `~`** (`/home/odoo`). The helper script ships **inside this Git repo**, not in `~/scripts/`, so **`bash scripts/odoo_sh_logs.sh`** fails until you **`cd`** into the checkout or use the full path below.
+
+**After your branch has rebuilt with the latest Git** (this repo includes `odoo/addons/lakecity_loan_management/scripts/odoo_sh_logs.sh`):
+
+```bash
+bash ~/src/user/odoo/addons/lakecity_loan_management/scripts/odoo_sh_logs.sh errors
+bash ~/src/user/odoo/addons/lakecity_loan_management/scripts/odoo_sh_logs.sh all
+bash ~/src/user/odoo/addons/lakecity_loan_management/scripts/odoo_sh_logs.sh diag
+bash ~/src/user/odoo/addons/lakecity_loan_management/scripts/odoo_sh_logs.sh tail
+```
+
+If that path does not exist yet, locate the script or your addons root:
+
+```bash
+find /home/odoo/src/user -maxdepth 6 -name 'odoo_sh_logs.sh' 2>/dev/null
+ls -la /home/odoo/src/user
+```
+
+**Works immediately without the script file** (copy-paste):
+
+```bash
+# ERROR / Traceback / XML-ish failures (last matches per file)
+for f in "$HOME/logs/odoo.log" "$HOME/logs/update.log" "$HOME/logs/install.log" "$HOME/logs/pip.log"; do
+  echo "======== $f ========"
+  if [ -f "$f" ]; then grep -n -iE 'ERROR|Traceback|CRITICAL|RelaxNG|ParseError|ValidationError|XMLSyntaxError' "$f" | tail -60
+  else echo "(missing)"; fi
+done
+
+# Last lines of each standard log
+for f in "$HOME/logs/odoo.log" "$HOME/logs/update.log"; do
+  echo "======== tail $f ========"; [ -f "$f" ] && tail -n 100 "$f"; echo
+done
+```
 
 ---
 

@@ -1,26 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Tab sits after General Information / Branches (base.view_company_form notebook). -->
     <record id="view_company_form_inherit_lakecity_bnpl_gl" model="ir.ui.view">
         <field name="name">res.company.form.inherit.lakecity.bnpl.gl</field>
         <field name="model">res.company</field>
         <field name="inherit_id" ref="base.view_company_form"/>
         <field name="arch" type="xml">
-            <!-- One notebook sits under sheet in standard company form (chatter is after sheet). -->
             <xpath expr="//sheet/notebook" position="inside">
-                <!-- Multiple groups → OR (any match): loan managers rarely have Billing admins. -->
                 <page string="Lakecity BNPL"
                       groups="account.group_account_manager,lakecity_loan_management.group_lakecity_loan_manager">
-                    <group string="Loan balances on GL" groups="account.group_account_manager">
+                    <group string="Stand sales accounting (ZIMRA walkthrough)" groups="account.group_account_manager">
+                        <field name="lakecity_stand_sales_accounting_enabled"/>
+                        <field name="lakecity_stand_sales_journal_id"
+                               invisible="not lakecity_stand_sales_accounting_enabled"/>
+                        <field name="lakecity_stand_inventory_reclass_enabled"
+                               invisible="not lakecity_stand_sales_accounting_enabled"/>
+                        <field name="lakecity_cancellation_admin_fee_percent"
+                               invisible="not lakecity_stand_sales_accounting_enabled"/>
+                        <button name="action_lakecity_remittance_vat"
+                                type="object"
+                                string="Remit VAT Output balance"
+                                class="btn-secondary"
+                                invisible="not lakecity_stand_sales_accounting_enabled"
+                                groups="account.group_account_manager"/>
+                    </group>
+                    <group string="Legacy BNPL GL mirror"
+                           invisible="lakecity_stand_sales_accounting_enabled"
+                           groups="account.group_account_manager">
                         <field name="lakecity_bnpl_future_receivable_gl_enabled"/>
                         <field name="lakecity_bnpl_journal_id" invisible="not lakecity_bnpl_future_receivable_gl_enabled"/>
                         <field name="lakecity_bnpl_installment_clearing_account_id"
                                invisible="not lakecity_bnpl_future_receivable_gl_enabled"/>
                     </group>
-                    <group string="Recognition of BNPL receipts">
+                    <group string="Recognition of BNPL receipts"
+                           invisible="lakecity_stand_sales_accounting_enabled">
                         <field name="lakecity_bnpl_post_bank_payment_per_receipt"/>
                         <field name="lakecity_bnpl_collections_journal_id"
                                invisible="not lakecity_bnpl_post_bank_payment_per_receipt"/>
+                    </group>
+                    <group string="Bank journal for stand sale receipts"
+                           invisible="not lakecity_stand_sales_accounting_enabled">
+                        <field name="lakecity_bnpl_collections_journal_id"/>
                     </group>
                 </page>
             </xpath>

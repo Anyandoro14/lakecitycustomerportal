@@ -55,6 +55,33 @@ class LakecityLoanPayment(models.Model):
         copy=False,
         check_company=True,
     )
+    lakecity_stand_accounting_done = fields.Boolean(
+        string="Stand sales JEs posted",
+        readonly=True,
+        copy=False,
+        default=False,
+    )
+    lakecity_receipt_move_id = fields.Many2one(
+        "account.move",
+        string="Receipt JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_revenue_move_id = fields.Many2one(
+        "account.move",
+        string="Revenue/VAT JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_cos_move_id = fields.Many2one(
+        "account.move",
+        string="COS JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
 
     _lakecity_loan_payment_external_uid_unique = models.Constraint(
         "unique(external_uid)",
@@ -101,6 +128,10 @@ class LakecityLoanPayment(models.Model):
     def _lakecity_ensure_bank_payment(self):
         for rec in self:
             company = rec.contract_id.company_id.sudo()
+            if company.lakecity_stand_sales_accounting_enabled:
+                if rec.state == "posted" and not rec.lakecity_stand_accounting_done:
+                    rec.contract_id._lakecity_post_payment_accounting(rec)
+                continue
             if not company.lakecity_bnpl_post_bank_payment_per_receipt:
                 continue
             if rec.state != "posted":

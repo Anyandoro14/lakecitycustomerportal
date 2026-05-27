@@ -1,0 +1,926 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="lakecity_coa_101000" model="account.account">
+        <field name="code">101000</field>
+        <field name="name">Current Assets</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_101401" model="account.account">
+        <field name="code">101401</field>
+        <field name="name">Bank</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101402" model="account.account">
+        <field name="code">101402</field>
+        <field name="name">Bank Suspense Account</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_101403" model="account.account">
+        <field name="code">101403</field>
+        <field name="name">Outstanding Receipts</field>
+        <field name="account_type">asset_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_101404" model="account.account">
+        <field name="code">101404</field>
+        <field name="name">Outstanding Payments</field>
+        <field name="account_type">asset_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_101410" model="account.account">
+        <field name="code">101410</field>
+        <field name="name">CABS - Main USD Current Account - 1129888509</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101411" model="account.account">
+        <field name="code">101411</field>
+        <field name="name">CABS - Main ZiG Current Account - 1003526446</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101412" model="account.account">
+        <field name="code">101412</field>
+        <field name="name">CABS - Waltich - 975</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101413" model="account.account">
+        <field name="code">101413</field>
+        <field name="name">CABS - Savings USD - 1154674991</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101414" model="account.account">
+        <field name="code">101414</field>
+        <field name="name">CABS - Lytton USD - 1154675017</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101415" model="account.account">
+        <field name="code">101415</field>
+        <field name="name">CABS - Lytton USD - 1154675033</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101416" model="account.account">
+        <field name="code">101416</field>
+        <field name="name">Cash</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101417" model="account.account">
+        <field name="code">101417</field>
+        <field name="name">Ecocash USD</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101418" model="account.account">
+        <field name="code">101418</field>
+        <field name="name">Jumpstart (CAD)</field>
+        <field name="account_type">asset_cash</field>
+    </record>
+    <record id="lakecity_coa_101701" model="account.account">
+        <field name="code">101701</field>
+        <field name="name">Liquidity Transfer</field>
+        <field name="account_type">asset_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_110100" model="account.account">
+        <field name="code">110100</field>
+        <field name="name">Stock Valuation</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110110" model="account.account">
+        <field name="code">110110</field>
+        <field name="name">Inventory - Residential Stands Available</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110120" model="account.account">
+        <field name="code">110120</field>
+        <field name="name">Inventory - Active Allocated Stands</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110130" model="account.account">
+        <field name="code">110130</field>
+        <field name="name">Inventory - Defaulted / Repossessable Stands</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110140" model="account.account">
+        <field name="code">110140</field>
+        <field name="name">Inventory - Settler / Beneficiary Stands</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110150" model="account.account">
+        <field name="code">110150</field>
+        <field name="name">Inventory - Developer Allocation Pending</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110500" model="account.account">
+        <field name="code">110500</field>
+        <field name="name">Work in Progress</field>
+        <field name="account_type">asset_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_110510" model="account.account">
+        <field name="code">110510</field>
+        <field name="name">Development WIP - Roads and Access Works</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110520" model="account.account">
+        <field name="code">110520</field>
+        <field name="name">Development WIP - Water Infrastructure</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110530" model="account.account">
+        <field name="code">110530</field>
+        <field name="name">Development WIP - Sewer Infrastructure</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110540" model="account.account">
+        <field name="code">110540</field>
+        <field name="name">Development WIP - Stormwater and Drainage</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110550" model="account.account">
+        <field name="code">110550</field>
+        <field name="name">Development WIP - Electricity and Street Lighting</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110560" model="account.account">
+        <field name="code">110560</field>
+        <field name="name">Development WIP - Survey and Engineering</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110570" model="account.account">
+        <field name="code">110570</field>
+        <field name="name">Development WIP - Endowment and Compliance</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_110580" model="account.account">
+        <field name="code">110580</field>
+        <field name="name">Development WIP - General Site Costs</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_121000" model="account.account">
+        <field name="code">121000</field>
+        <field name="name">Account Receivable</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_121001" model="account.account">
+        <field name="code">121001</field>
+        <field name="name">Trade Receivable — Alex Nyandoro</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_121010" model="account.account">
+        <field name="code">121010</field>
+        <field name="name">Customer Receivables - Completed Stand Sales</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_121015" model="account.account">
+        <field name="code">121015</field>
+        <field name="name">Defaulted Customer Receivables</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_121020" model="account.account">
+        <field name="code">121020</field>
+        <field name="name">Customer Receivables - Fees and Recoveries</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_121030" model="account.account">
+        <field name="code">121030</field>
+        <field name="name">VAT Input Recoverable</field>
+        <field name="account_type">asset_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_121040" model="account.account">
+        <field name="code">121040</field>
+        <field name="name">Developer Receivables / Recoverable Costs</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_122000" model="account.account">
+        <field name="code">122000</field>
+        <field name="name">Owner's Current Account</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_122010" model="account.account">
+        <field name="code">122010</field>
+        <field name="name">Staff Loans and Advances</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_128000" model="account.account">
+        <field name="code">128000</field>
+        <field name="name">Prepaid Expenses</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_131000" model="account.account">
+        <field name="code">131000</field>
+        <field name="name">Tax Paid</field>
+        <field name="account_type">asset_current</field>
+    </record>
+    <record id="lakecity_coa_132000" model="account.account">
+        <field name="code">132000</field>
+        <field name="name">Tax Receivable</field>
+        <field name="account_type">asset_receivable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_141000" model="account.account">
+        <field name="code">141000</field>
+        <field name="name">Prepayments</field>
+        <field name="account_type">asset_prepayments</field>
+    </record>
+    <record id="lakecity_coa_151000" model="account.account">
+        <field name="code">151000</field>
+        <field name="name">Fixed Asset</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_151010" model="account.account">
+        <field name="code">151010</field>
+        <field name="name">Office Equipment</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_151020" model="account.account">
+        <field name="code">151020</field>
+        <field name="name">Furniture and Fittings</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_151030" model="account.account">
+        <field name="code">151030</field>
+        <field name="name">Computers and IT Equipment</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_151040" model="account.account">
+        <field name="code">151040</field>
+        <field name="name">Motor Vehicles</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_151050" model="account.account">
+        <field name="code">151050</field>
+        <field name="name">Site Equipment</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_151900" model="account.account">
+        <field name="code">151900</field>
+        <field name="name">Accumulated Depreciation</field>
+        <field name="account_type">asset_fixed</field>
+    </record>
+    <record id="lakecity_coa_191000" model="account.account">
+        <field name="code">191000</field>
+        <field name="name">Non-current assets</field>
+        <field name="account_type">asset_non_current</field>
+    </record>
+    <record id="lakecity_coa_191100" model="account.account">
+        <field name="code">191100</field>
+        <field name="name">Investment Property - Commercial Stands</field>
+        <field name="account_type">asset_non_current</field>
+    </record>
+    <record id="lakecity_coa_191110" model="account.account">
+        <field name="code">191110</field>
+        <field name="name">Investment Property - Flats / High Density Blocks</field>
+        <field name="account_type">asset_non_current</field>
+    </record>
+    <record id="lakecity_coa_191140" model="account.account">
+        <field name="code">191140</field>
+        <field name="name">Investment Property - Other Non-sale Land</field>
+        <field name="account_type">asset_non_current</field>
+    </record>
+    <record id="lakecity_coa_201000" model="account.account">
+        <field name="code">201000</field>
+        <field name="name">Current Liabilities</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_211000" model="account.account">
+        <field name="code">211000</field>
+        <field name="name">Account Payable</field>
+        <field name="account_type">liability_payable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_212000" model="account.account">
+        <field name="code">212000</field>
+        <field name="name">Deferred Revenue</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_212010" model="account.account">
+        <field name="code">212010</field>
+        <field name="name">Contract Liabilities - Customer Deposits / Instalments</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_212020" model="account.account">
+        <field name="code">212020</field>
+        <field name="name">Contract Liabilities - Batch Customers</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_212070" model="account.account">
+        <field name="code">212070</field>
+        <field name="name">Customer Receipts Suspense - Unidentified</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_212080" model="account.account">
+        <field name="code">212080</field>
+        <field name="name">Customer Refunds / Cancellation Clearing</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_212090" model="account.account">
+        <field name="code">212090</field>
+        <field name="name">Customer Refunds Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_213010" model="account.account">
+        <field name="code">213010</field>
+        <field name="name">AOS Fees Payable - Chigwanda Legal Practitioners</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_213020" model="account.account">
+        <field name="code">213020</field>
+        <field name="name">Conveyancing Fees Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221010" model="account.account">
+        <field name="code">221010</field>
+        <field name="name">Developer Settlement - Southland</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221020" model="account.account">
+        <field name="code">221020</field>
+        <field name="name">Developer Settlement - Lomlight</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221030" model="account.account">
+        <field name="code">221030</field>
+        <field name="name">Developer Settlement - Lytton</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221040" model="account.account">
+        <field name="code">221040</field>
+        <field name="name">Developer Settlement - Narru</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221050" model="account.account">
+        <field name="code">221050</field>
+        <field name="name">Developer Settlement - Zambuko</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221060" model="account.account">
+        <field name="code">221060</field>
+        <field name="name">Developer Settlement - Gravenhurst</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221070" model="account.account">
+        <field name="code">221070</field>
+        <field name="name">Developer Settlement - Realtorville / TMCS</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221080" model="account.account">
+        <field name="code">221080</field>
+        <field name="name">Developer Deposits / Commitment Fees</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_221090" model="account.account">
+        <field name="code">221090</field>
+        <field name="name">Developer Advances for Infrastructure</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_230000" model="account.account">
+        <field name="code">230000</field>
+        <field name="name">Salary Payable</field>
+        <field name="account_type">liability_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_230010" model="account.account">
+        <field name="code">230010</field>
+        <field name="name">Payroll Control / Net Salaries Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_230100" model="account.account">
+        <field name="code">230100</field>
+        <field name="name">Employee Payroll Taxes</field>
+        <field name="account_type">liability_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_230110" model="account.account">
+        <field name="code">230110</field>
+        <field name="name">PAYE Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_230120" model="account.account">
+        <field name="code">230120</field>
+        <field name="name">NSSA Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_230130" model="account.account">
+        <field name="code">230130</field>
+        <field name="name">Medical Aid Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_230200" model="account.account">
+        <field name="code">230200</field>
+        <field name="name">Employer Payroll Taxes</field>
+        <field name="account_type">liability_current</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_230210" model="account.account">
+        <field name="code">230210</field>
+        <field name="name">Employer NSSA Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_230220" model="account.account">
+        <field name="code">230220</field>
+        <field name="name">Employer Medical Aid Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_251000" model="account.account">
+        <field name="code">251000</field>
+        <field name="name">Tax Received</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_251001" model="account.account">
+        <field name="code">251001</field>
+        <field name="name">Lakecity BNPL — Future installments (clearing)</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_251010" model="account.account">
+        <field name="code">251010</field>
+        <field name="name">VAT Output - ZIMRA</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_251020" model="account.account">
+        <field name="code">251020</field>
+        <field name="name">Deferred Output VAT</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_252000" model="account.account">
+        <field name="code">252000</field>
+        <field name="name">Tax Payable</field>
+        <field name="account_type">liability_payable</field>
+        <field name="reconcile">True</field>
+    </record>
+    <record id="lakecity_coa_252010" model="account.account">
+        <field name="code">252010</field>
+        <field name="name">Income Tax Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_252020" model="account.account">
+        <field name="code">252020</field>
+        <field name="name">Withholding Tax Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+    <record id="lakecity_coa_291000" model="account.account">
+        <field name="code">291000</field>
+        <field name="name">Non-current Liabilities</field>
+        <field name="account_type">liability_non_current</field>
+    </record>
+    <record id="lakecity_coa_291010" model="account.account">
+        <field name="code">291010</field>
+        <field name="name">Shareholder Loans</field>
+        <field name="account_type">liability_non_current</field>
+    </record>
+    <record id="lakecity_coa_291020" model="account.account">
+        <field name="code">291020</field>
+        <field name="name">Related Party Loans</field>
+        <field name="account_type">liability_non_current</field>
+    </record>
+    <record id="lakecity_coa_291030" model="account.account">
+        <field name="code">291030</field>
+        <field name="name">Long-term Borrowings</field>
+        <field name="account_type">liability_non_current</field>
+    </record>
+    <record id="lakecity_coa_301000" model="account.account">
+        <field name="code">301000</field>
+        <field name="name">Capital</field>
+        <field name="account_type">equity</field>
+    </record>
+    <record id="lakecity_coa_302000" model="account.account">
+        <field name="code">302000</field>
+        <field name="name">Dividends</field>
+        <field name="account_type">equity</field>
+    </record>
+    <record id="lakecity_coa_303000" model="account.account">
+        <field name="code">303000</field>
+        <field name="name">Retained Earnings</field>
+        <field name="account_type">equity</field>
+    </record>
+    <record id="lakecity_coa_304000" model="account.account">
+        <field name="code">304000</field>
+        <field name="name">Current Year Earnings</field>
+        <field name="account_type">equity</field>
+    </record>
+    <record id="lakecity_coa_305000" model="account.account">
+        <field name="code">305000</field>
+        <field name="name">Opening Balance Equity / Migration Clearing</field>
+        <field name="account_type">equity</field>
+    </record>
+    <record id="lakecity_coa_306000" model="account.account">
+        <field name="code">306000</field>
+        <field name="name">Revaluation / Fair Value Reserve</field>
+        <field name="account_type">equity</field>
+    </record>
+    <record id="lakecity_coa_400000" model="account.account">
+        <field name="code">400000</field>
+        <field name="name">Product Sales</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_401000" model="account.account">
+        <field name="code">401000</field>
+        <field name="name">Revenue - Residential Stand Sales</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_402000" model="account.account">
+        <field name="code">402000</field>
+        <field name="name">Revenue - Commercial Stand Sales</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_403000" model="account.account">
+        <field name="code">403000</field>
+        <field name="name">Revenue - Developer Land Sales</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_404000" model="account.account">
+        <field name="code">404000</field>
+        <field name="name">Revenue - Settler / Beneficiary Regularisation</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_405000" model="account.account">
+        <field name="code">405000</field>
+        <field name="name">Administration Fee Income</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_406000" model="account.account">
+        <field name="code">406000</field>
+        <field name="name">Forfeited Customer Balances Income</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_407000" model="account.account">
+        <field name="code">407000</field>
+        <field name="name">Penalty / Default Charges Income</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_442000" model="account.account">
+        <field name="code">442000</field>
+        <field name="name">Cash Difference Gain</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_443000" model="account.account">
+        <field name="code">443000</field>
+        <field name="name">Cash Discount Loss</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_450000" model="account.account">
+        <field name="code">450000</field>
+        <field name="name">Other Income</field>
+        <field name="account_type">income_other</field>
+    </record>
+    <record id="lakecity_coa_500000" model="account.account">
+        <field name="code">500000</field>
+        <field name="name">Cost of Goods Sold</field>
+        <field name="account_type">expense_direct_cost</field>
+    </record>
+    <record id="lakecity_coa_501000" model="account.account">
+        <field name="code">501000</field>
+        <field name="name">COS - Residential Stands</field>
+        <field name="account_type">expense_direct_cost</field>
+    </record>
+    <record id="lakecity_coa_502000" model="account.account">
+        <field name="code">502000</field>
+        <field name="name">COS - Commercial Stands</field>
+        <field name="account_type">expense_direct_cost</field>
+    </record>
+    <record id="lakecity_coa_503000" model="account.account">
+        <field name="code">503000</field>
+        <field name="name">COS - Developer Land Sales</field>
+        <field name="account_type">expense_direct_cost</field>
+    </record>
+    <record id="lakecity_coa_504000" model="account.account">
+        <field name="code">504000</field>
+        <field name="name">COS - Settler / Beneficiary Allocations</field>
+        <field name="account_type">expense_direct_cost</field>
+    </record>
+    <record id="lakecity_coa_505000" model="account.account">
+        <field name="code">505000</field>
+        <field name="name">COS - Direct Transfer Costs</field>
+        <field name="account_type">expense_direct_cost</field>
+    </record>
+    <record id="lakecity_coa_600000" model="account.account">
+        <field name="code">600000</field>
+        <field name="name">Expenses</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_611000" model="account.account">
+        <field name="code">611000</field>
+        <field name="name">Purchase of Equipments</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612000" model="account.account">
+        <field name="code">612000</field>
+        <field name="name">Rent</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612010" model="account.account">
+        <field name="code">612010</field>
+        <field name="name">Office Rent</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612020" model="account.account">
+        <field name="code">612020</field>
+        <field name="name">Office Water and Utilities</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612030" model="account.account">
+        <field name="code">612030</field>
+        <field name="name">Electricity</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612040" model="account.account">
+        <field name="code">612040</field>
+        <field name="name">Printing and Stationery</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612050" model="account.account">
+        <field name="code">612050</field>
+        <field name="name">Parking</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612060" model="account.account">
+        <field name="code">612060</field>
+        <field name="name">Airtime and Connectivity</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612070" model="account.account">
+        <field name="code">612070</field>
+        <field name="name">Internet</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612080" model="account.account">
+        <field name="code">612080</field>
+        <field name="name">Safeguard Alarms / Office Security</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612090" model="account.account">
+        <field name="code">612090</field>
+        <field name="name">Cleaning</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612100" model="account.account">
+        <field name="code">612100</field>
+        <field name="name">Office Repairs and Maintenance</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612110" model="account.account">
+        <field name="code">612110</field>
+        <field name="name">Courier and Postage</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612120" model="account.account">
+        <field name="code">612120</field>
+        <field name="name">Subscriptions</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612130" model="account.account">
+        <field name="code">612130</field>
+        <field name="name">Computer Expenses / Software</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_612140" model="account.account">
+        <field name="code">612140</field>
+        <field name="name">General Office Expenses</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_620000" model="account.account">
+        <field name="code">620000</field>
+        <field name="name">Bank Fees</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_620010" model="account.account">
+        <field name="code">620010</field>
+        <field name="name">Bank Charges</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_620020" model="account.account">
+        <field name="code">620020</field>
+        <field name="name">IMTT / Transaction Taxes</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_620030" model="account.account">
+        <field name="code">620030</field>
+        <field name="name">Merchant / Payment Gateway Charges</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630010" model="account.account">
+        <field name="code">630010</field>
+        <field name="name">Salaries and Wages</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630020" model="account.account">
+        <field name="code">630020</field>
+        <field name="name">Employer NSSA Contributions</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630030" model="account.account">
+        <field name="code">630030</field>
+        <field name="name">Employer Medical Aid Contributions</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630040" model="account.account">
+        <field name="code">630040</field>
+        <field name="name">Staff Welfare</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630050" model="account.account">
+        <field name="code">630050</field>
+        <field name="name">Recruitment Costs</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630060" model="account.account">
+        <field name="code">630060</field>
+        <field name="name">Staff Training</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_630070" model="account.account">
+        <field name="code">630070</field>
+        <field name="name">Bonuses and Incentives</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_642000" model="account.account">
+        <field name="code">642000</field>
+        <field name="name">Cash Difference Loss</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_643000" model="account.account">
+        <field name="code">643000</field>
+        <field name="name">Cash Discount Gain</field>
+        <field name="account_type">income</field>
+    </record>
+    <record id="lakecity_coa_650000" model="account.account">
+        <field name="code">650000</field>
+        <field name="name">Sales and Marketing Costs</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_650010" model="account.account">
+        <field name="code">650010</field>
+        <field name="name">Advertising and Promotions</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_650080" model="account.account">
+        <field name="code">650080</field>
+        <field name="name">Agent Commissions - Stand Sales</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660000" model="account.account">
+        <field name="code">660000</field>
+        <field name="name">Site Operations Costs</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660010" model="account.account">
+        <field name="code">660010</field>
+        <field name="name">Site Security</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660020" model="account.account">
+        <field name="code">660020</field>
+        <field name="name">Protective Clothing / PPE</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660030" model="account.account">
+        <field name="code">660030</field>
+        <field name="name">Site Repairs and Maintenance</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660040" model="account.account">
+        <field name="code">660040</field>
+        <field name="name">Site Communication / Airtime</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660050" model="account.account">
+        <field name="code">660050</field>
+        <field name="name">Site Welfare / Meals</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660060" model="account.account">
+        <field name="code">660060</field>
+        <field name="name">Site Patrol Costs</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_660070" model="account.account">
+        <field name="code">660070</field>
+        <field name="name">Site Labour - Non-capital</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_670000" model="account.account">
+        <field name="code">670000</field>
+        <field name="name">Professional Fees</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_670010" model="account.account">
+        <field name="code">670010</field>
+        <field name="name">Accounting Fees</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_670040" model="account.account">
+        <field name="code">670040</field>
+        <field name="name">Legal Fees - General</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_670060" model="account.account">
+        <field name="code">670060</field>
+        <field name="name">Consultancy Fees</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_670080" model="account.account">
+        <field name="code">670080</field>
+        <field name="name">Engineering Professional Fees - Expense</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_670090" model="account.account">
+        <field name="code">670090</field>
+        <field name="name">Surveyor Fees - Expense</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680000" model="account.account">
+        <field name="code">680000</field>
+        <field name="name">Motor Vehicle and Travel Costs</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680010" model="account.account">
+        <field name="code">680010</field>
+        <field name="name">Motor Vehicle Fuel</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680020" model="account.account">
+        <field name="code">680020</field>
+        <field name="name">Motor Vehicle Repairs and Maintenance</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680030" model="account.account">
+        <field name="code">680030</field>
+        <field name="name">Motor Vehicle Licensing</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680040" model="account.account">
+        <field name="code">680040</field>
+        <field name="name">Motor Vehicle Insurance</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680050" model="account.account">
+        <field name="code">680050</field>
+        <field name="name">Travel and Accommodation</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_680060" model="account.account">
+        <field name="code">680060</field>
+        <field name="name">Transport and Logistics</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_690000" model="account.account">
+        <field name="code">690000</field>
+        <field name="name">Insurance Costs</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_690010" model="account.account">
+        <field name="code">690010</field>
+        <field name="name">General Insurance</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_700000" model="account.account">
+        <field name="code">700000</field>
+        <field name="name">Depreciation and Amortisation</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_700010" model="account.account">
+        <field name="code">700010</field>
+        <field name="name">Depreciation - Office Equipment</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_700020" model="account.account">
+        <field name="code">700020</field>
+        <field name="name">Depreciation - Furniture and Fittings</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_700030" model="account.account">
+        <field name="code">700030</field>
+        <field name="name">Depreciation - Computers and IT Equipment</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_700040" model="account.account">
+        <field name="code">700040</field>
+        <field name="name">Depreciation - Motor Vehicles</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_700050" model="account.account">
+        <field name="code">700050</field>
+        <field name="name">Depreciation - Site Equipment</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_962000" model="account.account">
+        <field name="code">962000</field>
+        <field name="name">Sales Expenses</field>
+        <field name="account_type">expense</field>
+    </record>
+    <record id="lakecity_coa_999998" model="account.account">
+        <field name="code">999998</field>
+        <field name="name">Accumulated Retained Earnings</field>
+        <field name="account_type">equity_unaffected</field>
+    </record>
+    <record id="lakecity_coa_999999" model="account.account">
+        <field name="code">999999</field>
+        <field name="name">Profit or Loss Appropriation</field>
+        <field name="account_type">equity_unaffected</field>
+    </record>
+</odoo>

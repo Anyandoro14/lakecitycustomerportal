@@ -14,6 +14,11 @@ def post_init_hook(cr, registry):
         from odoo import SUPERUSER_ID, api
 
         env = api.Environment(cr, SUPERUSER_ID, {})
+        from odoo.addons.lakecity_loan_management.models import lakecity_coa_sync
+
+        lakecity_coa_sync.sync_lakecity_chart_of_accounts(env)
+        lakecity_coa_sync.ensure_stand_sales_journal(env)
+        env["res.company"].sudo().search([])._lakecity_ensure_stand_sales_setup()
         Contract = env["lakecity.loan.contract"].sudo()
         Contract.search([("state", "in", ("active", "defaulted"))])._lakecity_sync_future_receivable_gl()
         fixed = 0

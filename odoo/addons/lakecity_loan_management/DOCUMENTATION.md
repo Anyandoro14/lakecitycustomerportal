@@ -36,9 +36,29 @@ Odoo renders Apps descriptions with docutils when HTML is missing. This addon sh
 ## Workflow
 
 1. Create Loan Product.
-2. Create Loan Contract.
-3. Click **Generate Schedule** to create installment lines.
-4. Post payments in **Payments** (auto-allocates to oldest due installments).
+2. Create Loan Contract (set **Total price** net excl. VAT, **Tax rate** e.g. 15.5%, **Stand cost**, **Deposit** gross).
+3. Click **Activate** — posts initial contract JE (+ optional inventory reclass + deposit JEs when stand sales accounting is on).
+4. Click **Generate Schedule** to create installment lines (if not auto-generated on activate).
+5. Post payments in **Payments** — each posted payment creates receipt, revenue/VAT release, and COS journal entries.
+
+## Stand sales accounting (ZIMRA walkthrough) — 19.0.1.0.47+
+
+When **Stand sales accounting** is enabled on the company (Settings → Companies → Lakecity BNPL tab):
+
+| Event | Journal entries |
+|-------|-----------------|
+| Contract **Activate** | Dr AR / Cr contract liability + deferred VAT; optional inventory reclass; deposit JEs if deposit set |
+| Each **posted payment** | Dr bank / Cr AR; Dr liability + deferred VAT / Cr revenue + VAT output; Dr COS / Cr inventory |
+| **Remit VAT Output balance** | Company button — Dr 251010 / Cr bank |
+| **Post forfeiture** | Clear unpaid balances; reclass revenue to forfeiture income; reverse COS |
+| **Cancel with refund** | Reverse revenue/COS; admin fee + refund payable |
+| **Pass-through** buttons | AOS (213010) or conveyancing (213020) receipt |
+
+Chart of accounts is synced from `Account (account.account) (2).xlsx` on install/upgrade (missing codes only). Account **251020** is renamed **Deferred Output VAT**. Supplemental accounts: **121015**, **212080**, **212090**.
+
+Legacy BNPL GL mirror (Dr AR / Cr 251001) is **disabled** when stand sales accounting is on.
+
+Regenerate reference COA XML: `python3 scripts/generate_lakecity_coa_xml.py`
 
 ## API controllers (for Supabase integration)
 

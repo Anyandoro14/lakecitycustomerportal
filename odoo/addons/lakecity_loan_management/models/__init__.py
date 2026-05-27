@@ -5,6 +5,8 @@ from . import account_payment_bnpl
 from . import account_payment_method
 from . import account_payment_register
 from . import product_template
+from . import lakecity_coa_sync
+from . import lakecity_stand_accounting
 from . import res_company
 from . import crm_lead
 from . import loan_product

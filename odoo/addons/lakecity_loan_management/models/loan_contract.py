@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 class LakecityLoanContract(models.Model):
     _name = "lakecity.loan.contract"
     _description = "Lakecity Loan Contract"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mail.thread", "mail.activity.mixin", "lakecity.stand.accounting.mixin"]
     _order = "create_date desc"
 
     name = fields.Char(default="New", readonly=True, copy=False, tracking=True)
@@ -49,8 +49,60 @@ class LakecityLoanContract(models.Model):
     )
     total_price = fields.Monetary(required=True, tracking=True)
     deposit_amount = fields.Monetary(default=0.0, tracking=True)
-    tax_rate = fields.Float(string="Tax Rate (%)", default=0.0, tracking=True)
-    is_vat_inclusive = fields.Boolean(default=True, tracking=True)
+    stand_cost = fields.Monetary(
+        string="Stand cost",
+        tracking=True,
+        help="Cost from Stand Cost Master; drives proportional COS on each payment.",
+    )
+    tax_rate = fields.Float(string="Tax Rate (%)", default=15.5, tracking=True)
+    is_vat_inclusive = fields.Boolean(default=False, tracking=True)
+    lakecity_initial_contract_move_id = fields.Many2one(
+        "account.move",
+        string="Initial contract JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_inventory_reclass_move_id = fields.Many2one(
+        "account.move",
+        string="Inventory reclass JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_default_reclass_move_id = fields.Many2one(
+        "account.move",
+        string="Default receivable reclass JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_forfeiture_move_ids = fields.Many2many(
+        "account.move",
+        "lakecity_loan_contract_forfeiture_move_rel",
+        "contract_id",
+        "move_id",
+        string="Forfeiture JEs",
+        readonly=True,
+        copy=False,
+    )
+    lakecity_cancellation_move_ids = fields.Many2many(
+        "account.move",
+        "lakecity_loan_contract_cancellation_move_rel",
+        "contract_id",
+        "move_id",
+        string="Cancellation JEs",
+        readonly=True,
+        copy=False,
+    )
+    lakecity_revenue_recognized = fields.Monetary(readonly=True, copy=False)
+    lakecity_vat_released = fields.Monetary(readonly=True, copy=False)
+    lakecity_cos_recognized = fields.Monetary(readonly=True, copy=False)
+    lakecity_deposit_accounting_done = fields.Boolean(readonly=True, copy=False, default=False)
+    lakecity_pass_through_amount = fields.Monetary(
+        string="Pass-through amount",
+        help="Amount for AOS or conveyancing pass-through receipt JE.",
+    )
 
     agreement_signed_seller = fields.Boolean(default=False, tracking=True)
     agreement_signed_buyer = fields.Boolean(default=False, tracking=True)
@@ -203,8 +255,10 @@ class LakecityLoanContract(models.Model):
         for rec in self:
             if rec.partner_id:
                 rec._lakecity_ensure_partner_is_customer()
-                if rec.external_uid:
-                    rec.partner_id.commercial_partner_id._lakecity_ensure_dedicated_receivable_accounts()
+                # Always provision partner-specific AR (12100x…) when a loan exists — not only when
+                # external_uid is set. Otherwise Trial Balance stays on generic 121000 with no partner
+                # column detail and BNPL mirror debits the template receivable.
+                rec.partner_id.commercial_partner_id._lakecity_ensure_dedicated_receivable_accounts()
             if rec.partner_id and rec.external_uid and rec.stand_number:
                 rec._lakecity_sync_crm_opportunity()
 
@@ -307,6 +361,35 @@ class LakecityLoanContract(models.Model):
         for rec in self:
             if not rec.installment_ids:
                 rec.action_generate_schedule()
+            if rec._lakecity_company_stand_accounting_enabled():
+                rec._lakecity_post_initial_contract_recognition()
+                rec._lakecity_post_inventory_reclass()
+                rec._lakecity_post_deposit_accounting()
+
+    def action_mark_defaulted(self):
+        for rec in self:
+            rec._lakecity_post_default_receivable_reclass()
+            rec.write({"state": "defaulted"})
+
+    def action_forfeit(self):
+        for rec in self:
+            rec._lakecity_post_forfeiture_accounting()
+
+    def action_cancel_with_refund(self):
+        for rec in self:
+            rec._lakecity_post_cancellation_accounting(
+                admin_fee_percent=(rec.company_id.lakecity_cancellation_admin_fee_percent or 10.0) / 100.0
+            )
+
+    def action_post_aos_pass_through(self):
+        for rec in self:
+            amount = rec.lakecity_pass_through_amount or 0.0
+            rec._lakecity_post_pass_through(amount, "aos")
+
+    def action_post_conveyancing_pass_through(self):
+        for rec in self:
+            amount = rec.lakecity_pass_through_amount or 0.0
+            rec._lakecity_post_pass_through(amount, "conveyancing")
 
     def action_close(self):
         self.write({"state": "closed"})
@@ -448,6 +531,9 @@ class LakecityLoanContract(models.Model):
         today = fields.Date.context_today(self)
         for rec in self:
             company = rec.company_id.sudo()
+            if company.lakecity_stand_sales_accounting_enabled:
+                rec._lakecity_clear_future_receivable_gl()
+                continue
             if company.lakecity_bnpl_post_bank_payment_per_receipt:
                 rec._lakecity_clear_future_receivable_gl()
                 continue
