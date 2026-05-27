@@ -60,6 +60,18 @@ Legacy BNPL GL mirror (Dr AR / Cr 251001) is **disabled** when stand sales accou
 
 Regenerate reference COA XML: `python3 scripts/generate_lakecity_coa_xml.py`
 
+## Stand cost master & phase reporting — 19.0.1.0.48+
+
+Authoritative stand inventory and development cost lives in `docs/stand-inventory-costing/Inventory_per_Stand_Costing_26May2026.xlsx` (conclusive list of all stands). The stand sales JE walkthrough is in `docs/stand-inventory-costing/LakeCity_Stand_Sales_JE_Walkthrough.xlsx`.
+
+Odoo loads **`lakecity.stand.cost`** rows from `data/lakecity_stand_cost_master.csv` (regenerate with `python3 scripts/generate_stand_cost_master_csv.py`). Each row links a **stand number** to a **Phase** (`lakecity.stand.phase`), area, cost/sqm, and total development cost.
+
+- **Stand cost master** menu — browse all stands and phases.
+- **Loan contracts** — auto-fill **Stand cost** and **Project phase** from the master when `stand_number` is set.
+- **Stand sales by phase** (Accounting → Reporting) — pivot on journal items filtered to stand-sale moves; group by phase and account for revenue, COS, and profit analysis.
+
+Phase is stamped on `account.move` and `account.move.line` when stand-sales JEs are posted.
+
 ## API controllers (for Supabase integration)
 
 Set Odoo system parameter:

@@ -20,6 +20,19 @@ class LakecityLoanContract(models.Model):
     external_uid = fields.Char(copy=False, tracking=True, index=True)
     partner_id = fields.Many2one("res.partner", string="Customer", required=True, tracking=True)
     stand_number = fields.Char(required=True, tracking=True)
+    lakecity_stand_cost_id = fields.Many2one(
+        "lakecity.stand.cost",
+        string="Stand cost master",
+        tracking=True,
+        help="Authoritative development cost from the inventory costing register.",
+    )
+    lakecity_stand_phase_id = fields.Many2one(
+        "lakecity.stand.phase",
+        string="Project phase",
+        tracking=True,
+        index=True,
+        help="Project phase for cost, revenue, and profit reporting.",
+    )
     product_id = fields.Many2one("lakecity.loan.product", tracking=True)
     term_months = fields.Integer(required=True, default=36, tracking=True)
     due_day = fields.Integer(
@@ -150,7 +163,26 @@ class LakecityLoanContract(models.Model):
 
     @api.model
     def _lakecity_normalize_stand(self, stand):
-        return str(stand or "").strip().upper()
+        return self.env["lakecity.stand.cost"]._lakecity_normalize_stand_number(stand)
+
+    def _lakecity_merge_cost_master_vals(self, vals):
+        cost = self.env["lakecity.stand.cost"]._lakecity_lookup_by_stand(vals.get("stand_number"))
+        if not cost:
+            return
+        vals.setdefault("lakecity_stand_cost_id", cost.id)
+        vals.setdefault("lakecity_stand_phase_id", cost.phase_id.id)
+        stand_cost = vals.get("stand_cost")
+        if stand_cost is None or float_is_zero(stand_cost or 0.0, precision_rounding=0.01):
+            vals["stand_cost"] = cost.total_cost
+
+    @api.onchange("stand_number")
+    def _onchange_stand_number_cost_master(self):
+        for rec in self:
+            cost = self.env["lakecity.stand.cost"]._lakecity_lookup_by_stand(rec.stand_number)
+            if cost:
+                rec.lakecity_stand_cost_id = cost
+                rec.lakecity_stand_phase_id = cost.phase_id
+                rec.stand_cost = cost.total_cost
 
     @api.constrains("stand_number")
     def _lakecity_check_stand_unique(self):
@@ -224,6 +256,7 @@ class LakecityLoanContract(models.Model):
         for vals in vals_list:
             if vals.get("stand_number"):
                 vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
+                self._lakecity_merge_cost_master_vals(vals)
             if vals.get("name", "New") == "New":
                 vals["name"] = seq.next_by_code("lakecity.loan.contract") or "New"
             if vals.get("product_id"):
@@ -240,6 +273,7 @@ class LakecityLoanContract(models.Model):
     def write(self, vals):
         if vals.get("stand_number"):
             vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
+            self._lakecity_merge_cost_master_vals(vals)
         res = super().write(vals)
         self._lakecity_sync_partner_customer_and_crm()
         if not self.env.context.get("skip_lakecity_bnpl_gl_sync"):

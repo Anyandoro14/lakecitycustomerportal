@@ -120,6 +120,13 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             raise UserError(_("Configure the Lake City Stand Sales journal on %s.") % self.company_id.display_name)
         move_date = move_date or fields.Date.context_today(self)
         partner = self.partner_id.commercial_partner_id
+        phase_id = self.lakecity_stand_phase_id.id if self.lakecity_stand_phase_id else False
+        line_payload = []
+        for ln in line_specs:
+            payload = dict(ln)
+            if phase_id:
+                payload["lakecity_stand_phase_id"] = phase_id
+            line_payload.append((0, 0, payload))
         vals = {
             "move_type": "entry",
             "journal_id": journal.id,
@@ -129,8 +136,9 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             "ref": ref,
             "partner_id": partner.id,
             "lakecity_loan_contract_id": self.id,
+            "lakecity_stand_phase_id": phase_id,
             "lakecity_stand_move_purpose": purpose,
-            "line_ids": [(0, 0, ln) for ln in line_specs],
+            "line_ids": line_payload,
         }
         move = Move.create(vals)
         move.action_post()

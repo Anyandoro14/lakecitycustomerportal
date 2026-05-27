@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from . import ir_module_module
 from . import account_move
+from . import account_move_line
+from . import lakecity_stand_cost
 from . import account_payment_bnpl
 from . import account_payment_method
 from . import account_payment_register

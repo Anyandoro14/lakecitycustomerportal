@@ -13,6 +13,14 @@ class AccountMove(models.Model):
         index=True,
         ondelete="set null",
     )
+    lakecity_stand_phase_id = fields.Many2one(
+        "lakecity.stand.phase",
+        string="Project phase",
+        readonly=True,
+        copy=False,
+        index=True,
+        help="Lake City project phase for stand sales reporting (cost, revenue, profit by phase).",
+    )
     lakecity_stand_move_purpose = fields.Selection(
         [
             ("initial_contract", "Initial contract recognition"),

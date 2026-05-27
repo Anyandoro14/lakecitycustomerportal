@@ -576,6 +576,10 @@ class LakecityLoanApiController(http.Controller):
                 create_vals["description"] = description
             tmpl = request.env["product.template"].sudo().create(create_vals)
 
+        cost = request.env["lakecity.stand.cost"].sudo()._lakecity_lookup_by_stand(stand_number)
+        if cost:
+            tmpl._lakecity_apply_stand_cost(cost)
+
         variant = tmpl.product_variant_ids[:1]
         if not variant:
             return {

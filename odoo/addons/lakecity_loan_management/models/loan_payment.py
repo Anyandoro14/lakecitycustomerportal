@@ -21,6 +21,13 @@ class LakecityLoanPayment(models.Model):
         related="contract_id.partner_id", string="Customer", store=True, readonly=True
     )
     stand_number = fields.Char(related="contract_id.stand_number", store=True, readonly=True)
+    lakecity_stand_phase_id = fields.Many2one(
+        related="contract_id.lakecity_stand_phase_id",
+        string="Project phase",
+        store=True,
+        readonly=True,
+        index=True,
+    )
     payment_date = fields.Date(required=True, default=fields.Date.context_today)
     amount = fields.Monetary(required=True)
     currency_id = fields.Many2one(related="contract_id.currency_id", store=True, readonly=True)

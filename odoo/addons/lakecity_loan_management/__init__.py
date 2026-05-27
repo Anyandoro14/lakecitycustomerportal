@@ -19,6 +19,8 @@ def post_init_hook(cr, registry):
         lakecity_coa_sync.sync_lakecity_chart_of_accounts(env)
         lakecity_coa_sync.ensure_stand_sales_journal(env)
         env["res.company"].sudo().search([])._lakecity_ensure_stand_sales_setup()
+        for company in env["res.company"].sudo().search([]):
+            env["lakecity.stand.cost"].with_company(company)._lakecity_import_from_csv(company=company)
         Contract = env["lakecity.loan.contract"].sudo()
         Contract.search([("state", "in", ("active", "defaulted"))])._lakecity_sync_future_receivable_gl()
         fixed = 0

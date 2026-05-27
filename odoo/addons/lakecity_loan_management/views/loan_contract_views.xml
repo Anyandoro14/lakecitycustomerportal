@@ -9,6 +9,7 @@
                 <field name="external_uid"/>
                 <field name="partner_id"/>
                 <field name="stand_number"/>
+                <field name="lakecity_stand_phase_id" optional="show"/>
                 <field name="state"/>
                 <field name="payment_start_date"/>
                 <field name="term_months"/>
@@ -48,6 +49,8 @@
                             <field name="external_uid"/>
                             <field name="partner_id"/>
                             <field name="stand_number"/>
+                            <field name="lakecity_stand_phase_id" readonly="1"/>
+                            <field name="lakecity_stand_cost_id" readonly="1"/>
                             <field name="product_id"/>
                             <field name="term_months"/>
                             <field name="payment_start_date"/>

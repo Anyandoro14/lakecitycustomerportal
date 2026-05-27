@@ -7,6 +7,13 @@
     <field name="arch" type="xml">
       <xpath expr="//field[@name='name']" position="after">
         <field name="lakecity_stand_number"/>
+        <field name="lakecity_stand_phase_id"/>
+        <field name="lakecity_stand_total_cost"/>
+      </xpath>
+      <xpath expr="//field[@name='list_price']" position="after">
+        <field name="lakecity_stand_area_sqm"/>
+        <field name="lakecity_stand_cost_per_sqm"/>
+        <field name="lakecity_stand_cost_id" groups="lakecity_loan_management.group_lakecity_loan_manager"/>
       </xpath>
     </field>
   </record>
