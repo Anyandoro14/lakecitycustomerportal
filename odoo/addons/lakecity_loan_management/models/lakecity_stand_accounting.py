@@ -204,6 +204,128 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"lakecity_initial_contract_move_id": move.id})
         return move
 
+    def _lakecity_post_initial_contract_recognition_amounts(self, gross, contract_liability, deferred_vat_amount, move_date=None):
+        """Step 02 JE1 using explicit sheet amounts (opening-balance migration)."""
+        self.ensure_one()
+        if self.lakecity_initial_contract_move_id:
+            return self.lakecity_initial_contract_move_id
+        if not self._lakecity_company_stand_accounting_enabled():
+            return False
+
+        ar = self._lakecity_partner_receivable_account()
+        liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
+        deferred_vat_acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
+        for acc, label in (
+            (ar, _("receivable")),
+            (liability, _("contract liability")),
+            (deferred_vat_acc, _("deferred VAT")),
+        ):
+            if not acc:
+                raise UserError(
+                    _("Missing GL account for stand sales (%(label)s). Import the Lake City chart of accounts.")
+                    % {"label": label}
+                )
+
+        partner = self.partner_id.commercial_partner_id.id
+        label = _("Initial contract — %s stand %s") % (self.name, self.stand_number or "")
+        lines = self._lakecity_build_move_lines(
+            [
+                (ar, gross, 0.0, partner),
+                (liability, 0.0, contract_liability, False),
+                (deferred_vat_acc, 0.0, deferred_vat_amount, False),
+            ],
+            label,
+        )
+        move = self._lakecity_create_stand_move(
+            lines,
+            self.name,
+            "initial_contract",
+            move_date=move_date,
+        )
+        self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"lakecity_initial_contract_move_id": move.id})
+        return move
+
+    def _lakecity_post_opening_balance_migration(
+        self,
+        gross,
+        contract_liability,
+        deferred_vat_amount,
+        total_paid,
+        payment_date=None,
+    ):
+        """Post walkthrough opening balances: JE1 + receipt/revenue for TOTAL PAID.
+
+        ``gross`` is the full contract receivable (Column N + TOTAL PAID, i.e. TOTAL PRICE).
+        ``contract_liability`` and ``deferred_vat_amount`` map to sheet Columns O and P
+        (for inclusive VAT, Column O net liability = O + P).
+        """
+        self.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return {"skipped": True, "reason": "stand_sales_accounting_disabled"}
+
+        rnd = self.currency_id.rounding
+        payment_date = payment_date or fields.Date.context_today(self)
+        if float_compare(self.tax_rate or 0.0, 15.5, precision_rounding=0.01) != 0:
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"tax_rate": 15.5})
+
+        initial_move = self._lakecity_post_initial_contract_recognition_amounts(
+            gross,
+            contract_liability,
+            deferred_vat_amount,
+            move_date=payment_date,
+        )
+
+        payment_move_ids = []
+        paid = float(total_paid or 0.0)
+        if not float_is_zero(paid, precision_rounding=rnd):
+            Payment = self.env["lakecity.loan.payment"].sudo()
+            ext_uid = "opening-balance-%s" % (self.stand_number or self.id)
+            payment = Payment.search([("external_uid", "=", ext_uid)], limit=1)
+            vals = {
+                "external_uid": ext_uid,
+                "contract_id": self.id,
+                "payment_date": payment_date,
+                "amount": paid,
+                "source": "manual",
+                "reference": _("Opening balance migration — stand %s") % (self.stand_number or ""),
+                "state": "posted",
+            }
+            if payment:
+                payment.with_context(lakecity_skip_bank_payment_write=True).write(vals)
+            else:
+                payment = Payment.create(vals)
+
+            if not payment.lakecity_stand_accounting_done:
+                ref = _("%(loan)s · opening balance") % {"loan": self.name}
+                self._lakecity_post_stand_payment_moves(paid, payment_date, ref, payment=payment)
+                payment.write({"lakecity_stand_accounting_done": True})
+
+            if self.deposit_amount and not self.lakecity_deposit_accounting_done:
+                self.write({"lakecity_deposit_accounting_done": True})
+
+            payment_move_ids = [
+                mid
+                for mid in (
+                    payment.lakecity_receipt_move_id.id,
+                    payment.lakecity_revenue_move_id.id,
+                    payment.lakecity_cos_move_id.id,
+                )
+                if mid
+            ]
+            self._lakecity_update_recognized_totals()
+
+        if self.state == "draft":
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"state": "active"})
+
+        target_ar = float_round(gross - paid, precision_rounding=rnd)
+        return {
+            "initial_move_id": initial_move.id if initial_move else False,
+            "payment_move_ids": payment_move_ids,
+            "target_accounts_receivable": target_ar,
+            "gross": gross,
+            "total_paid": paid,
+        }
+
     def _lakecity_post_inventory_reclass(self):
         """Step 02 optional JE2 — Dr allocated inventory / Cr available inventory at stand cost."""
         self.ensure_one()

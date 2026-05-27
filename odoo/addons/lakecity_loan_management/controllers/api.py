@@ -357,6 +357,102 @@ class LakecityLoanApiController(http.Controller):
             out["crm_lead_id"] = crm_row.id
         return self._json_response(out)
 
+    @http.route("/lakecity/api/v1/loan/opening-balance/post", type="http", auth="public", methods=["POST"], csrf=False)
+    def post_opening_balance(self, **kwargs):
+        """Post walkthrough opening-balance JEs for one stand (sheet Columns N/O/P)."""
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        payload = self._parse_json_body()
+        stand_number = (payload.get("stand_number") or "").strip().upper()
+        external_uid = (payload.get("external_uid") or "").strip()
+        accounts_receivable = float(payload.get("accounts_receivable") or 0.0)
+        contract_liability = float(payload.get("contract_liability") or 0.0)
+        deferred_vat = float(payload.get("deferred_vat") or 0.0)
+        total_paid = float(payload.get("total_paid") or 0.0)
+        total_price = float(payload.get("total_price") or 0.0)
+        payment_date = payload.get("payment_date") or fields.Date.today()
+        loan_payload = payload.get("loan") or {}
+
+        if not stand_number and not external_uid:
+            return self._json_response(
+                {"ok": False, "error": "stand_number or external_uid is required"},
+                status=400,
+            )
+        if accounts_receivable <= 0:
+            return self._json_response(
+                {"ok": False, "error": "accounts_receivable must be positive"},
+                status=400,
+            )
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        contract = False
+        if external_uid:
+            contract = Contract.search([("external_uid", "=", external_uid)], limit=1)
+        if not contract and stand_number:
+            contract = Contract.search([("stand_number", "=", stand_number)], limit=1)
+
+        if loan_payload:
+            loan_payload = dict(loan_payload)
+            loan_payload.setdefault("external_uid", external_uid or ("collection-csv-%s" % stand_number))
+            loan_payload.setdefault("stand_number", stand_number)
+            loan_payload["activate"] = False
+            loan_payload["state"] = loan_payload.get("state") or "draft"
+            partner_payload = loan_payload.get("partner") or {}
+            partner = self._upsert_partner(partner_payload)
+            ext = loan_payload["external_uid"]
+            vals = {
+                "external_uid": ext,
+                "partner_id": partner.id,
+                "stand_number": loan_payload["stand_number"].upper(),
+                "product_id": loan_payload.get("product_id") or False,
+                "term_months": int(loan_payload.get("term_months") or 36),
+                "due_day": int(loan_payload.get("due_day") or 5),
+                "payment_start_date": loan_payload.get("payment_start_date") or fields.Date.today(),
+                "total_price": float(loan_payload.get("total_price") or total_price or 0.0),
+                "deposit_amount": float(loan_payload.get("deposit_amount") or 0.0),
+                "tax_rate": float(loan_payload.get("tax_rate") or 15.5),
+                "is_vat_inclusive": bool(loan_payload.get("is_vat_inclusive", True)),
+                "agreement_signed_seller": bool(loan_payload.get("agreement_signed_seller", False)),
+                "agreement_signed_buyer": bool(loan_payload.get("agreement_signed_buyer", False)),
+                "agreement_file_url": loan_payload.get("agreement_file_url") or False,
+                "state": "draft",
+            }
+            if contract:
+                contract.write(vals)
+            else:
+                contract = Contract.create(vals)
+            if bool(loan_payload.get("generate_schedule", False)) and not contract.installment_ids:
+                contract.action_generate_schedule()
+
+        if not contract:
+            return self._json_response({"ok": False, "error": "Contract not found"}, status=404)
+
+        gross = total_price or (accounts_receivable + total_paid)
+        if gross <= 0:
+            gross = accounts_receivable + total_paid
+
+        try:
+            result = contract._lakecity_post_opening_balance_migration(
+                gross,
+                contract_liability,
+                deferred_vat,
+                total_paid,
+                payment_date=payment_date,
+            )
+        except Exception as err:
+            return self._json_response({"ok": False, "error": str(err)}, status=400)
+
+        return self._json_response(
+            {
+                "ok": True,
+                "stand_number": contract.stand_number,
+                "opening_balance": result,
+                "contract": self._contract_payload(contract),
+            }
+        )
+
     @http.route("/lakecity/api/v1/loan/get", type="http", auth="public", methods=["GET"], csrf=False)
     def get_loan(self, **kwargs):
         ok, response = self._validate_token()
