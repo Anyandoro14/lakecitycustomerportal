@@ -36,13 +36,13 @@ class ResPartner(models.Model):
     # ------------------------------------------------------------------
     # Accounting (Contacts ↔ Accounting app)
     # ------------------------------------------------------------------
-    # Dedicated trade receivable / payable ``account.account`` rows are **not**
-    # provisioned from CRM or generic partner rank alone.
+    # All customers share the main trade receivable GL (121000). Customer detail
+    # lives on journal lines (partner_id) and aged receivable reports—not separate
+    # TB accounts per partner.
     #
     # Callers:
-    # - ``lakecity.loan.contract`` save → receivable only (LakeCity BNPL path).
-    # - Customer/vendor accounting moves → receivable / payable when invoices or
-    #   bills exist (see ``account.move`` extension).
+    # - ``lakecity.loan.contract`` save → point partner receivable property at 121000.
+    # - Customer invoices → same (see ``account.move`` extension).
 
     def _lakecity_promote_customer_from_crm(self):
         """Mark Accounting customer when this partner appears on CRM pipeline."""
@@ -53,8 +53,17 @@ class ResPartner(models.Model):
                 continue
             partner.sudo().write({"customer_rank": 1})
 
+    def _lakecity_main_trade_receivable_for_company(self, company):
+        """Shared AR account (121000) — one row on trial balance, partner on move lines."""
+        company = company.sudo()
+        if hasattr(company, "_lakecity_account_by_code"):
+            acc = company._lakecity_account_by_code("121000")
+            if acc:
+                return acc
+        return self._lakecity_template_trade_account(company, "asset_receivable")
+
     def _lakecity_ensure_dedicated_receivable_accounts(self):
-        """Provision partner-specific AR for commercial entities (loan contract hook)."""
+        """Ensure each customer uses main trade receivable (121000), not a per-partner GL."""
         if "account.account" not in self.env:
             return
         for partner in self.mapped("commercial_partner_id"):
@@ -63,28 +72,25 @@ class ResPartner(models.Model):
                 partner._lakecity_ensure_dedicated_receivable_for_company(company)
 
     def _lakecity_ensure_dedicated_receivable_for_company(self, company):
+        """Backward-compatible name: assigns main trade receivable, never creates 12100x accounts."""
+        self._lakecity_ensure_main_trade_receivable_for_company(company)
+
+    def _lakecity_ensure_main_trade_receivable_for_company(self, company):
         self.ensure_one()
         partner = self.sudo().with_company(company)
         if partner.customer_rank <= 0:
             return
-        template_ar = partner._lakecity_template_trade_account(company, "asset_receivable")
-        vals = {}
-        cur_ar = partner.property_account_receivable_id
-        if template_ar and (not cur_ar or cur_ar == template_ar):
-            dedicated_ar = partner._lakecity_create_dedicated_trade_account(
-                company, template_ar, "asset_receivable"
-            )
-            if dedicated_ar:
-                vals["property_account_receivable_id"] = dedicated_ar.id
-        elif not template_ar:
+        main_ar = partner._lakecity_main_trade_receivable_for_company(company)
+        if not main_ar:
             _logger.warning(
-                "Lakecity: no asset_receivable account for company %s; "
+                "Lakecity: no main trade receivable (121000) for company %s; "
                 "cannot set receivable on %s",
                 company.display_name,
                 partner.display_name,
             )
-        if vals:
-            partner.write(vals)
+            return
+        if partner.property_account_receivable_id != main_ar:
+            partner.write({"property_account_receivable_id": main_ar.id})
 
     def _lakecity_ensure_dedicated_payable_for_company(self, company):
         self.ensure_one()
@@ -125,7 +131,9 @@ class ResPartner(models.Model):
         )
 
     def _lakecity_create_dedicated_trade_account(self, company, template_acc, account_type):
-        """One receivable/payable GL row per commercial partner (customer/vendor)."""
+        """One payable GL row per vendor (receivable uses main 121000 — not per customer)."""
+        if account_type == "asset_receivable":
+            return self._lakecity_main_trade_receivable_for_company(company)
         self.ensure_one()
         Account = self.env["account.account"].sudo().with_company(company)
         partner = self.sudo().with_company(company)

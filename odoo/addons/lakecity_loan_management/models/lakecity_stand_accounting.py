@@ -89,12 +89,14 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         return self.company_id._lakecity_stand_sales_journal()
 
     def _lakecity_partner_receivable_account(self):
+        """Main trade receivable (121000); partner_id on lines carries customer detail."""
         self.ensure_one()
-        partner = self.partner_id.commercial_partner_id.with_company(self.company_id)
-        acc = partner.property_account_receivable_id
-        if not acc:
-            acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["receivable"])
-        return acc
+        acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["receivable"])
+        if acc:
+            return acc
+        return self.partner_id.commercial_partner_id._lakecity_main_trade_receivable_for_company(
+            self.company_id
+        )
 
     def _lakecity_collections_bank_account(self):
         self.ensure_one()

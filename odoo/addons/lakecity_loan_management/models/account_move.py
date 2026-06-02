@@ -57,7 +57,7 @@ class AccountMove(models.Model):
         return res
 
     def _lakecity_provision_partner_trade_accounts_from_moves(self):
-        """Dedicated AR/AP GL rows only once billing documents exist (not from CRM alone)."""
+        """Main trade AR (121000) / dedicated AP when billing documents exist."""
         if "account.account" not in self.env:
             return
         for move in self:

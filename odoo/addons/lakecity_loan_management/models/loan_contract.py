@@ -289,9 +289,8 @@ class LakecityLoanContract(models.Model):
         for rec in self:
             if rec.partner_id:
                 rec._lakecity_ensure_partner_is_customer()
-                # Always provision partner-specific AR (12100x…) when a loan exists — not only when
-                # external_uid is set. Otherwise Trial Balance stays on generic 121000 with no partner
-                # column detail and BNPL mirror debits the template receivable.
+                # Point customer at main trade receivable (121000); TB stays consolidated,
+                # partner_id on move lines / aged AR shows per-customer balances.
                 rec.partner_id.commercial_partner_id._lakecity_ensure_dedicated_receivable_accounts()
             if rec.partner_id and rec.external_uid and rec.stand_number:
                 rec._lakecity_sync_crm_opportunity()
@@ -579,7 +578,9 @@ class LakecityLoanContract(models.Model):
                 continue
 
             partner = rec.partner_id.commercial_partner_id
-            ar_acc = partner.with_company(company).property_account_receivable_id
+            ar_acc = company._lakecity_account_by_code("121000")
+            if not ar_acc:
+                ar_acc = partner._lakecity_main_trade_receivable_for_company(company)
             if not ar_acc:
                 _logger.warning(
                     "Lakecity BNPL: partner %s has no receivable account; skip GL mirror for loan %s",
