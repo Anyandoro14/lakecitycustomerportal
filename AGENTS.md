@@ -25,9 +25,9 @@ Docker is not preinstalled. If `docker info` fails:
 
 Use `fuse-overlayfs` storage driver and `iptables-legacy` when running Docker inside nested VMs (see Cursor Cloud setup docs).
 
-### Local Supabase setup gotcha
+### Local Supabase setup
 
-`npm run test:env:setup` runs `npx supabase start` and applies `supabase/migrations/`. If setup fails with `duplicate key value violates unique constraint "schema_migrations_pkey"` on version `20260512120000`, two migration files share the same timestamp prefix (`20260512120000_receipt_realtime.sql` and `20260512120000_stand_inventory.sql`). Rename the stand-inventory file to a unique version (e.g. `20260512120001_stand_inventory.sql`), then run `npx supabase stop` and `npm run test:env:setup` again.
+`npm run test:env:setup` runs `npx supabase start` and applies `supabase/migrations/`. On failure, run `npx supabase stop` and retry; use `npx supabase db reset` to wipe local data and reapply migrations.
 
 ### Lint / test / build
 
