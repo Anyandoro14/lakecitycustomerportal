@@ -56,11 +56,24 @@ class ResPartner(models.Model):
     def _lakecity_main_trade_receivable_for_company(self, company):
         """Shared AR account (121000) — one row on trial balance, partner on move lines."""
         company = company.sudo()
+        if hasattr(company, "_lakecity_trade_receivable_account"):
+            acc = company._lakecity_trade_receivable_account()
+            if acc:
+                return acc
         if hasattr(company, "_lakecity_account_by_code"):
             acc = company._lakecity_account_by_code("121000")
             if acc:
                 return acc
-        return self._lakecity_template_trade_account(company, "asset_receivable")
+        Account = self.env["account.account"].sudo().with_company(company)
+        return Account.search(
+            [
+                ("code", "=", "121000"),
+                ("account_type", "=", "asset_receivable"),
+                ("active", "=", True),
+                *Account._check_company_domain(company),
+            ],
+            limit=1,
+        )
 
     def _lakecity_ensure_dedicated_receivable_accounts(self):
         """Ensure each customer uses main trade receivable (121000), not a per-partner GL."""

@@ -88,16 +88,6 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.ensure_one()
         return self.company_id._lakecity_stand_sales_journal()
 
-    def _lakecity_partner_receivable_account(self):
-        """Main trade receivable (121000); partner_id on lines carries customer detail."""
-        self.ensure_one()
-        acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["receivable"])
-        if acc:
-            return acc
-        return self.partner_id.commercial_partner_id._lakecity_main_trade_receivable_for_company(
-            self.company_id
-        )
-
     def _lakecity_collections_bank_account(self):
         self.ensure_one()
         company = self.company_id
@@ -319,11 +309,14 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         if self.state == "draft":
             self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"state": "active"})
 
-        target_ar = float_round(gross - paid, precision_rounding=rnd)
+        self._lakecity_clear_future_receivable_gl()
+        ar_check = self._lakecity_verify_ar_after_posting("opening_balance")
+        target_ar = ar_check["expected"]
         return {
             "initial_move_id": initial_move.id if initial_move else False,
             "payment_move_ids": payment_move_ids,
             "target_accounts_receivable": target_ar,
+            "accounts_receivable_gl": ar_check["actual"],
             "gross": gross,
             "total_paid": paid,
         }

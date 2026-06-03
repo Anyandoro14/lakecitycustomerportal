@@ -160,12 +160,6 @@
         <field name="account_type">asset_receivable</field>
         <field name="reconcile">True</field>
     </record>
-    <record id="lakecity_coa_121001" model="account.account">
-        <field name="code">121001</field>
-        <field name="name">Trade Receivable — Alex Nyandoro</field>
-        <field name="account_type">asset_receivable</field>
-        <field name="reconcile">True</field>
-    </record>
     <record id="lakecity_coa_121010" model="account.account">
         <field name="code">121010</field>
         <field name="name">Customer Receivables - Completed Stand Sales</field>

@@ -22,6 +22,13 @@
                                 class="btn-secondary"
                                 invisible="not lakecity_stand_sales_accounting_enabled"
                                 groups="account.group_account_manager"/>
+                        <button name="action_lakecity_repair_trial_balance_ar"
+                                type="object"
+                                string="Repair trial balance AR"
+                                class="btn-secondary"
+                                invisible="not lakecity_stand_sales_accounting_enabled"
+                                groups="account.group_account_manager"
+                                confirm="Move legacy per-customer receivable lines onto account 121000 and remove BNPL mirror entries that inflate AR?"/>
                     </group>
                     <group string="Legacy BNPL GL mirror"
                            invisible="lakecity_stand_sales_accounting_enabled"

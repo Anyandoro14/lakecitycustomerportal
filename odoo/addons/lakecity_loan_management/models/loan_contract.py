@@ -395,9 +395,11 @@ class LakecityLoanContract(models.Model):
             if not rec.installment_ids:
                 rec.action_generate_schedule()
             if rec._lakecity_company_stand_accounting_enabled():
-                rec._lakecity_post_initial_contract_recognition()
+                if not rec.lakecity_initial_contract_move_id:
+                    rec._lakecity_post_initial_contract_recognition()
                 rec._lakecity_post_inventory_reclass()
                 rec._lakecity_post_deposit_accounting()
+                rec._lakecity_clear_future_receivable_gl()
 
     def action_mark_defaulted(self):
         for rec in self:
@@ -567,6 +569,9 @@ class LakecityLoanContract(models.Model):
             if company.lakecity_stand_sales_accounting_enabled:
                 rec._lakecity_clear_future_receivable_gl()
                 continue
+            if rec.lakecity_initial_contract_move_id:
+                rec._lakecity_clear_future_receivable_gl()
+                continue
             if company.lakecity_bnpl_post_bank_payment_per_receipt:
                 rec._lakecity_clear_future_receivable_gl()
                 continue
@@ -578,9 +583,7 @@ class LakecityLoanContract(models.Model):
                 continue
 
             partner = rec.partner_id.commercial_partner_id
-            ar_acc = company._lakecity_account_by_code("121000")
-            if not ar_acc:
-                ar_acc = partner._lakecity_main_trade_receivable_for_company(company)
+            ar_acc = company._lakecity_trade_receivable_account()
             if not ar_acc:
                 _logger.warning(
                     "Lakecity BNPL: partner %s has no receivable account; skip GL mirror for loan %s",
