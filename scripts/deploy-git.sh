@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Push this repo to GitHub — primary workflow when hosting on Lovable Cloud only:
 #   - Lovable Cloud builds/deploys the app from your connected Git repo (see Lovable dashboard).
-#   - If you also sync this repo to Odoo.sh / Standledger, custom addons update from the same push.
+#   - Odoo.sh builds Standledger: run npm run sync:standledger (or npm run deploy:odoo) after push,
+#     or enable GitHub Action .github/workflows/sync-standledger.yml (see docs/standledger-sync.md).
 #
 # Usage: npm run deploy   OR   npm run deploy:git
 set -euo pipefail

@@ -1,0 +1,44 @@
+# Push odoo/addons to Standledger when they change — triggers Odoo.sh rebuild.
+# Requires repo secret: STANDLEGER_SYNC_TOKEN (fine-grained PAT, contents:write on Standledger).
+
+name: Sync Odoo addons to Standledger
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - "odoo/addons/**"
+      - ".github/workflows/sync-standledger.yml"
+      - "scripts/sync-odoo-to-standledger.sh"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout lakecitycustomerportal
+        uses: actions/checkout@v4
+
+      - name: Map branch (staging → Staging for Odoo.sh)
+        id: branch
+        run: |
+          if [ "${{ github.ref_name }}" = "staging" ]; then
+            echo "standledger=Staging" >> "$GITHUB_OUTPUT"
+          else
+            echo "standledger=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync addons to Standledger
+        env:
+          STANDLEGER_SYNC_TOKEN: ${{ secrets.STANDLEGER_SYNC_TOKEN }}
+        run: |
+          if [ -z "$STANDLEGER_SYNC_TOKEN" ]; then
+            echo "::error::Set repository secret STANDLEGER_SYNC_TOKEN (PAT with write access to Anyandoro14/Standledger)."
+            exit 1
+          fi
+          export STANDLEGER_CLONE_DIR="$RUNNER_TEMP/Standledger"
+          bash scripts/sync-odoo-to-standledger.sh
+
+      - name: Summary
+        run: |
+          echo "Synced odoo/addons to Standledger branch: ${{ steps.branch.outputs.standledger }}"
+          echo "Portal commit: ${{ github.sha }}"

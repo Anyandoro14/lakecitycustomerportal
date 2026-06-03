@@ -11,6 +11,8 @@
     "sheet:rename-collection-schedule-tab": "node --env-file=.env scripts/rename-collection-schedule-sheet-tab.mjs",
     "deploy": "bash scripts/deploy-git.sh",
     "deploy:git": "bash scripts/deploy-git.sh",
+    "sync:standledger": "bash scripts/sync-odoo-to-standledger.sh",
+    "deploy:odoo": "bash scripts/deploy-git.sh && bash scripts/sync-odoo-to-standledger.sh",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

@@ -18,7 +18,9 @@ if test -d /home/odoo/src/enterprise; then echo -n "Enterprise SHA: " && git -C 
 
 **Operational rule:** For a given Odoo.sh project and series, Community and Enterprise revisions are **released as a set** by Odoo. To move to a **new** series or fix a broken platform pair, use **Upgrade** / Odoo’s documented Odoo.sh flows and then **push a commit** (below) so branches **rebuild**.
 
-**Trigger fresh builds** after any platform or Git change: Odoo.sh → **Branches** → select **main** / **Staging** → **Rebuild**; or push **any** commit to the branch (including an empty commit from your laptop).
+**Trigger fresh builds** after any platform or Git change: Odoo.sh → **Branches** → select **main** / **Staging** → **Rebuild**; or push to **Standledger** (see **`docs/standledger-sync.md`** in lakecitycustomerportal — automated sync on `odoo/addons` changes).
+
+**Develop in lakecitycustomerportal, deploy to Odoo.sh:** push `main`/`staging` there → GitHub Action copies `odoo/addons/` to **Standledger** → Odoo.sh rebuilds. Or run `npm run deploy:odoo` locally.
 
 ---
 
