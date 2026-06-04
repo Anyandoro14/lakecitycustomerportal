@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
+import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -349,6 +350,20 @@ serve(async (req) => {
           .eq("user_id", user.id)
           .single();
         if (internalUser) isLookingGlassAdmin = true;
+      }
+    }
+
+    if (!isLookingGlassAdmin && profileStandNumber) {
+      const portalCheck = await checkStandPortalEnrolled(
+        supabaseClient,
+        requestTenantId,
+        profileStandNumber,
+      );
+      if (!portalCheck.enrolled) {
+        return new Response(JSON.stringify({ error: portalCheck.message }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 

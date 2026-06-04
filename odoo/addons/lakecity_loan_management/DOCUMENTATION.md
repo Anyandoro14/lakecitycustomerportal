@@ -6,8 +6,8 @@ This module provides a dedicated loan engine in Odoo for BNPL operations.
 
 ## Core formulas implemented
 
-- `recurring_invoice_amount = (total_with_tax - deposit) / term_months`
-- `total_paid = deposit + sum(posted payments)`
+- `recurring_invoice_amount = (total_with_tax - deposit) / term_months` (monthly BNPL on price after deposit)
+- `total_paid = sum(installment amount_paid)` when installments exist; else `deposit + sum(posted payments)`
 - `accrued_amount = sum(unpaid installments with due_date < today)`
 - `next_payment_due_amount = accrued_amount + current_due_amount`
 
@@ -32,6 +32,21 @@ If buttons appear disabled or clicks raise **Access Error**, assign **Loan Manag
 ### Docutils / “Unexpected indentation” in Odoo.sh logs
 
 Odoo renders Apps descriptions with docutils when HTML is missing. This addon ships `static/description/index.html` **and** extends `ir.module.module._get_desc` for `lakecity_loan_management` so RST is never used for our module (avoids stderr noise if paths differ on the host).
+
+## Customer Portal enrolment and deposit (19.0.1.0.52+)
+
+On each **loan contract** (and mirrored on **Accounting → Customer** via **Portal settings contract**):
+
+| Field | Purpose |
+|-------|---------|
+| **Portal enrolled** | Gate: must be ON before the stand can sign up or load dashboard data on the Customer Portal |
+| **Deposit required** | Whether a deposit applies |
+| **Deposit in 3 monthly payments** | When ON, **Generate Schedule** creates three deposit installments (dates 1–3) before the main BNPL term starting at **BNPL payment start** |
+| **Deposit due date** / **Deposit payment 1–3** | Due dates for single or split deposit |
+
+Settings sync to Supabase `stand_portal_settings` when system parameters `lakecity.portal_supabase_sync_url` and `lakecity.portal_supabase_sync_token` are set (POST to edge function `sync-stand-portal-settings`).
+
+Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing `profiles.stand_number` rows are enrolled via SQL migration.
 
 ## Workflow
 

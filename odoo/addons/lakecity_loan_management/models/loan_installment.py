@@ -10,6 +10,15 @@ class LakecityLoanInstallment(models.Model):
 
     contract_id = fields.Many2one("lakecity.loan.contract", required=True, ondelete="cascade")
     sequence = fields.Integer(required=True)
+    installment_kind = fields.Selection(
+        [
+            ("deposit", "Deposit"),
+            ("regular", "BNPL installment"),
+        ],
+        string="Kind",
+        default="regular",
+        required=True,
+    )
     due_date = fields.Date(required=True)
     amount_due = fields.Monetary(required=True)
     amount_paid = fields.Monetary(default=0.0)

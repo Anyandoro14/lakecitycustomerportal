@@ -200,3 +200,18 @@ CLI flags mirror env: **`--dry-run`**, **`--preflight-only`**, **`--skip-preflig
 **Balances:** Odoo derives **`current_balance`** from **total − deposit − posted payments**. Supabase **`contract_balances`** is informational; reconcile a few stands after import. **`monthly_installment`** in Supabase may differ slightly from **`recurring_invoice_amount`** due to VAT/rounding formulas in Odoo.
 
 **Collection Schedule CSV → BNPL:** See `docs/odoo-crm-accounting-bnpl-pipeline.md` and `scripts/import-collection-schedule-csv-to-odoo.mjs` (opening totals from **TOTAL PAID** / **Current Balance**).
+
+## Customer Portal enrolment sync (19.0.1.0.52+)
+
+Odoo pushes per-stand portal/deposit settings to Supabase on contract create/write.
+
+**Odoo system parameters** (Settings → Technical → Parameters):
+
+| Key | Value |
+|-----|--------|
+| `lakecity.portal_supabase_sync_url` | Full URL to `https://<project>.supabase.co/functions/v1/sync-stand-portal-settings` |
+| `lakecity.portal_supabase_sync_token` | Same bearer secret as `odoo_webhook_secret_<tenant_id>` in Supabase Vault |
+
+Deploy the Supabase migration `20260527120000_stand_portal_settings.sql` and function `sync-stand-portal-settings` before enabling sync.
+
+**Loan API** (`POST /lakecity/api/v1/loan/upsert`) accepts `lakecity_portal_enrolled`, `lakecity_deposit_required`, `lakecity_deposit_split_three`, `lakecity_deposit_due_date`, `lakecity_deposit_date_1` … `_3`.

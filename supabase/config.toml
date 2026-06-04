@@ -113,3 +113,6 @@ verify_jwt = false
 
 [functions.auto-provision-accounts]
 verify_jwt = false
+
+[functions.sync-stand-portal-settings]
+verify_jwt = false

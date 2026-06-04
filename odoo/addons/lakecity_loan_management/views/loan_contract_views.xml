@@ -11,6 +11,8 @@
                 <field name="stand_number"/>
                 <field name="lakecity_stand_phase_id" optional="show"/>
                 <field name="state"/>
+                <field name="lakecity_portal_enrolled" optional="show"/>
+                <field name="lakecity_deposit_required" optional="show"/>
                 <field name="payment_start_date"/>
                 <field name="term_months"/>
                 <field name="recurring_invoice_amount"/>
@@ -27,6 +29,7 @@
         <field name="arch" type="xml">
             <form string="Loan Contract">
                 <header>
+                    <button name="action_enable_portal_enrollment" type="object" string="Enable portal enrolment" class="btn-secondary" invisible="lakecity_portal_enrolled"/>
                     <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
                     <!-- Keep Recompute early: some clients collapse trailing header buttons into a menu. -->
                     <button name="action_recompute_installment_states" type="object" string="Recompute installments" class="btn-secondary"/>
@@ -91,6 +94,24 @@
                             <field name="lakecity_future_receivable_move_id" invisible="1"/>
                         </group>
                     </group>
+                    <group string="Customer Portal and deposit">
+                        <group>
+                            <field name="lakecity_portal_enrolled" widget="boolean_toggle"/>
+                            <field name="lakecity_portal_enrolled_at" readonly="1"/>
+                            <field name="lakecity_portal_enrolled_by" readonly="1"/>
+                            <field name="lakecity_deposit_required"/>
+                            <field name="lakecity_deposit_split_three" invisible="not lakecity_deposit_required"/>
+                        </group>
+                        <group>
+                            <field name="deposit_amount" invisible="not lakecity_deposit_required"/>
+                            <field name="financed_amount" readonly="1"/>
+                            <field name="lakecity_deposit_due_date" invisible="not lakecity_deposit_required or lakecity_deposit_split_three"/>
+                            <field name="lakecity_deposit_date_1" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                            <field name="lakecity_deposit_date_2" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                            <field name="lakecity_deposit_date_3" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                            <field name="payment_start_date" string="BNPL payment start"/>
+                        </group>
+                    </group>
                     <group string="Pass-through fees" groups="account.group_account_invoice">
                         <field name="lakecity_pass_through_amount"/>
                         <button name="action_post_aos_pass_through" type="object" string="Post AOS receipt" class="btn-secondary"/>
@@ -101,6 +122,7 @@
                             <field name="installment_ids" readonly="1">
                                 <!-- Nested list: avoid monetary widget/options + column_invisible (Odoo 19 RNG rejects some combos on forms). -->
                                 <list>
+                                    <field name="installment_kind"/>
                                     <field name="sequence"/>
                                     <field name="due_date"/>
                                     <field name="amount_due"/>

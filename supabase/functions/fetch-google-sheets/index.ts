@@ -9,6 +9,7 @@ import {
   PAYMENT_GRID_END_COL,
   PAYMENT_GRID_BASE_DATE,
 } from "../_shared/collection-schedule-sheets.ts";
+import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -731,6 +732,25 @@ serve(async (req) => {
           }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
+      }
+
+      if (profileStandNumber) {
+        const { data: profileTenantRow } = await supabaseClient
+          .from("profiles")
+          .select("tenant_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        const portalCheck = await checkStandPortalEnrolled(
+          supabaseClient,
+          profileTenantRow?.tenant_id,
+          profileStandNumber,
+        );
+        if (!portalCheck.enrolled) {
+          return new Response(
+            JSON.stringify({ error: portalCheck.message }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
 
       console.log(`User ${primaryEmail} (stand: ${profileStandNumber || 'N/A'}) authorized for ${customerRows.length} stand(s)`);

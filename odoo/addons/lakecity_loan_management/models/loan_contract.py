@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import calendar
+import json
 import logging
+import urllib.error
+import urllib.request
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
@@ -121,6 +124,35 @@ class LakecityLoanContract(models.Model):
     agreement_signed_buyer = fields.Boolean(default=False, tracking=True)
     agreement_file_url = fields.Char(tracking=True)
 
+    lakecity_portal_enrolled = fields.Boolean(
+        string="Portal enrolled",
+        default=False,
+        tracking=True,
+        help="When enabled, this stand may sign up and view data on the Customer Portal.",
+    )
+    lakecity_portal_enrolled_at = fields.Datetime(readonly=True, copy=False)
+    lakecity_portal_enrolled_by = fields.Many2one(
+        "res.users",
+        string="Portal enrolled by",
+        readonly=True,
+        copy=False,
+    )
+    lakecity_deposit_required = fields.Boolean(
+        string="Deposit required",
+        default=False,
+        tracking=True,
+    )
+    lakecity_deposit_split_three = fields.Boolean(
+        string="Deposit in 3 monthly payments",
+        default=False,
+        tracking=True,
+        help="When set, generate three deposit installments before the main BNPL schedule.",
+    )
+    lakecity_deposit_due_date = fields.Date(string="Deposit due date", tracking=True)
+    lakecity_deposit_date_1 = fields.Date(string="Deposit payment 1", tracking=True)
+    lakecity_deposit_date_2 = fields.Date(string="Deposit payment 2", tracking=True)
+    lakecity_deposit_date_3 = fields.Date(string="Deposit payment 3", tracking=True)
+
     state = fields.Selection(
         [
             ("draft", "Draft"),
@@ -201,6 +233,71 @@ class LakecityLoanContract(models.Model):
             if rec.due_day < 1 or rec.due_day > 31:
                 raise ValidationError(_("Contract due day must be between 1 and 31."))
 
+    @api.constrains(
+        "lakecity_deposit_required",
+        "lakecity_deposit_split_three",
+        "deposit_amount",
+        "lakecity_deposit_due_date",
+        "lakecity_deposit_date_1",
+        "lakecity_deposit_date_2",
+        "lakecity_deposit_date_3",
+        "payment_start_date",
+    )
+    def _lakecity_check_deposit_portal_rules(self):
+        for rec in self:
+            cur = rec.currency_id or rec.company_id.currency_id
+            rnd = cur.rounding or 0.01
+            start = rec.payment_start_date
+            if not rec.lakecity_deposit_required:
+                continue
+            if float_is_zero(rec.deposit_amount or 0.0, precision_rounding=rnd):
+                raise ValidationError(
+                    _("Deposit amount must be greater than zero when Deposit required is enabled.")
+                )
+            if rec.lakecity_deposit_split_three:
+                for label, dt in (
+                    (_("Deposit payment 1"), rec.lakecity_deposit_date_1),
+                    (_("Deposit payment 2"), rec.lakecity_deposit_date_2),
+                    (_("Deposit payment 3"), rec.lakecity_deposit_date_3),
+                ):
+                    if not dt:
+                        raise ValidationError(
+                            _("%s is required when deposit is split over three payments.") % label
+                        )
+                    if start and dt >= start:
+                        raise ValidationError(
+                            _("%s must be before the BNPL payment start date (%s).") % (label, start)
+                        )
+            elif not rec.lakecity_deposit_due_date:
+                raise ValidationError(
+                    _("Deposit due date is required when deposit is required and not split in three.")
+                )
+            elif start and rec.lakecity_deposit_due_date >= start:
+                raise ValidationError(
+                    _("Deposit due date must be before the BNPL payment start date (%s).") % start
+                )
+
+    @api.onchange("lakecity_deposit_required")
+    def _onchange_lakecity_deposit_required(self):
+        for rec in self:
+            if not rec.lakecity_deposit_required:
+                rec.deposit_amount = 0.0
+                rec.lakecity_deposit_split_three = False
+                rec.lakecity_deposit_due_date = False
+                rec.lakecity_deposit_date_1 = False
+                rec.lakecity_deposit_date_2 = False
+                rec.lakecity_deposit_date_3 = False
+
+    @api.onchange("lakecity_deposit_split_three")
+    def _onchange_lakecity_deposit_split_three(self):
+        for rec in self:
+            if rec.lakecity_deposit_split_three:
+                rec.lakecity_deposit_due_date = False
+            else:
+                rec.lakecity_deposit_date_1 = False
+                rec.lakecity_deposit_date_2 = False
+                rec.lakecity_deposit_date_3 = False
+
     @staticmethod
     def _lakecity_clamp_day_in_month(year, month, day_desired):
         last = calendar.monthrange(year, month)[1]
@@ -268,17 +365,124 @@ class LakecityLoanContract(models.Model):
         records = super().create(vals_list)
         records._lakecity_sync_partner_customer_and_crm()
         records._lakecity_sync_future_receivable_gl()
+        records._lakecity_sync_portal_settings_supabase()
         return records
+
+    _LAKECITY_PORTAL_SYNC_FIELDS = frozenset(
+        {
+            "stand_number",
+            "lakecity_portal_enrolled",
+            "lakecity_deposit_required",
+            "lakecity_deposit_split_three",
+            "lakecity_deposit_due_date",
+            "lakecity_deposit_date_1",
+            "lakecity_deposit_date_2",
+            "lakecity_deposit_date_3",
+            "deposit_amount",
+            "payment_start_date",
+            "term_months",
+        }
+    )
 
     def write(self, vals):
         if vals.get("stand_number"):
             vals["stand_number"] = self._lakecity_normalize_stand(vals["stand_number"])
             self._lakecity_merge_cost_master_vals(vals)
+        if "lakecity_deposit_required" in vals and not vals.get("lakecity_deposit_required"):
+            vals.setdefault("deposit_amount", 0.0)
+            vals.setdefault("lakecity_deposit_split_three", False)
+            vals.setdefault("lakecity_deposit_due_date", False)
+            vals.setdefault("lakecity_deposit_date_1", False)
+            vals.setdefault("lakecity_deposit_date_2", False)
+            vals.setdefault("lakecity_deposit_date_3", False)
+        portal_toggle_on = vals.get("lakecity_portal_enrolled") is True
+        if portal_toggle_on:
+            vals.setdefault("lakecity_portal_enrolled_at", fields.Datetime.now())
+            vals.setdefault("lakecity_portal_enrolled_by", self.env.user.id)
+        elif vals.get("lakecity_portal_enrolled") is False:
+            vals.setdefault("lakecity_portal_enrolled_at", False)
+            vals.setdefault("lakecity_portal_enrolled_by", False)
         res = super().write(vals)
         self._lakecity_sync_partner_customer_and_crm()
         if not self.env.context.get("skip_lakecity_bnpl_gl_sync"):
             self._lakecity_sync_future_receivable_gl()
+        if self._LAKECITY_PORTAL_SYNC_FIELDS.intersection(vals.keys()):
+            self._lakecity_sync_portal_settings_supabase()
         return res
+
+    def action_enable_portal_enrollment(self):
+        """Mark stand as eligible for Customer Portal (sets audit fields)."""
+        self.write(
+            {
+                "lakecity_portal_enrolled": True,
+                "lakecity_portal_enrolled_at": fields.Datetime.now(),
+                "lakecity_portal_enrolled_by": self.env.user.id,
+            }
+        )
+        return True
+
+    def _lakecity_portal_sync_payload(self):
+        self.ensure_one()
+        return {
+            "stand_number": self.stand_number,
+            "odoo_contract_id": self.id,
+            "portal_enrolled": bool(self.lakecity_portal_enrolled),
+            "deposit_required": bool(self.lakecity_deposit_required),
+            "deposit_split_three": bool(self.lakecity_deposit_split_three),
+            "deposit_due_date": self.lakecity_deposit_due_date.isoformat()
+            if self.lakecity_deposit_due_date
+            else None,
+            "deposit_date_1": self.lakecity_deposit_date_1.isoformat()
+            if self.lakecity_deposit_date_1
+            else None,
+            "deposit_date_2": self.lakecity_deposit_date_2.isoformat()
+            if self.lakecity_deposit_date_2
+            else None,
+            "deposit_date_3": self.lakecity_deposit_date_3.isoformat()
+            if self.lakecity_deposit_date_3
+            else None,
+            "deposit_amount": float(self.deposit_amount or 0.0),
+            "payment_start_date": self.payment_start_date.isoformat()
+            if self.payment_start_date
+            else None,
+            "term_months": int(self.term_months or 0),
+        }
+
+    def _lakecity_sync_portal_settings_supabase(self):
+        """Push portal enrolment / deposit settings to Supabase edge function (best-effort)."""
+        ICP = self.env["ir.config_parameter"].sudo()
+        url = (ICP.get_param("lakecity.portal_supabase_sync_url") or "").strip()
+        token = (ICP.get_param("lakecity.portal_supabase_sync_token") or "").strip()
+        if not url or not token:
+            return
+        for rec in self:
+            if not rec.stand_number:
+                continue
+            body = json.dumps(rec._lakecity_portal_sync_payload()).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer %s" % token,
+                    "User-Agent": "Lakecity-Odoo-PortalSync/1.0",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    if resp.status >= 400:
+                        _logger.warning(
+                            "Lakecity portal sync HTTP %s for stand %s",
+                            resp.status,
+                            rec.stand_number,
+                        )
+            except (urllib.error.URLError, OSError, ValueError) as err:
+                _logger.warning(
+                    "Lakecity portal sync failed for stand %s: %s",
+                    rec.stand_number,
+                    err,
+                )
 
     def unlink(self):
         self._lakecity_clear_future_receivable_gl()
@@ -363,7 +567,10 @@ class LakecityLoanContract(models.Model):
         today = fields.Date.context_today(self)
         for rec in self:
             posted_payments = sum(p.amount for p in rec.payment_ids if p.state == "posted")
-            rec.total_paid = (rec.deposit_amount or 0.0) + posted_payments
+            if rec.installment_ids:
+                rec.total_paid = sum(rec.installment_ids.mapped("amount_paid"))
+            else:
+                rec.total_paid = (rec.deposit_amount or 0.0) + posted_payments
             rec.current_balance = max((rec.total_with_tax or 0.0) - rec.total_paid, 0.0)
 
             overdue_lines = rec.installment_ids.filtered(
@@ -429,17 +636,70 @@ class LakecityLoanContract(models.Model):
     def action_close(self):
         self.write({"state": "closed"})
 
+    def _lakecity_deposit_installment_specs(self):
+        """Return list of dicts for deposit-phase installment lines (sequence, due_date, amount_due)."""
+        self.ensure_one()
+        if not self.lakecity_deposit_required:
+            return []
+        cur = self.currency_id or self.company_id.currency_id
+        rnd = cur.rounding or 0.01
+        gross = self.deposit_amount or 0.0
+        if float_is_zero(gross, precision_rounding=rnd):
+            return []
+        specs = []
+        if self.lakecity_deposit_split_three:
+            amounts = self._lakecity_split_financed_into_installments(gross, 3)
+            dates = (
+                self.lakecity_deposit_date_1,
+                self.lakecity_deposit_date_2,
+                self.lakecity_deposit_date_3,
+            )
+            for seq, (due, amt) in enumerate(zip(dates, amounts), start=1):
+                specs.append({"sequence": seq, "due_date": due, "amount_due": amt})
+        else:
+            specs.append(
+                {
+                    "sequence": 1,
+                    "due_date": self.lakecity_deposit_due_date,
+                    "amount_due": gross,
+                }
+            )
+        return specs
+
     def action_generate_schedule(self):
         # sudo(): regenerate deletes/recreates installments; Loan Users only have read ACL on
         # installment lines, but must still run schedule/recompute flows from the contract form.
+        Installment = self.env["lakecity.loan.installment"]
         for rec in self.sudo():
             rec.installment_ids.unlink()
+            lines = []
+            seq_offset = 0
+            deposit_specs = rec._lakecity_deposit_installment_specs()
+            for spec in deposit_specs:
+                lines.append(
+                    {
+                        "contract_id": rec.id,
+                        "sequence": spec["sequence"],
+                        "due_date": spec["due_date"],
+                        "amount_due": spec["amount_due"],
+                        "amount_paid": 0.0,
+                        "installment_kind": "deposit",
+                    }
+                )
+            seq_offset = len(deposit_specs)
             if rec.term_months <= 0:
+                if lines:
+                    Installment.create(lines)
+                    rec._rebuild_payment_allocations()
                 continue
             financed = rec.financed_amount or 0.0
             n = rec.term_months
             cur = rec.currency_id or rec.company_id.currency_id
             if float_is_zero(financed, precision_rounding=cur.rounding):
+                if deposit_specs:
+                    Installment.create(lines)
+                    rec._rebuild_payment_allocations()
+                    continue
                 raise ValidationError(
                     _(
                         "Cannot generate installments: financed amount is zero. "
@@ -447,19 +707,19 @@ class LakecityLoanContract(models.Model):
                     )
                 )
             amounts = rec._lakecity_split_financed_into_installments(financed, n)
-            lines = []
             for i in range(n):
                 due = rec._lakecity_nth_installment_due_date(i)
                 lines.append(
                     {
                         "contract_id": rec.id,
-                        "sequence": i + 1,
+                        "sequence": seq_offset + i + 1,
                         "due_date": due,
                         "amount_due": amounts[i],
                         "amount_paid": 0.0,
+                        "installment_kind": "regular",
                     }
                 )
-            rec.env["lakecity.loan.installment"].create(lines)
+            Installment.create(lines)
             rec._rebuild_payment_allocations()
 
     def _lakecity_try_repair_zero_schedule(self):

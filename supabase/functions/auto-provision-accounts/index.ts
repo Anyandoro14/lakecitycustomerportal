@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -249,14 +250,22 @@ Deno.serve(async (req) => {
     if (filterStand) {
       candidates = candidates.filter((s) => s.standNumber === filterStand);
     }
-    const toProvision = candidates;
-    console.log(`${toProvision.length} stand(s) need provisioning`);
+    const enrolledCandidates: typeof candidates = [];
+    for (const s of candidates) {
+      const portalCheck = await checkStandPortalEnrolled(supabaseAdmin, tenantId, s.standNumber);
+      if (portalCheck.enrolled) {
+        enrolledCandidates.push(s);
+      }
+    }
+    const toProvision = enrolledCandidates;
+    console.log(`${toProvision.length} stand(s) need provisioning (portal enrolled only)`);
 
     if (dryRun) {
       return new Response(JSON.stringify({
         dryRun: true,
         totalOnSheet: unique.length,
-        alreadyProvisioned: unique.length - toProvision.length,
+        alreadyProvisioned: unique.length - candidates.length,
+        skippedNotEnrolled: candidates.length - toProvision.length,
         toProvision: toProvision.map((s) => ({
           standNumber: s.standNumber,
           email: s.email,

@@ -20,6 +20,66 @@ class ResPartner(models.Model):
         store=True,
         help="Comma-separated stands from BNPL contracts; links Accounting and CRM via loan contracts.",
     )
+    lakecity_portal_contract_id = fields.Many2one(
+        "lakecity.loan.contract",
+        string="Portal settings contract",
+        domain="[('partner_id', '=', id)]",
+        help="BNPL contract whose portal enrolment and deposit settings are edited below.",
+    )
+    lakecity_portal_enrolled = fields.Boolean(
+        string="Portal enrolled",
+        related="lakecity_portal_contract_id.lakecity_portal_enrolled",
+        readonly=False,
+    )
+    lakecity_deposit_required = fields.Boolean(
+        string="Deposit required",
+        related="lakecity_portal_contract_id.lakecity_deposit_required",
+        readonly=False,
+    )
+    lakecity_deposit_split_three = fields.Boolean(
+        string="Deposit in 3 payments",
+        related="lakecity_portal_contract_id.lakecity_deposit_split_three",
+        readonly=False,
+    )
+    lakecity_deposit_amount = fields.Monetary(
+        string="Deposit amount",
+        related="lakecity_portal_contract_id.deposit_amount",
+        readonly=False,
+    )
+    lakecity_deposit_due_date = fields.Date(
+        related="lakecity_portal_contract_id.lakecity_deposit_due_date",
+        readonly=False,
+    )
+    lakecity_deposit_date_1 = fields.Date(
+        related="lakecity_portal_contract_id.lakecity_deposit_date_1",
+        readonly=False,
+    )
+    lakecity_deposit_date_2 = fields.Date(
+        related="lakecity_portal_contract_id.lakecity_deposit_date_2",
+        readonly=False,
+    )
+    lakecity_deposit_date_3 = fields.Date(
+        related="lakecity_portal_contract_id.lakecity_deposit_date_3",
+        readonly=False,
+    )
+
+    def _lakecity_default_portal_contract(self):
+        self.ensure_one()
+        contracts = self.lakecity_loan_contract_ids
+        active = contracts.filtered(lambda c: c.state == "active")
+        chosen = active.sorted(key=lambda c: c.create_date, reverse=True)[:1]
+        if not chosen:
+            chosen = contracts.sorted(key=lambda c: c.create_date, reverse=True)[:1]
+        return chosen
+
+    @api.onchange("lakecity_loan_contract_ids")
+    def _onchange_lakecity_loan_contract_ids_portal(self):
+        for partner in self:
+            if partner.lakecity_portal_contract_id:
+                continue
+            chosen = partner._lakecity_default_portal_contract()
+            if chosen:
+                partner.lakecity_portal_contract_id = chosen
 
     @api.depends("lakecity_loan_contract_ids.stand_number")
     def _compute_lakecity_stand_list(self):
