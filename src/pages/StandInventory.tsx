@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parse } from "csv-parse/sync";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as supabaseTyped } from "@/integrations/supabase/client";
+// Tables (stand_inventory, stand_inventory_buyer, tenants) are not yet in the
+// generated Supabase types. Cast to any to bypass strict typing until the
+// migration is applied and types are regenerated.
+const supabase = supabaseTyped as any;
 import InternalNav from "@/components/InternalNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
