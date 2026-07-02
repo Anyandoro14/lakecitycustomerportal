@@ -175,7 +175,7 @@ function hasBuyerDetail(b: FormBuyer): boolean {
 }
 
 function toFormState(row: StandWithBuyers): StandFormState {
-  const buyers =
+  const buyers: FormBuyer[] =
     (row.stand_inventory_buyer || [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
