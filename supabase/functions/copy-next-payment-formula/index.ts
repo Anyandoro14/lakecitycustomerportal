@@ -58,15 +58,18 @@ Deno.serve(async (req) => {
 
     // Rewrite formula per row: replace source tab refs with target tab refs, and re-anchor row number
     // Source formula references its own rows (e.g. $M2:$FX2). We shift each row by (targetRow - sourceRow).
-    const targetSheetRefEsc = targetTab.replace(/'/g, "''");
-    // Escape source tab name for regex removal (in case formula references it explicitly)
+    const srcTabEsc = sourceTab.replace(/'/g, "''");
+    const tgtTabEsc = targetTab.replace(/'/g, "''");
+    const srcTabRe = new RegExp(`'${srcTabEsc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`, "g");
     const buildRowFormula = (targetRow: number): string => {
       const shift = targetRow - sourceRow;
-      // Shift only non-absolute row numbers ($M2 -> $M{2+shift}); leave $M$1 alone.
-      return String(srcFormula).replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g, (_m, col, absRow, rowNum) => {
+      let f = String(srcFormula).replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g, (_m, col, absRow, rowNum) => {
         if (absRow === "$") return `${col}$${rowNum}`;
         return `${col}${parseInt(rowNum, 10) + shift}`;
       });
+      // Swap explicit source-tab references (e.g. INDIRECT("'Collection Schedule - 36mo'!..."))
+      f = f.replace(srcTabRe, `'${tgtTabEsc}'`);
+      return f;
     };
 
     const values: string[][] = [];
