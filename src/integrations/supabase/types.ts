@@ -932,6 +932,74 @@ export type Database = {
         }
         Relationships: []
       }
+      stand_portal_settings: {
+        Row: {
+          created_at: string
+          deposit_amount: number | null
+          deposit_date_1: string | null
+          deposit_date_2: string | null
+          deposit_date_3: string | null
+          deposit_due_date: string | null
+          deposit_required: boolean
+          deposit_split_three: boolean
+          id: string
+          odoo_contract_id: number | null
+          payment_start_date: string | null
+          portal_enrolled: boolean
+          stand_number: string
+          synced_at: string
+          tenant_id: string
+          term_months: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_date_1?: string | null
+          deposit_date_2?: string | null
+          deposit_date_3?: string | null
+          deposit_due_date?: string | null
+          deposit_required?: boolean
+          deposit_split_three?: boolean
+          id?: string
+          odoo_contract_id?: number | null
+          payment_start_date?: string | null
+          portal_enrolled?: boolean
+          stand_number: string
+          synced_at?: string
+          tenant_id: string
+          term_months?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_date_1?: string | null
+          deposit_date_2?: string | null
+          deposit_date_3?: string | null
+          deposit_due_date?: string | null
+          deposit_required?: boolean
+          deposit_split_three?: boolean
+          id?: string
+          odoo_contract_id?: number | null
+          payment_start_date?: string | null
+          portal_enrolled?: boolean
+          stand_number?: string
+          synced_at?: string
+          tenant_id?: string
+          term_months?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_portal_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_cases: {
         Row: {
           case_number: string
@@ -980,6 +1048,33 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1141,6 +1236,7 @@ export type Database = {
       get_user_stand_number: { Args: { user_id: string }; Returns: string }
       is_internal_user: { Args: { _user_id: string }; Returns: boolean }
       is_override_approver: { Args: { _user_id: string }; Returns: boolean }
+      jwt_tenant_id: { Args: never; Returns: string }
     }
     Enums: {
       conversation_status:
