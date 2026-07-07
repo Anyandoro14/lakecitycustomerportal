@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_loan_monthly_statement_tree" model="ir.ui.view">
+        <field name="name">lakecity.loan.monthly.statement.tree</field>
+        <field name="model">lakecity.loan.monthly.statement</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="statement_month"/>
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <field name="opening_balance"/>
+                <field name="total_payments"/>
+                <field name="closing_balance"/>
+                <field name="is_overdue"/>
+                <field name="generated_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_lakecity_loan_monthly_statement_form" model="ir.ui.view">
+        <field name="name">lakecity.loan.monthly.statement.form</field>
+        <field name="model">lakecity.loan.monthly.statement</field>
+        <field name="arch" type="xml">
+            <form string="Customer Statement">
+                <header>
+                    <button name="action_print_statement" type="object" string="Print / PDF" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="contract_id" readonly="1"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="stand_number" readonly="1"/>
+                            <field name="customer_email" readonly="1"/>
+                            <field name="statement_month" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="opening_balance" readonly="1"/>
+                            <field name="total_payments" readonly="1"/>
+                            <field name="closing_balance" readonly="1"/>
+                            <field name="is_overdue" readonly="1"/>
+                            <field name="days_overdue" readonly="1"/>
+                            <field name="generated_at" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Payments received">
+                            <field name="payment_line_ids" readonly="1">
+                                <list>
+                                    <field name="payment_date"/>
+                                    <field name="amount"/>
+                                    <field name="source"/>
+                                    <field name="reference"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_lakecity_loan_monthly_statement_search" model="ir.ui.view">
+        <field name="name">lakecity.loan.monthly.statement.search</field>
+        <field name="model">lakecity.loan.monthly.statement</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <field name="statement_month"/>
+                <filter string="Overdue" name="overdue" domain="[('is_overdue', '=', True)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Stand" name="group_stand" context="{'group_by': 'stand_number'}"/>
+                    <filter string="Customer" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Month" name="group_month" context="{'group_by': 'statement_month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_lakecity_loan_monthly_statement" model="ir.actions.act_window">
+        <field name="name">Customer Statements</field>
+        <field name="res_model">lakecity.loan.monthly.statement</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_lakecity_loan_monthly_statement_search"/>
+        <field name="context">{'search_default_group_stand': 0}</field>
+    </record>
+
+    <record id="action_lakecity_refresh_all_statements" model="ir.actions.server">
+        <field name="name">Refresh all active statements</field>
+        <field name="model_id" ref="model_lakecity_loan_contract"/>
+        <field name="binding_model_id" ref="model_lakecity_loan_monthly_statement"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = env["lakecity.loan.contract"].action_refresh_all_active_statements()</field>
+    </record>
+</odoo>

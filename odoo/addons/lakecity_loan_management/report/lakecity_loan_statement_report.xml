@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_lakecity_loan_statement" model="ir.actions.report">
+        <field name="name">Customer Statement</field>
+        <field name="model">lakecity.loan.monthly.statement</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">lakecity_loan_management.report_lakecity_loan_statement</field>
+        <field name="report_file">lakecity_loan_management.report_lakecity_loan_statement</field>
+        <field name="print_report_name">'Statement - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="model_lakecity_loan_monthly_statement"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_lakecity_loan_statement">
+        <t t-call="web.external_layout">
+            <t t-foreach="docs" t-as="doc">
+                <div class="page">
+                    <h2>Monthly Account Statement</h2>
+                    <p class="text-muted">
+                        LakeCity Development · Honesty · Integrity · Transparency
+                    </p>
+
+                    <div class="row mt16 mb16">
+                        <div class="col-6">
+                            <strong>Customer</strong><br/>
+                            <span t-field="doc.partner_id"/>
+                            <t t-if="doc.customer_email">
+                                <br/><span t-field="doc.customer_email"/>
+                            </t>
+                        </div>
+                        <div class="col-6">
+                            <strong>Stand</strong><br/>
+                            <span t-field="doc.stand_number"/>
+                            <br/><br/>
+                            <strong>Statement period</strong><br/>
+                            <span t-field="doc.statement_month" t-options='{"widget": "date", "format": "MMMM yyyy"}'/>
+                            <br/><br/>
+                            <strong>Generated</strong><br/>
+                            <span t-field="doc.generated_at" t-options='{"widget": "datetime"}'/>
+                        </div>
+                    </div>
+
+                    <table class="table table-sm o_main_table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Opening balance</td>
+                                <td class="text-end">
+                                    <span t-field="doc.opening_balance" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Payments received this month</td>
+                                <td class="text-end">
+                                    <span t-field="doc.total_payments" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Closing balance</strong></td>
+                                <td class="text-end">
+                                    <strong>
+                                        <span t-field="doc.closing_balance" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                    </strong>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <t t-if="doc.payment_line_ids">
+                        <h4 class="mt32">Payment detail</h4>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Method</th>
+                                    <th>Reference</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="doc.payment_line_ids" t-as="line">
+                                    <td><span t-field="line.payment_date"/></td>
+                                    <td><span t-field="line.source"/></td>
+                                    <td><span t-field="line.reference"/></td>
+                                    <td class="text-end">
+                                        <span t-field="line.amount" t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </t>
+
+                    <t t-if="doc.is_overdue">
+                        <p class="mt16 text-danger">
+                            Account overdue:
+                            <span t-field="doc.days_overdue"/> day(s) past month end.
+                        </p>
+                    </t>
+
+                    <p class="mt32 text-muted small">
+                        This statement is generated from live LakeCity loan contract data in Odoo
+                        (posted payments and current balance as of generation time).
+                    </p>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

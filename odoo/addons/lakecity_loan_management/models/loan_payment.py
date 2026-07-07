@@ -124,7 +124,9 @@ class LakecityLoanPayment(models.Model):
                         )
         result = super().write(vals)
         if "state" in vals or "amount" in vals or "contract_id" in vals or "payment_date" in vals:
-            self.mapped("contract_id")._rebuild_payment_allocations()
+            contracts = self.mapped("contract_id")
+            contracts._rebuild_payment_allocations()
+            contracts.write({"lakecity_last_statement_sync": False})
         if vals.get("state") == "posted":
             self._lakecity_ensure_bank_payment()
         return result

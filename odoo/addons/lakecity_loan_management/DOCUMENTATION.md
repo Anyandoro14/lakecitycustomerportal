@@ -48,6 +48,14 @@ Settings sync to Supabase `stand_portal_settings` when system parameters `lakeci
 
 Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing `profiles.stand_number` rows are enrolled via SQL migration.
 
+## Customer statements (19.0.1.0.53+)
+
+Monthly customer statements are generated **from live Odoo loan data** (posted `lakecity.loan.payment` rows and contract `current_balance`), not from Google Sheets.
+
+- **Lakecity Loans → Customer Statements** — browse all generated statements; use **Action → Refresh all active statements** to rebuild from current data.
+- **Loan contract** — stat button **Statements**, header **Refresh statements** / **Print latest statement**, notebook tab **Statements** with PDF per month.
+- Statements auto-refresh before print when posted payments changed since the last refresh.
+
 ## Workflow
 
 1. Create Loan Product.

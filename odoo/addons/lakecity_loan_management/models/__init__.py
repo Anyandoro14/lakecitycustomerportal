@@ -17,4 +17,5 @@ from . import res_partner
 from . import receipt_intake
 from . import loan_contract
 from . import loan_installment
+from . import lakecity_loan_monthly_statement
 from . import loan_payment

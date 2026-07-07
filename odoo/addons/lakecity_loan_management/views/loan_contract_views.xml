@@ -30,6 +30,8 @@
             <form string="Loan Contract">
                 <header>
                     <button name="action_enable_portal_enrollment" type="object" string="Enable portal enrolment" class="btn-secondary" invisible="lakecity_portal_enrolled"/>
+                    <button name="action_refresh_monthly_statements" type="object" string="Refresh statements" class="btn-secondary"/>
+                    <button name="action_print_latest_statement" type="object" string="Print latest statement" class="btn-secondary"/>
                     <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
                     <!-- Keep Recompute early: some clients collapse trailing header buttons into a menu. -->
                     <button name="action_recompute_installment_states" type="object" string="Recompute installments" class="btn-secondary"/>
@@ -46,6 +48,11 @@
                     <field name="state" widget="statusbar" statusbar_visible="draft,active,closed,defaulted"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_monthly_statements" type="object" class="oe_stat_button" icon="fa-file-text-o">
+                            <field name="lakecity_monthly_statement_count" widget="statinfo" string="Statements"/>
+                        </button>
+                    </div>
                     <group>
                         <group>
                             <field name="name" readonly="1"/>
@@ -154,6 +161,22 @@
                                 <field name="agreement_signed_buyer"/>
                                 <field name="agreement_file_url"/>
                             </group>
+                        </page>
+                        <page string="Statements">
+                            <group>
+                                <field name="lakecity_last_statement_sync" readonly="1"/>
+                            </group>
+                            <field name="lakecity_monthly_statement_ids" readonly="1">
+                                <list>
+                                    <field name="statement_month"/>
+                                    <field name="opening_balance"/>
+                                    <field name="total_payments"/>
+                                    <field name="closing_balance"/>
+                                    <field name="is_overdue"/>
+                                    <field name="generated_at"/>
+                                    <button name="action_print_statement" type="object" string="PDF" icon="fa-print"/>
+                                </list>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>

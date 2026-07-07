@@ -167,6 +167,19 @@ class LakecityLoanContract(models.Model):
 
     installment_ids = fields.One2many("lakecity.loan.installment", "contract_id")
     payment_ids = fields.One2many("lakecity.loan.payment", "contract_id")
+    lakecity_monthly_statement_ids = fields.One2many(
+        "lakecity.loan.monthly.statement",
+        "contract_id",
+        string="Customer statements",
+    )
+    lakecity_last_statement_sync = fields.Datetime(
+        string="Statements last refreshed",
+        readonly=True,
+        copy=False,
+    )
+    lakecity_monthly_statement_count = fields.Integer(
+        compute="_compute_lakecity_monthly_statement_count",
+    )
 
     total_with_tax = fields.Monetary(compute="_compute_totals", store=True)
     financed_amount = fields.Monetary(compute="_compute_totals", store=True)
@@ -541,6 +554,11 @@ class LakecityLoanContract(models.Model):
                 rec.term_months = rec.product_id.term_months
             if rec.product_id.due_day:
                 rec.due_day = rec.product_id.due_day
+
+    @api.depends("lakecity_monthly_statement_ids")
+    def _compute_lakecity_monthly_statement_count(self):
+        for rec in self:
+            rec.lakecity_monthly_statement_count = len(rec.lakecity_monthly_statement_ids)
 
     @api.depends("total_price", "tax_rate", "is_vat_inclusive", "deposit_amount", "term_months")
     def _compute_totals(self):
@@ -942,3 +960,179 @@ class LakecityLoanContract(models.Model):
                 inst.amount_paid = pay
                 remaining_pool -= pay
         self._lakecity_sync_future_receivable_gl()
+
+    @staticmethod
+    def _lakecity_first_of_month(d):
+        d = fields.Date.to_date(d)
+        return d.replace(day=1)
+
+    @staticmethod
+    def _lakecity_last_day_of_month(year, month):
+        return calendar.monthrange(year, month)[1]
+
+    def _lakecity_statement_start_month(self):
+        self.ensure_one()
+        candidates = []
+        if self.payment_start_date:
+            candidates.append(self._lakecity_first_of_month(self.payment_start_date))
+        for dt in (
+            self.lakecity_deposit_due_date,
+            self.lakecity_deposit_date_1,
+            self.lakecity_deposit_date_2,
+            self.lakecity_deposit_date_3,
+        ):
+            if dt:
+                candidates.append(self._lakecity_first_of_month(dt))
+        posted = self.payment_ids.filtered(lambda p: p.state == "posted")
+        if posted:
+            candidates.append(self._lakecity_first_of_month(min(posted.mapped("payment_date"))))
+        if candidates:
+            return min(candidates)
+        today = fields.Date.context_today(self)
+        return self._lakecity_first_of_month(today)
+
+    def _lakecity_payments_by_statement_month(self):
+        self.ensure_one()
+        buckets = {}
+        for pay in self.payment_ids.filtered(lambda p: p.state == "posted"):
+            key = self._lakecity_first_of_month(pay.payment_date)
+            buckets.setdefault(key, [])
+            buckets[key].append(pay)
+        return buckets
+
+    def _lakecity_build_monthly_statement_specs(self):
+        """Build monthly statement rows from live contract balances and posted payments."""
+        self.ensure_one()
+        today = fields.Date.context_today(self)
+        end_month = self._lakecity_first_of_month(today)
+        start_month = self._lakecity_statement_start_month()
+        payment_buckets = self._lakecity_payments_by_statement_month()
+        payment_start = fields.Date.to_date(self.payment_start_date or start_month)
+
+        months = []
+        cur = start_month
+        while cur <= end_month:
+            months.append(cur)
+            cur = cur + relativedelta(months=1)
+
+        closing = self.current_balance or 0.0
+        specs = []
+        for month in reversed(months):
+            pays = payment_buckets.get(month, [])
+            total_payments = sum(p.amount for p in pays)
+            opening = closing + total_payments
+
+            year, mon = month.year, month.month
+            last_day = month.replace(day=self._lakecity_last_day_of_month(year, mon))
+            is_before_start = month < self._lakecity_first_of_month(payment_start)
+            is_overdue = False
+            days_overdue = 0
+            if not is_before_start and closing > 0 and today > last_day:
+                is_overdue = True
+                days_overdue = (today - last_day).days
+
+            specs.append(
+                {
+                    "statement_month": month,
+                    "opening_balance": opening,
+                    "closing_balance": closing,
+                    "total_payments": total_payments,
+                    "is_overdue": is_overdue,
+                    "days_overdue": days_overdue,
+                    "payments": pays,
+                }
+            )
+            closing = opening
+
+        specs.sort(key=lambda s: s["statement_month"])
+        return specs
+
+    def _lakecity_statements_need_refresh(self):
+        for rec in self:
+            if not rec.lakecity_last_statement_sync:
+                return True
+            pay_writes = rec.payment_ids.filtered(lambda p: p.state == "posted").mapped("write_date")
+            if pay_writes and max(pay_writes) > rec.lakecity_last_statement_sync:
+                return True
+        return False
+
+    def _lakecity_regenerate_monthly_statements(self):
+        Statement = self.env["lakecity.loan.monthly.statement"].sudo()
+        now = fields.Datetime.now()
+        for contract in self.sudo():
+            Statement.search([("contract_id", "=", contract.id)]).unlink()
+            for spec in contract._lakecity_build_monthly_statement_specs():
+                stmt = Statement.create(
+                    {
+                        "contract_id": contract.id,
+                        "statement_month": spec["statement_month"],
+                        "opening_balance": spec["opening_balance"],
+                        "closing_balance": spec["closing_balance"],
+                        "total_payments": spec["total_payments"],
+                        "is_overdue": spec["is_overdue"],
+                        "days_overdue": spec["days_overdue"],
+                        "generated_at": now,
+                    }
+                )
+                for pay in spec["payments"]:
+                    self.env["lakecity.loan.monthly.statement.payment"].sudo().create(
+                        {
+                            "statement_id": stmt.id,
+                            "payment_date": pay.payment_date,
+                            "amount": pay.amount,
+                            "reference": pay.reference,
+                            "source": pay.source,
+                            "payment_id": pay.id,
+                        }
+                    )
+            contract.write({"lakecity_last_statement_sync": now})
+        return True
+
+    def _lakecity_ensure_monthly_statements_fresh(self):
+        stale = self.filtered(lambda c: c._lakecity_statements_need_refresh())
+        if stale:
+            stale._lakecity_regenerate_monthly_statements()
+        return self
+
+    def action_refresh_monthly_statements(self):
+        self._lakecity_regenerate_monthly_statements()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Statements updated"),
+                "message": _("Regenerated %(n)s customer statement set(s) from current contract data.")
+                % {"n": len(self)},
+                "type": "success",
+                "sticky": False,
+            },
+        }
+
+    def action_open_monthly_statements(self):
+        self._lakecity_ensure_monthly_statements_fresh()
+        action = self.env.ref("lakecity_loan_management.action_lakecity_loan_monthly_statement").read()[0]
+        action["domain"] = [("contract_id", "in", self.ids)]
+        return action
+
+    def action_print_latest_statement(self):
+        self.ensure_one()
+        self._lakecity_ensure_monthly_statements_fresh()
+        stmt = self.lakecity_monthly_statement_ids[:1]
+        if not stmt:
+            raise ValidationError(_("No statement could be generated for this contract."))
+        return stmt.action_print_statement()
+
+    @api.model
+    def action_refresh_all_active_statements(self):
+        contracts = self.search([("state", "in", ("active", "defaulted"))])
+        contracts._lakecity_regenerate_monthly_statements()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Statements updated"),
+                "message": _("Refreshed customer statements for %(n)s active contract(s).") % {"n": len(contracts)},
+                "type": "success",
+                "sticky": False,
+            },
+        }
