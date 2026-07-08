@@ -522,11 +522,15 @@ serve(async (req) => {
     };
 
     const findColumnIndex = (headers: string[], matchers: Array<(header: string) => boolean>, fallback?: number): number => {
-      for (let i = 0; i < headers.length; i++) {
-        const normalized = normalizeHeaderCell(headers[i]);
-        if (!normalized) continue;
-        if (matchers.some((matcher) => matcher(normalized))) {
-          return i;
+      // Try matchers in priority order — a higher-priority matcher on a later header
+      // must win over a lower-priority matcher on an earlier header. (E.g. "PAYMENT" at
+      // col K must beat the fallback "instalment" matcher on "NUMBER OF INSTALLMENTS" at col J,
+      // otherwise `monthlyPayment` resolves to the installment count "36" instead of the amount.)
+      for (const matcher of matchers) {
+        for (let i = 0; i < headers.length; i++) {
+          const normalized = normalizeHeaderCell(headers[i]);
+          if (!normalized) continue;
+          if (matcher(normalized)) return i;
         }
       }
       return fallback ?? -1;
