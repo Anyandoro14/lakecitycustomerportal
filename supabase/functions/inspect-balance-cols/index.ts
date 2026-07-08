@@ -27,27 +27,19 @@ Deno.serve(async (req) => {
   const { tab = "Collection Schedule - 36mo" } = await req.json().catch(() => ({}));
   const ssId = Deno.env.get("SPREADSHEET_ID")!;
   const token = await getAccessToken();
-  // Read cols B (stand), I (total price), FZ (total paid), GA (current balance) via batchGet
-  const ranges = ["B2:B200","I2:I200","FZ2:FZ200","GA2:GA200","FY2:FY200"].map(r=>`${tab}!${r}`);
+  // Read col K (PAYMENT / instalment) and col J (installments count) for sanity
+  const ranges = ["B2:B200","J2:J200","K2:K200"].map(r=>`${tab}!${r}`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values:batchGet?` + ranges.map(r=>`ranges=${encodeURIComponent(r)}`).join("&");
   const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const j = await r.json();
   const b = j.valueRanges?.[0]?.values || [];
-  const i = j.valueRanges?.[1]?.values || [];
-  const fz = j.valueRanges?.[2]?.values || [];
-  const ga = j.valueRanges?.[3]?.values || [];
-  const fy = j.valueRanges?.[4]?.values || [];
-  const rows = [];
-  for (let k = 0; k < b.length; k++) {
-    rows.push({
-      row: k + 2,
-      stand: b[k]?.[0],
-      totalPrice: i[k]?.[0],
-      totalPaid: fz[k]?.[0],
-      currentBalance: ga[k]?.[0],
-      nextPaymentCol: fy[k]?.[0],
-    });
-  }
-  const bad = rows.filter(x => x.currentBalance && String(x.currentBalance).replace(/[$,\s]/g,'') === '36' || String(x.currentBalance) === '$36.00');
-  return new Response(JSON.stringify({ tab, count: rows.length, bad36: bad.length, sampleBad: bad.slice(0,10), sample: rows.slice(0, 20) }, null, 2), { headers: { ...cors, "Content-Type": "application/json" } });
+  const J = j.valueRanges?.[1]?.values || [];
+  const K = j.valueRanges?.[2]?.values || [];
+  const rows = b.map((x:any,i:number)=>({row:i+2,stand:x?.[0],installments:J[i]?.[0],payment:K[i]?.[0]}));
+  const suspicious = rows.filter((r:any)=>{
+    const p = String(r.payment ?? "").replace(/[$,\s]/g,"");
+    const n = parseFloat(p);
+    return !isNaN(n) && n > 0 && n < 200;
+  });
+  return new Response(JSON.stringify({ tab, count: rows.length, suspiciousPayments: suspicious.slice(0,20), sample: rows.slice(0,10) }, null, 2), { headers: { ...cors, "Content-Type": "application/json" } });
 });
