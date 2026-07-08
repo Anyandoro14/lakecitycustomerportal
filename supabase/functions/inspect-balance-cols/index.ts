@@ -21,36 +21,33 @@ async function getAccessToken(): Promise<string> {
   const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }) });
   return (await r.json()).access_token;
 }
-const colLetter = (i: number) => { let n = i + 1, s = ""; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-  const { tab = "Collection Schedule - 36mo", row = 2 } = await req.json().catch(() => ({}));
+  const { tab = "Collection Schedule - 36mo" } = await req.json().catch(() => ({}));
   const ssId = Deno.env.get("SPREADSHEET_ID")!;
   const token = await getAccessToken();
-  // Get all headers
-  const hRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values/${encodeURIComponent(`${tab}!1:1`)}`, { headers: { Authorization: `Bearer ${token}` } });
-  const hdr = (await hRes.json()).values?.[0] || [];
-  const rRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values/${encodeURIComponent(`${tab}!${row}:${row}`)}`, { headers: { Authorization: `Bearer ${token}` } });
-  const rowVals = (await rRes.json()).values?.[0] || [];
-  const fRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values/${encodeURIComponent(`${tab}!${row}:${row}`)}?valueRenderOption=FORMULA`, { headers: { Authorization: `Bearer ${token}` } });
-  const rowForm = (await fRes.json()).values?.[0] || [];
-
-  // Show cols 175-193
-  const slice = [];
-  for (let i = 175; i < Math.max(hdr.length, rowVals.length, 195); i++) {
-    slice.push({ idx: i, letter: colLetter(i), header: hdr[i] ?? "", value: rowVals[i] ?? "", formula: rowForm[i] ?? "" });
+  // Read cols B (stand), I (total price), FZ (total paid), GA (current balance) via batchGet
+  const ranges = ["B2:B200","I2:I200","FZ2:FZ200","GA2:GA200","FY2:FY200"].map(r=>`${tab}!${r}`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values:batchGet?` + ranges.map(r=>`ranges=${encodeURIComponent(r)}`).join("&");
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const j = await r.json();
+  const b = j.valueRanges?.[0]?.values || [];
+  const i = j.valueRanges?.[1]?.values || [];
+  const fz = j.valueRanges?.[2]?.values || [];
+  const ga = j.valueRanges?.[3]?.values || [];
+  const fy = j.valueRanges?.[4]?.values || [];
+  const rows = [];
+  for (let k = 0; k < b.length; k++) {
+    rows.push({
+      row: k + 2,
+      stand: b[k]?.[0],
+      totalPrice: i[k]?.[0],
+      totalPaid: fz[k]?.[0],
+      currentBalance: ga[k]?.[0],
+      nextPaymentCol: fy[k]?.[0],
+    });
   }
-  // Find headers matching balance/paid/progress
-  const findMatches = (re: RegExp) => hdr.map((h: any, i: number) => ({ i, letter: colLetter(i), h })).filter((x: any) => x.h && re.test(String(x.h)));
-  return new Response(JSON.stringify({
-    tab, row, totalHeaderCols: hdr.length,
-    matches: {
-      totalPaid: findMatches(/total\s*paid/i),
-      currentBalance: findMatches(/current\s*balance/i),
-      paymentProgress: findMatches(/payment\s*progress/i),
-      nextPayment: findMatches(/next\s*payment/i),
-    },
-    cols175plus: slice,
-  }, null, 2), { headers: { ...cors, "Content-Type": "application/json" } });
+  const bad = rows.filter(x => x.currentBalance && String(x.currentBalance).replace(/[$,\s]/g,'') === '36' || String(x.currentBalance) === '$36.00');
+  return new Response(JSON.stringify({ tab, count: rows.length, bad36: bad.length, sampleBad: bad.slice(0,10), sample: rows.slice(0, 20) }, null, 2), { headers: { ...cors, "Content-Type": "application/json" } });
 });
