@@ -137,10 +137,10 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
         endDate: new Date(today.getTime() - 86400000)
       },
       {
-        label: 'Current 90 Days',
+        label: 'Current 90 Days (Prepaid)',
         sublabel: formatDateRange(today, current90End),
-        type: 'actual',
-        amount: current90Actual,
+        type: 'prepaid',
+        amount: current90Prepaid,
         monthCount: Math.ceil(current90Months / soldStands.length) || 0,
         startDate: today,
         endDate: current90End
