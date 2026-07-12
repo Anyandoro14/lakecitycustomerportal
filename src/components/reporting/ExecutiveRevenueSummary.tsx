@@ -14,8 +14,11 @@ interface Stand {
   standNumber: string;
   payments: Array<{ month: string; amountNumeric: number }>;
   monthlyPayment: string;
+  totalPrice?: string;
+  totalPaid?: string;
   isUnsold: boolean;
   countryCode?: string;
+  coveredMonths?: number;
 }
 
 interface ExecutiveRevenueSummaryProps {
@@ -26,7 +29,7 @@ interface ExecutiveRevenueSummaryProps {
 interface TimeBucket {
   label: string;
   sublabel: string;
-  type: 'actual' | 'expected';
+  type: 'actual' | 'prepaid' | 'expected';
   amount: number;
   monthCount: number;
   startDate: Date;
@@ -64,46 +67,54 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
     const next90End = new Date(current90End);
     next90End.setDate(next90End.getDate() + 90);
 
-    // Calculate actual revenue (Previous 90 days)
+    // Calculate actual revenue (Previous 90 days) — payments allocated to months in past 90d
     let prev90Actual = 0;
     let prev90Months = 0;
-    
-    // Calculate actual revenue (Current 90 days - to date)
-    let current90Actual = 0;
+
+    // Prepayments already logged into future month buckets (advance payments)
+    let current90Prepaid = 0;
     let current90Months = 0;
-    
-    // Calculate expected revenue (Next 90 days)
+
+    // Expected revenue (Next 90 days) — only for stands still owing on their contract
     let next90Expected = 0;
     let next90Months = 0;
 
     soldStands.forEach(stand => {
       const monthlyPaymentAmount = parseFloat(stand.monthlyPayment.replace(/[$,]/g, '')) || 0;
-      
+      const totalPrice = parseFloat((stand.totalPrice || '0').replace(/[$,]/g, '')) || 0;
+      const totalPaid = parseFloat((stand.totalPaid || '0').replace(/[$,]/g, '')) || 0;
+      const remainingBalance = Math.max(0, totalPrice - totalPaid);
+
       stand.payments.forEach(payment => {
         const paymentDate = parseMonthColumn(payment.month);
         if (!paymentDate) return;
-        
-        // Previous 90 days (ACTUAL - already received)
+
+        // Previous 90 days (payments allocated to past months)
         if (paymentDate >= prev90Start && paymentDate < today) {
           prev90Actual += payment.amountNumeric;
           prev90Months++;
         }
-        
-        // Current 90 days up to today (ACTUAL - already received)
+
+        // Current 90 days (prepayments already logged into future months)
         if (paymentDate >= today && paymentDate <= current90End && payment.amountNumeric > 0) {
-          current90Actual += payment.amountNumeric;
+          current90Prepaid += payment.amountNumeric;
           current90Months++;
         }
       });
 
-      // Calculate expected for next 90 days based on scheduled installments
+      // Expected for next 90 days: skip fully-paid stands and stands with no monthly payment
+      if (monthlyPaymentAmount <= 0 || remainingBalance <= 0) return;
+
+      // Cap expected by remaining balance so we don't project past contract end
+      let remainingCap = remainingBalance;
       monthColumns.forEach(monthCol => {
         const monthDate = parseMonthColumn(monthCol);
         if (!monthDate) return;
-        
-        // Next 90 days (EXPECTED - not yet received)
-        if (monthDate > current90End && monthDate <= next90End) {
-          next90Expected += monthlyPaymentAmount;
+
+        if (monthDate > current90End && monthDate <= next90End && remainingCap > 0) {
+          const contribution = Math.min(monthlyPaymentAmount, remainingCap);
+          next90Expected += contribution;
+          remainingCap -= contribution;
           next90Months++;
         }
       });
@@ -126,10 +137,10 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
         endDate: new Date(today.getTime() - 86400000)
       },
       {
-        label: 'Current 90 Days',
+        label: 'Current 90 Days (Prepaid)',
         sublabel: formatDateRange(today, current90End),
-        type: 'actual',
-        amount: current90Actual,
+        type: 'prepaid',
+        amount: current90Prepaid,
         monthCount: Math.ceil(current90Months / soldStands.length) || 0,
         startDate: today,
         endDate: current90End
@@ -151,7 +162,14 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
   };
 
   const totalActual = buckets.filter(b => b.type === 'actual').reduce((sum, b) => sum + b.amount, 0);
+  const totalPrepaid = buckets.filter(b => b.type === 'prepaid').reduce((sum, b) => sum + b.amount, 0);
   const totalExpected = buckets.filter(b => b.type === 'expected').reduce((sum, b) => sum + b.amount, 0);
+
+  const bucketStyle = (t: TimeBucket['type']) => {
+    if (t === 'actual') return { box: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', text: 'text-green-600', badge: 'bg-green-600', variant: 'default' as const, label: 'Actual', tipTitle: 'Actual Revenue', tip: 'Payments allocated to months in the past 90 days.' };
+    if (t === 'prepaid') return { box: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800', text: 'text-amber-600', badge: 'bg-amber-500', variant: 'default' as const, label: 'Prepaid', tipTitle: 'Prepaid Revenue', tip: 'Payments already logged into future month buckets (advance payments).' };
+    return { box: 'bg-slate-50 dark:bg-slate-800/50 border-dashed border-slate-300 dark:border-slate-600', text: 'text-slate-600 dark:text-slate-300', badge: 'border-dashed', variant: 'outline' as const, label: 'Expected', tipTitle: 'Expected Revenue', tip: 'Scheduled installments not yet due or paid. Capped by remaining contract balance — excludes fully-paid stands.' };
+  };
 
   return (
     <TooltipProvider>
@@ -164,17 +182,21 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
                 90-Day Revenue Analysis
               </CardTitle>
               <CardDescription className="mt-1">
-                Rolling quarter view · Actual vs Expected
+                Rolling quarter view · Actual · Prepaid · Expected
               </CardDescription>
             </div>
-            <div className="flex gap-4 text-sm">
+            <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-green-600" />
-                <span className="text-muted-foreground">Actual Revenue</span>
+                <span className="text-muted-foreground">Actual</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-amber-500" />
+                <span className="text-muted-foreground">Prepaid</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-slate-300 border border-dashed border-slate-400" />
-                <span className="text-muted-foreground">Expected Revenue</span>
+                <span className="text-muted-foreground">Expected</span>
               </div>
             </div>
           </div>
@@ -182,76 +204,70 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
         <CardContent className="space-y-6">
           {/* Three Column Layout for 90-Day Buckets */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {buckets.map((bucket, idx) => (
-              <Tooltip key={idx}>
-                <TooltipTrigger asChild>
-                  <div 
-                    className={`p-4 rounded-lg border-2 transition-all hover:shadow-md cursor-help ${
-                      bucket.type === 'actual' 
-                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-                        : 'bg-slate-50 dark:bg-slate-800/50 border-dashed border-slate-300 dark:border-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      {bucket.type === 'actual' ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Clock className="h-4 w-4 text-slate-400" />
-                      )}
-                      <Badge 
-                        variant={bucket.type === 'actual' ? 'default' : 'outline'}
-                        className={bucket.type === 'actual' ? 'bg-green-600' : 'border-dashed'}
-                      >
-                        {bucket.type === 'actual' ? 'Actual' : 'Expected'}
-                      </Badge>
+            {buckets.map((bucket, idx) => {
+              const s = bucketStyle(bucket.type);
+              return (
+                <Tooltip key={idx}>
+                  <TooltipTrigger asChild>
+                    <div className={`p-4 rounded-lg border-2 transition-all hover:shadow-md cursor-help ${s.box}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {bucket.type === 'expected' ? (
+                          <Clock className="h-4 w-4 text-slate-400" />
+                        ) : (
+                          <CheckCircle className={`h-4 w-4 ${s.text}`} />
+                        )}
+                        <Badge variant={s.variant} className={s.badge}>{s.label}</Badge>
+                      </div>
+                      <h3 className="font-semibold text-sm text-muted-foreground">{bucket.label}</h3>
+                      <p className="text-xs text-muted-foreground mb-2">{bucket.sublabel}</p>
+                      <p className={`text-2xl font-bold ${s.text}`}>{formatCurrency(bucket.amount)}</p>
                     </div>
-                    <h3 className="font-semibold text-sm text-muted-foreground">{bucket.label}</h3>
-                    <p className="text-xs text-muted-foreground mb-2">{bucket.sublabel}</p>
-                    <p className={`text-2xl font-bold ${
-                      bucket.type === 'actual' ? 'text-green-600' : 'text-slate-600 dark:text-slate-300'
-                    }`}>
-                      {formatCurrency(bucket.amount)}
-                    </p>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs">
-                  <p className="font-semibold">
-                    {bucket.type === 'actual' ? 'Actual Revenue' : 'Expected Revenue'}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {bucket.type === 'actual' 
-                      ? 'Payments already received and reconciled to payment history.'
-                      : 'Scheduled installments not yet due or paid. Based on contracted payment schedules.'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p className="font-semibold">{s.tipTitle}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{s.tip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
           </div>
 
           {/* Summary Row */}
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
             <div className="p-4 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                  Total Actual (180 Days)
+                  Collected (Prev 90 Days)
                 </span>
               </div>
               <p className="text-2xl font-bold text-green-600">{formatCurrency(totalActual)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Confirmed revenue · Reconciled
+                Payments allocated to the past quarter
+              </p>
+            </div>
+            <div className="p-4 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  Prepaid (Next 90 Days)
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-amber-600">{formatCurrency(totalPrepaid)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Advance payments already logged
               </p>
             </div>
             <div className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-300">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4 text-slate-500" />
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Total Expected (Next 90 Days)
+                  Expected (Next 90 Days)
                 </span>
               </div>
               <p className="text-2xl font-bold text-slate-600 dark:text-slate-300">{formatCurrency(totalExpected)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Future scheduled · Not yet received
+                Scheduled · Capped by remaining balance
               </p>
             </div>
           </div>
