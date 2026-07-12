@@ -14,8 +14,11 @@ interface Stand {
   standNumber: string;
   payments: Array<{ month: string; amountNumeric: number }>;
   monthlyPayment: string;
+  totalPrice?: string;
+  totalPaid?: string;
   isUnsold: boolean;
   countryCode?: string;
+  coveredMonths?: number;
 }
 
 interface ExecutiveRevenueSummaryProps {
