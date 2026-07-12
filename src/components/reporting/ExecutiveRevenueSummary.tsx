@@ -67,46 +67,54 @@ const ExecutiveRevenueSummary = ({ stands, monthColumns }: ExecutiveRevenueSumma
     const next90End = new Date(current90End);
     next90End.setDate(next90End.getDate() + 90);
 
-    // Calculate actual revenue (Previous 90 days)
+    // Calculate actual revenue (Previous 90 days) — payments allocated to months in past 90d
     let prev90Actual = 0;
     let prev90Months = 0;
-    
-    // Calculate actual revenue (Current 90 days - to date)
-    let current90Actual = 0;
+
+    // Prepayments already logged into future month buckets (advance payments)
+    let current90Prepaid = 0;
     let current90Months = 0;
-    
-    // Calculate expected revenue (Next 90 days)
+
+    // Expected revenue (Next 90 days) — only for stands still owing on their contract
     let next90Expected = 0;
     let next90Months = 0;
 
     soldStands.forEach(stand => {
       const monthlyPaymentAmount = parseFloat(stand.monthlyPayment.replace(/[$,]/g, '')) || 0;
-      
+      const totalPrice = parseFloat((stand.totalPrice || '0').replace(/[$,]/g, '')) || 0;
+      const totalPaid = parseFloat((stand.totalPaid || '0').replace(/[$,]/g, '')) || 0;
+      const remainingBalance = Math.max(0, totalPrice - totalPaid);
+
       stand.payments.forEach(payment => {
         const paymentDate = parseMonthColumn(payment.month);
         if (!paymentDate) return;
-        
-        // Previous 90 days (ACTUAL - already received)
+
+        // Previous 90 days (payments allocated to past months)
         if (paymentDate >= prev90Start && paymentDate < today) {
           prev90Actual += payment.amountNumeric;
           prev90Months++;
         }
-        
-        // Current 90 days up to today (ACTUAL - already received)
+
+        // Current 90 days (prepayments already logged into future months)
         if (paymentDate >= today && paymentDate <= current90End && payment.amountNumeric > 0) {
-          current90Actual += payment.amountNumeric;
+          current90Prepaid += payment.amountNumeric;
           current90Months++;
         }
       });
 
-      // Calculate expected for next 90 days based on scheduled installments
+      // Expected for next 90 days: skip fully-paid stands and stands with no monthly payment
+      if (monthlyPaymentAmount <= 0 || remainingBalance <= 0) return;
+
+      // Cap expected by remaining balance so we don't project past contract end
+      let remainingCap = remainingBalance;
       monthColumns.forEach(monthCol => {
         const monthDate = parseMonthColumn(monthCol);
         if (!monthDate) return;
-        
-        // Next 90 days (EXPECTED - not yet received)
-        if (monthDate > current90End && monthDate <= next90End) {
-          next90Expected += monthlyPaymentAmount;
+
+        if (monthDate > current90End && monthDate <= next90End && remainingCap > 0) {
+          const contribution = Math.min(monthlyPaymentAmount, remainingCap);
+          next90Expected += contribution;
+          remainingCap -= contribution;
           next90Months++;
         }
       });
