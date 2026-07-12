@@ -21,7 +21,6 @@ async function getAccessToken(): Promise<string> {
   const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }) });
   return (await r.json()).access_token;
 }
-
 function colLetter(i: number): string { let n=i+1,s=""; while(n>0){const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=Math.floor((n-1)/26);} return s; }
 
 Deno.serve(async (req) => {
@@ -33,7 +32,7 @@ Deno.serve(async (req) => {
   const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const j = await r.json();
   const headers = (j.values?.[0] || []) as string[];
-  const paymentMatches = headers.map((h,i)=>({i,letter:colLetter(i),h})).filter(x=>x.h && x.h.toLowerCase().includes('payment'));
-  const all = headers.map((h,i)=>({i,letter:colLetter(i),h})).filter(x=>x.h);
-  return new Response(JSON.stringify({ tab, paymentMatches, firstColumns: all.slice(0, 20) }, null, 2), { headers: { ...cors, "Content-Type": "application/json" } });
+  // return columns FX..GJ range (indices ~179..)
+  const range = headers.map((h,i)=>({i,letter:colLetter(i),h})).filter(x=>x.h && x.i >= 178 && x.i <= 200);
+  return new Response(JSON.stringify({ tab, tailHeaders: range, totalCols: headers.length }, null, 2), { headers: { ...cors, "Content-Type": "application/json" } });
 });
