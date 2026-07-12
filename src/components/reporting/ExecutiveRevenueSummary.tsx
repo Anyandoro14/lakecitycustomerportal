@@ -29,7 +29,7 @@ interface ExecutiveRevenueSummaryProps {
 interface TimeBucket {
   label: string;
   sublabel: string;
-  type: 'actual' | 'expected';
+  type: 'actual' | 'prepaid' | 'expected';
   amount: number;
   monthCount: number;
   startDate: Date;
