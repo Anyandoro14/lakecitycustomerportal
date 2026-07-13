@@ -127,6 +127,12 @@ const App = () => (
                   <Route path="/crm-technical-specs" element={<CrmTechnicalSpecs />} />
                   <Route path="/admin/qc-queue" element={<QcQueue />} />
                   <Route path="/stand-inventory" element={<StandInventory />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<TermsOfService />} />
+                  <Route path="/terms-of-service" element={<TermsOfService />} />
+                  <Route path="/refund-policy" element={<RefundPolicy />} />
+                  <Route path="/refunds" element={<RefundPolicy />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
