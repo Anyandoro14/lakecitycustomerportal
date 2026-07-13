@@ -56,6 +56,9 @@ const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
 const StandInventory = lazy(() => import("./pages/StandInventory"));
+const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
+const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
 
 const queryClient = new QueryClient();
 
