@@ -610,6 +610,17 @@ const Login = () => {
           </form>
         </CardContent>
       </Card>
+
+      <footer className="mt-8 text-center text-xs text-muted-foreground space-y-2 max-w-md mx-auto px-4">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+          <Link to="/landing" className="hover:text-primary hover:underline">About StandLedger</Link>
+          <Link to="/landing#pricing" className="hover:text-primary hover:underline">Pricing</Link>
+          <Link to="/privacy" className="hover:text-primary hover:underline">Privacy</Link>
+          <Link to="/terms" className="hover:text-primary hover:underline">Terms</Link>
+          <Link to="/refund-policy" className="hover:text-primary hover:underline">Refunds</Link>
+        </div>
+        <p>© {new Date().getFullYear()} Warwickshire PVT Ltd. Payments processed by Paddle, our Merchant of Record.</p>
+      </footer>
     </div>
   );
 };
