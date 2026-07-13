@@ -35,66 +35,95 @@ const MonthlyStatements = () => {
   const [showHistory, setShowHistory] = useState(true);
 
   useEffect(() => {
-    refreshAndFetchStatements();
-  }, []);
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
-  // Refresh statements from sheet data, then fetch from database
-  const refreshAndFetchStatements = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/login");
-        return;
-      }
-
-      // Get user's stand number from profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, stand_number")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      if (profile?.full_name) {
-        setCustomerName(profile.full_name);
-      }
-
-      // If we have a stand number, refresh statements from the latest sheet data
-      if (profile?.stand_number) {
-        console.log("Refreshing statements for stand:", profile.stand_number);
-        await supabase.functions.invoke("generate-monthly-statements", {
-          body: {
-            target_stand: profile.stand_number,
-            refresh: true, // This triggers update of existing statements
-          },
-        });
-      }
-
-      // Fetch all statements for this user from the database
-      const { data, error } = await supabase
+    const fetchStatements = async (standNumber?: string) => {
+      let query = supabase
         .from("monthly_statements")
         .select("*")
         .order("statement_month", { ascending: false });
-
+      if (standNumber) query = query.eq("stand_number", standNumber);
+      const { data, error } = await query;
       if (error) throw error;
-
+      if (cancelled) return;
       if (data && data.length > 0) {
         setStatements(data);
-        // Auto-select the most recent statement
-        setSelectedStatement(data[0]);
-        setShowHistory(false);
+        setSelectedStatement((prev) => {
+          if (!prev) return data[0];
+          const stillThere = data.find((s) => s.id === prev.id);
+          return stillThere ?? data[0];
+        });
+      } else {
+        setStatements([]);
       }
+    };
 
-      setLoading(false);
-    } catch (error: any) {
-      console.error("Error fetching statements:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load statements",
-        variant: "destructive",
-      });
-      setLoading(false);
-    }
-  };
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate("/login");
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, stand_number")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (profile?.full_name) setCustomerName(profile.full_name);
+        const standNumber = profile?.stand_number ?? undefined;
+
+        // Show whatever we have immediately so the user isn't blocked
+        await fetchStatements(standNumber);
+        setLoading(false);
+
+        // Refresh from the latest sheet data, then re-fetch
+        if (standNumber) {
+          supabase.functions
+            .invoke("generate-monthly-statements", {
+              body: { target_stand: standNumber, refresh: true },
+            })
+            .then(() => !cancelled && fetchStatements(standNumber))
+            .catch((err) => console.error("Statement refresh failed:", err));
+
+          // Real-time subscription so any DB change is reflected instantly
+          channel = supabase
+            .channel(`monthly_statements:${standNumber}`)
+            .on(
+              "postgres_changes",
+              {
+                event: "*",
+                schema: "public",
+                table: "monthly_statements",
+                filter: `stand_number=eq.${standNumber}`,
+              },
+              () => {
+                fetchStatements(standNumber).catch((err) =>
+                  console.error("Realtime refetch failed:", err),
+                );
+              },
+            )
+            .subscribe();
+        }
+      } catch (error: any) {
+        console.error("Error fetching statements:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load statements",
+          variant: "destructive",
+        });
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [navigate, toast]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
