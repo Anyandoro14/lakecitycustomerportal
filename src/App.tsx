@@ -59,6 +59,7 @@ const StandInventory = lazy(() => import("./pages/StandInventory"));
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
 const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 const queryClient = new QueryClient();
 
@@ -133,6 +134,7 @@ const App = () => (
                   <Route path="/terms-of-service" element={<TermsOfService />} />
                   <Route path="/refund-policy" element={<RefundPolicy />} />
                   <Route path="/refunds" element={<RefundPolicy />} />
+                  <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
