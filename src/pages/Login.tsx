@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,13 @@ const MAX_RESEND_ATTEMPTS = 3;
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Preserve /?next= for OAuth consent (/.lovable/oauth/consent) and similar
+  // deep-link entry points. Same-origin, relative-path only.
+  const rawNext = searchParams.get("next");
+  const nextPath =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/index";
+  const goPostLogin = () => navigate(nextPath, { replace: true });
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
