@@ -53,6 +53,80 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "get_payment_schedule",
+        "title": "Show my payment schedule",
+        "description": "Return the signed-in customer's remaining instalment schedule for their stand: each upcoming due date, the amount due, and the balance left after that payment, plus a summary of the purchase price, deposit, amount paid and instalments already completed.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "stand_number": {
+              "type": "string",
+              "description": "Stand number to show. Defaults to the customer's first stand."
+            },
+            "months": {
+              "type": "integer",
+              "description": "How many upcoming instalments to list. Defaults to 12, maximum 120."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_payoff_projection",
+        "title": "How long until my stand is paid off",
+        "description": "Estimate how long it will take the signed-in customer to fully pay off their stand: months remaining, projected payoff date, amount still owing, percentage paid, and optional what-if scenarios showing how much sooner the stand is paid off with extra monthly payments. Figures come from the Collection Schedule, the authoritative ledger.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "stand_number": {
+              "type": "string",
+              "description": "Stand number to project. Defaults to the customer's first stand."
+            },
+            "extra_monthly_payment": {
+              "type": "number",
+              "description": "Optional extra amount paid each month, used for a what-if payoff scenario."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_payment_behaviour",
+        "title": "What has my payment frequency been",
+        "description": "Analyse the signed-in customer's actual payment history for their stand: how many payments they have made, how often (average and typical gap in days), total and average amount paid, longest gap without a payment, payments in the last 6 and 12 months, and a plain-language consistency rating. Useful for answering 'how regularly have I been paying?'.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "stand_number": {
+              "type": "string",
+              "description": "Stand number to analyse. Defaults to the customer's first stand."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }

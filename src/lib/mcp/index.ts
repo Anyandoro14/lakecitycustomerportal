@@ -17,10 +17,17 @@ export default defineMcp({
   title: "StandLedger Customer Portal",
   version: "0.1.0",
   instructions:
-    "Tools for the StandLedger customer portal (Warwickshire Pvt Ltd / Lake City). Each caller acts as the signed-in customer; all reads are scoped to that customer's stand under RLS. Use `get_my_profile` to look up the caller's stand and contact details, and `get_my_statements` to fetch their monthly account statements.",
+    "Tools for the StandLedger customer portal (Warwickshire Pvt Ltd / Lake City). Each caller acts as the signed-in customer; all reads are scoped to that customer's stand under RLS, and all money figures come from the authoritative Collection Schedule ledger in USD. Use `get_my_profile` for the caller's stand and contact details, `get_my_statements` for monthly account statements, `get_payment_schedule` for the remaining instalment plan, `get_payoff_projection` to answer 'how long until my stand is paid off' including extra-payment what-ifs, and `get_my_payment_behaviour` to analyse how regularly the customer has been paying.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
   }),
-  tools: [getMyProfile, getMyStatements],
+  tools: [
+    getMyProfile,
+    getMyStatements,
+    getPaymentSchedule,
+    getPayoffProjection,
+    getMyPaymentBehaviour,
+  ],
 });
+

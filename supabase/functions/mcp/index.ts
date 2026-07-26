@@ -99,18 +99,347 @@ var get_my_statements_default = defineTool2({
   }
 });
 
+// src/lib/mcp/tools/get-payment-schedule.ts
+import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.22.2";
+import { z as z2 } from "npm:zod@^3.25.76";
+
+// src/lib/mcp/lib/stand.ts
+function toNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value !== "string") return 0;
+  const cleaned = value.replace(/[^0-9.\-]/g, "");
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function money(amount) {
+  return `$${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+function addMonths(date, months) {
+  const next = new Date(date.getTime());
+  const day = next.getDate();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  const daysInMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, daysInMonth));
+  return next;
+}
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+function parseLooseDate(value) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed || /^deposit$/i.test(trimmed)) return null;
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+async function fetchMyStands(ctx) {
+  const url = `${process.env.SUPABASE_URL}/functions/v1/fetch-google-sheets`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: process.env.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${ctx.getToken()}`
+    },
+    body: JSON.stringify({})
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.error) {
+    throw new Error(payload?.error || `Could not load your account data (${response.status})`);
+  }
+  return payload?.stands ?? [];
+}
+function pickStand(stands, standNumber) {
+  if (!stands.length) return null;
+  if (!standNumber) return stands[0];
+  const wanted = standNumber.trim().toUpperCase();
+  return stands.find((s) => (s.standNumber || "").trim().toUpperCase() === wanted) ?? null;
+}
+function textResult(payload) {
+  return {
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload
+  };
+}
+function errorResult(message) {
+  return { content: [{ type: "text", text: message }], isError: true };
+}
+
+// src/lib/mcp/tools/get-payment-schedule.ts
+var get_payment_schedule_default = defineTool3({
+  name: "get_payment_schedule",
+  title: "Show my payment schedule",
+  description: "Return the signed-in customer's remaining instalment schedule for their stand: each upcoming due date, the amount due, and the balance left after that payment, plus a summary of the purchase price, deposit, amount paid and instalments already completed.",
+  inputSchema: {
+    stand_number: z2.string().optional().describe("Stand number to show. Defaults to the customer's first stand."),
+    months: z2.number().int().optional().describe("How many upcoming instalments to list. Defaults to 12, maximum 120.")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ stand_number, months }, ctx) => {
+    if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
+    let stands;
+    try {
+      stands = await fetchMyStands(ctx);
+    } catch (e) {
+      return errorResult(e.message);
+    }
+    const stand = pickStand(stands, stand_number);
+    if (!stand) {
+      return errorResult(
+        stand_number ? `No stand ${stand_number} is linked to your account.` : "No stand data found for your account."
+      );
+    }
+    const balance = toNumber(stand.currentBalance ?? stand.standBalance);
+    const monthly = toNumber(stand.monthlyPayment);
+    const cap = Math.min(Math.max(months ?? 12, 1), 120);
+    const firstDue = parseLooseDate(stand.nextPaymentDate) ?? /* @__PURE__ */ new Date();
+    const schedule = [];
+    let remaining = balance;
+    for (let i = 0; i < cap && remaining > 0.01 && monthly > 0; i++) {
+      const due = Math.min(monthly, remaining);
+      remaining = Math.max(remaining - due, 0);
+      schedule.push({
+        installment: i + 1,
+        due_date: isoDate(addMonths(firstDue, i)),
+        amount_due: money(due),
+        balance_after: money(remaining),
+        is_final_payment: remaining <= 0.01
+      });
+    }
+    const completed = stand.paymentHistory?.length ?? 0;
+    return textResult({
+      stand_number: stand.standNumber,
+      currency: "USD",
+      purchase_price: money(toNumber(stand.totalPrice)),
+      deposit: money(toNumber(stand.deposit)),
+      total_paid_to_date: money(toNumber(stand.totalPaid)),
+      balance_outstanding: money(balance),
+      monthly_instalment: money(monthly),
+      percent_paid: stand.progressPercentage ?? 0,
+      payments_recorded_to_date: completed,
+      next_payment_due: stand.nextPaymentDate || null,
+      next_payment_amount: money(toNumber(stand.nextPayment)),
+      is_overdue: !!stand.isOverdue,
+      days_overdue: stand.daysOverdue ?? 0,
+      upcoming_schedule: schedule,
+      schedule_truncated: monthly > 0 && remaining > 0.01,
+      note: "This schedule is interest-free: each instalment reduces the outstanding balance directly."
+    });
+  }
+});
+
+// src/lib/mcp/tools/get-payoff-projection.ts
+import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.22.2";
+import { z as z3 } from "npm:zod@^3.25.76";
+var get_payoff_projection_default = defineTool4({
+  name: "get_payoff_projection",
+  title: "How long until my stand is paid off",
+  description: "Estimate how long it will take the signed-in customer to fully pay off their stand: months remaining, projected payoff date, amount still owing, percentage paid, and optional what-if scenarios showing how much sooner the stand is paid off with extra monthly payments. Figures come from the Collection Schedule, the authoritative ledger.",
+  inputSchema: {
+    stand_number: z3.string().optional().describe("Stand number to project. Defaults to the customer's first stand."),
+    extra_monthly_payment: z3.number().optional().describe("Optional extra amount paid each month, used for a what-if payoff scenario.")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ stand_number, extra_monthly_payment }, ctx) => {
+    if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
+    let stands;
+    try {
+      stands = await fetchMyStands(ctx);
+    } catch (e) {
+      return errorResult(e.message);
+    }
+    const stand = pickStand(stands, stand_number);
+    if (!stand) {
+      return errorResult(
+        stand_number ? `No stand ${stand_number} is linked to your account.` : "No stand data found for your account."
+      );
+    }
+    const balance = toNumber(stand.currentBalance ?? stand.standBalance);
+    const monthly = toNumber(stand.monthlyPayment);
+    const totalPrice = toNumber(stand.totalPrice);
+    const totalPaid = toNumber(stand.totalPaid);
+    if (monthly <= 0) {
+      return textResult({
+        stand_number: stand.standNumber,
+        balance_outstanding: money(balance),
+        note: "No monthly instalment amount is set on your schedule, so a payoff date cannot be projected. Please contact support."
+      });
+    }
+    const start = /* @__PURE__ */ new Date();
+    const project = (perMonth) => {
+      if (perMonth <= 0 || balance <= 0) {
+        return { months: 0, payoff_date: isoDate(start), final_payment: money(0) };
+      }
+      const months = Math.ceil(balance / perMonth);
+      const remainder = balance - (months - 1) * perMonth;
+      return {
+        months,
+        payoff_date: isoDate(addMonths(start, months)),
+        final_payment: money(Math.max(remainder, 0))
+      };
+    };
+    const base = project(monthly);
+    const extra = Math.max(extra_monthly_payment ?? 0, 0);
+    const scenarios = [extra, monthly * 0.25, monthly].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).map((amount) => {
+      const scenario = project(monthly + amount);
+      return {
+        extra_per_month: money(amount),
+        new_monthly_payment: money(monthly + amount),
+        months_remaining: scenario.months,
+        projected_payoff_date: scenario.payoff_date,
+        months_saved: Math.max(base.months - scenario.months, 0)
+      };
+    });
+    const payload = {
+      stand_number: stand.standNumber,
+      currency: "USD",
+      purchase_price: money(totalPrice),
+      total_paid_to_date: money(totalPaid),
+      balance_outstanding: money(balance),
+      percent_paid: stand.progressPercentage ?? 0,
+      monthly_instalment: money(monthly),
+      is_overdue: !!stand.isOverdue,
+      days_overdue: stand.daysOverdue ?? 0,
+      payments_remaining: base.months,
+      projected_payoff_date: base.payoff_date,
+      final_payment_amount: base.final_payment,
+      what_if_scenarios: scenarios,
+      explanation: balance <= 0 ? "Your stand is fully paid up \u2014 no further instalments are due." : `At ${money(monthly)} per month, ${base.months} more payment(s) clear the remaining ${money(balance)}. This schedule carries no interest, so paying extra shortens the term rather than reducing an interest cost.`
+    };
+    return textResult(payload);
+  }
+});
+
+// src/lib/mcp/tools/get-my-payment-behaviour.ts
+import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.22.2";
+import { z as z4 } from "npm:zod@^3.25.76";
+var get_my_payment_behaviour_default = defineTool5({
+  name: "get_my_payment_behaviour",
+  title: "What has my payment frequency been",
+  description: "Analyse the signed-in customer's actual payment history for their stand: how many payments they have made, how often (average and typical gap in days), total and average amount paid, longest gap without a payment, payments in the last 6 and 12 months, and a plain-language consistency rating. Useful for answering 'how regularly have I been paying?'.",
+  inputSchema: {
+    stand_number: z4.string().optional().describe("Stand number to analyse. Defaults to the customer's first stand.")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ stand_number }, ctx) => {
+    if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
+    let stands;
+    try {
+      stands = await fetchMyStands(ctx);
+    } catch (e) {
+      return errorResult(e.message);
+    }
+    const stand = pickStand(stands, stand_number);
+    if (!stand) {
+      return errorResult(
+        stand_number ? `No stand ${stand_number} is linked to your account.` : "No stand data found for your account."
+      );
+    }
+    const history = stand.paymentHistory ?? [];
+    const dated = history.map((entry) => ({
+      date: parseLooseDate(entry.date),
+      amount: toNumber(entry.total ?? entry.amount),
+      method: entry.payment_method ?? null,
+      reference: entry.reference ?? null
+    })).filter(
+      (entry) => entry.date !== null
+    ).sort((a, b) => a.date.getTime() - b.date.getTime());
+    const deposits = history.filter((e) => /^deposit$/i.test(e.date?.trim() ?? ""));
+    const totalPaid = toNumber(stand.totalPaid);
+    const monthly = toNumber(stand.monthlyPayment);
+    const gaps = [];
+    for (let i = 1; i < dated.length; i++) {
+      gaps.push(
+        Math.round((dated[i].date.getTime() - dated[i - 1].date.getTime()) / 864e5)
+      );
+    }
+    const average = (values) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+    const median = (values) => {
+      if (!values.length) return 0;
+      const sorted = [...values].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
+    const now = Date.now();
+    const within = (days) => dated.filter((e) => now - e.date.getTime() <= days * 864e5);
+    const last6 = within(182);
+    const last12 = within(365);
+    const avgGap = Math.round(average(gaps));
+    const medianGap = Math.round(median(gaps));
+    const daysSinceLast = dated.length ? Math.round((now - dated[dated.length - 1].date.getTime()) / 864e5) : null;
+    let cadence = "Not enough payment history to detect a pattern yet.";
+    if (medianGap > 0) {
+      if (medianGap <= 10) cadence = "Roughly weekly payments.";
+      else if (medianGap <= 20) cadence = "Roughly fortnightly payments.";
+      else if (medianGap <= 45) cadence = "Roughly monthly payments \u2014 in line with the schedule.";
+      else if (medianGap <= 100) cadence = "Roughly quarterly payments \u2014 slower than monthly.";
+      else cadence = "Irregular, infrequent payments.";
+    }
+    let consistency = "insufficient_data";
+    if (gaps.length >= 2) {
+      const spread = Math.max(...gaps) - Math.min(...gaps);
+      if (medianGap <= 45 && spread <= 20) consistency = "very_consistent";
+      else if (medianGap <= 60 && spread <= 45) consistency = "consistent";
+      else if (medianGap <= 100) consistency = "somewhat_irregular";
+      else consistency = "irregular";
+    }
+    return textResult({
+      stand_number: stand.standNumber,
+      currency: "USD",
+      monthly_instalment: money(monthly),
+      total_paid_to_date: money(totalPaid),
+      balance_outstanding: money(toNumber(stand.currentBalance ?? stand.standBalance)),
+      payments_recorded: dated.length,
+      deposit_recorded: deposits.length > 0,
+      first_payment_date: dated.length ? isoDate(dated[0].date) : null,
+      last_payment_date: dated.length ? isoDate(dated[dated.length - 1].date) : null,
+      days_since_last_payment: daysSinceLast,
+      average_days_between_payments: avgGap || null,
+      typical_days_between_payments: medianGap || null,
+      longest_gap_days: gaps.length ? Math.max(...gaps) : null,
+      shortest_gap_days: gaps.length ? Math.min(...gaps) : null,
+      average_payment_amount: money(average(dated.map((e) => e.amount))),
+      largest_payment: dated.length ? money(Math.max(...dated.map((e) => e.amount))) : money(0),
+      payments_last_6_months: last6.length,
+      amount_last_6_months: money(last6.reduce((sum, e) => sum + e.amount, 0)),
+      payments_last_12_months: last12.length,
+      amount_last_12_months: money(last12.reduce((sum, e) => sum + e.amount, 0)),
+      cadence_summary: cadence,
+      consistency_rating: consistency,
+      is_overdue: !!stand.isOverdue,
+      days_overdue: stand.daysOverdue ?? 0,
+      recent_payments: dated.slice(-12).reverse().map((e) => ({
+        date: isoDate(e.date),
+        amount: money(e.amount),
+        method: e.method,
+        reference: e.reference
+      }))
+    });
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "gumkxjeahojrcaqnosyz";
 var mcp_default = defineMcp({
   name: "standledger-mcp",
   title: "StandLedger Customer Portal",
   version: "0.1.0",
-  instructions: "Tools for the StandLedger customer portal (Warwickshire Pvt Ltd / Lake City). Each caller acts as the signed-in customer; all reads are scoped to that customer's stand under RLS. Use `get_my_profile` to look up the caller's stand and contact details, and `get_my_statements` to fetch their monthly account statements.",
+  instructions: "Tools for the StandLedger customer portal (Warwickshire Pvt Ltd / Lake City). Each caller acts as the signed-in customer; all reads are scoped to that customer's stand under RLS, and all money figures come from the authoritative Collection Schedule ledger in USD. Use `get_my_profile` for the caller's stand and contact details, `get_my_statements` for monthly account statements, `get_payment_schedule` for the remaining instalment plan, `get_payoff_projection` to answer 'how long until my stand is paid off' including extra-payment what-ifs, and `get_my_payment_behaviour` to analyse how regularly the customer has been paying.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [get_my_profile_default, get_my_statements_default]
+  tools: [
+    get_my_profile_default,
+    get_my_statements_default,
+    get_payment_schedule_default,
+    get_payoff_projection_default,
+    get_my_payment_behaviour_default
+  ]
 });
 
 // lovable-mcp-supabase-entry.ts
