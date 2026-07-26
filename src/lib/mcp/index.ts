@@ -1,6 +1,10 @@
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import getMyProfile from "./tools/get-my-profile";
 import getMyStatements from "./tools/get-my-statements";
+import getPaymentSchedule from "./tools/get-payment-schedule";
+import getPayoffProjection from "./tools/get-payoff-projection";
+import getMyPaymentBehaviour from "./tools/get-my-payment-behaviour";
+
 
 // Build the OAuth issuer from the project ref so the URL survives publish and
 // matches the direct supabase.co host that Supabase's discovery document
