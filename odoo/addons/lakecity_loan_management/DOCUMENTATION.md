@@ -4,12 +4,20 @@ Developer-facing notes for this addon. This file is intentionally **not** named 
 
 This module provides a dedicated loan engine in Odoo for BNPL operations.
 
+**Balance source of truth:** the Google Collection Schedule
+(`https://docs.google.com/spreadsheets/d/1yAHOC73ufVsSdv0rN8iTgfdVrMAjt8aD_MnaToE9du0/edit?gid=415963215`).
+This addon is **not** the balance SoT. Use it for the **payment schedule** and **payment amounts**
+(arrears / prepayments) and for posting walkthrough JEs that mirror sheet TOTAL PRICE / TOTAL PAID /
+Current Balance into GL.
+
 ## Core formulas implemented
 
 - `recurring_invoice_amount = (total_with_tax - deposit) / term_months` (monthly BNPL on price after deposit)
 - `total_paid = sum(installment amount_paid)` when installments exist; else `deposit + sum(posted payments)`
 - `accrued_amount = sum(unpaid installments with due_date < today)`
 - `next_payment_due_amount = accrued_amount + current_due_amount`
+
+Contract `current_balance` is a derived GL/schedule view for arrears/prepayment math; reconcile to the Collection Schedule for customer-facing balances.
 
 ## Debtor ↔ Accounting ↔ CRM (stand number)
 
@@ -50,16 +58,16 @@ Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing 
 
 ## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+)
 
-Accounting books start **2026-01-01**. For each customer with a loan:
+Accounting books start **2026-01-01**. Amounts come from the **Collection Schedule** sheet (not from existing Odoo contract balances):
 
-1. **JE1** (same day) — Dr AR / Cr contract liability / Cr deferred VAT for the full contract.
-2. **Opening receipt + revenue/VAT** (same day) — lumped **pre-2026** receipts from Collection Schedule / Google receipt tabs, so AR after = amount still due.
+1. **JE1** (same day) — Dr AR / Cr contract liability / Cr deferred VAT for sheet **TOTAL PRICE**.
+2. **Opening receipt + revenue/VAT** (same day) — lumped sheet **TOTAL PAID** (pre-cutover), so AR after = sheet **Current Balance**.
 
-Post via API `POST /lakecity/api/v1/loan/opening-balance/post` with `payment_date=2026-01-01` and `force=true` to clear/repost prior opening moves. Script: `node --env-file=.env scripts/post-opening-balance-jes.mjs --force`.
+Post via API `POST /lakecity/api/v1/loan/opening-balance/post` with `payment_date=2026-01-01` and `force=true` to clear/repost prior opening moves. Script: `node --env-file=.env scripts/post-opening-balance-jes.mjs --force` (reads Google Sheet gids when credentials are set).
 
 ## Customer statements (19.0.1.0.53+)
 
-Monthly customer statements are generated **from live Odoo loan data** (posted `lakecity.loan.payment` rows and contract `current_balance`), not from Google Sheets.
+Monthly statements in Odoo summarize **posted schedule payments** (arrears / prepayments). Customer-facing **balances** remain owned by the Collection Schedule sheet; reconcile statement closing balances to the sheet.
 
 - **Lakecity Loans → Customer Statements** — browse all generated statements; use **Action → Refresh all active statements** to rebuild from current data.
 - **Loan contract** — stat button **Statements**, header **Refresh statements** / **Print latest statement**, notebook tab **Statements** with PDF per month.

@@ -197,9 +197,9 @@ In this repo root (with `@supabase/supabase-js` already in `package.json`):
 
 CLI flags mirror env: **`--dry-run`**, **`--preflight-only`**, **`--skip-preflight`**.
 
-**Balances:** Odoo derives **`current_balance`** from **total − deposit − posted payments**. Supabase **`contract_balances`** is informational; reconcile a few stands after import. **`monthly_installment`** in Supabase may differ slightly from **`recurring_invoice_amount`** due to VAT/rounding formulas in Odoo.
+**Balances:** The Google **Collection Schedule** is the balance source of truth. Odoo **`current_balance`** is derived from schedule/payment allocation for arrears and prepayments only — always reconcile to the sheet. Supabase **`contract_balances`** mirrors the sheet via portal sync.
 
-**Collection Schedule CSV → BNPL:** See `docs/odoo-crm-accounting-bnpl-pipeline.md` and `scripts/import-collection-schedule-csv-to-odoo.mjs` (opening totals from **TOTAL PAID** / **Current Balance**).
+**Collection Schedule → BNPL:** See `docs/odoo-crm-accounting-bnpl-pipeline.md` and `scripts/post-opening-balance-jes.mjs` / `import-collection-schedule-csv-to-odoo.mjs` (opening totals from sheet **TOTAL PAID** / **Current Balance**).
 
 ## Customer Portal enrolment sync (19.0.1.0.52+)
 

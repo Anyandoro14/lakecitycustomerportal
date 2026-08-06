@@ -314,9 +314,13 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         payment_date=None,
         force=False,
     ):
-        """Post walkthrough opening balances: JE1 + receipt/revenue for TOTAL PAID.
+        """Post walkthrough opening balances: JE1 + receipt/revenue for sheet TOTAL PAID.
 
-        ``gross`` is the full contract receivable (Column N + TOTAL PAID, i.e. TOTAL PRICE).
+        Balance figures are supplied by the Collection Schedule (Google Sheet SoT), not by
+        recomputing from existing Odoo contract balances. This module stores the payment
+        schedule and payment amounts for arrears / prepayments after cutover.
+
+        ``gross`` is the full contract receivable (sheet TOTAL PRICE).
         ``contract_liability`` and ``deferred_vat_amount`` map to sheet Columns O and P
         (for inclusive VAT, Column O net liability = O + P).
 

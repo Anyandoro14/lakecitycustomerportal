@@ -373,7 +373,11 @@ class LakecityLoanApiController(http.Controller):
 
     @http.route("/lakecity/api/v1/loan/opening-balance/post", type="http", auth="public", methods=["POST"], csrf=False)
     def post_opening_balance(self, **kwargs):
-        """Post walkthrough opening-balance JEs for one stand (sheet Columns N/O/P)."""
+        """Post walkthrough opening-balance JEs for one stand from Collection Schedule amounts.
+
+        Payload TOTAL PRICE / TOTAL PAID / AR come from the Google Sheet (balance SoT).
+        Odoo loan contracts hold schedule + payment allocation for arrears / prepayments.
+        """
         ok, response = self._validate_token()
         if not ok:
             return response
