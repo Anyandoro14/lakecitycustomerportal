@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-"""19.0.1.0.52 — Portal enrolment gate; grandfather active contracts.
-
-Uses raw SQL (no ORM). An ORM write on every active contract was timing out
-Odoo.sh builds via mail tracking / recomputes even when CRM/GL/Supabase syncs
-were skipped.
-"""
+"""19.0.1.0.52 — light SQL grandfather for portal enrolment (no ORM)."""
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -20,9 +15,7 @@ def migrate(cr, version):
         """
     )
     if not cr.fetchone():
-        _logger.info(
-            "Lakecity 19.0.1.0.52: skip portal enrol grandfather (column missing)"
-        )
+        _logger.info("Lakecity 19.0.1.0.52: skip (column missing)")
         return
 
     cr.execute(
@@ -35,6 +28,6 @@ def migrate(cr, version):
         """
     )
     _logger.info(
-        "Lakecity 19.0.1.0.52: portal enrolled grandfathered for %s active contract(s)",
+        "Lakecity 19.0.1.0.52: portal enrolled grandfathered for %s row(s)",
         cr.rowcount,
     )
