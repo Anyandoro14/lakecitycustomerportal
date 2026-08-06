@@ -47,13 +47,13 @@ class LakecityStandCost(models.Model):
     _rec_name = "stand_number"
     _order = "stand_number"
 
-    stand_number = fields.Char(required=True, index=True, tracking=True)
+    # No tracking=*: this model is not mail.thread (Odoo warns / ignores it).
+    stand_number = fields.Char(required=True, index=True)
     phase_id = fields.Many2one(
         "lakecity.stand.phase",
         string="Phase",
         required=True,
         index=True,
-        tracking=True,
         help="Project phase for cost, revenue, and profit reporting.",
     )
     area_sqm = fields.Float(string="Area (sqm)", digits=(14, 2))
@@ -61,7 +61,6 @@ class LakecityStandCost(models.Model):
     total_cost = fields.Monetary(
         required=True,
         currency_field="currency_id",
-        tracking=True,
         help="Authoritative development cost for this stand; drives COS in the stand sales walkthrough.",
     )
     currency_id = fields.Many2one(

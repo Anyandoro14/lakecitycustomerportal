@@ -77,39 +77,51 @@ class ResCompany(models.Model):
         return float(self.env.cr.fetchone()[0] or 0.0)
 
     def _lakecity_consolidate_orphan_ar_to_main(self):
-        """Move legacy per-customer AR postings onto 121000 (keep partner_id on lines)."""
+        """Move legacy per-customer AR postings onto 121000 (SQL; keep partner_id)."""
         self.ensure_one()
         main_ar = self._lakecity_trade_receivable_account()
         if not main_ar:
             _logger.warning("Lakecity AR consolidate: no 121000 for %s", self.display_name)
             return {"lines_moved": 0, "accounts_archived": 0}
 
-        orphans = self._lakecity_orphan_customer_receivable_accounts()
-        if not orphans:
-            return {"lines_moved": 0, "accounts_archived": 0}
-
-        MoveLine = self.env["account.move.line"].sudo()
-        lines = MoveLine.search(
-            [
-                ("account_id", "in", orphans.ids),
-                ("company_id", "=", self.id),
-                ("parent_state", "=", "posted"),
-            ]
+        cr = self.env.cr
+        cr.execute(
+            """
+            UPDATE account_move_line AS aml
+               SET account_id = %s
+              FROM account_move AS am, account_account AS aa
+             WHERE aml.move_id = am.id
+               AND aml.account_id = aa.id
+               AND am.company_id = %s
+               AND am.state = 'posted'
+               AND aa.id != %s
+               AND aa.account_type = 'asset_receivable'
+               AND aa.name ILIKE %s
+            """,
+            (main_ar.id, self.id, main_ar.id, LAKECITY_ORPHAN_AR_PREFIX + "%"),
         )
-        line_count = len(lines)
-        if lines:
-            lines.write({"account_id": main_ar.id})
+        line_count = cr.rowcount or 0
 
-        archived = 0
-        for acc in orphans:
-            remaining = MoveLine.search_count(
-                [("account_id", "=", acc.id), ("parent_state", "=", "posted")]
-            )
-            if remaining:
-                continue
-            acc.write({"active": False})
-            archived += 1
-
+        cr.execute(
+            """
+            UPDATE account_account AS aa
+               SET active = FALSE
+             WHERE aa.account_type = 'asset_receivable'
+               AND aa.id != %s
+               AND aa.name ILIKE %s
+               AND aa.active IS TRUE
+               AND NOT EXISTS (
+                    SELECT 1
+                      FROM account_move_line AS aml
+                      JOIN account_move AS am ON am.id = aml.move_id
+                     WHERE aml.account_id = aa.id
+                       AND am.state = 'posted'
+               )
+            """,
+            (main_ar.id, LAKECITY_ORPHAN_AR_PREFIX + "%"),
+        )
+        archived = cr.rowcount or 0
+        self.env.invalidate_all()
         return {"lines_moved": line_count, "accounts_archived": archived}
 
     def _lakecity_clear_bnpl_mirror_moves(self):
