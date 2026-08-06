@@ -1155,6 +1155,8 @@ serve(async (req) => {
       } else {
         nextGridIdx = lastFilledIdx + 1;
       }
+      // Next payment can never fall before the customer's START DATE (Column L).
+      nextGridIdx = Math.max(nextGridIdx, startMonthOffset);
 
       console.log(`Stand ${standNumber}: filledCells=${filledCellCount}, lastFilledIdx=${lastFilledIdx}, filledSum=${filledCellSum}, expected=${expectedForFilled}, shortfall=${shortfall}, isPartial=${isPartial}, startMonthOffset=${startMonthOffset}, nextGridIdx=${nextGridIdx}`);
 
