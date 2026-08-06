@@ -49,7 +49,7 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_open_monthly_statements" type="object" class="oe_stat_button" icon="fa-file-text-o">
+                        <button name="action_open_monthly_statements" type="object" class="oe_stat_button" icon="fa-file-text">
                             <field name="lakecity_monthly_statement_count" widget="statinfo" string="Statements"/>
                         </button>
                     </div>
@@ -174,7 +174,6 @@
                                     <field name="closing_balance"/>
                                     <field name="is_overdue"/>
                                     <field name="generated_at"/>
-                                    <button name="action_print_statement" type="object" string="PDF" icon="fa-print"/>
                                 </list>
                             </field>
                         </page>

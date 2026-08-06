@@ -41,9 +41,15 @@ class ResPartner(models.Model):
         related="lakecity_portal_contract_id.lakecity_deposit_split_three",
         readonly=False,
     )
+    lakecity_deposit_currency_id = fields.Many2one(
+        related="lakecity_portal_contract_id.currency_id",
+        string="Deposit currency",
+        readonly=True,
+    )
     lakecity_deposit_amount = fields.Monetary(
         string="Deposit amount",
         related="lakecity_portal_contract_id.deposit_amount",
+        currency_field="lakecity_deposit_currency_id",
         readonly=False,
     )
     lakecity_deposit_due_date = fields.Date(

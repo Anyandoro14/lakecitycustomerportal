@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-import calendar
-
-from dateutil.relativedelta import relativedelta
-
 from odoo import _, api, fields, models
 
 

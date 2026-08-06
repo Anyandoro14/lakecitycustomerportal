@@ -416,10 +416,14 @@ class LakecityLoanContract(models.Model):
             vals.setdefault("lakecity_portal_enrolled_at", False)
             vals.setdefault("lakecity_portal_enrolled_by", False)
         res = super().write(vals)
-        self._lakecity_sync_partner_customer_and_crm()
+        if not self.env.context.get("skip_lakecity_partner_crm_sync"):
+            self._lakecity_sync_partner_customer_and_crm()
         if not self.env.context.get("skip_lakecity_bnpl_gl_sync"):
             self._lakecity_sync_future_receivable_gl()
-        if self._LAKECITY_PORTAL_SYNC_FIELDS.intersection(vals.keys()):
+        if (
+            self._LAKECITY_PORTAL_SYNC_FIELDS.intersection(vals.keys())
+            and not self.env.context.get("skip_lakecity_portal_supabase_sync")
+        ):
             self._lakecity_sync_portal_settings_supabase()
         return res
 
@@ -1110,7 +1114,9 @@ class LakecityLoanContract(models.Model):
 
     def action_open_monthly_statements(self):
         self._lakecity_ensure_monthly_statements_fresh()
-        action = self.env.ref("lakecity_loan_management.action_lakecity_loan_monthly_statement").read()[0]
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "lakecity_loan_management.action_lakecity_loan_monthly_statement"
+        )
         action["domain"] = [("contract_id", "in", self.ids)]
         return action
 
