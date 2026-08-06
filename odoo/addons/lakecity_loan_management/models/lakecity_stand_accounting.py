@@ -210,26 +210,15 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             _logger.warning("Lakecity: could not unlink stand move id=%s: %s", move.id, err)
 
     def _lakecity_clear_opening_balance_moves(self, cutoff_date=None):
-        """Remove prior opening/initial contract JEs and pre-cutoff payments for force repost.
+        """Remove prior opening/initial contract JEs and BNPL payments for force repost.
 
-        When ``cutoff_date`` is set (e.g. 2026-01-01), every posted payment on or before
-        that date is removed so the lumped opening-balance receipt is the sole pre-cutover
-        cash entry. Payments after the cutoff are kept.
+        Clears **all** payments on the contract (historical imports often carry post-cutoff
+        dates even when they represent pre-cutover cash). After force, only the lumped
+        opening-balance receipt remains until 2026+ receipts are re-imported.
         """
         self.ensure_one()
         Payment = self.env["lakecity.loan.payment"].sudo()
-        ext_uid = "opening-balance-%s" % (self.stand_number or self.id)
-        domain = [("contract_id", "=", self.id)]
-        if cutoff_date:
-            domain = [
-                ("contract_id", "=", self.id),
-                "|",
-                ("external_uid", "=", ext_uid),
-                ("payment_date", "<=", cutoff_date),
-            ]
-        else:
-            domain = [("contract_id", "=", self.id), ("external_uid", "=", ext_uid)]
-        payments = Payment.search(domain)
+        payments = Payment.search([("contract_id", "=", self.id)])
         for pay in payments:
             self._lakecity_unlink_stand_move(pay.lakecity_receipt_move_id)
             self._lakecity_unlink_stand_move(pay.lakecity_revenue_move_id)
