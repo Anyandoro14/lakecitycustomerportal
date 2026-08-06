@@ -210,17 +210,30 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             _logger.warning("Lakecity: could not unlink stand move id=%s: %s", move.id, err)
 
     def _lakecity_clear_opening_balance_moves(self, cutoff_date=None):
-        """Remove prior opening/initial contract JEs and BNPL payments for force repost.
+        """Remove prior opening JEs and **pre-cutover** BNPL payments for force repost.
 
-        Clears **all** payments on the contract (historical imports often carry post-cutoff
-        dates even when they represent pre-cutover cash). After force, only the lumped
-        opening-balance receipt remains until 2026+ receipts are re-imported.
+        Keeps receipts on/after ``cutoff_date`` (e.g. 2026+ collections). Only removes:
+        - payments dated before the cutover, and
+        - prior lumped ``opening-balance-*`` receipts (so force can repost them).
         """
         self.ensure_one()
         Payment = self.env["lakecity.loan.payment"].sudo()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else False
         payments = Payment.search([("contract_id", "=", self.id)])
-        cleared = len(payments)
+        to_clear = Payment.browse()
         for pay in payments:
+            uid = (pay.external_uid or "").strip()
+            if uid.startswith("opening-balance-"):
+                to_clear |= pay
+                continue
+            if cutoff_date:
+                if pay.payment_date and pay.payment_date < cutoff_date:
+                    to_clear |= pay
+            else:
+                # No cutoff supplied — legacy full clear.
+                to_clear |= pay
+        cleared = len(to_clear)
+        for pay in to_clear:
             self._lakecity_unlink_stand_move(pay.lakecity_receipt_move_id)
             self._lakecity_unlink_stand_move(pay.lakecity_revenue_move_id)
             self._lakecity_unlink_stand_move(pay.lakecity_cos_move_id)
@@ -257,7 +270,8 @@ class LakecityStandAccountingMixin(models.AbstractModel):
                 "lakecity_cos_recognized": 0.0,
             }
         )
-        # Balances are computed from installment amount_paid — reset before reopen.
+        # Reset installment paid, then rebuild from remaining (post-cutover) payments +
+        # the new opening-balance receipt that force will post next.
         if self.installment_ids:
             self.installment_ids.sudo().write({"amount_paid": 0.0})
             self.installment_ids.action_lakecity_refresh_stored_computes()
@@ -325,8 +339,9 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         (for inclusive VAT, Column O net liability = O + P).
 
         Use ``payment_date`` as the GL cutover date (e.g. 2026-01-01). When ``force``
-        is True, prior opening/initial contract and opening-balance payment JEs are
-        cleared and reposted on that date.
+        is True, prior opening/initial JEs and **pre-cutover** payments (plus prior
+        ``opening-balance-*`` lumps) are cleared and reposted; receipts on/after the
+        cutover date are kept.
         """
         self.ensure_one()
         if not self._lakecity_company_stand_accounting_enabled():

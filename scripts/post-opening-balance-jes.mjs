@@ -17,6 +17,8 @@
  *
  * Does NOT create missing contracts — skips stands with no existing Odoo loan.
  * Opening paid = sum of live sheet month cells before cutover (not live TOTAL PAID, which includes 2026+).
+ * Force clear (module ≥ 19.0.1.0.66) removes only pre-cutover receipts; keep 2026+ and
+ * re-import them with: node --env-file=.env scripts/import-post-cutoff-sheet-payments.mjs
  *
  * Usage:
  *   node --env-file=.env scripts/post-opening-balance-jes.mjs --parse-only

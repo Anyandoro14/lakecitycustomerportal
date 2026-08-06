@@ -566,7 +566,7 @@ class LakecityLoanApiController(http.Controller):
         vals = {
             "external_uid": external_uid,
             "contract_id": contract.id,
-            "payment_date": payload.get("payment_date") or fields.Date.today(),
+            "payment_date": fields.Date.to_date(payload.get("payment_date") or fields.Date.today()),
             "amount": amount,
             "source": payload.get("source") or "manual",
             "reference": payload.get("reference") or False,
