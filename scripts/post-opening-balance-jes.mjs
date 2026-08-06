@@ -121,17 +121,24 @@ function parseMonthHeader(header) {
 }
 
 function contractSplits(totalPrice, colO, colP, isExclusive) {
-  const gross = totalPrice;
+  const gross = Math.round((totalPrice || 0) * 100) / 100;
+  let deferredVat;
+  let contractLiability;
   if (isExclusive) {
-    return {
-      gross,
-      contractLiability: colO > 0 ? colO : Math.round(gross * (1 - VAT_RATE) * 100) / 100,
-      deferredVat: colP > 0 ? colP : Math.round(gross * VAT_RATE * 100) / 100,
-    };
+    deferredVat = colP > 0 ? colP : Math.round(gross * VAT_RATE * 100) / 100;
+    contractLiability = colO > 0 ? colO : Math.round((gross - deferredVat) * 100) / 100;
+  } else {
+    // Inclusive: colO = net contract liability, colP = deferred VAT (do not add O+P into CL).
+    deferredVat = colP > 0 ? colP : Math.round((gross - gross / (1 + VAT_RATE)) * 100) / 100;
+    contractLiability = colO > 0 ? colO : Math.round((gross - deferredVat) * 100) / 100;
   }
-  const deferredVat = colP > 0 ? colP : Math.round((gross - gross / (1 + VAT_RATE)) * 100) / 100;
-  const contractLiability =
-    colO + colP > 0 ? colO + colP : Math.round((gross / (1 + VAT_RATE)) * 100) / 100;
+  deferredVat = Math.round(deferredVat * 100) / 100;
+  contractLiability = Math.round(contractLiability * 100) / 100;
+  // JE1 must balance: Dr AR (gross) = Cr CL + Cr deferred VAT (fix sheet 1¢ drift).
+  const credit = Math.round((contractLiability + deferredVat) * 100) / 100;
+  if (credit !== gross) {
+    contractLiability = Math.round((gross - deferredVat) * 100) / 100;
+  }
   return { gross, contractLiability, deferredVat };
 }
 
