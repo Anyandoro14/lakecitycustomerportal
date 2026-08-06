@@ -46,13 +46,7 @@
         sequence="30"
         groups="lakecity_loan_management.group_lakecity_loan_user"/>
 
-    <menuitem
-        id="menu_lakecity_loan_statements"
-        name="Customer Statements"
-        parent="menu_lakecity_loan_root"
-        action="action_lakecity_loan_monthly_statement"
-        sequence="25"
-        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+    <!-- Customer Statements menu re-enabled with statement views in __manifest__.py -->
 
     <menuitem
         id="menu_lakecity_loan_products"

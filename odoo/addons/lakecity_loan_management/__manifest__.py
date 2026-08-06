@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.63",
+    "version": "19.0.1.0.64",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     # Avoid RST-looking multi-line Python docstrings with indented wraps in this addon; Odoo feeds
     # them through docutils during registry load and logs "(ERROR/3) Unexpected indentation".
@@ -36,8 +36,10 @@
         "views/loan_contract_views.xml",
         "views/loan_payment_views.xml",
         "views/loan_installment_views.xml",
-        "views/lakecity_loan_statement_views.xml",
-        "report/lakecity_loan_statement_report.xml",
+        # Statement UI/PDF deferred from upgrade load (Odoo.sh SIGKILL OOM). Models remain;
+        # re-enable these two lines after Main builds green.
+        # "views/lakecity_loan_statement_views.xml",
+        # "report/lakecity_loan_statement_report.xml",
         "views/receipt_intake_views.xml",
         "wizard/bank_payment_backfill_views.xml",
         "views/loan_menus.xml",
