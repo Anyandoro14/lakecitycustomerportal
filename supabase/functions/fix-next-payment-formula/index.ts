@@ -63,13 +63,16 @@ Deno.serve(async (req) => {
       const idx = hdr.findIndex((h: any) => String(h ?? "").toLowerCase().includes("next payment"));
       if (idx < 0) { results.push({ tab, skipped: "no Next Payment column" }); continue; }
       const letter = colLetter(idx);
+      const tpIdx = hdr.findIndex((h: any) => String(h ?? "").toLowerCase().replace(/\s+/g, " ").includes("total paid"));
+      const totalPaidCol = tpIdx >= 0 ? colLetter(tpIdx) : "FZ";
 
       const bRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values/${encodeURIComponent(`${tab}!B:B`)}`, { headers: { Authorization: `Bearer ${token}` } });
       const lastRow = ((bRes.ok ? (await bRes.json()).values : []) || []).length;
       if (lastRow < 2) { results.push({ tab, skipped: "no data rows" }); continue; }
 
       const values: string[][] = [];
-      for (let r = 2; r <= lastRow; r++) values.push([buildFormula(r)]);
+      for (let r = 2; r <= lastRow; r++) values.push([buildFormula(r, totalPaidCol)]);
+
       const range = `${tab}!${letter}2:${letter}${lastRow}`;
 
       if (dryRun) {
