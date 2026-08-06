@@ -333,7 +333,8 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             return {"skipped": True, "reason": "stand_sales_accounting_disabled"}
 
         rnd = self.currency_id.rounding
-        payment_date = payment_date or fields.Date.context_today(self)
+        # JSON API may pass ISO strings; Date.to_string() requires a date object.
+        payment_date = fields.Date.to_date(payment_date) if payment_date else fields.Date.context_today(self)
         payments_cleared = 0
         if force:
             payments_cleared = self._lakecity_clear_opening_balance_moves(cutoff_date=payment_date) or 0

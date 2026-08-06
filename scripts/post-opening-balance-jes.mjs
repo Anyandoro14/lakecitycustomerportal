@@ -2,36 +2,36 @@
 /**
  * Post Lake City opening-balance stand sales journal entries as of 2026-01-01.
  *
- * Balance source of truth (always):
- *   Google Collection Schedule
+ * Balance source of truth (always — live Google Sheet only, no local xlsx):
  *   https://docs.google.com/spreadsheets/d/1yAHOC73ufVsSdv0rN8iTgfdVrMAjt8aD_MnaToE9du0/edit?gid=415963215
  *   Tabs: gid=415963215 (36mo), gid=577522818 (48mo)
  *   Fields: TOTAL PRICE, TOTAL PAID, Current Balance / Accounts Receivable, Contract Liabilities, VAT
  *
- * Local workbook is only an offline export of that sheet:
- *   COLLECTION SCHEDULE - JE for [OPENING BALANCES] (1).xlsx
- *
  * Odoo `lakecity_loan_management` is NOT the balance SoT. It receives sheet amounts for GL
  * posting and holds the payment schedule + payment amounts used for arrears / prepayments.
  *
- * Walkthrough (dated CUTOFF_DATE for every customer):
- *   JE1 — Dr AR (121000) / Cr Contract Liabilities (212010) / Cr Deferred Output VAT (251020)
- *   Then for pre-cutoff sheet TOTAL PAID > 0:
+ * Walkthrough (dated CUTOFF_DATE for every customer that already has an Odoo contract):
+ *   JE1 — Dr AR / Cr Contract Liabilities / Cr Deferred Output VAT for sheet TOTAL PRICE
+ *   Then for pre-2026 receipts (sum of month columns dated before cutover):
  *     Receipt Dr Bank / Cr AR; Revenue/VAT release Dr CL + Deferred VAT / Cr Revenue + VAT Output
  *
+ * Does NOT create missing contracts — skips stands with no existing Odoo loan.
+ * Opening paid = sum of live sheet month cells before cutover (not live TOTAL PAID, which includes 2026+).
+ *
  * Usage:
- *   node scripts/post-opening-balance-jes.mjs --parse-only
+ *   node --env-file=.env scripts/post-opening-balance-jes.mjs --parse-only
  *   node --env-file=.env scripts/post-opening-balance-jes.mjs --dry-run
  *   node --env-file=.env scripts/post-opening-balance-jes.mjs --force
  *   node --env-file=.env scripts/post-opening-balance-jes.mjs --stand 3072 --force
  *
- * Env: ODOO_ORIGIN, LAKECITY_LOAN_API_TOKEN
- * Preferred: GOOGLE_SERVICE_ACCOUNT_KEY, SPREADSHEET_ID (or OPENING_BALANCE_SPREADSHEET_ID)
+ * Env (required for sheet read):
+ *   GOOGLE_SERVICE_ACCOUNT_KEY — service-account JSON string (or path via GOOGLE_APPLICATION_CREDENTIALS)
+ *   GOOGLE_CLIENT_EMAIL — only if KEY is a raw PEM instead of JSON
+ *   SPREADSHEET_ID or OPENING_BALANCE_SPREADSHEET_ID — optional; defaults to the Collection Schedule id
+ * Env (required to post): ODOO_ORIGIN, LAKECITY_LOAN_API_TOKEN
  */
 
 import fs from "node:fs";
-import path from "node:path";
-import * as XLSX from "xlsx";
 
 const VAT_RATE = 0.155;
 const CUTOFF_DATE = "2026-01-01";
@@ -44,18 +44,6 @@ const dryRun = argv.has("--dry-run");
 const parseOnly = argv.has("--parse-only");
 const force = argv.has("--force") || process.env.OPENING_BALANCE_FORCE === "1";
 
-function positionalArgs() {
-  const raw = process.argv.slice(2);
-  const skip = new Set();
-  for (let i = 0; i < raw.length; i++) {
-    const a = raw[i];
-    if (a === "--stand" || a === "--sheet" || a === "--cutoff") {
-      if (raw[i + 1] && !raw[i + 1].startsWith("--")) skip.add(i + 1);
-    }
-  }
-  return raw.filter((a, i) => !a.startsWith("--") && !skip.has(i));
-}
-
 const standFilter = (() => {
   const idx = process.argv.indexOf("--stand");
   return idx >= 0 ? String(process.argv[idx + 1] || "").trim() : "";
@@ -66,20 +54,6 @@ const cutoffDate = (() => {
   return idx >= 0 ? String(process.argv[idx + 1] || "").trim() : CUTOFF_DATE;
 })();
 
-const DEFAULT_SOURCE = path.join(
-  process.cwd(),
-  "COLLECTION SCHEDULE - JE for [OPENING BALANCES] (1).xlsx",
-);
-
-function resolveSourcePath() {
-  if (process.env.OPENING_BALANCE_XLSX) return process.env.OPENING_BALANCE_XLSX;
-  for (const arg of positionalArgs()) {
-    if (/\.xlsx?$/i.test(arg) || fs.existsSync(arg)) return arg;
-  }
-  return DEFAULT_SOURCE;
-}
-
-const sourcePath = resolveSourcePath();
 const OPENING_BALANCE_ROUTE = "/lakecity/api/v1/loan/opening-balance/post";
 
 const odooOrigin = (process.env.ODOO_ORIGIN || "").replace(/\/$/, "");
@@ -126,7 +100,6 @@ function excelDateToISO(raw) {
 
 function parseMonthHeader(header) {
   const t = String(header ?? "").trim();
-  // "5 January 2025" or Excel date
   if (header instanceof Date && !Number.isNaN(+header)) {
     return new Date(Date.UTC(header.getFullYear(), header.getMonth(), 1));
   }
@@ -198,7 +171,6 @@ function parseScheduleMatrix(matrix, sheetName) {
     const stand = normStand(row[standIdx]);
     if (!stand) continue;
     if (/^TOTAL/i.test(stand) || /^TOTAL/i.test(String(row[fnIdx] ?? ""))) continue;
-    // Skip known sandbox / test stands
     if (/^(777777|999999|5555577)$/.test(stand)) continue;
     if (standFilter && stand !== normStand(standFilter)) continue;
 
@@ -240,92 +212,12 @@ function parseScheduleMatrix(matrix, sheetName) {
       impliedAr: Math.round((splits.gross - totalPaid) * 100) / 100,
       externalUid: `collection-csv-${stand}`,
       sourceSheet: sheetName,
-      balanceSource: "collection-schedule",
+      balanceSource: "google-sheets",
       hasJeColumns: arIdx >= 0 && clIdx >= 0 && vatIdx >= 0,
     });
   }
   return out;
 }
-
-function loadJeSheet(wb, sheetName) {
-  if (!wb.Sheets[sheetName]) return [];
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
-  return parseScheduleMatrix(rows, sheetName);
-}
-
-function loadGridSheetPreCutoffPaid(wb, sheetName) {
-  if (!wb.Sheets[sheetName]) return new Map();
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
-  if (!rows.length) return new Map();
-  const header = rows[0];
-  const standIdx = header.findIndex((h) => String(h ?? "").toLowerCase().includes("stand number"));
-  if (standIdx < 0) return new Map();
-
-  const cutoff = new Date(`${cutoffDate}T00:00:00Z`);
-  const monthIdxs = [];
-  for (let i = 0; i < header.length; i++) {
-    const month = parseMonthHeader(header[i]);
-    if (month && month < cutoff) monthIdxs.push(i);
-  }
-
-  const paidByStand = new Map();
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    const stand = normStand(row[standIdx]);
-    if (!stand) continue;
-    let paid = 0;
-    for (const i of monthIdxs) paid += parseMoney(row[i]);
-    paidByStand.set(stand, Math.round(paid * 100) / 100);
-  }
-  console.log(
-    `Sheet ${sheetName}: ${monthIdxs.length} month column(s) before ${cutoffDate}; ${paidByStand.size} stand(s)`,
-  );
-  return paidByStand;
-}
-
-function loadRowsFromWorkbook() {
-  if (!fs.existsSync(sourcePath)) {
-    throw new Error(`Workbook not found: ${sourcePath}`);
-  }
-  const wb = XLSX.read(fs.readFileSync(sourcePath), { type: "buffer", cellDates: true });
-
-  /** Prefer dedicated JE sheet, then merge other schedule tabs. */
-  const preferred = [
-    "Collection Schedule - 36mo",
-    "Collection Schedule - 48mo",
-    "Collection Schedule - 120mo",
-  ];
-  const byStand = new Map();
-
-  for (const name of preferred) {
-    if (!wb.SheetNames.includes(name)) continue;
-    for (const row of loadJeSheet(wb, name)) {
-      const prev = byStand.get(row.stand);
-      if (!prev || (row.hasJeColumns && !prev.hasJeColumns)) {
-        byStand.set(row.stand, row);
-      }
-    }
-  }
-
-  // Override TOTAL PAID with pre-cutoff month-grid sums when JE sheet paid looks stale / missing
-  for (const name of preferred) {
-    if (!wb.SheetNames.includes(name)) continue;
-    const gridPaid = loadGridSheetPreCutoffPaid(wb, name);
-    for (const [stand, paid] of gridPaid) {
-      const row = byStand.get(stand);
-      if (!row) continue;
-      if (!row.hasJeColumns || row.totalPaid <= 0) {
-        row.totalPaid = paid;
-        row.arTarget = Math.max(0, Math.round((row.totalPrice - paid) * 100) / 100);
-        row.impliedAr = row.arTarget;
-      }
-    }
-  }
-
-  return [...byStand.values()].sort((a, b) => a.stand.localeCompare(b.stand, undefined, { numeric: true }));
-}
-
-// ── Google Sheets (balance source of truth) ──────────────────────────────
 
 function base64url(str) {
   return Buffer.from(str)
@@ -335,22 +227,60 @@ function base64url(str) {
     .replace(/=+$/, "");
 }
 
-async function getGoogleAccessToken() {
-  const keyString = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "";
-  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || "";
-  if (!keyString) return null;
+function loadGoogleServiceAccountCredentials() {
+  const clientEmailEnv = process.env.GOOGLE_CLIENT_EMAIL || "";
+  let keyString = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "").trim();
+  const credPath = (process.env.GOOGLE_APPLICATION_CREDENTIALS || "").trim();
 
-  let privateKeyPem;
-  let serviceAccountEmail;
-  try {
-    const credentials = JSON.parse(keyString.replace(/\\n/g, "\n"));
-    privateKeyPem = credentials.private_key;
-    serviceAccountEmail = credentials.client_email;
-  } catch {
-    privateKeyPem = keyString;
-    serviceAccountEmail = clientEmail;
+  if (!keyString && credPath) {
+    if (!fs.existsSync(credPath)) {
+      throw new Error(`GOOGLE_APPLICATION_CREDENTIALS file not found: ${credPath}`);
+    }
+    keyString = fs.readFileSync(credPath, "utf8").trim();
   }
-  if (!privateKeyPem || !serviceAccountEmail) return null;
+
+  if (!keyString) {
+    throw new Error(
+      [
+        "Live Google Sheet credentials are required (local xlsx is not used).",
+        "Set GOOGLE_SERVICE_ACCOUNT_KEY to the service-account JSON (same secret as Supabase Edge Functions),",
+        "or set GOOGLE_APPLICATION_CREDENTIALS to a JSON key file path.",
+        "Share the spreadsheet with the service account client_email as Viewer.",
+      ].join(" "),
+    );
+  }
+
+  if (!keyString.startsWith("{") && fs.existsSync(keyString)) {
+    keyString = fs.readFileSync(keyString, "utf8").trim();
+  }
+
+  try {
+    // Env-var JSON is often one line with "\\n" escapes; file JSON is already valid as-is.
+    let credentials;
+    try {
+      credentials = JSON.parse(keyString);
+    } catch {
+      credentials = JSON.parse(keyString.replace(/\\n/g, "\n"));
+    }
+    if (!credentials.private_key || !credentials.client_email) {
+      throw new Error("JSON missing private_key or client_email");
+    }
+    return {
+      privateKeyPem: credentials.private_key,
+      serviceAccountEmail: credentials.client_email,
+    };
+  } catch (e) {
+    if (!clientEmailEnv) {
+      throw new Error(
+        `GOOGLE_SERVICE_ACCOUNT_KEY must be service-account JSON (or set GOOGLE_CLIENT_EMAIL with a PEM key): ${e.message}`,
+      );
+    }
+    return { privateKeyPem: keyString, serviceAccountEmail: clientEmailEnv };
+  }
+}
+
+async function getGoogleAccessToken() {
+  const { privateKeyPem, serviceAccountEmail } = loadGoogleServiceAccountCredentials();
 
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: "RS256", typ: "JWT" };
@@ -379,16 +309,16 @@ async function getGoogleAccessToken() {
     }),
   });
   if (!tokenResponse.ok) {
-    console.warn("Google token exchange failed:", await tokenResponse.text());
-    return null;
+    throw new Error(`Google token exchange failed: ${await tokenResponse.text()}`);
   }
   const { access_token } = await tokenResponse.json();
+  if (!access_token) throw new Error("Google token exchange returned no access_token");
   return access_token;
 }
 
 /**
  * Load balance SoT rows from live Collection Schedule tabs (gids).
- * Returns { rows, preCutoffPaidByStand } — never uses Odoo for amounts.
+ * Never reads a local workbook and never uses Odoo for amounts.
  */
 async function fetchGoogleCollectionSchedule() {
   const spreadsheetId =
@@ -396,19 +326,14 @@ async function fetchGoogleCollectionSchedule() {
     process.env.SPREADSHEET_ID ||
     SPREADSHEET_ID_DEFAULT;
   const token = await getGoogleAccessToken();
-  if (!token) {
-    console.log(
-      "No Google credentials — falling back to local workbook export of Collection Schedule (not Odoo).",
-    );
-    return { rows: [], preCutoffPaidByStand: new Map() };
-  }
+
+  console.log(`Reading live Google Sheet ${spreadsheetId} (gids ${SHEET_GIDS.join(", ")})`);
 
   const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!metaRes.ok) {
-    console.warn("Could not load Google spreadsheet metadata:", await metaRes.text());
-    return { rows: [], preCutoffPaidByStand: new Map() };
+    throw new Error(`Could not load Google spreadsheet metadata: ${await metaRes.text()}`);
   }
   const meta = await metaRes.json();
   const sheets = meta.sheets || [];
@@ -418,7 +343,11 @@ async function fetchGoogleCollectionSchedule() {
     if (sheet) titles.push(sheet.properties.title);
     else console.warn(`Sheet gid=${gid} not found in spreadsheet`);
   }
-  if (!titles.length) return { rows: [], preCutoffPaidByStand: new Map() };
+  if (!titles.length) {
+    throw new Error(
+      `No Collection Schedule tabs found for gids ${SHEET_GIDS.join(", ")} in spreadsheet ${spreadsheetId}`,
+    );
+  }
 
   const byStand = new Map();
   const paidByStand = new Map();
@@ -429,8 +358,7 @@ async function fetchGoogleCollectionSchedule() {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
-      console.warn(`Failed to read tab ${title}`);
-      continue;
+      throw new Error(`Failed to read live Google tab "${title}": ${await res.text()}`);
     }
     const data = await res.json();
     const matrix = data.values || [];
@@ -450,7 +378,6 @@ async function fetchGoogleCollectionSchedule() {
     const standIdx = header.findIndex((h) => String(h ?? "").toLowerCase().includes("stand number"));
     if (standIdx < 0) continue;
 
-    // Month-grid fill-in only when sheet TOTAL PAID is empty (schedule cells are still sheet SoT)
     const monthIdxs = [];
     for (let i = 0; i < header.length; i++) {
       const month = parseMonthHeader(header[i]);
@@ -470,10 +397,16 @@ async function fetchGoogleCollectionSchedule() {
     console.log(`Google tab "${title}": ${monthIdxs.length} pre-cutoff month column(s)`);
   }
 
-  return {
-    rows: [...byStand.values()].sort((a, b) => a.stand.localeCompare(b.stand, undefined, { numeric: true })),
-    preCutoffPaidByStand: paidByStand,
-  };
+  const rows = [...byStand.values()].sort((a, b) =>
+    a.stand.localeCompare(b.stand, undefined, { numeric: true }),
+  );
+  if (!rows.length) {
+    throw new Error(
+      `Live Google Sheet ${spreadsheetId} returned 0 stand rows from tabs: ${titles.join(", ")}`,
+    );
+  }
+
+  return { rows, preCutoffPaidByStand: paidByStand, spreadsheetId, titles };
 }
 
 async function odooPost(route, body) {
@@ -497,7 +430,13 @@ async function odooPost(route, body) {
     throw new Error(`HTTP ${res.status} ${route}: ${text.slice(0, 400)}`);
   }
   if (!res.ok || json?.ok === false) {
-    throw new Error(`HTTP ${res.status} ${route}: ${json?.error || text.slice(0, 400)}`);
+    const err = String(json?.error || text.slice(0, 400));
+    // Odoo ≤19.0.1.0.64: work commits, then response fails on Date.to_string(str).
+    // Treat as success so --force can finish the cutover; upgrade to .65 for a clean API.
+    if (route === OPENING_BALANCE_ROUTE && /strftime/i.test(err)) {
+      return { ok: true, soft_strftime_bug: true, error: err };
+    }
+    throw new Error(`HTTP ${res.status} ${route}: ${err}`);
   }
   return json;
 }
@@ -523,43 +462,53 @@ async function assertOpeningBalanceApiReady() {
   }
 }
 
+async function odooGetContract(stand) {
+  if (parseOnly) return { ok: true, contract: { stand_number: stand } };
+  const res = await fetch(
+    `${odooOrigin}/lakecity/api/v1/loan/get?stand_number=${encodeURIComponent(stand)}`,
+    { headers: odooHeaders },
+  );
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { ok: false, error: `HTTP ${res.status} non-JSON` };
+  }
+  if (!res.ok || json?.ok === false) return { ok: false, error: json?.error || `HTTP ${res.status}` };
+  return { ok: true, contract: json.contract || null };
+}
+
 async function main() {
   console.log(`Cutover date (all opening JEs): ${cutoffDate}`);
   console.log(`Force repost: ${force ? "yes" : "no"}`);
   console.log(
-    "Balance SoT: Google Collection Schedule (gid=415963215 / 577522818). Odoo loan module is not used for balances.",
+    "Live Google Sheet SoT for TOTAL PRICE + pre-2026 paid. Existing Odoo contracts only — will not create missing contracts.",
   );
 
   const google = await fetchGoogleCollectionSchedule();
-  let rows = google.rows;
-  if (rows.length) {
-    console.log(`Loaded ${rows.length} stand(s) from Google Collection Schedule (balance SoT)`);
-  } else {
-    rows = loadRowsFromWorkbook();
-    console.log(
-      `Loaded ${rows.length} stand(s) from local workbook export ${path.basename(sourcePath)} (offline sheet copy)`,
-    );
-  }
+  const rows = google.rows;
+  console.log(
+    `Loaded ${rows.length} stand(s) from live Google Sheet ${google.spreadsheetId} [${google.titles.join(", ")}]`,
+  );
 
-  // Fill TOTAL PAID from sheet month grid only when the TOTAL PAID column is empty
+  // Opening paid = sum(month columns before cutover) on the live sheet.
+  // Do not add Deposit separately: on this workbook TOTAL PAID tracks month cells (deposit is often
+  // already embedded in an early month amount). Do not use live TOTAL PAID (includes 2026+).
   const gridPaid = google.preCutoffPaidByStand;
-  if (gridPaid.size) {
-    let applied = 0;
-    for (const row of rows) {
-      if (row.totalPaid > 0) continue;
-      if (!gridPaid.has(row.stand)) continue;
-      row.totalPaid = gridPaid.get(row.stand);
-      row.arTarget = Math.max(0, Math.round((row.totalPrice - row.totalPaid) * 100) / 100);
-      row.impliedAr = row.arTarget;
-      row.paidSource = "sheet-month-grid";
-      applied++;
-    }
-    if (applied) console.log(`Filled empty TOTAL PAID from sheet month grid for ${applied} stand(s)`);
+  let withPreCutoff = 0;
+  for (const row of rows) {
+    const monthsPre = gridPaid.get(row.stand) || 0;
+    const openingPaid = Math.round(monthsPre * 100) / 100;
+    row.openingPaid = openingPaid;
+    row.monthsPreCutoff = monthsPre;
+    row.arAtCutover = Math.max(0, Math.round((row.totalPrice - openingPaid) * 100) / 100);
+    row.paidSource = "pre-2026-month-grid";
+    if (openingPaid > 0) withPreCutoff++;
   }
+  console.log(`Stands with pre-${cutoffDate} opening paid > 0: ${withPreCutoff}`);
 
   if (standFilter) console.log(`Filter: stand ${standFilter}`);
-  const withPreCutoffPaid = rows.filter((r) => r.totalPaid > 0).length;
-  console.log(`Stands with sheet pre-cutoff / TOTAL PAID > 0: ${withPreCutoffPaid}`);
 
   if (!parseOnly && !dryRun && (!odooOrigin || !apiToken)) {
     console.error("Set ODOO_ORIGIN and LAKECITY_LOAN_API_TOKEN (or use --parse-only / --dry-run)");
@@ -570,74 +519,64 @@ async function main() {
 
   let ok = 0;
   let skipped = 0;
+  let skippedNoContract = 0;
   let failures = 0;
 
   for (const row of rows) {
-    // Sheet amounts only — never prefer Odoo contract.total_price / deposit / balance.
-    const termMonths = row.termMonths || 36;
     const totalPrice = row.totalPrice;
-    const deposit = row.deposit;
-    // Sheet TOTAL PRICE = receivable gross (CL + VAT). Always treat as VAT-inclusive in Odoo
-    // so total_with_tax == TOTAL PRICE and AR = sheet Current Balance / TOTAL PRICE − TOTAL PAID.
     const isVatInclusive = true;
+    const openingPaid = row.openingPaid || 0;
+    const arAtCutover = row.arAtCutover;
 
     try {
-      const splits = contractSplits(totalPrice, row.colO, row.colP, row.isExclusive);
-      const arTarget =
-        row.arTarget > 0
-          ? row.arTarget
-          : Math.max(0, Math.round((splits.gross - row.totalPaid) * 100) / 100);
-
-      if (arTarget <= 0 && row.totalPaid <= 0) {
-        skipped++;
-        console.log(`SKIP stand ${row.stand}: no AR and no sheet payments`);
+      const existing = await odooGetContract(row.stand);
+      if (!existing.ok || !existing.contract) {
+        skippedNoContract++;
+        console.log(
+          `SKIP stand ${row.stand} ${row.name}: no existing Odoo contract (not creating)`,
+        );
+        await sleep(parseOnly ? 0 : 40);
         continue;
       }
 
-      const loanBody = {
-        external_uid: row.externalUid,
-        stand_number: row.stand,
-        partner: {
-          email: row.email || undefined,
-          name: row.name,
-          phone: row.phone || undefined,
-        },
-        term_months: termMonths,
-        due_day: 5,
-        payment_start_date: row.paymentStart,
-        total_price: totalPrice,
-        deposit_amount: deposit,
-        tax_rate: 15.5,
-        is_vat_inclusive: isVatInclusive,
-        agreement_signed_seller: true,
-        agreement_signed_buyer: true,
-        state: "active",
-        // Schedule in Odoo is for arrears/prepayments; balance figures come from the sheet payload.
-        generate_schedule: true,
-        activate: false,
-        create_crm_lead_first: false,
-      };
+      const splits = contractSplits(totalPrice, row.colO, row.colP, row.isExclusive);
 
+      if (arAtCutover <= 0 && openingPaid <= 0) {
+        skipped++;
+        console.log(`SKIP stand ${row.stand}: no cutover AR and no pre-2026 payments`);
+        continue;
+      }
+
+      let result = null;
       if (!parseOnly) {
-        await odooPost(OPENING_BALANCE_ROUTE, {
+        // No `loan` payload — never create/upsert contracts; post JEs on the existing contract only.
+        result = await odooPost(OPENING_BALANCE_ROUTE, {
           stand_number: row.stand,
           external_uid: row.externalUid,
-          accounts_receivable: arTarget,
+          accounts_receivable: arAtCutover > 0 ? arAtCutover : 0.01,
           contract_liability: splits.contractLiability,
           deferred_vat: splits.deferredVat,
-          total_paid: row.totalPaid,
+          total_paid: openingPaid,
           total_price: totalPrice,
           is_vat_inclusive: isVatInclusive,
           payment_date: cutoffDate,
           force,
-          loan: loanBody,
         });
       }
 
       ok++;
-      const src = row.paidSource || row.balanceSource || "collection-schedule";
+      const ob = result?.opening_balance || {};
+      const moveBits = [
+        ob.initial_move_id ? `JE1#${ob.initial_move_id}` : null,
+        Array.isArray(ob.payment_move_ids) && ob.payment_move_ids.length
+          ? `receiptMoves=${ob.payment_move_ids.join(",")}`
+          : null,
+        ob.payments_cleared != null ? `cleared=${ob.payments_cleared}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
       console.log(
-        `OK  stand ${row.stand} ${row.name}: JE1 @ ${cutoffDate} gross ${splits.gross.toFixed(2)} | CL ${splits.contractLiability.toFixed(2)} | Def VAT ${splits.deferredVat.toFixed(2)} | sheet paid ${row.totalPaid.toFixed(2)} | sheet AR ${arTarget.toFixed(2)} [${src}]`,
+        `OK  stand ${row.stand} ${row.name}: JE @ ${cutoffDate} gross ${splits.gross.toFixed(2)} | CL ${splits.contractLiability.toFixed(2)} | Def VAT ${splits.deferredVat.toFixed(2)} | pre-2026 paid ${openingPaid.toFixed(2)} | cutover AR ${arAtCutover.toFixed(2)}${moveBits ? ` | ${moveBits}` : ""}`,
       );
     } catch (e) {
       failures++;
@@ -646,12 +585,14 @@ async function main() {
     await sleep(parseOnly ? 0 : 80);
   }
 
-  console.log(`\nDone: ${ok} processed, ${skipped} skipped, ${failures} failures (cutover ${cutoffDate})`);
+  console.log(
+    `\nDone: ${ok} processed, ${skipped} skipped, ${skippedNoContract} no-contract skipped, ${failures} failures (cutover ${cutoffDate})`,
+  );
   if (dryRun || parseOnly) console.log("(no HTTP mutations sent)");
   if (failures) process.exitCode = 1;
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error(e.message || e);
   process.exit(1);
 });

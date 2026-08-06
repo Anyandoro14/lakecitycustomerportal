@@ -390,7 +390,7 @@ class LakecityLoanApiController(http.Controller):
         deferred_vat = float(payload.get("deferred_vat") or 0.0)
         total_paid = float(payload.get("total_paid") or 0.0)
         total_price = float(payload.get("total_price") or 0.0)
-        payment_date = payload.get("payment_date") or fields.Date.today()
+        payment_date = fields.Date.to_date(payload.get("payment_date") or fields.Date.today())
         force = bool(payload.get("force", False))
         loan_payload = payload.get("loan") or {}
 
