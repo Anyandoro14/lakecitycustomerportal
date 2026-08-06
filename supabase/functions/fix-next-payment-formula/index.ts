@@ -1,5 +1,8 @@
-// Rewrites the "Next Payment Column" formula so the scan starts at the customer's
-// START DATE (Column L) instead of Column M (Jan 2022).
+// Rewrites the "Next Payment Column" formula so it is AMOUNT-driven:
+// next payment month = START DATE (Col L) + number of instalments fully covered by
+// TOTAL PAID (Col FZ) minus the deposit (Col H), divided by the monthly instalment (Col K).
+// Blank cells in the past are missed payments and no longer shift the result.
+
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
 async function getAccessToken(): Promise<string> {
