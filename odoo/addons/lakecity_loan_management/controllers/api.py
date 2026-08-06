@@ -387,6 +387,7 @@ class LakecityLoanApiController(http.Controller):
         total_paid = float(payload.get("total_paid") or 0.0)
         total_price = float(payload.get("total_price") or 0.0)
         payment_date = payload.get("payment_date") or fields.Date.today()
+        force = bool(payload.get("force", False))
         loan_payload = payload.get("loan") or {}
 
         if not stand_number and not external_uid:
@@ -394,9 +395,14 @@ class LakecityLoanApiController(http.Controller):
                 {"ok": False, "error": "stand_number or external_uid is required"},
                 status=400,
             )
-        if accounts_receivable <= 0:
+        if accounts_receivable < 0:
             return self._json_response(
-                {"ok": False, "error": "accounts_receivable must be positive"},
+                {"ok": False, "error": "accounts_receivable cannot be negative"},
+                status=400,
+            )
+        if accounts_receivable == 0 and total_paid <= 0 and total_price <= 0:
+            return self._json_response(
+                {"ok": False, "error": "accounts_receivable must be positive (or provide total_paid / total_price)"},
                 status=400,
             )
 
@@ -461,6 +467,7 @@ class LakecityLoanApiController(http.Controller):
                 deferred_vat,
                 total_paid,
                 payment_date=payment_date,
+                force=force,
             )
         except Exception as err:
             return self._json_response({"ok": False, "error": str(err)}, status=400)

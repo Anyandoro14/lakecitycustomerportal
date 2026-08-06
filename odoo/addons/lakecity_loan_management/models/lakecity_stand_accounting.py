@@ -196,6 +196,49 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"lakecity_initial_contract_move_id": move.id})
         return move
 
+    def _lakecity_unlink_stand_move(self, move):
+        """Draft and unlink a posted stand-sales move (opening-balance force repost)."""
+        if not move:
+            return
+        move = move.sudo()
+        try:
+            if move.state == "posted":
+                move.button_draft()
+            if move.state in ("draft", "cancel"):
+                move.unlink()
+        except Exception as err:
+            _logger.warning("Lakecity: could not unlink stand move id=%s: %s", move.id, err)
+
+    def _lakecity_clear_opening_balance_moves(self):
+        """Remove prior opening/initial contract and opening-balance payment JEs for force repost."""
+        self.ensure_one()
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        ext_uid = "opening-balance-%s" % (self.stand_number or self.id)
+        opening_pay = Payment.search([("external_uid", "=", ext_uid)], limit=1)
+        if opening_pay:
+            self._lakecity_unlink_stand_move(opening_pay.lakecity_receipt_move_id)
+            self._lakecity_unlink_stand_move(opening_pay.lakecity_revenue_move_id)
+            self._lakecity_unlink_stand_move(opening_pay.lakecity_cos_move_id)
+            opening_pay.with_context(lakecity_skip_bank_payment_write=True).write(
+                {
+                    "lakecity_stand_accounting_done": False,
+                    "lakecity_receipt_move_id": False,
+                    "lakecity_revenue_move_id": False,
+                    "lakecity_cos_move_id": False,
+                }
+            )
+        if self.lakecity_initial_contract_move_id:
+            self._lakecity_unlink_stand_move(self.lakecity_initial_contract_move_id)
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+                {
+                    "lakecity_initial_contract_move_id": False,
+                    "lakecity_deposit_accounting_done": False,
+                    "lakecity_revenue_recognized": 0.0,
+                    "lakecity_vat_released": 0.0,
+                    "lakecity_cos_recognized": 0.0,
+                }
+            )
+
     def _lakecity_post_initial_contract_recognition_amounts(self, gross, contract_liability, deferred_vat_amount, move_date=None):
         """Step 02 JE1 using explicit sheet amounts (opening-balance migration)."""
         self.ensure_one()
@@ -244,12 +287,17 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         deferred_vat_amount,
         total_paid,
         payment_date=None,
+        force=False,
     ):
         """Post walkthrough opening balances: JE1 + receipt/revenue for TOTAL PAID.
 
         ``gross`` is the full contract receivable (Column N + TOTAL PAID, i.e. TOTAL PRICE).
         ``contract_liability`` and ``deferred_vat_amount`` map to sheet Columns O and P
         (for inclusive VAT, Column O net liability = O + P).
+
+        Use ``payment_date`` as the GL cutover date (e.g. 2026-01-01). When ``force``
+        is True, prior opening/initial contract and opening-balance payment JEs are
+        cleared and reposted on that date.
         """
         self.ensure_one()
         if not self._lakecity_company_stand_accounting_enabled():
@@ -257,6 +305,8 @@ class LakecityStandAccountingMixin(models.AbstractModel):
 
         rnd = self.currency_id.rounding
         payment_date = payment_date or fields.Date.context_today(self)
+        if force:
+            self._lakecity_clear_opening_balance_moves()
         if float_compare(self.tax_rate or 0.0, 15.5, precision_rounding=0.01) != 0:
             self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"tax_rate": 15.5})
 

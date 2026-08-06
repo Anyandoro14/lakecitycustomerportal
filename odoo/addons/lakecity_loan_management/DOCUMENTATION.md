@@ -48,6 +48,15 @@ Settings sync to Supabase `stand_portal_settings` when system parameters `lakeci
 
 Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing `profiles.stand_number` rows are enrolled via SQL migration.
 
+## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+)
+
+Accounting books start **2026-01-01**. For each customer with a loan:
+
+1. **JE1** (same day) — Dr AR / Cr contract liability / Cr deferred VAT for the full contract.
+2. **Opening receipt + revenue/VAT** (same day) — lumped **pre-2026** receipts from Collection Schedule / Google receipt tabs, so AR after = amount still due.
+
+Post via API `POST /lakecity/api/v1/loan/opening-balance/post` with `payment_date=2026-01-01` and `force=true` to clear/repost prior opening moves. Script: `node --env-file=.env scripts/post-opening-balance-jes.mjs --force`.
+
 ## Customer statements (19.0.1.0.53+)
 
 Monthly customer statements are generated **from live Odoo loan data** (posted `lakecity.loan.payment` rows and contract `current_balance`), not from Google Sheets.
