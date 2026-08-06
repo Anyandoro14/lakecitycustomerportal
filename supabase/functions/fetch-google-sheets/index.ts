@@ -1112,11 +1112,10 @@ serve(async (req) => {
         console.log(`Stand ${standNumber}: COMBINED DEPOSIT — Column M ($${firstMonthPayment}) ≈ Deposit ($${depositAmount}) + Instalment ($${monthlyPaymentAmount}). Deposit counted in monthly column.`);
       }
       
-      // NEXT PAYMENT LOGIC (aligned with sheet formula):
-      // The Collection Schedule grid (Cols M..FX) is a calendar grid, one column per month
-      // starting January 2022. Populated cells = instalments received. The "next payment"
-      // is the first BLANK cell scanning left-to-right from M — i.e., last filled index + 1.
-      // We also count filled cells for overpayment sequencing (fallback for partials).
+      // NEXT PAYMENT LOGIC (amount-driven, aligned with sheet column FY):
+      // Blank cells in the past are MISSED payments — so position cannot be derived from
+      // "first blank cell". Instead we use money: TOTAL PAID (FZ) minus deposit (H) tells us
+      // how many instalments are actually covered, counted forward from START DATE (L).
       let filledCellCount = 0;
       let lastFilledIdx = -1;
       let filledCellSum = 0;
@@ -1129,36 +1128,47 @@ serve(async (req) => {
         }
       }
 
-      // Partial-payment detection: sum of filled instalment cells vs expected
-      // (filledCellCount × monthlyPaymentAmount). If short, current month is partly paid.
-      const expectedForFilled = filledCellCount * monthlyPaymentAmount;
-      const shortfall = monthlyPaymentAmount > 0
-        ? Math.max(0, expectedForFilled - filledCellSum)
-        : 0;
-      // A partial payment doesn't advance to next month — the next due is still the
-      // current (last-filled) column, for the remaining amount.
-      const isPartial = shortfall > 0.01 && filledCellCount > 0;
-
-      // The next uncovered month index within the calendar grid (relative to Column M).
-      // If cells are populated, next = lastFilledIdx + 1 (or lastFilledIdx if partial).
-      // If nothing populated, next = customer start month (mapped onto the grid).
       const startMonthOffset = Math.max(
         0,
         (customerStartDate.getFullYear() - basePaymentDate.getFullYear()) * 12
           + (customerStartDate.getMonth() - basePaymentDate.getMonth()),
       );
-      let nextGridIdx: number;
-      if (filledCellCount === 0) {
-        nextGridIdx = startMonthOffset;
-      } else if (isPartial) {
-        nextGridIdx = lastFilledIdx;
-      } else {
-        nextGridIdx = lastFilledIdx + 1;
-      }
-      // Next payment can never fall before the customer's START DATE (Column L).
-      nextGridIdx = Math.max(nextGridIdx, startMonthOffset);
 
-      console.log(`Stand ${standNumber}: filledCells=${filledCellCount}, lastFilledIdx=${lastFilledIdx}, filledSum=${filledCellSum}, expected=${expectedForFilled}, shortfall=${shortfall}, isPartial=${isPartial}, startMonthOffset=${startMonthOffset}, nextGridIdx=${nextGridIdx}`);
+      // Money actually applied to instalments (deposit is payment #1 and sits outside the grid).
+      const paidTowardInstalments = Math.max(0, authoritiveTotalPaid - depositAmount);
+      const coveredInstalments = monthlyPaymentAmount > 0
+        ? Math.floor(paidTowardInstalments / monthlyPaymentAmount + 1e-6)
+        : filledCellCount;
+      const remainderOnCurrent = monthlyPaymentAmount > 0
+        ? paidTowardInstalments - coveredInstalments * monthlyPaymentAmount
+        : 0;
+      const isPartial = remainderOnCurrent > 0.01;
+      // Amount still owed on the partly-paid instalment.
+      const shortfall = isPartial ? monthlyPaymentAmount - remainderOnCurrent : 0;
+
+      // Next uncovered month = start month + number of fully covered instalments.
+      let nextGridIdx = Math.max(startMonthOffset, startMonthOffset + coveredInstalments);
+
+      // ── Current-date awareness: how many instalments SHOULD have been paid by today ──
+      const nowRef = new Date();
+      const monthsSinceStart =
+        (nowRef.getFullYear() - customerStartDate.getFullYear()) * 12
+        + (nowRef.getMonth() - customerStartDate.getMonth());
+      const dueDayRef = getDueDay(standNumber, customerCategory);
+      const instalmentsDueToDate = Math.max(
+        0,
+        Math.min(termMonths, monthsSinceStart + (nowRef.getDate() >= dueDayRef ? 1 : 0)),
+      );
+      const expectedToDate = instalmentsDueToDate * monthlyPaymentAmount;
+      const arrears = Math.max(0, expectedToDate - paidTowardInstalments);
+      const prepaidAmount = Math.max(0, paidTowardInstalments - expectedToDate);
+      const missedInstalments = monthlyPaymentAmount > 0
+        ? Math.max(0, instalmentsDueToDate - coveredInstalments)
+        : 0;
+      const paymentStanding = arrears > 0.01 ? 'late' : prepaidAmount > 0.01 ? 'prepaid' : 'current';
+
+      console.log(`Stand ${standNumber}: paidToInstalments=${paidTowardInstalments}, covered=${coveredInstalments}, remainder=${remainderOnCurrent}, isPartial=${isPartial}, dueToDate=${instalmentsDueToDate}, expected=${expectedToDate}, arrears=${arrears}, prepaid=${prepaidAmount}, missed=${missedInstalments}, standing=${paymentStanding}, filledCells=${filledCellCount}, lastFilledIdx=${lastFilledIdx}, filledSum=${filledCellSum}, startMonthOffset=${startMonthOffset}, nextGridIdx=${nextGridIdx}`);
+
 
       let nextPaymentDue = '';
       let nextPaymentAmount = monthlyPayment;
@@ -1175,39 +1185,43 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Today = ${today.toISOString()}, Customer Start Date = ${customerStartDateNormalized.toISOString()}`);
 
-      if (today < customerStartDateNormalized && filledCellCount === 0) {
+      if (today < customerStartDateNormalized && paidTowardInstalments <= 0.01) {
         // Payment obligations haven't started yet and nothing paid
         paymentNotYetDue = true;
         nextPaymentDue = customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         nextPaymentAmount = monthlyPayment;
         console.log(`Stand ${standNumber}: Payment not yet due - start date is in the future`);
-      } else if (nextGridIdx >= totalPaymentPeriods || filledCellCount >= termMonths) {
+      } else if (nextGridIdx >= totalPaymentPeriods || coveredInstalments >= termMonths) {
         // All instalments fully covered
         nextPaymentDue = '';
         nextPaymentAmount = '$0.00';
         console.log(`Stand ${standNumber}: All instalments covered, no payment due`);
       } else {
-        // Next due date derived from calendar grid position (matches sheet's formula)
+        // Next due date = start month + fully covered instalments (missed months included)
         const nextDueDate = new Date(basePaymentDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + nextGridIdx);
         nextDueDate.setDate(getDueDay(standNumber, customerCategory));
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-        if (isPartial) {
-          nextPaymentAmount = `$${shortfall.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          console.log(`Stand ${standNumber}: Partial payment on column ${lastFilledIdx}, remaining = ${nextPaymentAmount}`);
-        }
+        // Amount due now: arrears (missed + partial) when behind, otherwise one instalment.
+        const amountDueNow = arrears > 0.01
+          ? arrears
+          : isPartial
+            ? shortfall
+            : monthlyPaymentAmount;
+        nextPaymentAmount = `$${amountDueNow.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         const dueDateNormalized = new Date(nextDueDate);
         dueDateNormalized.setHours(0, 0, 0, 0);
-        if (today > dueDateNormalized) {
+        if (arrears > 0.01 && today > dueDateNormalized) {
           isOverdue = true;
           daysOverdue = Math.floor((today.getTime() - dueDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
-          console.log(`Stand ${standNumber}: Overdue by ${daysOverdue} days (due: ${nextPaymentDue})`);
+          console.log(`Stand ${standNumber}: Overdue by ${daysOverdue} days, arrears ${arrears} (due: ${nextPaymentDue})`);
         } else {
-          console.log(`Stand ${standNumber}: Next payment due ${nextPaymentDue}, not overdue`);
+          console.log(`Stand ${standNumber}: Next payment due ${nextPaymentDue}, standing=${paymentStanding}`);
         }
       }
+
       
       // ── Defensive fallbacks when sheet formula cells are empty / stale ──
 
@@ -1270,6 +1284,12 @@ serve(async (req) => {
         nextPaymentDate: nextPaymentDue,
         isOverdue: isOverdue,
         daysOverdue: daysOverdue,
+        paymentStanding: paymentStanding,
+        arrearsAmount: `$${arrears.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        prepaidAmount: `$${prepaidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        missedInstalments: missedInstalments,
+        instalmentsCovered: coveredInstalments,
+        instalmentsDueToDate: instalmentsDueToDate,
         paymentNotYetDue: paymentNotYetDue,
         paymentStartDate: customerStartDate.toISOString(),
         currentBalance: effectiveBalance,

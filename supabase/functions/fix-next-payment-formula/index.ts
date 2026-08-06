@@ -1,5 +1,8 @@
-// Rewrites the "Next Payment Column" formula so the scan starts at the customer's
-// START DATE (Column L) instead of Column M (Jan 2022).
+// Rewrites the "Next Payment Column" formula so it is AMOUNT-driven:
+// next payment month = START DATE (Col L) + number of instalments fully covered by
+// TOTAL PAID (Col FZ) minus the deposit (Col H), divided by the monthly instalment (Col K).
+// Blank cells in the past are missed payments and no longer shift the result.
+
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
 async function getAccessToken(): Promise<string> {
@@ -30,8 +33,10 @@ const colLetter = (i: number) => { let n = i + 1, s = ""; while (n > 0) { const 
 // Column M (index 12) .. FX (index 179) => 168 monthly columns
 const LABELS = Array.from({ length: 168 }, (_, i) => `"${colLetter(12 + i)}"`).join(",");
 
-const buildFormula = (row: number) =>
-  `=IFERROR(INDEX({${LABELS}},MATCH(1,(SEQUENCE(1,168)>=MAX(1,(YEAR($L${row})-2022)*12+MONTH($L${row})))*(LEN(TRIM($M${row}:$FX${row}))=0),0)),"FX")`;
+// Amount-driven: start month index + FLOOR((TOTAL PAID - DEPOSIT) / MONTHLY), clamped to the grid.
+const buildFormula = (row: number, totalPaidCol: string) =>
+  `=IF(OR($L${row}="",N($K${row})=0),"",INDEX({${LABELS}},MIN(168,MAX(1,(YEAR($L${row})-2022)*12+MONTH($L${row})+FLOOR(MAX(0,N($${totalPaidCol}${row})-N($H${row}))/$K${row})))))`;
+
 
 async function tabInfo(token: string, ssId: string) {
   const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}?fields=sheets.properties.title`, { headers: { Authorization: `Bearer ${token}` } });
@@ -58,13 +63,16 @@ Deno.serve(async (req) => {
       const idx = hdr.findIndex((h: any) => String(h ?? "").toLowerCase().includes("next payment"));
       if (idx < 0) { results.push({ tab, skipped: "no Next Payment column" }); continue; }
       const letter = colLetter(idx);
+      const tpIdx = hdr.findIndex((h: any) => String(h ?? "").toLowerCase().replace(/\s+/g, " ").includes("total paid"));
+      const totalPaidCol = tpIdx >= 0 ? colLetter(tpIdx) : "FZ";
 
       const bRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values/${encodeURIComponent(`${tab}!B:B`)}`, { headers: { Authorization: `Bearer ${token}` } });
       const lastRow = ((bRes.ok ? (await bRes.json()).values : []) || []).length;
       if (lastRow < 2) { results.push({ tab, skipped: "no data rows" }); continue; }
 
       const values: string[][] = [];
-      for (let r = 2; r <= lastRow; r++) values.push([buildFormula(r)]);
+      for (let r = 2; r <= lastRow; r++) values.push([buildFormula(r, totalPaidCol)]);
+
       const range = `${tab}!${letter}2:${letter}${lastRow}`;
 
       if (dryRun) {
