@@ -167,7 +167,9 @@
                                 <field name="lakecity_last_statement_sync" readonly="1"/>
                             </group>
                             <field name="lakecity_monthly_statement_ids" readonly="1">
+                                <!-- Nested list: include currency for Monetary columns (Odoo 19). -->
                                 <list>
+                                    <field name="currency_id" column_invisible="1"/>
                                     <field name="statement_month"/>
                                     <field name="opening_balance"/>
                                     <field name="total_payments"/>

@@ -5,6 +5,7 @@
         <field name="model">lakecity.loan.monthly.statement</field>
         <field name="arch" type="xml">
             <list>
+                <field name="currency_id" column_invisible="1"/>
                 <field name="statement_month"/>
                 <field name="stand_number"/>
                 <field name="partner_id"/>
@@ -48,6 +49,7 @@
                         <page string="Payments received">
                             <field name="payment_line_ids" readonly="1">
                                 <list>
+                                    <field name="currency_id" column_invisible="1"/>
                                     <field name="payment_date"/>
                                     <field name="amount"/>
                                     <field name="source"/>
@@ -90,7 +92,7 @@
     <record id="action_lakecity_refresh_all_statements" model="ir.actions.server">
         <field name="name">Refresh all active statements</field>
         <field name="model_id" ref="model_lakecity_loan_contract"/>
-        <field name="binding_model_id" ref="model_lakecity_loan_monthly_statement"/>
+        <field name="binding_model_id" ref="model_lakecity_loan_contract"/>
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
         <field name="code">action = env["lakecity.loan.contract"].action_refresh_all_active_statements()</field>

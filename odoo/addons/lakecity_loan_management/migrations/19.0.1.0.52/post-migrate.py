@@ -1,30 +1,40 @@
 # -*- coding: utf-8 -*-
-"""19.0.1.0.52 — Portal enrolment gate; grandfather active contracts."""
-import logging
+"""19.0.1.0.52 — Portal enrolment gate; grandfather active contracts.
 
-from odoo import SUPERUSER_ID, api, fields
+Uses raw SQL (no ORM). An ORM write on every active contract was timing out
+Odoo.sh builds via mail tracking / recomputes even when CRM/GL/Supabase syncs
+were skipped.
+"""
+import logging
 
 _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version):
-    env = api.Environment(cr, SUPERUSER_ID, {})
-    Contract = env["lakecity.loan.contract"].sudo()
-    active = Contract.search([("state", "=", "active")])
-    if active:
-        # Skip CRM / GL / Supabase side-effects — Odoo.sh builds time out or fail
-        # if every active contract triggers remote sync during module upgrade.
-        active.with_context(
-            skip_lakecity_bnpl_gl_sync=True,
-            skip_lakecity_partner_crm_sync=True,
-            skip_lakecity_portal_supabase_sync=True,
-        ).write(
-            {
-                "lakecity_portal_enrolled": True,
-                "lakecity_portal_enrolled_at": fields.Datetime.now(),
-            }
+    cr.execute(
+        """
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'lakecity_loan_contract'
+           AND column_name = 'lakecity_portal_enrolled'
+        """
+    )
+    if not cr.fetchone():
+        _logger.info(
+            "Lakecity 19.0.1.0.52: skip portal enrol grandfather (column missing)"
         )
+        return
+
+    cr.execute(
+        """
+        UPDATE lakecity_loan_contract
+           SET lakecity_portal_enrolled = TRUE,
+               lakecity_portal_enrolled_at = (NOW() AT TIME ZONE 'UTC')
+         WHERE state = 'active'
+           AND COALESCE(lakecity_portal_enrolled, FALSE) IS DISTINCT FROM TRUE
+        """
+    )
     _logger.info(
         "Lakecity 19.0.1.0.52: portal enrolled grandfathered for %s active contract(s)",
-        len(active),
+        cr.rowcount,
     )
