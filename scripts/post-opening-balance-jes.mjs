@@ -577,10 +577,12 @@ async function main() {
 
   for (const row of rows) {
     // Prefer Odoo loan totals when contract already exists
-    let termMonths = row.termMonths || 36;
+      let termMonths = row.termMonths || 36;
     let totalPrice = row.totalPrice;
     let deposit = row.deposit;
-    let isVatInclusive = !row.isExclusive;
+    // Sheet TOTAL PRICE = receivable gross (CL + VAT). Always treat as VAT-inclusive in Odoo
+    // so total_with_tax == TOTAL PRICE and AR = TOTAL PRICE − pre-cutoff paid.
+    const isVatInclusive = true;
 
     try {
       const existing = await odooGet(`/lakecity/api/v1/loan/get?stand_number=${encodeURIComponent(row.stand)}`);
@@ -588,12 +590,9 @@ async function main() {
         if (existing.contract.total_price > 0) totalPrice = existing.contract.total_price;
         if (existing.contract.term_months > 0) termMonths = existing.contract.term_months;
         if (existing.contract.deposit_amount != null) deposit = existing.contract.deposit_amount;
-        if (typeof existing.contract.is_vat_inclusive === "boolean") {
-          isVatInclusive = existing.contract.is_vat_inclusive;
-        }
       }
 
-      const splits = contractSplits(totalPrice, row.colO, row.colP, !isVatInclusive);
+      const splits = contractSplits(totalPrice, row.colO, row.colP, row.isExclusive);
       const arTarget =
         row.hasJeColumns && row.arTarget > 0
           ? row.arTarget

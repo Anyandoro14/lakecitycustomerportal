@@ -209,35 +209,64 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         except Exception as err:
             _logger.warning("Lakecity: could not unlink stand move id=%s: %s", move.id, err)
 
-    def _lakecity_clear_opening_balance_moves(self):
-        """Remove prior opening/initial contract and opening-balance payment JEs for force repost."""
+    def _lakecity_clear_opening_balance_moves(self, cutoff_date=None):
+        """Remove prior opening/initial contract JEs and pre-cutoff payments for force repost.
+
+        When ``cutoff_date`` is set (e.g. 2026-01-01), every posted payment on or before
+        that date is removed so the lumped opening-balance receipt is the sole pre-cutover
+        cash entry. Payments after the cutoff are kept.
+        """
         self.ensure_one()
         Payment = self.env["lakecity.loan.payment"].sudo()
         ext_uid = "opening-balance-%s" % (self.stand_number or self.id)
-        opening_pay = Payment.search([("external_uid", "=", ext_uid)], limit=1)
-        if opening_pay:
-            self._lakecity_unlink_stand_move(opening_pay.lakecity_receipt_move_id)
-            self._lakecity_unlink_stand_move(opening_pay.lakecity_revenue_move_id)
-            self._lakecity_unlink_stand_move(opening_pay.lakecity_cos_move_id)
-            opening_pay.with_context(lakecity_skip_bank_payment_write=True).write(
-                {
-                    "lakecity_stand_accounting_done": False,
-                    "lakecity_receipt_move_id": False,
-                    "lakecity_revenue_move_id": False,
-                    "lakecity_cos_move_id": False,
-                }
-            )
+        domain = [("contract_id", "=", self.id)]
+        if cutoff_date:
+            domain = [
+                ("contract_id", "=", self.id),
+                "|",
+                ("external_uid", "=", ext_uid),
+                ("payment_date", "<=", cutoff_date),
+            ]
+        else:
+            domain = [("contract_id", "=", self.id), ("external_uid", "=", ext_uid)]
+        payments = Payment.search(domain)
+        for pay in payments:
+            self._lakecity_unlink_stand_move(pay.lakecity_receipt_move_id)
+            self._lakecity_unlink_stand_move(pay.lakecity_revenue_move_id)
+            self._lakecity_unlink_stand_move(pay.lakecity_cos_move_id)
+            if pay.account_payment_id:
+                try:
+                    ap = pay.account_payment_id.sudo()
+                    if ap.state in ("paid", "in_process", "posted"):
+                        if hasattr(ap, "action_draft"):
+                            ap.action_draft()
+                        elif hasattr(ap, "button_draft"):
+                            ap.button_draft()
+                    if ap.state in ("draft", "cancel"):
+                        ap.unlink()
+                except Exception as err:
+                    _logger.warning(
+                        "Lakecity: could not remove bank payment for %s: %s",
+                        pay.display_name,
+                        err,
+                    )
+            pay.with_context(lakecity_skip_bank_payment_write=True).unlink()
         if self.lakecity_initial_contract_move_id:
             self._lakecity_unlink_stand_move(self.lakecity_initial_contract_move_id)
+        if self.lakecity_inventory_reclass_move_id:
+            self._lakecity_unlink_stand_move(self.lakecity_inventory_reclass_move_id)
             self.with_context(skip_lakecity_bnpl_gl_sync=True).write(
-                {
-                    "lakecity_initial_contract_move_id": False,
-                    "lakecity_deposit_accounting_done": False,
-                    "lakecity_revenue_recognized": 0.0,
-                    "lakecity_vat_released": 0.0,
-                    "lakecity_cos_recognized": 0.0,
-                }
+                {"lakecity_inventory_reclass_move_id": False}
             )
+        self.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+            {
+                "lakecity_initial_contract_move_id": False,
+                "lakecity_deposit_accounting_done": False,
+                "lakecity_revenue_recognized": 0.0,
+                "lakecity_vat_released": 0.0,
+                "lakecity_cos_recognized": 0.0,
+            }
+        )
 
     def _lakecity_post_initial_contract_recognition_amounts(self, gross, contract_liability, deferred_vat_amount, move_date=None):
         """Step 02 JE1 using explicit sheet amounts (opening-balance migration)."""
@@ -306,9 +335,12 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         rnd = self.currency_id.rounding
         payment_date = payment_date or fields.Date.context_today(self)
         if force:
-            self._lakecity_clear_opening_balance_moves()
+            self._lakecity_clear_opening_balance_moves(cutoff_date=payment_date)
         if float_compare(self.tax_rate or 0.0, 15.5, precision_rounding=0.01) != 0:
             self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"tax_rate": 15.5})
+        # Sheet TOTAL PRICE is the receivable gross (CL + VAT). Keep Odoo total_with_tax aligned.
+        if not self.is_vat_inclusive:
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"is_vat_inclusive": True})
 
         initial_move = self._lakecity_post_initial_contract_recognition_amounts(
             gross,
