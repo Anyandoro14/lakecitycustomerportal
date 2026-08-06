@@ -219,6 +219,7 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.ensure_one()
         Payment = self.env["lakecity.loan.payment"].sudo()
         payments = Payment.search([("contract_id", "=", self.id)])
+        cleared = len(payments)
         for pay in payments:
             self._lakecity_unlink_stand_move(pay.lakecity_receipt_move_id)
             self._lakecity_unlink_stand_move(pay.lakecity_revenue_move_id)
@@ -261,6 +262,7 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             self.installment_ids.sudo().write({"amount_paid": 0.0})
             self.installment_ids.action_lakecity_refresh_stored_computes()
         self._rebuild_payment_allocations()
+        return cleared
 
     def _lakecity_post_initial_contract_recognition_amounts(self, gross, contract_liability, deferred_vat_amount, move_date=None):
         """Step 02 JE1 using explicit sheet amounts (opening-balance migration)."""
@@ -328,8 +330,9 @@ class LakecityStandAccountingMixin(models.AbstractModel):
 
         rnd = self.currency_id.rounding
         payment_date = payment_date or fields.Date.context_today(self)
+        payments_cleared = 0
         if force:
-            self._lakecity_clear_opening_balance_moves(cutoff_date=payment_date)
+            payments_cleared = self._lakecity_clear_opening_balance_moves(cutoff_date=payment_date) or 0
         if float_compare(self.tax_rate or 0.0, 15.5, precision_rounding=0.01) != 0:
             self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"tax_rate": 15.5})
         # Sheet TOTAL PRICE is the receivable gross (CL + VAT). Keep Odoo total_with_tax aligned.
@@ -396,6 +399,9 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             "accounts_receivable_gl": ar_check["actual"],
             "contract_total_paid": self.total_paid,
             "contract_current_balance": self.current_balance,
+            "payments_cleared": payments_cleared,
+            "force": bool(force),
+            "payment_date": fields.Date.to_string(payment_date),
             "gross": gross,
             "total_paid": paid,
         }
