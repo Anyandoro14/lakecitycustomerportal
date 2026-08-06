@@ -1185,39 +1185,43 @@ serve(async (req) => {
 
       console.log(`Stand ${standNumber}: Today = ${today.toISOString()}, Customer Start Date = ${customerStartDateNormalized.toISOString()}`);
 
-      if (today < customerStartDateNormalized && filledCellCount === 0) {
+      if (today < customerStartDateNormalized && paidTowardInstalments <= 0.01) {
         // Payment obligations haven't started yet and nothing paid
         paymentNotYetDue = true;
         nextPaymentDue = customerStartDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         nextPaymentAmount = monthlyPayment;
         console.log(`Stand ${standNumber}: Payment not yet due - start date is in the future`);
-      } else if (nextGridIdx >= totalPaymentPeriods || filledCellCount >= termMonths) {
+      } else if (nextGridIdx >= totalPaymentPeriods || coveredInstalments >= termMonths) {
         // All instalments fully covered
         nextPaymentDue = '';
         nextPaymentAmount = '$0.00';
         console.log(`Stand ${standNumber}: All instalments covered, no payment due`);
       } else {
-        // Next due date derived from calendar grid position (matches sheet's formula)
+        // Next due date = start month + fully covered instalments (missed months included)
         const nextDueDate = new Date(basePaymentDate);
         nextDueDate.setMonth(nextDueDate.getMonth() + nextGridIdx);
         nextDueDate.setDate(getDueDay(standNumber, customerCategory));
         nextPaymentDue = nextDueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-        if (isPartial) {
-          nextPaymentAmount = `$${shortfall.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          console.log(`Stand ${standNumber}: Partial payment on column ${lastFilledIdx}, remaining = ${nextPaymentAmount}`);
-        }
+        // Amount due now: arrears (missed + partial) when behind, otherwise one instalment.
+        const amountDueNow = arrears > 0.01
+          ? arrears
+          : isPartial
+            ? shortfall
+            : monthlyPaymentAmount;
+        nextPaymentAmount = `$${amountDueNow.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         const dueDateNormalized = new Date(nextDueDate);
         dueDateNormalized.setHours(0, 0, 0, 0);
-        if (today > dueDateNormalized) {
+        if (arrears > 0.01 && today > dueDateNormalized) {
           isOverdue = true;
           daysOverdue = Math.floor((today.getTime() - dueDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
-          console.log(`Stand ${standNumber}: Overdue by ${daysOverdue} days (due: ${nextPaymentDue})`);
+          console.log(`Stand ${standNumber}: Overdue by ${daysOverdue} days, arrears ${arrears} (due: ${nextPaymentDue})`);
         } else {
-          console.log(`Stand ${standNumber}: Next payment due ${nextPaymentDue}, not overdue`);
+          console.log(`Stand ${standNumber}: Next payment due ${nextPaymentDue}, standing=${paymentStanding}`);
         }
       }
+
       
       // ── Defensive fallbacks when sheet formula cells are empty / stale ──
 
