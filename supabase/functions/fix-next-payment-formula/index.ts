@@ -33,8 +33,10 @@ const colLetter = (i: number) => { let n = i + 1, s = ""; while (n > 0) { const 
 // Column M (index 12) .. FX (index 179) => 168 monthly columns
 const LABELS = Array.from({ length: 168 }, (_, i) => `"${colLetter(12 + i)}"`).join(",");
 
-const buildFormula = (row: number) =>
-  `=IFERROR(INDEX({${LABELS}},MATCH(1,(SEQUENCE(1,168)>=MAX(1,(YEAR($L${row})-2022)*12+MONTH($L${row})))*(LEN(TRIM($M${row}:$FX${row}))=0),0)),"FX")`;
+// Amount-driven: start month index + FLOOR((TOTAL PAID - DEPOSIT) / MONTHLY), clamped to the grid.
+const buildFormula = (row: number, totalPaidCol: string) =>
+  `=IF(OR($L${row}="",N($K${row})=0),"",INDEX({${LABELS}},MIN(168,MAX(1,(YEAR($L${row})-2022)*12+MONTH($L${row})+FLOOR(MAX(0,N($${totalPaidCol}${row})-N($H${row}))/$K${row})))))`;
+
 
 async function tabInfo(token: string, ssId: string) {
   const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}?fields=sheets.properties.title`, { headers: { Authorization: `Bearer ${token}` } });
