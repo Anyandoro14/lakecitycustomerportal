@@ -256,6 +256,11 @@ class LakecityStandAccountingMixin(models.AbstractModel):
                 "lakecity_cos_recognized": 0.0,
             }
         )
+        # Balances are computed from installment amount_paid — reset before reopen.
+        if self.installment_ids:
+            self.installment_ids.sudo().write({"amount_paid": 0.0})
+            self.installment_ids.action_lakecity_refresh_stored_computes()
+        self._rebuild_payment_allocations()
 
     def _lakecity_post_initial_contract_recognition_amounts(self, gross, contract_liability, deferred_vat_amount, move_date=None):
         """Step 02 JE1 using explicit sheet amounts (opening-balance migration)."""
@@ -375,6 +380,7 @@ class LakecityStandAccountingMixin(models.AbstractModel):
                 )
                 if mid
             ]
+            self._rebuild_payment_allocations()
             self._lakecity_update_recognized_totals()
 
         if self.state == "draft":
@@ -388,6 +394,8 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             "payment_move_ids": payment_move_ids,
             "target_accounts_receivable": target_ar,
             "accounts_receivable_gl": ar_check["actual"],
+            "contract_total_paid": self.total_paid,
+            "contract_current_balance": self.current_balance,
             "gross": gross,
             "total_paid": paid,
         }
