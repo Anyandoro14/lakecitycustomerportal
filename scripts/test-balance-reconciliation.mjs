@@ -152,4 +152,48 @@ function stand(partial = {}) {
   assert.match(csv, /A1,Test Customer,variance/);
 }
 
+{
+  const sheets = await import(
+    pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), "../supabase/functions/_shared/balance-reconciliation-sheets.ts"),
+    ).href
+  );
+  const cfg = sheets.resolveMasterSalesConfig({});
+  assert.equal(cfg.spreadsheetId, "1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0");
+  assert.equal(cfg.gid, "1904118601");
+  const overridden = sheets.resolveMasterSalesConfig({
+    MASTER_SALES_SPREADSHEET_ID: "abc",
+    MASTER_SALES_SHEET_GID: "99",
+    MASTER_SALES_SHEET_TAB: "Sales",
+  });
+  assert.equal(overridden.spreadsheetId, "abc");
+  assert.equal(overridden.gid, "99");
+  assert.equal(overridden.title, "Sales");
+
+  const title = sheets.findSheetTitleByGidOrName(
+    [
+      { properties: { title: "Other", sheetId: 1 } },
+      { properties: { title: "Master list", sheetId: 1904118601 } },
+    ],
+    { gid: "1904118601" },
+  );
+  assert.equal(title, "Master list");
+
+  const parsed = sheets.parseSheetLedgerRows(
+    [
+      ["Stand", "Buyer", "Purchase Price", "Deposit", "Amount Paid"],
+      ["LC-12", "Alex Nyandoro", "$36,000", "2000", "8000"],
+      ["TOTAL", "", "36000", "", ""],
+    ],
+    "Master list",
+  );
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].standNumber, "LC-12");
+  assert.equal(parsed[0].customerName, "Alex Nyandoro");
+  assert.equal(parsed[0].totalPrice, 36000);
+  assert.equal(parsed[0].deposit, 2000);
+  assert.equal(parsed[0].totalPaid, 8000);
+  assert.equal(parsed[0].currentBalance, 28000);
+}
+
 console.log("test-balance-reconciliation: all assertions passed");

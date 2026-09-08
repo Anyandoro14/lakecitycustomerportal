@@ -22,6 +22,13 @@ import {
   buildReconciliationCsv,
   buildReconciliationEmailHtml,
 } from "../_shared/balance-reconciliation-report.ts";
+import {
+  DEFAULT_MASTER_SALES_SPREADSHEET_ID,
+  MASTER_SALES_WORKBOOK_URL,
+  findSheetTitleByGidOrName,
+  parseSheetLedgerRows,
+  resolveMasterSalesConfig,
+} from "../_shared/balance-reconciliation-sheets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,98 +41,24 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-type HeaderIndex = {
-  stand: number;
-  firstName: number;
-  lastName: number;
-  email: number;
-  totalPrice: number;
-  deposit: number;
-  totalPaid: number;
-  currentBalance: number;
-};
-
-function findHeaderIndex(headers: string[], preds: Array<(h: string) => boolean>): number {
-  for (const pred of preds) {
-    const idx = headers.findIndex((h) => pred((h || "").toString().trim().toLowerCase()));
-    if (idx >= 0) return idx;
-  }
-  return -1;
-}
-
-function buildHeaderIndex(headerRow: string[]): HeaderIndex {
-  const h = headerRow.map((x) => (x || "").toString());
-  return {
-    stand: findHeaderIndex(h, [
-      (s) => s.includes("stand number"),
-      (s) => s === "stand",
-      (s) => s.includes("stand no"),
-    ]),
-    firstName: findHeaderIndex(h, [(s) => s.includes("first name")]),
-    lastName: findHeaderIndex(h, [(s) => s.includes("last name")]),
-    email: findHeaderIndex(h, [(s) => s.includes("email")]),
-    totalPrice: findHeaderIndex(h, [(s) => s.includes("total price"), (s) => s === "price"]),
-    deposit: findHeaderIndex(h, [(s) => s === "deposit" || s === "deposit amount"]),
-    totalPaid: findHeaderIndex(h, [(s) => s.includes("total paid")]),
-    currentBalance: findHeaderIndex(h, [
-      (s) => s.includes("current balance"),
-      (s) => s === "balance" || s.includes("outstanding"),
-    ]),
-  };
-}
-
 function isJunkStand(stand: string): boolean {
   const u = stand.trim().toUpperCase();
-  return !u || u === "TOTAL" || u === "TOTALS" || u === "STAND NUMBER" || u === "N/A";
+  return !u || u === "TOTAL" || u === "TOTALS" || u === "STAND NUMBER" || u === "STAND" || u === "N/A";
 }
 
-function isMasterSalesTitle(title: string, envPreferred?: string | null): boolean {
-  const t = title.trim();
-  if (envPreferred && t === envPreferred.trim()) return true;
-  const lower = t.toLowerCase();
-  return /master\s*sales/.test(lower) || lower === "sales master" || lower === "sales list";
-}
-
-function rowsFromSheetValues(
-  values: string[][],
-  sheetTab: string,
-): LedgerAmounts[] {
-  if (!values.length) return [];
-  const idx = buildHeaderIndex(values[0] || []);
-  const standIdx = idx.stand >= 0 ? idx.stand : 1; // Collection Schedule uses Column B
-  const out: LedgerAmounts[] = [];
-  const seen = new Set<string>();
-
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r] || [];
-    const standNumber = (row[standIdx] || "").toString().trim().toUpperCase();
-    if (isJunkStand(standNumber) || seen.has(standNumber)) continue;
-
-    const first = idx.firstName >= 0 ? (row[idx.firstName] || "").toString().trim() : "";
-    const last = idx.lastName >= 0 ? (row[idx.lastName] || "").toString().trim() : "";
-    const email = idx.email >= 0 ? (row[idx.email] || "").toString().trim() : "";
-    const customerName = `${first} ${last}`.trim();
-    const totalPrice = parseMoney(idx.totalPrice >= 0 ? row[idx.totalPrice] : 0);
-    const deposit = parseMoney(idx.deposit >= 0 ? row[idx.deposit] : 0);
-    const totalPaid = parseMoney(idx.totalPaid >= 0 ? row[idx.totalPaid] : 0);
-    const currentBalance = parseMoney(idx.currentBalance >= 0 ? row[idx.currentBalance] : 0);
-
-    const unsold = !customerName && !email && totalPaid === 0 && currentBalance === 0 && totalPrice === 0;
-    if (unsold) continue;
-
-    seen.add(standNumber);
-    out.push({
-      standNumber,
-      customerName,
-      email,
-      totalPrice,
-      deposit,
-      totalPaid,
-      currentBalance,
-      sheetTab,
-    });
+async function fetchSpreadsheetMeta(
+  accessToken: string,
+  spreadsheetId: string,
+): Promise<SheetMeta[]> {
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
+    `?fields=sheets.properties(title,sheetId)`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    throw new Error(`Failed to list spreadsheet ${spreadsheetId}: ${res.status}`);
   }
-  return out;
+  const metaJson = await res.json();
+  return (metaJson.sheets || []) as SheetMeta[];
 }
 
 async function fetchSheetValues(
@@ -133,7 +66,7 @@ async function fetchSheetValues(
   spreadsheetId: string,
   title: string,
 ): Promise<string[][]> {
-  const range = encodeURIComponent(quoteSheetRange(title, "A1:IZ1000"));
+  const range = encodeURIComponent(quoteSheetRange(title, "A1:IZ5000"));
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) {
@@ -142,6 +75,39 @@ async function fetchSheetValues(
   }
   const data = await res.json();
   return (data.values as string[][]) || [];
+}
+
+async function pullMasterSalesRows(
+  accessToken: string,
+  notes: string[],
+): Promise<{ rows: LedgerAmounts[]; label: string; found: boolean }> {
+  const cfg = resolveMasterSalesConfig(Deno.env);
+  try {
+    const metas = await fetchSpreadsheetMeta(accessToken, cfg.spreadsheetId);
+    const title = findSheetTitleByGidOrName(metas, { gid: cfg.gid, title: cfg.title });
+    if (!title) {
+      notes.push(
+        `Master Sales workbook ${cfg.spreadsheetId} has no tab for gid ${cfg.gid}` +
+          (cfg.title ? ` or title "${cfg.title}"` : "") +
+          ".",
+      );
+      return { rows: [], label: "Master Sales (not found)", found: false };
+    }
+    const values = await fetchSheetValues(accessToken, cfg.spreadsheetId, title);
+    const rows = parseSheetLedgerRows(values, title);
+    const label = `Master Sales (${title}, gid ${cfg.gid})`;
+    notes.push(
+      `Master Sales pulled from ${MASTER_SALES_WORKBOOK_URL} tab "${title}" (${rows.length} stand row(s)).`,
+    );
+    return { rows, label, found: rows.length > 0 || values.length > 0 };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    notes.push(
+      `Master Sales workbook ${cfg.spreadsheetId} could not be read: ${msg}. ` +
+        "Share the sheet with the Google service account, or set MASTER_SALES_SPREADSHEET_ID.",
+    );
+    return { rows: [], label: "Master Sales (unavailable)", found: false };
+  }
 }
 
 async function isAuthorizedCaller(
@@ -302,50 +268,35 @@ serve(async (req) => {
     if (!spreadsheetId) throw new Error("No spreadsheet_id on tenant and SPREADSHEET_ID is not set");
 
     const accessToken = await getGoogleSheetsAccessToken();
-    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!metaRes.ok) throw new Error(`Failed to list spreadsheet tabs: ${metaRes.status}`);
-    const metaJson = await metaRes.json();
-    const sheetMetas = (metaJson.sheets || []) as SheetMeta[];
-
-    const envMaster = Deno.env.get("MASTER_SALES_SHEET_TAB") || "";
-    const masterTabs = sheetMetas
-      .map((s) => s.properties?.title || "")
-      .filter((t) => t && isMasterSalesTitle(t, envMaster));
+    const sheetMetas = await fetchSpreadsheetMeta(accessToken, spreadsheetId);
     const scheduleTabs = listCollectionScheduleDataTabTitles(sheetMetas);
 
     const collectionRows: LedgerAmounts[] = [];
     const seenCollection = new Set<string>();
     for (const title of scheduleTabs) {
       const values = await fetchSheetValues(accessToken, spreadsheetId, title);
-      for (const row of rowsFromSheetValues(values, title)) {
+      for (const row of parseSheetLedgerRows(values, title)) {
         if (seenCollection.has(row.standNumber)) continue;
         seenCollection.add(row.standNumber);
         collectionRows.push(row);
       }
     }
 
+    const master = await pullMasterSalesRows(accessToken, notes);
     let sheetsRows: LedgerAmounts[] = collectionRows;
     let sheetsLabel = `Collection Schedule (${scheduleTabs.join(", ") || "none"})`;
-    const masterSalesFound = masterTabs.length > 0;
+    const masterSalesFound = master.found && master.rows.length > 0;
 
     if (masterSalesFound) {
-      const masterRows: LedgerAmounts[] = [];
-      const seen = new Set<string>();
-      for (const title of masterTabs) {
-        const values = await fetchSheetValues(accessToken, spreadsheetId, title);
-        for (const row of rowsFromSheetValues(values, title)) {
-          if (seen.has(row.standNumber)) continue;
-          seen.add(row.standNumber);
-          masterRows.push(row);
-        }
-      }
-      sheetsRows = masterRows;
-      sheetsLabel = `Master Sales (${masterTabs.join(", ")})`;
-      notes.push("Dedicated Master Sales tab(s) used as the sales register. StandLedger column is the Collection Schedule (customer-visible dashboard).");
-    } else {
-      notes.push("No Master Sales tab found; Collection Schedule is used as the Master Sales list.");
+      sheetsRows = master.rows;
+      sheetsLabel = master.label;
+      notes.push(
+        "StandLedger column is the Collection Schedule (customer-visible dashboard). Master Sales is the dedicated sales register workbook.",
+      );
+    } else if (master.rows.length === 0) {
+      notes.push(
+        `Master Sales list was empty or unreadable (default workbook ${DEFAULT_MASTER_SALES_SPREADSHEET_ID}). Collection Schedule is used as the sales register for this run.`,
+      );
     }
 
     let odooRows: LedgerAmounts[] = [];
@@ -360,7 +311,7 @@ serve(async (req) => {
     const portalDb = await pullPortalLedger(supabase, tenant.id);
     let standledgerRows: LedgerAmounts[];
     if (masterSalesFound) {
-      standledgerRows = collectionRows;
+      standledgerRows = collectionRows.length > 0 ? collectionRows : portalDb;
     } else if (portalDb.length > 0) {
       standledgerRows = portalDb;
       notes.push(

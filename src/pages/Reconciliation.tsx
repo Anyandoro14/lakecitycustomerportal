@@ -182,7 +182,7 @@ const Reconciliation = () => {
           <div>
             <h1 className="text-xl md:text-3xl font-bold">Balance reconciliation</h1>
             <p className="text-sm md:text-base text-primary-foreground/80">
-              Master Sales (Google Sheets) · Odoo · StandLedger — every 7 days
+              Master Sales workbook · Odoo · StandLedger — every 7 days
             </p>
           </div>
           <InternalNav isSuperAdmin={isSuperAdmin} isDirector={isDirector} currentPage="reconciliation" />
@@ -199,7 +199,8 @@ const Reconciliation = () => {
               </CardTitle>
               <CardDescription>
                 Positive (orange) = left source outstanding is higher. Negative (rose) = left source outstanding is lower.
-                The likely-cause column points at deposits, receipts, sale price, or a missing record.
+                Master Sales is the dedicated Google workbook (gid 1904118601). The likely-cause column
+                points at deposits, receipts, sale price, or a missing record.
               </CardDescription>
             </div>
             <Button onClick={runNow} disabled={running}>

@@ -4,7 +4,7 @@ Every **7 days** (Monday 06:00 CAT / 04:00 UTC) LakeCity compares customer **sal
 
 | Source | What is pulled | Typical cause when it is the odd one out |
 |--------|----------------|------------------------------------------|
-| **Master Sales (Google Sheets)** | Dedicated tab matching `Master Sales` if present; otherwise all **Collection Schedule** tabs | Payment posted on the sheet but not in Odoo/portal, or a formula/deposit edit on the sheet |
+| **Master Sales (Google Sheets)** | Dedicated workbook [Master Sales](https://docs.google.com/spreadsheets/d/1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0/edit?gid=1904118601) (`1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0`, gid `1904118601`). Share this file with the Google service account. | Payment posted on the sheet but not in Odoo/portal, or a formula/deposit edit on the sheet |
 | **Odoo** | `GET /lakecity/api/v1/loan/list` — `total_with_tax`, `deposit_amount`, `total_paid`, `current_balance` | Contract never upserted, receipt sync skipped (pre-cutover / QC), or VAT inclusive vs exclusive price |
 | **StandLedger** | Customer-facing Collection Schedule when a Master Sales tab exists; otherwise portal `contract_balances` (approved `payment_receipts`). If that view is empty, Collection Schedule is used (same figures customers see on the dashboard) | Approved portal receipts not written to the sheet, or sheet amounts not imported as `payment_receipts` |
 
@@ -37,8 +37,10 @@ curl -X POST "$SUPABASE_URL/functions/v1/reconcile-account-balances" \
 | Name | Where | Purpose |
 |------|--------|---------|
 | `GOOGLE_CLIENT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_KEY` | Edge Function env | Read Master Sales / Collection Schedule |
-| `SPREADSHEET_ID` | Env (fallback) | Used if `tenants.spreadsheet_id` is empty |
-| `MASTER_SALES_SHEET_TAB` | Optional env | Exact Google Sheet tab title for the sales register |
+| `SPREADSHEET_ID` | Env (fallback) | Collection Schedule workbook if `tenants.spreadsheet_id` is empty |
+| `MASTER_SALES_SPREADSHEET_ID` | Optional env | Defaults to `1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0` |
+| `MASTER_SALES_SHEET_GID` | Optional env | Defaults to `1904118601` (the Master Sales tab) |
+| `MASTER_SALES_SHEET_TAB` | Optional env | Exact tab title if the gid is renamed |
 | `odoo_url_<tenant_id>` / `odoo_loan_api_token_<tenant_id>` | Vault | Odoo list API (`ODOO_ORIGIN` / `LAKECITY_LOAN_API_TOKEN` env fallback) |
 | `RESEND_API_KEY` | Edge Function env | Send the HTML table |
 | `RECONCILIATION_REPORT_EMAILS` | Optional env | Comma-separated recipients (default `accounts@lakecity.co.zw,alex@lakecity.co.zw`) |

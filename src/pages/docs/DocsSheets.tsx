@@ -137,12 +137,16 @@ export default function DocsSheets() {
       </p>
       <h2 id="master-sales">6. Master Sales (reconciliation)</h2>
       <p>
-        If the workbook includes a tab whose title matches <strong>Master Sales</strong> (or{" "}
-        <code>MASTER_SALES_SHEET_TAB</code>), weekly reconciliation treats it as the sales register.
-        Otherwise the Collection Schedule tabs are the Master Sales list. The Edge Function{" "}
-        <code>reconcile-account-balances</code> compares that register to Odoo loan balances and the
-        StandLedger customer ledger, then emails a discrepancy table. See{" "}
-        <code className="text-xs">docs/balance-reconciliation.md</code>.
+        Weekly reconciliation reads the dedicated{" "}
+        <a href="https://docs.google.com/spreadsheets/d/1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0/edit?gid=1904118601">
+          Master Sales
+        </a>{" "}
+        workbook (<code>1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0</code>, gid <code>1904118601</code>) as the
+        sales register. The Collection Schedule remains the customer-facing StandLedger source. The
+        Edge Function <code>reconcile-account-balances</code> compares that register to Odoo loan
+        balances and StandLedger, then emails a discrepancy table. See{" "}
+        <code className="text-xs">docs/balance-reconciliation.md</code>. Share the Master Sales
+        workbook with the Google service account used by Edge Functions.
       </p>
     </DocsLayout>
   );
