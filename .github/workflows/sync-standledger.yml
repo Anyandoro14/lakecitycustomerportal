@@ -35,6 +35,8 @@ jobs:
             echo "::error::Set repository secret STANDLEGER_SYNC_TOKEN (PAT with write access to Anyandoro14/Standledger)."
             exit 1
           fi
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
           export STANDLEGER_CLONE_DIR="$RUNNER_TEMP/Standledger"
           bash scripts/sync-odoo-to-standledger.sh
 

@@ -78,6 +78,12 @@ if git diff --staged --quiet; then
   exit 0
 fi
 
+# GitHub Actions runners have no user.email; local clones usually already do.
+if [[ -z "$(git config user.email || true)" || -z "$(git config user.name || true)" ]]; then
+  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  git config user.name "github-actions[bot]"
+fi
+
 PORTAL_SHA="$(git -C "$ROOT" rev-parse --short HEAD)"
 git commit -m "sync(odoo): addons from lakecitycustomerportal@${PORTAL_SHA}"
 
