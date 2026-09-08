@@ -12,6 +12,7 @@ export default function DocsSheets() {
         { label: "SupportRequest", id: "support-request" },
         { label: "MonthlyStatements", id: "monthly-statements" },
         { label: "AgreementTracking", id: "agreement-tracking" },
+        { label: "Master Sales", id: "master-sales" },
       ]}
     >
       <h2 id="collection-schedule">1. Collection Schedule tabs</h2>
@@ -133,6 +134,15 @@ export default function DocsSheets() {
         (VAT classification), signature status for both vendor (Warwickshire) and client, file
         references to signed documents, and registration status with the legal authority. This
         data flows into the customer portal's Agreement of Sale status widget.
+      </p>
+      <h2 id="master-sales">6. Master Sales (reconciliation)</h2>
+      <p>
+        If the workbook includes a tab whose title matches <strong>Master Sales</strong> (or{" "}
+        <code>MASTER_SALES_SHEET_TAB</code>), weekly reconciliation treats it as the sales register.
+        Otherwise the Collection Schedule tabs are the Master Sales list. The Edge Function{" "}
+        <code>reconcile-account-balances</code> compares that register to Odoo loan balances and the
+        StandLedger customer ledger, then emails a discrepancy table. See{" "}
+        <code className="text-xs">docs/balance-reconciliation.md</code>.
       </p>
     </DocsLayout>
   );

@@ -23,6 +23,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const MonthlyStatements = lazy(() => import("./pages/MonthlyStatements"));
 const AgreementOfSaleDocuments = lazy(() => import("./pages/AgreementOfSaleDocuments"));
 const Reporting = lazy(() => import("./pages/Reporting"));
+const Reconciliation = lazy(() => import("./pages/Reconciliation"));
 const AccountManagement = lazy(() => import("./pages/AccountManagement"));
 const Guide = lazy(() => import("./pages/Guide"));
 const SupportRequest = lazy(() => import("./pages/SupportRequest"));
@@ -95,6 +96,7 @@ const App = () => (
                   <Route path="/monthly-statements" element={<MonthlyStatements />} />
                   <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
                   <Route path="/reporting" element={<Reporting />} />
+                  <Route path="/reconciliation" element={<Reconciliation />} />
                   <Route path="/account-management" element={<AccountManagement />} />
                   <Route path="/guide" element={<Guide />} />
                   <Route path="/support" element={<SupportRequest />} />

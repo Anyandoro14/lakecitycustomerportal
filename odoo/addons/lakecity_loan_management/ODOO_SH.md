@@ -167,6 +167,8 @@ Set Odoo system parameter:
 
 This token is required by all `/lakecity/api/v1/*` endpoints.
 
+Weekly portal reconciliation calls **`GET /lakecity/api/v1/loan/list`** (**19.0.1.0.69+**) for Odoo balances. Upgrade this addon on Odoo.sh after syncing from lakecitycustomerportal.
+
 ## 4) Network/security
 
 - Keep Odoo.sh URL in Supabase Vault as `odoo_url_<tenant_id>`.

@@ -20,6 +20,7 @@ import {
   Landmark,
   GraduationCap,
   MapPin,
+  Scale,
 } from "lucide-react";
 
 interface InternalNavProps {
@@ -36,6 +37,7 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
   const activePage = currentPage || (() => {
     if (location.pathname.includes('collections')) return 'collections';
     if (location.pathname.includes('reporting')) return 'reporting';
+    if (location.pathname.includes('reconciliation')) return 'reconciliation';
     if (location.pathname.includes('account-management')) return 'access';
     if (location.pathname.includes('looking-glass')) return 'looking-glass';
     if (location.pathname.includes('internal-portal')) return 'portal';
@@ -72,6 +74,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       icon: TrendingUp,
       path: '/reporting',
       visible: isSuperAdmin || isDirector, // Only Super Admin and Director
+    },
+    {
+      id: 'reconciliation',
+      label: 'Reconciliation',
+      icon: Scale,
+      path: '/reconciliation',
+      visible: isSuperAdmin || isDirector,
     },
     {
       id: 'articles',
