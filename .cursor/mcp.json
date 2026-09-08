@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "standledger": {
+      "url": "https://gumkxjeahojrcaqnosyz.supabase.co/functions/v1/mcp"
+    }
+  }
+}

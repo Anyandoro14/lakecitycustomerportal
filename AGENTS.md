@@ -38,3 +38,12 @@ Use `fuse-overlayfs` storage driver and `iptables-legacy` when running Docker in
 ### Cloud Supabase fallback
 
 Without Docker, `npm run dev` still serves the UI using the publishable anon key and URL baked into `vite.config.ts` (hosted project). Dashboard flows that need Edge Functions require either local `test:env:serve-functions` or deployed functions on that project.
+
+### StandLedger MCP
+
+Project MCP config is `.cursor/mcp.json`. Remote URL:
+
+`https://gumkxjeahojrcaqnosyz.supabase.co/functions/v1/mcp`
+
+Auth is OAuth against Supabase Auth (`https://gumkxjeahojrcaqnosyz.supabase.co/auth/v1`). In Cursor: **Settings → MCP → standledger → Connect**, then sign in as a StandLedger customer. Tools are RLS-scoped to that customer (`get_my_profile`, `get_my_statements`, `get_payment_schedule`, `get_payoff_projection`, `get_my_payment_behaviour`). Cloud Agents also need this URL added under **Dashboard → Integrations & MCP**.
+
