@@ -94,6 +94,39 @@ class LakecityAccountingCutoverWizard(models.TransientModel):
         self.result_message = self._format_preview(preview)
         return self._reopen_self()
 
+    def action_force_delete_pre_start_jes(self):
+        self.ensure_one()
+        cutoff = self.cutoff_date
+        preview_before = self.company_id._lakecity_cutover_preview(
+            cutoff_date=cutoff,
+            stand_number=self.stand_number,
+        )
+        sweep = self.company_id._lakecity_unlink_pre_cutover_stand_moves(cutoff)
+        preview = self.company_id._lakecity_cutover_preview(
+            cutoff_date=cutoff,
+            stand_number=self.stand_number,
+        )
+        extra = [
+            "",
+            _("Force-delete leftover pre-start journal entries."),
+            _("Before: %s JEs") % (preview_before.get("orphan_move_count") or 0),
+            _("Unlinked: %(unlinked)s  remaining: %(remaining)s  hashes cleared: %(hash)s")
+            % {
+                "unlinked": sweep.get("unlinked") or 0,
+                "remaining": sweep.get("remaining") or 0,
+                "hash": sweep.get("hashes_cleared") or 0,
+            },
+        ]
+        errs = sweep.get("errors") or []
+        if errs:
+            extra.append(_("Errors (%(n)d):") % {"n": len(errs)})
+            extra.extend(errs[:40])
+        names = sweep.get("remaining_names") or []
+        if names:
+            extra.append(_("Still present: %s") % ", ".join(names))
+        self.result_message = self._format_preview(preview, extra_lines=extra)
+        return self._reopen_self()
+
     def action_apply(self):
         self.ensure_one()
         if not self.company_id.lakecity_stand_sales_accounting_enabled:

@@ -56,7 +56,7 @@ Settings sync to Supabase `stand_portal_settings` when system parameters `lakeci
 
 Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing `profiles.stand_number` rows are enrolled via SQL migration.
 
-## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+, cutover-from-payments in 19.0.1.0.67+)
+## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+, cutover-from-payments in 19.0.1.0.67+, force-delete in 19.0.1.0.68+)
 
 Accounting books start **2026-01-01**. The **customer portal keeps the full payment history**; Odoo must not keep individual receipts dated before the start.
 
@@ -70,12 +70,14 @@ Do **not** break the portal link. Pre-2026 portal receipts stay on the dashboard
 
 ### Run the cutover (from posted Odoo payments)
 
-Upgrade **`lakecity_loan_management` to 19.0.1.0.67+**, take an Odoo.sh backup, then either:
+Upgrade **`lakecity_loan_management` to 19.0.1.0.68+**, take an Odoo.sh backup, then either:
 
-- **Odoo UI:** Lakecity Loans → **Accounting start cutover** (or Companies → Lakecity BNPL → Accounting start date). Preview totals, then post.
+- **Odoo UI:** Lakecity Loans → **Accounting start cutover** (or Companies → Lakecity BNPL → Accounting start date). Preview totals, then post. If opening JEs are already posted and 2025 stand-sales entries remain, use **Force-delete leftover pre-start JEs**.
 - **API / script:** `POST /lakecity/api/v1/loan/opening-balance/cutover-from-payments` with `force=true`.  
   `node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run`  
-  `node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force`
+  `node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force`  
+  Sweep leftover 2025 JEs without re-posting openings: `force=true` and `sweep_only=true`, or  
+  `node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force --sweep-only`
 
 Opening paid per stand is `max(sum of posted receipts dated before 1 Jan 2026, existing opening-balance-* lump)` so a re-sync of a 2025 subset does not shrink a previously posted lump.
 
@@ -154,4 +156,4 @@ Endpoints (Bearer token required):
 - `POST /lakecity/api/v1/payment/post` — skips receipts dated before the company **Accounting start date** (`skipped: true`, `reason: pre_accounting_start`); portal history is unchanged
 - `POST /lakecity/api/v1/loan/status`
 - `POST /lakecity/api/v1/loan/opening-balance/post` — sheet amounts, one stand
-- `POST /lakecity/api/v1/loan/opening-balance/cutover-from-payments` — bulk cutover from posted BNPL receipts (**19.0.1.0.67+**)
+- `POST /lakecity/api/v1/loan/opening-balance/cutover-from-payments` — bulk cutover from posted BNPL receipts (**19.0.1.0.67+**); `sweep_only=true` with `force=true` only force-deletes leftover pre-start JEs (**19.0.1.0.68+**)
