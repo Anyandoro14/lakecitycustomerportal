@@ -15,20 +15,18 @@ export default defineTool({
   name: "get_my_payment_behaviour",
   title: "What has my payment frequency been",
   description:
-    "Analyse the signed-in customer's actual payment history for their stand: how many payments they have made, how often (average and typical gap in days), total and average amount paid, longest gap without a payment, payments in the last 6 and 12 months, and a plain-language consistency rating. Useful for answering 'how regularly have I been paying?'.",
+    "Analyse actual payment history for a stand: how many payments have been made, how often (average and typical gap in days), total and average amount paid, longest gap without a payment, payments in the last 6 and 12 months, and a plain-language consistency rating. With LOVABLE_API_KEY, pass stand_number.",
   inputSchema: {
     stand_number: z
       .string()
       .optional()
-      .describe("Stand number to analyse. Defaults to the customer's first stand."),
+      .describe("Stand number to analyse. Required with LOVABLE_API_KEY; defaults to the customer's first stand when using a customer JWT."),
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ stand_number }, ctx) => {
-    if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
-
     let stands;
     try {
-      stands = await fetchMyStands(ctx);
+      stands = await fetchMyStands(ctx, stand_number);
     } catch (e) {
       return errorResult((e as Error).message);
     }

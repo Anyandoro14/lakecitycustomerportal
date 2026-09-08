@@ -15,12 +15,12 @@ export default defineTool({
   name: "get_payoff_projection",
   title: "How long until my stand is paid off",
   description:
-    "Estimate how long it will take the signed-in customer to fully pay off their stand: months remaining, projected payoff date, amount still owing, percentage paid, and optional what-if scenarios showing how much sooner the stand is paid off with extra monthly payments. Figures come from the Collection Schedule, the authoritative ledger.",
+    "Estimate how long it will take to fully pay off a stand: months remaining, projected payoff date, amount still owing, percentage paid, and optional what-if scenarios showing how much sooner the stand is paid off with extra monthly payments. Figures come from the Collection Schedule. With LOVABLE_API_KEY, pass stand_number.",
   inputSchema: {
     stand_number: z
       .string()
       .optional()
-      .describe("Stand number to project. Defaults to the customer's first stand."),
+      .describe("Stand number to project. Required with LOVABLE_API_KEY; defaults to the customer's first stand when using a customer JWT."),
     extra_monthly_payment: z
       .number()
       .optional()
@@ -28,11 +28,9 @@ export default defineTool({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ stand_number, extra_monthly_payment }, ctx) => {
-    if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
-
     let stands;
     try {
-      stands = await fetchMyStands(ctx);
+      stands = await fetchMyStands(ctx, stand_number);
     } catch (e) {
       return errorResult((e as Error).message);
     }

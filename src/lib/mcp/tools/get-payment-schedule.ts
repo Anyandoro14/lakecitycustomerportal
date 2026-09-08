@@ -16,12 +16,12 @@ export default defineTool({
   name: "get_payment_schedule",
   title: "Show my payment schedule",
   description:
-    "Return the signed-in customer's remaining instalment schedule for their stand: each upcoming due date, the amount due, and the balance left after that payment, plus a summary of the purchase price, deposit, amount paid and instalments already completed.",
+    "Return the remaining instalment schedule for a stand: each upcoming due date, the amount due, and the balance left after that payment, plus a summary of the purchase price, deposit, amount paid and instalments already completed. With LOVABLE_API_KEY, pass stand_number.",
   inputSchema: {
     stand_number: z
       .string()
       .optional()
-      .describe("Stand number to show. Defaults to the customer's first stand."),
+      .describe("Stand number to show. Required with LOVABLE_API_KEY; defaults to the customer's first stand when using a customer JWT."),
     months: z
       .number()
       .int()
@@ -30,11 +30,9 @@ export default defineTool({
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ stand_number, months }, ctx) => {
-    if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
-
     let stands;
     try {
-      stands = await fetchMyStands(ctx);
+      stands = await fetchMyStands(ctx, stand_number);
     } catch (e) {
       return errorResult((e as Error).message);
     }

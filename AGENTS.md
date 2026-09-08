@@ -45,5 +45,7 @@ Project MCP config is `.cursor/mcp.json`. Remote URL:
 
 `https://gumkxjeahojrcaqnosyz.supabase.co/functions/v1/mcp`
 
-Auth is OAuth against Supabase Auth (`https://gumkxjeahojrcaqnosyz.supabase.co/auth/v1`). In Cursor: **Settings → MCP → standledger → Connect**, then sign in as a StandLedger customer. Tools are RLS-scoped to that customer (`get_my_profile`, `get_my_statements`, `get_payment_schedule`, `get_payoff_projection`, `get_my_payment_behaviour`). Cloud Agents also need this URL added under **Dashboard → Integrations & MCP**.
+Auth is the project secret `LOVABLE_API_KEY` (already injected into Edge Functions by Lovable Cloud). Cursor sends it as `Authorization: Bearer ${env:LOVABLE_API_KEY}` and `Lovable-API-Key`. Export `LOVABLE_API_KEY` in the local shell or Cloud Agent environment so the interpolation resolves. Customer OAuth JWTs still work as a fallback.
+
+API-key calls are service-role lookups and require `stand_number` (or `email` on `get_my_profile`). Tools: `get_my_profile`, `get_my_statements`, `get_payment_schedule`, `get_payoff_projection`, `get_my_payment_behaviour`. Rebuild the function with `npm run build:mcp` after editing `src/lib/mcp/`.
 
