@@ -16,6 +16,7 @@
     "build": "node scripts/bundle-standledger-mcp.mjs && vite build",
     "build:mcp": "node scripts/bundle-standledger-mcp.mjs",
     "test:mcp": "node --experimental-strip-types scripts/test-mcp-lovable-api-key.mjs",
+    "mcp:run": "npx --yes tsx scripts/run-standledger-mcp.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",

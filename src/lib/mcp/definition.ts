@@ -6,7 +6,8 @@ import getPayoffProjection from "./tools/get-payoff-projection";
 import getMyPaymentBehaviour from "./tools/get-my-payment-behaviour";
 
 const projectRef =
-  import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "gumkxjeahojrcaqnosyz";
+  (import.meta as ImportMeta & { env?: { VITE_SUPABASE_PROJECT_ID?: string } })
+    .env?.VITE_SUPABASE_PROJECT_ID ?? "gumkxjeahojrcaqnosyz";
 
 const tools = [
   getMyProfile,
