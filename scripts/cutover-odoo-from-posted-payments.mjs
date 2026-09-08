@@ -6,11 +6,13 @@
  * JE per stand on that date, then deletes the pre-start receipts. Customer portal
  * payment history is not changed.
  *
- * Requires lakecity_loan_management ≥ 19.0.1.0.67 on Odoo.sh.
+ * Requires lakecity_loan_management ≥ 19.0.1.0.68 on Odoo.sh for --sweep-only
+ * (force-delete leftover 2025 JEs). Opening cutover itself is 19.0.1.0.67+.
  *
  * Usage:
  *   node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run
  *   node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force
+ *   node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force --sweep-only
  *   node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --stand 3072 --force
  *
  * Env: ODOO_ORIGIN, LAKECITY_LOAN_API_TOKEN
@@ -22,6 +24,7 @@ import { resolveAccountingStartDate } from "./lib/accounting-cutoff.mjs";
 const argv = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
 const dryRun = argv.has("--dry-run");
 const force = argv.has("--force") || process.env.OPENING_BALANCE_FORCE === "1";
+const sweepOnly = argv.has("--sweep-only");
 
 const standFilter = (() => {
   const idx = process.argv.indexOf("--stand");
@@ -45,7 +48,11 @@ async function main() {
     process.exit(1);
   }
   if (!dryRun && !force) {
-    console.error("Refusing to post without --force (deletes pre-start receipts). Use --dry-run first.");
+    console.error(
+      sweepOnly
+        ? "Refusing to delete leftover JEs without --force. Use --dry-run first."
+        : "Refusing to post without --force (deletes pre-start receipts). Use --dry-run first.",
+    );
     process.exit(1);
   }
 
@@ -53,12 +60,19 @@ async function main() {
     cutoff_date: cutoffDate,
     force: !dryRun,
     dry_run: dryRun,
+    sweep_only: sweepOnly,
   };
   if (standFilter) body.stand_number = standFilter;
 
   console.log(`Odoo ${odooOrigin}${ROUTE}`);
   console.log(`Cutover date: ${cutoffDate}${standFilter ? `  stand ${standFilter}` : "  all stands"}`);
-  console.log(dryRun ? "DRY RUN — no JEs posted, no receipts deleted\n" : "LIVE — posting opening balances and deleting pre-start receipts\n");
+  if (dryRun) {
+    console.log("DRY RUN — no JEs posted, no receipts deleted\n");
+  } else if (sweepOnly) {
+    console.log("SWEEP ONLY — force-deleting leftover pre-start JEs; not re-posting openings\n");
+  } else {
+    console.log("LIVE — posting opening balances and deleting pre-start receipts\n");
+  }
 
   const res = await fetch(`${odooOrigin}${ROUTE}`, {
     method: "POST",
@@ -79,7 +93,7 @@ async function main() {
   if (!res.ok || json.ok === false) {
     if (res.status === 404) {
       console.error(
-        "HTTP 404 — cutover-from-payments API not deployed. Upgrade lakecity_loan_management ≥ 19.0.1.0.67 on Odoo.sh.",
+        "HTTP 404 — cutover-from-payments API not deployed. Upgrade lakecity_loan_management ≥ 19.0.1.0.68 on Odoo.sh.",
       );
     }
     console.error(JSON.stringify(json, null, 2) || text.slice(0, 400));
@@ -103,28 +117,44 @@ async function main() {
     return;
   }
 
-  console.log(
-    `Posted ${json.posted} stand(s), skipped ${json.skipped}, failures ${json.failures}`,
-  );
   const before = json.preview_before || {};
   const after = json.preview_after || {};
+  if (json.sweep_only) {
+    console.log("Sweep-only force-delete of leftover pre-start journal entries.");
+  } else {
+    console.log(
+      `Posted ${json.posted} stand(s), skipped ${json.skipped}, failures ${json.failures}`,
+    );
+  }
   console.log(
-    `Before: ${before.pre_count} pre-start receipts totaling ${Number(before.pre_total || 0).toFixed(2)}`,
+    `Before: ${before.pre_count} pre-start receipts totaling ${Number(before.pre_total || 0).toFixed(2)}; leftover JEs ${before.orphan_move_count}`,
   );
   console.log(
     `After:  ${after.pre_count} pre-start receipts remaining; leftover JEs ${after.orphan_move_count}`,
   );
   if (json.orphan_moves) {
+    const om = json.orphan_moves;
     console.log(
-      `Orphan JE sweep: unlinked ${json.orphan_moves.unlinked}, remaining ${json.orphan_moves.remaining}`,
+      `Orphan JE sweep: unlinked ${om.unlinked}, remaining ${om.remaining}, hashes cleared ${om.hashes_cleared || 0}`,
     );
+    const errs = om.errors || [];
+    for (const err of errs.slice(0, 40)) {
+      console.error(`  ${err}`);
+    }
+    if (errs.length > 40) console.error("  …");
+    const names = om.remaining_names || [];
+    if (names.length) {
+      console.error(`Still present: ${names.join(", ")}`);
+    }
   }
   for (const row of json.results || []) {
     if (!row.ok) {
       console.error(`FAIL stand ${row.stand_number}: ${row.error}`);
     }
   }
-  if (json.failures) process.exitCode = 1;
+  if (json.failures || (json.orphan_moves && json.orphan_moves.remaining)) {
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {

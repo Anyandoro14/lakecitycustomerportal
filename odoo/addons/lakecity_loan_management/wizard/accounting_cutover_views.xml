@@ -27,6 +27,11 @@
                             type="object"
                             class="btn-primary"
                             confirm="This deletes all stand-sales receipts dated before the accounting start and replaces them with one opening-balance JE per stand. The customer portal is not changed. Continue?"/>
+                    <button name="action_force_delete_pre_start_jes"
+                            string="Force-delete leftover pre-start JEs"
+                            type="object"
+                            class="btn-secondary"
+                            confirm="This unreconciles and deletes leftover stand-sales journal entries dated before the accounting start. Opening balances already posted are kept. Continue?"/>
                     <button string="Discard" special="cancel" class="btn-secondary"/>
                 </footer>
             </form>

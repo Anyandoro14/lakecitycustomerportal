@@ -507,6 +507,7 @@ class LakecityLoanApiController(http.Controller):
         stand_number = (payload.get("stand_number") or "").strip().upper()
         force = bool(payload.get("force", True))
         dry_run = bool(payload.get("dry_run", False))
+        sweep_only = bool(payload.get("sweep_only", False))
         company = request.env.company.sudo()
         cutoff = fields.Date.to_date(
             payload.get("cutoff_date")
@@ -518,6 +519,41 @@ class LakecityLoanApiController(http.Controller):
         preview = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
         if dry_run:
             return self._json_response({"ok": True, "dry_run": True, "preview": preview})
+
+        if sweep_only:
+            if not force:
+                return self._json_response(
+                    {
+                        "ok": False,
+                        "error": "force=true is required with sweep_only to delete leftover pre-start JEs",
+                        "preview": preview,
+                    },
+                    status=400,
+                )
+            sweep = company._lakecity_unlink_pre_cutover_stand_moves(cutoff)
+            after = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
+            return self._json_response(
+                {
+                    "ok": True,
+                    "sweep_only": True,
+                    "cutoff_date": fields.Date.to_string(cutoff),
+                    "orphan_moves": sweep,
+                    "preview_before": {
+                        "pre_count": preview.get("pre_count"),
+                        "pre_total": preview.get("pre_total"),
+                        "orphan_move_count": preview.get("orphan_move_count"),
+                    },
+                    "preview_after": {
+                        "pre_count": after.get("pre_count"),
+                        "pre_total": after.get("pre_total"),
+                        "orphan_move_count": after.get("orphan_move_count"),
+                    },
+                    "posted": 0,
+                    "skipped": 0,
+                    "failures": 0,
+                    "results": [],
+                }
+            )
 
         if not force:
             return self._json_response(

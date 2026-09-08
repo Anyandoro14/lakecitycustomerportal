@@ -298,14 +298,10 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         """Draft and unlink a posted stand-sales move (opening-balance force repost)."""
         if not move:
             return
-        move = move.sudo()
-        try:
-            if move.state == "posted":
-                move.button_draft()
-            if move.state in ("draft", "cancel"):
-                move.unlink()
-        except Exception as err:
-            _logger.warning("Lakecity: could not unlink stand move id=%s: %s", move.id, err)
+        move = move.sudo().exists()
+        if not move:
+            return
+        move.company_id._lakecity_force_delete_moves(move)
 
     def _lakecity_clear_opening_balance_moves(self, cutoff_date=None):
         """Remove prior opening JEs and **pre-cutover** BNPL payments for force repost.
@@ -1018,20 +1014,345 @@ class ResCompany(models.Model):
             moves |= extra
         return moves
 
+    def _lakecity_lock_date_fields(self):
+        names = (
+            "fiscalyear_lock_date",
+            "tax_lock_date",
+            "hard_lock_date",
+            "sale_lock_date",
+            "purchase_lock_date",
+            "period_lock_date",
+        )
+        return [n for n in names if n in self._fields]
+
+    def _lakecity_suspend_lock_dates(self):
+        """Clear GL lock dates so pre-start posted moves can be drafted. Returns saved values."""
+        self.ensure_one()
+        saved = {}
+        for name in self._lakecity_lock_date_fields():
+            saved[name] = self[name]
+        changed = {}
+        for name, value in saved.items():
+            try:
+                self.sudo().write({name: False})
+                changed[name] = value
+            except Exception as err:
+                _logger.warning("Lakecity: could not clear lock date %s: %s", name, err)
+        return changed
+
+    def _lakecity_restore_lock_dates(self, saved):
+        self.ensure_one()
+        if not saved:
+            return
+        try:
+            self.sudo().write(saved)
+        except Exception as err:
+            _logger.warning("Lakecity: could not restore lock dates: %s", err)
+
+    def _lakecity_suspend_journal_hash_mode(self, moves):
+        """Turn off inalterable-hash mode on journals of the targeted moves."""
+        saved = {}
+        for journal in moves.mapped("journal_id"):
+            if "restrict_mode_hash_table" not in journal._fields:
+                continue
+            if not journal.restrict_mode_hash_table:
+                continue
+            try:
+                journal.sudo().write({"restrict_mode_hash_table": False})
+                saved[journal.id] = True
+            except Exception as err:
+                _logger.warning(
+                    "Lakecity: could not disable hash mode on journal %s: %s",
+                    journal.display_name,
+                    err,
+                )
+        return saved
+
+    def _lakecity_restore_journal_hash_mode(self, saved):
+        if not saved:
+            return
+        Journal = self.env["account.journal"].sudo()
+        for journal_id, value in saved.items():
+            journal = Journal.browse(journal_id).exists()
+            if not journal:
+                continue
+            try:
+                journal.write({"restrict_mode_hash_table": value})
+            except Exception as err:
+                _logger.warning(
+                    "Lakecity: could not restore hash mode on journal %s: %s",
+                    journal.display_name,
+                    err,
+                )
+
+    def _lakecity_clear_move_hashes(self, moves):
+        """Drop inalterability hashes on the given moves so they can be reset to draft."""
+        if not moves:
+            return 0
+        sets = []
+        if "inalterable_hash" in moves._fields:
+            sets.append("inalterable_hash = NULL")
+        if "secure_sequence_number" in moves._fields:
+            sets.append("secure_sequence_number = 0")
+        if not sets:
+            return 0
+        self.env.cr.execute(
+            "UPDATE account_move SET %s WHERE id IN %%s" % ", ".join(sets),
+            [tuple(moves.ids)],
+        )
+        moves.invalidate_recordset()
+        return len(moves)
+
+    def _lakecity_detach_bnpl_move_links(self, moves):
+        """Clear BNPL Many2ones so leftover 2025 JEs are not restricted on unlink."""
+        if not moves:
+            return
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        Contract = self.env["lakecity.loan.contract"].sudo()
+        pays = Payment.search(
+            [
+                "|",
+                "|",
+                ("lakecity_receipt_move_id", "in", moves.ids),
+                ("lakecity_revenue_move_id", "in", moves.ids),
+                ("lakecity_cos_move_id", "in", moves.ids),
+            ]
+        )
+        if pays:
+            pays.write(
+                {
+                    "lakecity_receipt_move_id": False,
+                    "lakecity_revenue_move_id": False,
+                    "lakecity_cos_move_id": False,
+                }
+            )
+        contracts = Contract.search(
+            [
+                "|",
+                ("lakecity_initial_contract_move_id", "in", moves.ids),
+                ("lakecity_inventory_reclass_move_id", "in", moves.ids),
+            ]
+        )
+        if contracts:
+            contracts.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+                {
+                    "lakecity_initial_contract_move_id": False,
+                    "lakecity_inventory_reclass_move_id": False,
+                }
+            )
+
+    def _lakecity_sql_unreconcile_and_draft(self, move):
+        """Last resort: break reconciles and set draft via SQL (lock dates / hash)."""
+        cr = self.env.cr
+        line_ids = move.line_ids.ids
+        if line_ids:
+            cr.execute(
+                """
+                DELETE FROM account_partial_reconcile
+                 WHERE debit_move_id IN %s OR credit_move_id IN %s
+                """,
+                [tuple(line_ids), tuple(line_ids)],
+            )
+            line_sets = ["full_reconcile_id = NULL"]
+            Line = self.env["account.move.line"]
+            if "statement_line_id" in Line._fields:
+                line_sets.append("statement_line_id = NULL")
+            cr.execute(
+                "UPDATE account_move_line SET %s WHERE id IN %%s" % ", ".join(line_sets),
+                [tuple(line_ids)],
+            )
+            cr.execute(
+                """
+                DELETE FROM account_full_reconcile afr
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM account_move_line aml
+                     WHERE aml.full_reconcile_id = afr.id
+                 )
+                """
+            )
+        cols = ["state = 'draft'"]
+        if "inalterable_hash" in move._fields:
+            cols.append("inalterable_hash = NULL")
+        if "secure_sequence_number" in move._fields:
+            cols.append("secure_sequence_number = 0")
+        if "posted_before" in move._fields:
+            cols.append("posted_before = FALSE")
+        cr.execute(
+            "UPDATE account_move SET %s WHERE id IN %%s" % ", ".join(cols),
+            [tuple(move.ids)],
+        )
+        move.invalidate_recordset()
+        if line_ids:
+            move.line_ids.invalidate_recordset()
+
+    def _lakecity_sql_delete_move(self, move):
+        """Delete a leftover JE at SQL when ORM unlink is still blocked."""
+        cr = self.env.cr
+        move_id = move.id
+        line_ids = move.line_ids.ids
+        if line_ids:
+            cr.execute(
+                """
+                DELETE FROM account_partial_reconcile
+                 WHERE debit_move_id IN %s OR credit_move_id IN %s
+                """,
+                [tuple(line_ids), tuple(line_ids)],
+            )
+            cr.execute(
+                "UPDATE account_move_line SET full_reconcile_id = NULL WHERE id IN %s",
+                [tuple(line_ids)],
+            )
+        Line = self.env["account.move.line"]
+        if "payment_id" in Line._fields:
+            cr.execute(
+                "UPDATE account_move_line SET payment_id = NULL WHERE move_id = %s",
+                [move_id],
+            )
+        if "account.payment" in self.env and "move_id" in self.env["account.payment"]._fields:
+            cr.execute("SAVEPOINT lakecity_del_pay")
+            try:
+                cr.execute("DELETE FROM account_payment WHERE move_id = %s", [move_id])
+            except Exception as err:
+                cr.execute("ROLLBACK TO SAVEPOINT lakecity_del_pay")
+                _logger.warning("Lakecity: SQL payment delete for move %s: %s", move_id, err)
+            else:
+                cr.execute("RELEASE SAVEPOINT lakecity_del_pay")
+        cr.execute("DELETE FROM account_move_line WHERE move_id = %s", [move_id])
+        cr.execute("DELETE FROM account_move WHERE id = %s", [move_id])
+        move.invalidate_recordset()
+
+    def _lakecity_force_delete_one_move(self, move):
+        """Unreconcile, draft/cancel, and unlink one journal entry. Returns error string or None."""
+        move = move.sudo().exists()
+        if not move:
+            return None
+        label = "%s %s" % (move.name or move.id, move.date or "")
+        ctx = {
+            "force_delete": True,
+            "skip_hash_integrity": True,
+            "check_move_validity": False,
+            "tracking_disable": True,
+            "ignore_exception": True,
+        }
+        try:
+            if "account.payment" in self.env:
+                Pay = self.env["account.payment"].sudo()
+                pays = Pay.browse()
+                if "move_id" in Pay._fields:
+                    pays |= Pay.search([("move_id", "=", move.id)])
+                if "payment_id" in move._fields and move.payment_id:
+                    pays |= move.payment_id
+                for pay in pays:
+                    try:
+                        pay = pay.with_context(**ctx)
+                        if pay.state not in ("draft", "cancel"):
+                            if hasattr(pay, "action_cancel"):
+                                try:
+                                    pay.action_cancel()
+                                except Exception:
+                                    pass
+                            if hasattr(pay, "action_draft"):
+                                pay.action_draft()
+                            elif hasattr(pay, "button_draft"):
+                                pay.button_draft()
+                        if pay.exists() and pay.state in ("draft", "cancel"):
+                            pay.unlink()
+                    except Exception as err:
+                        _logger.warning(
+                            "Lakecity: payment %s while deleting move %s: %s",
+                            pay.id,
+                            move.id,
+                            err,
+                        )
+            move = move.exists()
+            if not move:
+                return None
+            lines = move.line_ids
+            if lines and hasattr(lines, "remove_move_reconcile"):
+                try:
+                    lines.remove_move_reconcile()
+                except Exception:
+                    self._lakecity_sql_unreconcile_and_draft(move)
+            move = move.with_context(**ctx)
+            if move.exists() and move.state == "posted":
+                try:
+                    move.button_draft()
+                except Exception:
+                    self._lakecity_sql_unreconcile_and_draft(move)
+            if move.exists() and move.state == "posted" and hasattr(move, "button_cancel"):
+                try:
+                    move.button_cancel()
+                    if move.exists() and move.state == "cancel":
+                        move.button_draft()
+                except Exception:
+                    self._lakecity_sql_unreconcile_and_draft(move)
+            if move.exists() and move.state not in ("draft", "cancel"):
+                self._lakecity_sql_unreconcile_and_draft(move)
+            if move.exists() and move.state in ("draft", "cancel"):
+                try:
+                    move.unlink()
+                except Exception:
+                    self._lakecity_sql_delete_move(move)
+            leftover = move.exists()
+            if leftover:
+                try:
+                    self._lakecity_sql_delete_move(leftover)
+                except Exception as err:
+                    return "%s still %s (%s)" % (label, leftover.state, err)
+            leftover = move.exists()
+            if leftover:
+                return "%s still %s" % (label, leftover.state)
+            return None
+        except Exception as err:
+            try:
+                if move.exists():
+                    self._lakecity_sql_delete_move(move)
+                if not move.exists():
+                    return None
+            except Exception as sql_err:
+                return "%s: %s (sql: %s)" % (label, err, sql_err)
+            return "%s: %s" % (label, err)
+
+    def _lakecity_force_delete_moves(self, moves):
+        """Force-delete posted stand-sales moves (unreconcile, unlock, drop hash)."""
+        self.ensure_one()
+        moves = moves.sudo().exists()
+        if not moves:
+            return {"unlinked": 0, "remaining": 0, "errors": [], "hashes_cleared": 0}
+        self._lakecity_detach_bnpl_move_links(moves)
+        hashes_cleared = self._lakecity_clear_move_hashes(moves)
+        saved_locks = self._lakecity_suspend_lock_dates()
+        saved_hash_mode = self._lakecity_suspend_journal_hash_mode(moves)
+        errors = []
+        ordered = moves.sorted(lambda m: (m.date or fields.Date.to_date("1970-01-01"), m.id), reverse=True)
+        try:
+            for move in ordered:
+                err = self._lakecity_force_delete_one_move(move)
+                if err:
+                    errors.append(err)
+                    _logger.warning("Lakecity: force-delete JE failed: %s", err)
+        finally:
+            self._lakecity_restore_journal_hash_mode(saved_hash_mode)
+            self._lakecity_restore_lock_dates(saved_locks)
+        leftover = moves.exists()
+        return {
+            "unlinked": max(len(moves) - len(leftover), 0),
+            "remaining": len(leftover),
+            "errors": errors[:80],
+            "hashes_cleared": hashes_cleared,
+        }
+
     def _lakecity_unlink_pre_cutover_stand_moves(self, cutoff_date=None):
         """Delete leftover stand-sales JEs dated before the accounting start date."""
         self.ensure_one()
         moves = self._lakecity_pre_cutover_stand_moves(cutoff_date)
-        before = len(moves)
-        helper = self.env["lakecity.loan.contract"]
-        for move in moves:
-            helper._lakecity_unlink_stand_move(move)
+        result = self._lakecity_force_delete_moves(moves)
         leftover = self._lakecity_pre_cutover_stand_moves(cutoff_date)
-        return {
-            "unlinked": max(before - len(leftover), 0),
-            "remaining": len(leftover),
-            "errors": [],
-        }
+        result["remaining"] = len(leftover)
+        result["unlinked"] = max((result.get("unlinked") or 0), 0)
+        if leftover:
+            result["remaining_names"] = leftover.mapped("name")[:40]
+        return result
 
     def _lakecity_cutover_preview(self, cutoff_date=None, stand_number=None):
         """Company-wide preview: per-stand pre-start payment totals and leftover JEs."""
