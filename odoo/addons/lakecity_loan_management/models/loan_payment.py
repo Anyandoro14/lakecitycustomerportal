@@ -137,6 +137,8 @@ class LakecityLoanPayment(models.Model):
     def _lakecity_ensure_bank_payment(self):
         for rec in self:
             company = rec.contract_id.company_id.sudo()
+            if rec.contract_id._lakecity_is_pre_accounting_start(rec.payment_date, rec.external_uid):
+                continue
             if company.lakecity_stand_sales_accounting_enabled:
                 if rec.state == "posted" and not rec.lakecity_stand_accounting_done:
                     rec.contract_id._lakecity_post_payment_accounting(rec)

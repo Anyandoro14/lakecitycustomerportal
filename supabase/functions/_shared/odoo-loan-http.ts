@@ -12,8 +12,11 @@ export type LakecityPostPaymentPayload = {
 };
 
 export type LakecityPostPaymentResult = {
-  payment_id: number;
+  payment_id: number | null;
   payment_name?: string;
+  skipped?: boolean;
+  reason?: string;
+  accounting_start_date?: string;
   contract?: Record<string, unknown>;
 };
 
@@ -77,6 +80,17 @@ export async function lakecityPostLoanPayment(
   if (!res.ok || json.ok === false) {
     const err = (json.error as string) || text || res.statusText;
     throw new Error(`Lakecity payment/post failed (${res.status}): ${err}`);
+  }
+
+  if (json.skipped) {
+    return {
+      payment_id: (json.payment_id as number | undefined) ?? null,
+      payment_name: json.payment_name as string | undefined,
+      skipped: true,
+      reason: (json.reason as string | undefined) || "skipped",
+      accounting_start_date: json.accounting_start_date as string | undefined,
+      contract: json.contract as Record<string, unknown> | undefined,
+    };
   }
 
   const paymentId = json.payment_id as number | undefined;

@@ -23,6 +23,8 @@
     "import:collection-csv": "node --env-file=.env scripts/import-collection-schedule-csv-to-odoo.mjs",
     "import:collection-xlsx": "node --env-file=.env scripts/import-collection-schedule-xlsx-to-odoo.mjs",
     "odoo:bnpl:health": "node --env-file=.env scripts/odoo-bnpl-health.mjs",
+    "odoo:accounting-cutover": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs",
+    "odoo:accounting-cutover:dry-run": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
     "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
   },

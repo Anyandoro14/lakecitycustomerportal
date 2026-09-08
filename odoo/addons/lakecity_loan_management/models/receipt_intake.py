@@ -105,10 +105,25 @@ class LakecityReceiptIntake(models.Model):
                 )
 
             src = rec.map_payment_source_from_label(rec.payment_method_raw)
+            pay_date = rec.payment_date or fields.Date.context_today(rec)
+            if contract._lakecity_is_pre_accounting_start(pay_date):
+                start = contract._lakecity_accounting_start_date()
+                raise UserError(
+                    _(
+                        "Receipt date %(date)s is before the accounting start date %(start)s. "
+                        "Pre-start receipts stay on the customer portal and are included in the "
+                        "opening-balance journal entry. Do not post them as individual Odoo receipts. "
+                        "Use Lakecity Loans → Accounting start cutover."
+                    )
+                    % {
+                        "date": pay_date,
+                        "start": start,
+                    }
+                )
             pay_vals = {
                 "external_uid": rec.intake_uuid,
                 "contract_id": contract.id,
-                "payment_date": rec.payment_date or fields.Date.context_today(rec),
+                "payment_date": pay_date,
                 "amount": rec.payment_amount,
                 "source": src,
                 "reference": rec.reference or rec.intake_uuid,

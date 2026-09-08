@@ -39,6 +39,14 @@
         groups="lakecity_loan_management.group_lakecity_loan_manager"/>
 
     <menuitem
+        id="menu_lakecity_accounting_cutover"
+        name="Accounting start cutover"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_accounting_cutover_wizard"
+        sequence="17"
+        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+
+    <menuitem
         id="menu_lakecity_loan_installments"
         name="Installments"
         parent="menu_lakecity_loan_root"

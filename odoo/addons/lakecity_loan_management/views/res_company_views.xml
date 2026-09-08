@@ -8,6 +8,15 @@
             <xpath expr="//sheet/notebook" position="inside">
                 <page string="Lakecity BNPL"
                       groups="account.group_account_manager,lakecity_loan_management.group_lakecity_loan_manager">
+                    <group string="Accounting start date" groups="account.group_account_manager">
+                        <field name="lakecity_accounting_start_date"/>
+                        <button name="action_lakecity_open_accounting_cutover_wizard"
+                                type="object"
+                                string="Accounting start cutover"
+                                class="btn-primary"
+                                invisible="not lakecity_stand_sales_accounting_enabled"
+                                groups="account.group_account_manager"/>
+                    </group>
                     <group string="Stand sales accounting (ZIMRA walkthrough)" groups="account.group_account_manager">
                         <field name="lakecity_stand_sales_accounting_enabled"/>
                         <field name="lakecity_stand_sales_journal_id"

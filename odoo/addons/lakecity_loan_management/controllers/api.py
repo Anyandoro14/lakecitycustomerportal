@@ -485,6 +485,111 @@ class LakecityLoanApiController(http.Controller):
             }
         )
 
+    @http.route(
+        "/lakecity/api/v1/loan/opening-balance/cutover-from-payments",
+        type="http",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def cutover_opening_balance_from_payments(self, **kwargs):
+        """Total posted BNPL receipts before cutoff and post opening-balance JEs.
+
+        Unlike /loan/opening-balance/post (Collection Schedule amounts), this uses
+        the payments already in Odoo — the 2025 JEs the accountant sees — then
+        deletes those pre-start receipts. Portal history is not changed.
+        """
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        payload = self._parse_json_body()
+        stand_number = (payload.get("stand_number") or "").strip().upper()
+        force = bool(payload.get("force", True))
+        dry_run = bool(payload.get("dry_run", False))
+        company = request.env.company.sudo()
+        cutoff = fields.Date.to_date(
+            payload.get("cutoff_date")
+            or payload.get("payment_date")
+            or company.lakecity_accounting_start_date
+            or "2026-01-01"
+        )
+
+        preview = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
+        if dry_run:
+            return self._json_response({"ok": True, "dry_run": True, "preview": preview})
+
+        if not force:
+            return self._json_response(
+                {
+                    "ok": False,
+                    "error": "force=true is required to delete pre-start receipts and post opening balances",
+                    "preview": preview,
+                },
+                status=400,
+            )
+
+        if company.lakecity_accounting_start_date != cutoff:
+            company.write({"lakecity_accounting_start_date": cutoff})
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        domain = [("company_id", "=", company.id)]
+        if stand_number:
+            domain.append(("stand_number", "=", stand_number))
+        contracts = Contract.search(domain, order="stand_number")
+
+        results = []
+        posted = 0
+        skipped = 0
+        failures = 0
+        for contract in contracts:
+            buckets = contract._lakecity_cutover_buckets(cutoff)
+            initial = contract.lakecity_initial_contract_move_id
+            needs = bool(buckets.get("pre_count") or buckets.get("lump_count"))
+            if initial and initial.date and initial.date < cutoff:
+                needs = True
+            if not needs:
+                skipped += 1
+                continue
+            try:
+                row = contract._lakecity_cutover_from_posted_payments(
+                    cutoff_date=cutoff,
+                    force=True,
+                    dry_run=False,
+                )
+                posted += 1
+                results.append({"ok": True, "stand_number": contract.stand_number, "cutover": row})
+            except Exception as err:
+                failures += 1
+                results.append({"ok": False, "stand_number": contract.stand_number, "error": str(err)})
+
+        sweep = company._lakecity_unlink_pre_cutover_stand_moves(cutoff)
+        after = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
+        return self._json_response(
+            {
+                "ok": failures == 0,
+                "cutoff_date": fields.Date.to_string(cutoff),
+                "posted": posted,
+                "skipped": skipped,
+                "failures": failures,
+                "orphan_moves": sweep,
+                "preview_before": {
+                    "pre_count": preview.get("pre_count"),
+                    "pre_total": preview.get("pre_total"),
+                    "opening_paid_total": preview.get("opening_paid_total"),
+                    "orphan_move_count": preview.get("orphan_move_count"),
+                    "contract_count": preview.get("contract_count"),
+                },
+                "preview_after": {
+                    "pre_count": after.get("pre_count"),
+                    "pre_total": after.get("pre_total"),
+                    "opening_paid_total": after.get("opening_paid_total"),
+                    "orphan_move_count": after.get("orphan_move_count"),
+                },
+                "results": results,
+            }
+        )
+
     @http.route("/lakecity/api/v1/loan/get", type="http", auth="public", methods=["GET"], csrf=False)
     def get_loan(self, **kwargs):
         ok, response = self._validate_token()
@@ -573,6 +678,22 @@ class LakecityLoanApiController(http.Controller):
             "note": payload.get("note") or False,
             "state": payload.get("state") or "posted",
         }
+        if contract._lakecity_is_pre_accounting_start(vals["payment_date"], external_uid):
+            start = contract._lakecity_accounting_start_date()
+            return self._json_response(
+                {
+                    "ok": True,
+                    "skipped": True,
+                    "reason": "pre_accounting_start",
+                    "accounting_start_date": fields.Date.to_string(start),
+                    "payment_date": fields.Date.to_string(vals["payment_date"]),
+                    "message": (
+                        "Receipts dated before the accounting start stay on the customer portal. "
+                        "Odoo books start %s; use opening-balance cutover instead of individual pre-start JEs."
+                        % fields.Date.to_string(start)
+                    ),
+                }
+            )
         if payment:
             payment.write(vals)
         else:

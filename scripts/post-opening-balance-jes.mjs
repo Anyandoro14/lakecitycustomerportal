@@ -20,6 +20,10 @@
  * Force clear (module ≥ 19.0.1.0.66) removes only pre-cutover receipts; keep 2026+ and
  * re-import them with: node --env-file=.env scripts/import-post-cutoff-sheet-payments.mjs
  *
+ * To total the 2025 JEs already in Odoo (not the sheet) and delete them:
+ *   node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run
+ *   node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force
+ *
  * Usage:
  *   node --env-file=.env scripts/post-opening-balance-jes.mjs --parse-only
  *   node --env-file=.env scripts/post-opening-balance-jes.mjs --dry-run

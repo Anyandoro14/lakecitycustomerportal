@@ -144,7 +144,14 @@ const QcQueue = () => {
             typeof syncJson?.error === "string" ? syncJson.error : "Accounting sync failed — receipt is still approved.",
           );
         } else if (syncJson?.status === "skipped") {
-          toast.info(syncJson?.reason || "Skipped Odoo (non-Odoo tenant or receipt already recorded in Odoo).");
+          if (syncJson?.reason === "pre_accounting_start") {
+            toast.info(
+              syncJson?.message ||
+                "Receipt approved. Pre-2026 payments stay on the portal; Odoo books start 1 Jan 2026.",
+            );
+          } else {
+            toast.info(syncJson?.reason || "Skipped Odoo (non-Odoo tenant or receipt already recorded in Odoo).");
+          }
         } else {
           toast.success("Receipt approved and posted to the BNPL ledger.");
         }
