@@ -56,14 +56,39 @@ Settings sync to Supabase `stand_portal_settings` when system parameters `lakeci
 
 Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing `profiles.stand_number` rows are enrolled via SQL migration.
 
-## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+)
+## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+, cutover-from-payments in 19.0.1.0.67+)
 
-Accounting books start **2026-01-01**. Amounts come from the **Collection Schedule** sheet (not from existing Odoo contract balances):
+Accounting books start **2026-01-01**. The **customer portal keeps the full payment history**; Odoo must not keep individual receipts dated before the start.
+
+### What the accountant asked for
+
+1. Total all stand receipts through **31 Dec 2025**.
+2. Post **one opening-balance journal entry per stand** dated **1 Jan 2026** (JE1 for the contract + lumped cash received).
+3. **Delete** stand-sales receipts / JEs dated before 1 Jan 2026 so the 2025 journal list is empty.
+
+Do **not** break the portal link. Pre-2026 portal receipts stay on the dashboard and are no longer synced as individual Odoo JEs.
+
+### Run the cutover (from posted Odoo payments)
+
+Upgrade **`lakecity_loan_management` to 19.0.1.0.67+**, take an Odoo.sh backup, then either:
+
+- **Odoo UI:** Lakecity Loans → **Accounting start cutover** (or Companies → Lakecity BNPL → Accounting start date). Preview totals, then post.
+- **API / script:** `POST /lakecity/api/v1/loan/opening-balance/cutover-from-payments` with `force=true`.  
+  `node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run`  
+  `node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force`
+
+Opening paid per stand is `max(sum of posted receipts dated before 1 Jan 2026, existing opening-balance-* lump)` so a re-sync of a 2025 subset does not shrink a previously posted lump.
+
+### Collection Schedule path (optional)
+
+Amounts can still come from the Google Collection Schedule instead of Odoo payments:
 
 1. **JE1** (same day) — Dr AR / Cr contract liability / Cr deferred VAT for sheet **TOTAL PRICE**.
-2. **Opening receipt + revenue/VAT** (same day) — lumped sheet **TOTAL PAID** (pre-cutover), so AR after = sheet **Current Balance**.
+2. **Opening receipt + revenue/VAT** (same day) — lumped **pre-cutover** sheet month cells, so AR after = sheet **Current Balance**.
 
-Post via API `POST /lakecity/api/v1/loan/opening-balance/post` with `payment_date=2026-01-01` and `force=true` to clear/repost prior opening moves. Script: `node --env-file=.env scripts/post-opening-balance-jes.mjs --force` (reads Google Sheet gids when credentials are set).
+Post via API `POST /lakecity/api/v1/loan/opening-balance/post` with `payment_date=2026-01-01` and `force=true`. Script: `node --env-file=.env scripts/post-opening-balance-jes.mjs --force`.
+
+After cutover, only receipts on/after 1 Jan 2026 are posted individually. `odoo-sync-payment` skips earlier portal receipts (`skipped_pre_cutover`).
 
 ## Customer statements (19.0.1.0.53+)
 
@@ -126,5 +151,7 @@ Endpoints (Bearer token required):
 - `POST /lakecity/api/v1/stand/product-sync-batch` — same for an **`items`** array (max **500** rows). Used by Supabase function **`sync-stand-odoo-product`**.
 - `GET /lakecity/api/v1/loan/get?external_uid=...`
 - `GET /lakecity/api/v1/loan/installments?external_uid=...`
-- `POST /lakecity/api/v1/payment/post`
+- `POST /lakecity/api/v1/payment/post` — skips receipts dated before the company **Accounting start date** (`skipped: true`, `reason: pre_accounting_start`); portal history is unchanged
 - `POST /lakecity/api/v1/loan/status`
+- `POST /lakecity/api/v1/loan/opening-balance/post` — sheet amounts, one stand
+- `POST /lakecity/api/v1/loan/opening-balance/cutover-from-payments` — bulk cutover from posted BNPL receipts (**19.0.1.0.67+**)

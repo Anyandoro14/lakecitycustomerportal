@@ -176,7 +176,7 @@ This token is required by all `/lakecity/api/v1/*` endpoints.
 ## 5) Bulk import from Supabase (go-live migration)
 
 Historical **contracts** become `lakecity.loan.contract` rows; **`external_uid`** is the Supabase `contracts.id`.  
-Approved **`payment_receipts`** (`qc_status = 'approved'`) are posted as **`lakecity.loan.payment`** with **`external_uid`** = receipt `id` (idempotent reruns).
+Approved **`payment_receipts`** (`qc_status = 'approved'`) dated **on/after the accounting start (1 Jan 2026)** are posted as **`lakecity.loan.payment`** with **`external_uid`** = receipt `id` (idempotent reruns). Earlier receipts stay on the portal only (`odoo_sync_status = skipped_pre_cutover`) and are included in the opening-balance JE after cutover.
 
 In this repo root (with `@supabase/supabase-js` already in `package.json`):
 
@@ -199,7 +199,7 @@ CLI flags mirror env: **`--dry-run`**, **`--preflight-only`**, **`--skip-preflig
 
 **Balances:** The Google **Collection Schedule** is the balance source of truth. Odoo **`current_balance`** is derived from schedule/payment allocation for arrears and prepayments only — always reconcile to the sheet. Supabase **`contract_balances`** mirrors the sheet via portal sync.
 
-**Collection Schedule → BNPL:** See `docs/odoo-crm-accounting-bnpl-pipeline.md` and `scripts/post-opening-balance-jes.mjs` / `import-collection-schedule-csv-to-odoo.mjs` (opening totals from sheet **TOTAL PAID** / **Current Balance**).
+**Collection Schedule → BNPL:** See `docs/odoo-crm-accounting-bnpl-pipeline.md` and `scripts/post-opening-balance-jes.mjs` / `scripts/cutover-odoo-from-posted-payments.mjs` / `import-collection-schedule-csv-to-odoo.mjs`. Odoo books start **2026-01-01**; pre-start cash is one opening JE per stand.
 
 ## Customer Portal enrolment sync (19.0.1.0.52+)
 

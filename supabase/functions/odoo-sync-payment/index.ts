@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { mapGatewayToOdooSource } from "../_shared/map-gateway-to-odoo-source.ts";
 import { getSupabaseServiceClient, lakecityPostLoanPayment } from "../_shared/odoo-loan-http.ts";
+import { isPreAccountingStart, resolveAccountingStartDate } from "../_shared/accounting-cutoff.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -90,6 +91,31 @@ serve(async (req) => {
       );
     }
 
+    const accountingStart = resolveAccountingStartDate(
+      Deno.env.get("LAKECITY_ACCOUNTING_START_DATE"),
+    );
+    if (isPreAccountingStart(String(receipt.payment_date || ""), accountingStart)) {
+      await supabase
+        .from("payment_receipts")
+        .update({ odoo_sync_status: "skipped_pre_cutover" })
+        .eq("id", receipt_id);
+
+      console.log(
+        `Receipt ${receipt_id} dated ${receipt.payment_date} is before accounting start ${accountingStart}; portal history kept, Odoo JE skipped`,
+      );
+      return new Response(
+        JSON.stringify({
+          status: "skipped",
+          reason: "pre_accounting_start",
+          accounting_start_date: accountingStart,
+          payment_date: receipt.payment_date,
+          message:
+            `Odoo books start ${accountingStart}. This receipt stays on the customer portal and is included in the opening-balance journal entry.`,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const meta = receipt.gateway_metadata as Record<string, unknown> | null | undefined;
     const stand = (receipt.stand_number || "").trim();
     const { data: contract } = await supabase
@@ -134,6 +160,23 @@ serve(async (req) => {
         },
         supabase,
       );
+
+      if (result.skipped) {
+        await supabase
+          .from("payment_receipts")
+          .update({ odoo_sync_status: "skipped_pre_cutover" })
+          .eq("id", receipt_id);
+        return new Response(
+          JSON.stringify({
+            status: "skipped",
+            reason: result.reason || "pre_accounting_start",
+            accounting_start_date: result.accounting_start_date,
+            message:
+              "Odoo books start on the accounting start date. This receipt stays on the customer portal.",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
 
       await supabase
         .from("payment_receipts")

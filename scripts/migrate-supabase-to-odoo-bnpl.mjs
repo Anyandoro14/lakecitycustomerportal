@@ -33,6 +33,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { isPreAccountingStart, resolveAccountingStartDate } from "./lib/accounting-cutoff.mjs";
 
 const argv = new Set(process.argv.slice(2));
 const cliDryRun = argv.has("--dry-run");
@@ -333,8 +334,10 @@ async function main() {
 
   let okContracts = 0;
   let okPayments = 0;
+  let skippedPreStartPayments = 0;
   let failContracts = 0;
   let failPayments = 0;
+  const accountingStart = resolveAccountingStartDate(process.env.LAKECITY_ACCOUNTING_START_DATE);
 
   for (const c of contracts) {
     const stand = String(c.stand_number || "").trim().toUpperCase();
@@ -406,6 +409,13 @@ async function main() {
 
     const standReceipts = receiptsByStand.get(stand) || [];
     for (const pr of standReceipts) {
+      if (isPreAccountingStart(pr.payment_date, accountingStart)) {
+        skippedPreStartPayments++;
+        console.log(
+          `Payment SKIP pre-start receipt=${pr.id} stand=${stand} date=${pr.payment_date} (Odoo books start ${accountingStart})`,
+        );
+        continue;
+      }
       const payBody = {
         external_uid: pr.id,
         contract_external_uid: c.id,
@@ -429,7 +439,7 @@ async function main() {
 
   console.log("\n--- summary ---");
   console.log(`contracts: ${okContracts} ok, ${failContracts} failed (${contracts.length} total)`);
-  console.log(`payments:  ${okPayments} ok, ${failPayments} failed (${(receipts || []).length} approved receipts)`);
+  console.log(`payments:  ${okPayments} ok, ${skippedPreStartPayments} skipped (pre ${resolveAccountingStartDate(process.env.LAKECITY_ACCOUNTING_START_DATE)}), ${failPayments} failed (${(receipts || []).length} approved receipts)`);
   if (dryRun) console.log("DRY_RUN was enabled — Odoo unchanged.");
 
   const contractStands = new Set(Array.from(standSeen.keys()));
@@ -447,7 +457,8 @@ async function main() {
 Next steps:
   1) Spot-check Odoo: Lakecity Loans → Loan Contracts; open 2–3 stands; installments + paid amounts vs Supabase dashboard.
   2) Compare Supabase column monthly_installment to Odoo's generated schedule — Odoo uses (total_with_tax − deposit) / term ± rounding.
-  3) Freeze legacy intake where Odoo becomes source of truth; keep Supabase receipts as audit trail.`);
+  3) Freeze legacy intake where Odoo becomes source of truth; keep Supabase receipts as audit trail.
+  4) Run Accounting start cutover (or scripts/cutover-odoo-from-posted-payments.mjs) so 2025 cash is one opening JE per stand.`);
   if (orphanReceipts) console.log(`Note: orphan receipts skipped: ${orphanReceipts} (no matching contract stand).`);
 
   if (!dryRun && (failContracts || failPayments)) process.exitCode = 1;

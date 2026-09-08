@@ -26,6 +26,18 @@ LAKECITY_STAND_ACCOUNT_CODES = {
     "bank_usd_main": "101410",
 }
 
+# Books start on this date. Individual receipts dated earlier are not posted to the
+# GL; they are lumped into opening-balance JEs. Customer portal history is unchanged.
+LAKECITY_DEFAULT_ACCOUNTING_START_DATE = "2026-01-01"
+LAKECITY_OPENING_BALANCE_UID_PREFIX = "opening-balance-"
+LAKECITY_PRE_CUTOVER_MOVE_PURPOSES = (
+    "initial_contract",
+    "inventory_reclass",
+    "payment_receipt",
+    "payment_revenue_vat",
+    "payment_cos",
+)
+
 
 class LakecityStandAccountingMixin(models.AbstractModel):
     _name = "lakecity.stand.accounting.mixin"
@@ -79,6 +91,92 @@ class LakecityStandAccountingMixin(models.AbstractModel):
     def _lakecity_company_stand_accounting_enabled(self):
         self.ensure_one()
         return bool(self.company_id.lakecity_stand_sales_accounting_enabled)
+
+    def _lakecity_accounting_start_date(self):
+        self.ensure_one()
+        start = self.company_id.lakecity_accounting_start_date
+        if start:
+            return fields.Date.to_date(start)
+        return fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE)
+
+    def _lakecity_is_opening_balance_uid(self, external_uid):
+        return (external_uid or "").strip().startswith(LAKECITY_OPENING_BALANCE_UID_PREFIX)
+
+    def _lakecity_is_pre_accounting_start(self, pay_date, external_uid=None):
+        """True when a receipt must not post as its own JE (before books start)."""
+        if self._lakecity_is_opening_balance_uid(external_uid):
+            return False
+        start = self._lakecity_accounting_start_date()
+        pay_date = fields.Date.to_date(pay_date) if pay_date else False
+        return bool(start and pay_date and pay_date < start)
+
+    def _lakecity_cutover_buckets(self, cutoff_date=None):
+        """Sum posted BNPL receipts before cutoff vs existing opening-balance lumps."""
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else self._lakecity_accounting_start_date()
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        payments = Payment.search([("contract_id", "=", self.id), ("state", "=", "posted")])
+        pre = Payment.browse()
+        lump = Payment.browse()
+        for pay in payments:
+            if self._lakecity_is_opening_balance_uid(pay.external_uid):
+                lump |= pay
+            elif pay.payment_date and pay.payment_date < cutoff_date:
+                pre |= pay
+        rnd = self.currency_id.rounding
+        pre_total = float_round(sum(pre.mapped("amount")), precision_rounding=rnd)
+        lump_total = float_round(sum(lump.mapped("amount")), precision_rounding=rnd)
+        # Prefer the larger figure so a sheet lump is kept if 2025 re-syncs are a subset,
+        # and so actual 2025 receipts win when they are the only (or fuller) source.
+        opening_paid = float_round(max(pre_total, lump_total), precision_rounding=rnd)
+        return {
+            "stand_number": self.stand_number or "",
+            "contract_name": self.name,
+            "contract_id": self.id,
+            "cutoff_date": fields.Date.to_string(cutoff_date),
+            "pre_count": len(pre),
+            "pre_total": pre_total,
+            "lump_count": len(lump),
+            "lump_total": lump_total,
+            "opening_paid": opening_paid,
+            "gross": self.total_with_tax or 0.0,
+            "contract_liability": self._lakecity_net_contract_price(),
+            "deferred_vat": self._lakecity_vat_on_contract(),
+        }
+
+    def _lakecity_cutover_from_posted_payments(self, cutoff_date=None, force=True, dry_run=False):
+        """Lump pre-cutoff receipts into a 1 Jan opening JE and remove those receipts.
+
+        Uses posted ``lakecity.loan.payment`` rows (the JEs the accountant sees), not
+        the Collection Schedule. Portal payment history is not modified.
+        """
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else self._lakecity_accounting_start_date()
+        buckets = self._lakecity_cutover_buckets(cutoff_date)
+        if dry_run:
+            return dict(buckets, dry_run=True, posted=False)
+
+        if not self._lakecity_company_stand_accounting_enabled():
+            return dict(buckets, skipped=True, reason="stand_sales_accounting_disabled", posted=False)
+
+        gross = buckets["gross"]
+        if float_is_zero(gross, precision_rounding=self.currency_id.rounding) and float_is_zero(
+            buckets["opening_paid"], precision_rounding=self.currency_id.rounding
+        ):
+            return dict(buckets, skipped=True, reason="no_contract_price_or_pre_cutoff_paid", posted=False)
+
+        result = self._lakecity_post_opening_balance_migration(
+            gross,
+            buckets["contract_liability"],
+            buckets["deferred_vat"],
+            buckets["opening_paid"],
+            payment_date=cutoff_date,
+            force=force,
+        )
+        posted = dict(buckets)
+        posted.update(result or {})
+        posted["posted"] = True
+        return posted
 
     def _lakecity_stand_account(self, code):
         self.ensure_one()
@@ -550,6 +648,9 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             return
         if payment.lakecity_stand_accounting_done:
             return
+        if self._lakecity_is_pre_accounting_start(payment.payment_date, payment.external_uid):
+            # Do not recreate 2025 (pre-start) JEs. Cutover lumps these into opening balances.
+            return
 
         gross = payment.amount or 0.0
         if (
@@ -784,6 +885,14 @@ class LakecityStandAccountingMixin(models.AbstractModel):
 class ResCompany(models.Model):
     _inherit = "res.company"
 
+    lakecity_accounting_start_date = fields.Date(
+        string="Accounting start date",
+        default=lambda _self: fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE),
+        help="Books start on this date (Lake City: 1 January 2026). Customer receipts dated "
+        "earlier are not posted as individual journal entries. Run Accounting start cutover "
+        "to total those receipts into opening-balance JEs on this date, then delete the "
+        "pre-start receipts. The customer portal keeps the full payment history.",
+    )
     lakecity_stand_sales_accounting_enabled = fields.Boolean(
         string="Stand sales accounting (ZIMRA walkthrough)",
         default=True,
@@ -881,6 +990,106 @@ class ResCompany(models.Model):
             .search([("account_id", "=", account.id), ("parent_state", "=", "posted")])
         )
         return sum(lines.mapped("credit")) - sum(lines.mapped("debit"))
+
+    def _lakecity_pre_cutover_stand_moves(self, cutoff_date=None):
+        """Stand-sales JEs dated before books start (receipts, revenue/VAT, COS, initial)."""
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else (
+            self.lakecity_accounting_start_date
+            or fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE)
+        )
+        journal = self._lakecity_stand_sales_journal()
+        Move = self.env["account.move"].sudo()
+        domain = [
+            ("company_id", "=", self.id),
+            ("date", "<", cutoff_date),
+            ("lakecity_stand_move_purpose", "in", LAKECITY_PRE_CUTOVER_MOVE_PURPOSES),
+        ]
+        moves = Move.search(domain)
+        if journal:
+            extra = Move.search(
+                [
+                    ("company_id", "=", self.id),
+                    ("date", "<", cutoff_date),
+                    ("journal_id", "=", journal.id),
+                    ("id", "not in", moves.ids),
+                ]
+            )
+            moves |= extra
+        return moves
+
+    def _lakecity_unlink_pre_cutover_stand_moves(self, cutoff_date=None):
+        """Delete leftover stand-sales JEs dated before the accounting start date."""
+        self.ensure_one()
+        moves = self._lakecity_pre_cutover_stand_moves(cutoff_date)
+        before = len(moves)
+        helper = self.env["lakecity.loan.contract"]
+        for move in moves:
+            helper._lakecity_unlink_stand_move(move)
+        leftover = self._lakecity_pre_cutover_stand_moves(cutoff_date)
+        return {
+            "unlinked": max(before - len(leftover), 0),
+            "remaining": len(leftover),
+            "errors": [],
+        }
+
+    def _lakecity_cutover_preview(self, cutoff_date=None, stand_number=None):
+        """Company-wide preview: per-stand pre-start payment totals and leftover JEs."""
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else (
+            self.lakecity_accounting_start_date
+            or fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE)
+        )
+        Contract = self.env["lakecity.loan.contract"].sudo()
+        domain = [("company_id", "=", self.id)]
+        if stand_number:
+            domain.append(("stand_number", "=", str(stand_number).strip().upper()))
+        contracts = Contract.search(domain, order="stand_number")
+        stands = []
+        pre_count = 0
+        pre_total = 0.0
+        opening_paid_total = 0.0
+        stands_with_pre = 0
+        for contract in contracts:
+            row = contract._lakecity_cutover_buckets(cutoff_date)
+            stands.append(row)
+            pre_count += row["pre_count"]
+            pre_total += row["pre_total"]
+            opening_paid_total += row["opening_paid"]
+            if row["pre_count"] or row["lump_count"]:
+                stands_with_pre += 1
+        orphan_moves = self._lakecity_pre_cutover_stand_moves(cutoff_date)
+        return {
+            "cutoff_date": fields.Date.to_string(cutoff_date),
+            "company": self.display_name,
+            "contract_count": len(contracts),
+            "stands_with_pre_or_lump": stands_with_pre,
+            "pre_count": pre_count,
+            "pre_total": pre_total,
+            "opening_paid_total": opening_paid_total,
+            "orphan_move_count": len(orphan_moves),
+            "stands": stands,
+        }
+
+    def action_lakecity_open_accounting_cutover_wizard(self):
+        self.ensure_one()
+        cutoff = self.lakecity_accounting_start_date or fields.Date.from_string(
+            LAKECITY_DEFAULT_ACCOUNTING_START_DATE
+        )
+        wiz = self.env["lakecity.accounting.cutover.wizard"].create(
+            {
+                "company_id": self.id,
+                "cutoff_date": cutoff,
+            }
+        )
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Accounting start cutover"),
+            "res_model": "lakecity.accounting.cutover.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "res_id": wiz.id,
+        }
 
     def action_lakecity_remittance_vat(self):
         """Step 06 — pay VAT Output balance to bank (manual amount from wizard context)."""
