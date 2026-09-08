@@ -12,6 +12,7 @@ export default function DocsSheets() {
         { label: "SupportRequest", id: "support-request" },
         { label: "MonthlyStatements", id: "monthly-statements" },
         { label: "AgreementTracking", id: "agreement-tracking" },
+        { label: "Master Sales", id: "master-sales" },
       ]}
     >
       <h2 id="collection-schedule">1. Collection Schedule tabs</h2>
@@ -133,6 +134,19 @@ export default function DocsSheets() {
         (VAT classification), signature status for both vendor (Warwickshire) and client, file
         references to signed documents, and registration status with the legal authority. This
         data flows into the customer portal's Agreement of Sale status widget.
+      </p>
+      <h2 id="master-sales">6. Master Sales (reconciliation)</h2>
+      <p>
+        Weekly reconciliation reads the dedicated{" "}
+        <a href="https://docs.google.com/spreadsheets/d/1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0/edit?gid=1904118601">
+          Master Sales
+        </a>{" "}
+        workbook (<code>1LipmKyODkB9cBmQXCy1gd8tBcxhz6aO0</code>, gid <code>1904118601</code>) as the
+        sales register. The Collection Schedule remains the customer-facing StandLedger source. The
+        Edge Function <code>reconcile-account-balances</code> compares that register to Odoo loan
+        balances and StandLedger, then emails a discrepancy table. See{" "}
+        <code className="text-xs">docs/balance-reconciliation.md</code>. Share the Master Sales
+        workbook with the Google service account used by Edge Functions.
       </p>
     </DocsLayout>
   );

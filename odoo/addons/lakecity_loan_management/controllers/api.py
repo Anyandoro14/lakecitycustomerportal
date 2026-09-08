@@ -653,6 +653,63 @@ class LakecityLoanApiController(http.Controller):
 
         return self._json_response({"ok": True, "contract": self._contract_payload(contract)})
 
+    def _contract_balance_payload(self, contract):
+        partner = contract.partner_id
+        partner_credit = 0.0
+        if partner and "credit" in partner._fields:
+            partner_credit = partner.credit or 0.0
+        return {
+            "id": contract.id,
+            "name": contract.name,
+            "external_uid": contract.external_uid,
+            "stand_number": contract.stand_number,
+            "partner_name": partner.name if partner else "",
+            "partner_email": partner.email if partner else "",
+            "state": contract.state,
+            "total_price": contract.total_price,
+            "total_with_tax": contract.total_with_tax,
+            "deposit_amount": contract.deposit_amount,
+            "total_paid": contract.total_paid,
+            "current_balance": contract.current_balance,
+            "partner_credit": partner_credit,
+            "lakecity_portal_enrolled": contract.lakecity_portal_enrolled,
+        }
+
+    @http.route("/lakecity/api/v1/loan/list", type="http", auth="public", methods=["GET"], csrf=False)
+    def list_loans(self, **kwargs):
+        """Paginated loan contracts with balances for weekly reconciliation."""
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        try:
+            limit = min(max(int(kwargs.get("limit") or 500), 1), 2000)
+        except (TypeError, ValueError):
+            limit = 500
+        try:
+            offset = max(int(kwargs.get("offset") or 0), 0)
+        except (TypeError, ValueError):
+            offset = 0
+
+        domain = []
+        state = (kwargs.get("state") or "").strip()
+        if state and state != "all":
+            domain.append(("state", "=", state))
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        count = Contract.search_count(domain)
+        contracts = Contract.search(domain, offset=offset, limit=limit, order="stand_number,id")
+        rows = [self._contract_balance_payload(c) for c in contracts]
+        return self._json_response(
+            {
+                "ok": True,
+                "count": count,
+                "limit": limit,
+                "offset": offset,
+                "contracts": rows,
+            }
+        )
+
     @http.route("/lakecity/api/v1/loan/installments", type="http", auth="public", methods=["GET"], csrf=False)
     def get_installments(self, **kwargs):
         ok, response = self._validate_token()

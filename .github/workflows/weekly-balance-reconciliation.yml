@@ -1,0 +1,29 @@
+# Optional backup for weekly account balance reconciliation.
+# Primary schedule is pg_cron (see docs/balance-reconciliation.md).
+# Secrets: SUPABASE_URL, RECONCILIATION_CRON_SECRET
+
+name: Weekly balance reconciliation
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke reconcile-account-balances
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          RECONCILIATION_CRON_SECRET: ${{ secrets.RECONCILIATION_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${RECONCILIATION_CRON_SECRET:-}" ]; then
+            echo "Skipping: set repository secrets SUPABASE_URL and RECONCILIATION_CRON_SECRET."
+            exit 0
+          fi
+          curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/reconcile-account-balances" \
+            -H "Authorization: Bearer ${RECONCILIATION_CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{"scheduled":true,"sendEmail":true,"source":"github_actions"}'

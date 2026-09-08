@@ -152,6 +152,7 @@ Endpoints (Bearer token required):
 - `POST /lakecity/api/v1/stand/product-sync` — upsert one **`product.template`** / variant per **`stand_number`** (`lakecity_stand_number`); **sale_ok** and on-hand **qty** follow portal rules (qty **1** when marketable, **0** when sold/reserved). Body may include **`archive: true`** when removing a stand from the portal.
 - `POST /lakecity/api/v1/stand/product-sync-batch` — same for an **`items`** array (max **500** rows). Used by Supabase function **`sync-stand-odoo-product`**.
 - `GET /lakecity/api/v1/loan/get?external_uid=...`
+- `GET /lakecity/api/v1/loan/list?limit=&offset=&state=` — paginated contracts with balances for weekly reconciliation (**19.0.1.0.69+**)
 - `GET /lakecity/api/v1/loan/installments?external_uid=...`
 - `POST /lakecity/api/v1/payment/post` — skips receipts dated before the company **Accounting start date** (`skipped: true`, `reason: pre_accounting_start`); portal history is unchanged
 - `POST /lakecity/api/v1/loan/status`

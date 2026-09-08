@@ -26,6 +26,7 @@
     "odoo:accounting-cutover": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs",
     "odoo:accounting-cutover:dry-run": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run",
     "odoo:accounting-cutover:sweep": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force --sweep-only",
+    "test:reconciliation": "node --experimental-strip-types scripts/test-balance-reconciliation.mjs",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
     "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
   },
