@@ -1,0 +1,32 @@
+name: Deploy mcp and fetch-google-sheets
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/mcp/**"
+      - "supabase/functions/mcp/**"
+      - "supabase/functions/fetch-google-sheets/**"
+      - "supabase/functions/_shared/**"
+      - "scripts/bundle-standledger-mcp.mjs"
+      - "scripts/deploy-mcp-and-sheets.sh"
+      - ".github/workflows/deploy-mcp-and-sheets.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy mcp and fetch-google-sheets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: bash scripts/deploy-mcp-and-sheets.sh
