@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "standledger": {
+      "url": "https://gumkxjeahojrcaqnosyz.supabase.co/functions/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:LOVABLE_API_KEY}",
+        "Lovable-API-Key": "${env:LOVABLE_API_KEY}"
+      }
+    }
+  }
+}

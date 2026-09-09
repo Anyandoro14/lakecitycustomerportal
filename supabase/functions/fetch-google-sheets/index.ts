@@ -181,18 +181,8 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Extract JWT token from authorization header
-    const userToken = authHeader.replace('Bearer ', '');
-
-    // Verify the JWT and get user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(userToken);
-    
-    if (userError || !user) {
-      console.error('Authentication error:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const userToken = authHeader.replace(/^Bearer\s+/i, '');
+    const isServiceRole = Boolean(supabaseServiceKey) && userToken === supabaseServiceKey;
 
     // Parse request body for Looking Glass mode and tenant_id
     let lookingGlassMode = false;
@@ -208,6 +198,31 @@ serve(async (req) => {
       }
     } catch (e) {
       // No body or invalid JSON, continue with normal flow
+    }
+
+    let user: { id: string; email?: string | null } | null = null;
+
+    if (isServiceRole) {
+      if (!lookingGlassMode || !targetStandNumber) {
+        return new Response(
+          JSON.stringify({ error: 'stand_number is required for service-role MCP calls' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      user = { id: 'service-role', email: 'mcp-service@lakecity.co.zw' };
+      console.log(`Service-role Looking Glass for stand ${targetStandNumber}`);
+    } else {
+      // Verify the JWT and get user
+      const { data: { user: authUser }, error: userError } = await supabaseClient.auth.getUser(userToken);
+
+      if (userError || !authUser) {
+        console.error('Authentication error:', userError);
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      user = authUser;
     }
 
     // Resolve spreadsheet_id: prefer tenant_id lookup, fall back to env var
@@ -250,18 +265,28 @@ serve(async (req) => {
     }
 
     // Get user's profile (include stand_number for fallback matching)
-    const { data: profile, error: profileError } = await supabaseClient
-      .from('profiles')
-      .select('email, stand_number, payment_plan_months')
-      .eq('id', user.id)
-      .single();
+    let profile: { email: string | null; stand_number: string | null; payment_plan_months: number | null } | null = null;
+    if (isServiceRole) {
+      profile = {
+        email: 'mcp-service@lakecity.co.zw',
+        stand_number: String(targetStandNumber),
+        payment_plan_months: null,
+      };
+    } else {
+      const { data: profileRow, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('email, stand_number, payment_plan_months')
+        .eq('id', user.id)
+        .single();
 
-    if (profileError || !profile) {
-      console.error('Profile fetch error:', profileError);
-      return new Response(
-        JSON.stringify({ error: 'User profile not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (profileError || !profileRow) {
+        console.error('Profile fetch error:', profileError);
+        return new Response(
+          JSON.stringify({ error: 'User profile not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      profile = profileRow;
     }
 
     // Normalize + match against BOTH auth email and profile email (supports email migrations)
@@ -302,8 +327,9 @@ serve(async (req) => {
     });
 
     // Check if this is Looking Glass mode - only allow for @lakecity.co.zw admins
-    let isLookingGlassAdmin = false;
-    if (lookingGlassMode && targetStandNumber) {
+    // or the Edge Function service role (LOVABLE_API_KEY MCP).
+    let isLookingGlassAdmin = isServiceRole && !!targetStandNumber;
+    if (!isLookingGlassAdmin && lookingGlassMode && targetStandNumber) {
       const isStaff = candidateEmails.some((e) => e.endsWith('@lakecity.co.zw'));
 
       if (isStaff) {

@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.reconcile-account-balances]
 verify_jwt = false
+
+[functions.mcp]
+verify_jwt = false

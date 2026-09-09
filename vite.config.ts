@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
-import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
+import { spawnSync } from "node:child_process";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -36,7 +36,18 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === "development" && componentTagger(),
-      mcpPlugin(),
+      {
+        name: "standledger-mcp-bundle",
+        buildStart() {
+          const result = spawnSync(process.execPath, ["scripts/bundle-standledger-mcp.mjs"], {
+            cwd: __dirname,
+            stdio: "inherit",
+          });
+          if (result.status !== 0) {
+            throw new Error("Failed to bundle StandLedger MCP Edge Function");
+          }
+        },
+      },
       VitePWA({
         registerType: "autoUpdate",
         injectRegister: "script-defer", // Defer SW registration to avoid render-blocking

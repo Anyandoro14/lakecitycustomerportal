@@ -69,16 +69,33 @@ export function parseLooseDate(value: string | undefined | null): Date | null {
  * financial figures, so every insight tool reads through the same edge
  * function the portal dashboard uses.
  */
-export async function fetchMyStands(ctx: ToolContext): Promise<StandData[]> {
+export async function fetchMyStands(
+  ctx: ToolContext,
+  standNumber?: string,
+): Promise<StandData[]> {
   const url = `${process.env.SUPABASE_URL}/functions/v1/fetch-google-sheets`;
+  const userToken = ctx.isAuthenticated() ? ctx.getToken() : undefined;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const token = userToken || serviceKey;
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+  if (!userToken && !standNumber?.trim()) {
+    throw new Error("stand_number is required when authenticating with LOVABLE_API_KEY");
+  }
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       apikey: process.env.SUPABASE_PUBLISHABLE_KEY!,
-      Authorization: `Bearer ${ctx.getToken()}`,
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify(
+      userToken
+        ? {}
+        : { lookingGlassMode: true, targetStandNumber: standNumber!.trim() },
+    ),
   });
 
   const payload = await response.json().catch(() => null);

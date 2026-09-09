@@ -4,7 +4,7 @@
 
 ### Product overview
 
-LakeCity Portal is a Vite + React + TypeScript SPA backed by Supabase (Postgres, Auth, Edge Functions). Optional Odoo addons under `odoo/addons/` deploy elsewhere (Odoo.sh); they are not started from this repo.
+LakeCity Portal is a Vite + React + TypeScript SPA on **Lovable Cloud** (Postgres, Auth, Edge Functions hosted by Lovable). Optional Odoo addons under `odoo/addons/` deploy elsewhere (Odoo.sh); they are not started from this repo.
 
 ### Services (local full stack)
 
@@ -35,6 +35,19 @@ Use `fuse-overlayfs` storage driver and `iptables-legacy` when running Docker in
 - **Tests:** No Vitest/Jest suite in `package.json`; smoke-test via app + `docs/TEST_ENVIRONMENT.md` checklist.
 - **Build:** `npm run build`
 
-### Cloud Supabase fallback
+### Cloud fallback
 
-Without Docker, `npm run dev` still serves the UI using the publishable anon key and URL baked into `vite.config.ts` (hosted project). Dashboard flows that need Edge Functions require either local `test:env:serve-functions` or deployed functions on that project.
+Without Docker, `npm run dev` still serves the UI using the publishable anon key and URL baked into `vite.config.ts` (Lovable Cloud project `gumkxjeahojrcaqnosyz`). Dashboard flows that need Edge Functions require either local `test:env:serve-functions` or the functions already deployed on Lovable Cloud.
+
+### StandLedger MCP
+
+Project MCP config is `.cursor/mcp.json`. Remote URL:
+
+`https://gumkxjeahojrcaqnosyz.supabase.co/functions/v1/mcp`
+
+Auth is the Lovable Cloud secret `LOVABLE_API_KEY` (injected into Edge Functions automatically). Cursor sends it as `Authorization: Bearer ${env:LOVABLE_API_KEY}` and `Lovable-API-Key`. Customer OAuth JWTs still work as a fallback.
+
+API-key calls are service-role lookups and require `stand_number` (or `email` on `get_my_profile`). Tools: `get_my_profile`, `get_my_statements`, `get_payment_schedule`, `get_payoff_projection`, `get_my_payment_behaviour`. Rebuild the function with `npm run build:mcp` after editing `src/lib/mcp/`.
+
+Deploy Edge Functions on Lovable Cloud (not `supabase functions deploy`): merge to the Git-synced branch, then in the Lovable project chat ask it to deploy `mcp` and `fetch-google-sheets` from the repo source. `npm run deploy:mcp` prints that prompt.
+

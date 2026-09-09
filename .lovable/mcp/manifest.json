@@ -19,23 +19,7 @@
       {
         "name": "get_my_profile",
         "title": "Get my profile",
-        "description": "Return the signed-in customer's profile: stand number, email, and phone numbers used for 2FA.",
-        "annotations": {
-          "readOnlyHint": true,
-          "idempotentHint": true,
-          "openWorldHint": false
-        },
-        "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
-          "type": "object",
-          "properties": {}
-        },
-        "outputSchema": null
-      },
-      {
-        "name": "get_my_statements",
-        "title": "Get my monthly statements",
-        "description": "Return monthly statements for the signed-in customer's stand: month, opening balance, payments received, closing balance, and overdue status. Ordered newest first.",
+        "description": "Return a customer profile: stand number, email, and phone numbers used for 2FA. With a customer JWT this is the signed-in user. With LOVABLE_API_KEY, pass stand_number or email.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -44,6 +28,36 @@
         "inputSchema": {
           "type": "object",
           "properties": {
+            "stand_number": {
+              "type": "string",
+              "description": "Stand number to look up. Required when authenticating with LOVABLE_API_KEY unless email is set."
+            },
+            "email": {
+              "type": "string",
+              "description": "Customer email to look up. Used with LOVABLE_API_KEY when stand_number is omitted."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_statements",
+        "title": "Get my monthly statements",
+        "description": "Return monthly statements for a stand: month, opening balance, payments received, closing balance, and overdue status. Ordered newest first. With LOVABLE_API_KEY, pass stand_number.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "stand_number": {
+              "type": "string",
+              "description": "Stand number to load. Required when authenticating with LOVABLE_API_KEY."
+            },
             "limit": {
               "type": "integer",
               "description": "Maximum number of statements to return. Defaults to 24."
@@ -57,7 +71,7 @@
       {
         "name": "get_payment_schedule",
         "title": "Show my payment schedule",
-        "description": "Return the signed-in customer's remaining instalment schedule for their stand: each upcoming due date, the amount due, and the balance left after that payment, plus a summary of the purchase price, deposit, amount paid and instalments already completed.",
+        "description": "Return the remaining instalment schedule for a stand: each upcoming due date, the amount due, and the balance left after that payment, plus a summary of the purchase price, deposit, amount paid and instalments already completed. With LOVABLE_API_KEY, pass stand_number.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -68,7 +82,7 @@
           "properties": {
             "stand_number": {
               "type": "string",
-              "description": "Stand number to show. Defaults to the customer's first stand."
+              "description": "Stand number to show. Required with LOVABLE_API_KEY; defaults to the customer's first stand when using a customer JWT."
             },
             "months": {
               "type": "integer",
@@ -83,7 +97,7 @@
       {
         "name": "get_payoff_projection",
         "title": "How long until my stand is paid off",
-        "description": "Estimate how long it will take the signed-in customer to fully pay off their stand: months remaining, projected payoff date, amount still owing, percentage paid, and optional what-if scenarios showing how much sooner the stand is paid off with extra monthly payments. Figures come from the Collection Schedule, the authoritative ledger.",
+        "description": "Estimate how long it will take to fully pay off a stand: months remaining, projected payoff date, amount still owing, percentage paid, and optional what-if scenarios showing how much sooner the stand is paid off with extra monthly payments. Figures come from the Collection Schedule. With LOVABLE_API_KEY, pass stand_number.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -94,7 +108,7 @@
           "properties": {
             "stand_number": {
               "type": "string",
-              "description": "Stand number to project. Defaults to the customer's first stand."
+              "description": "Stand number to project. Required with LOVABLE_API_KEY; defaults to the customer's first stand when using a customer JWT."
             },
             "extra_monthly_payment": {
               "type": "number",
@@ -109,7 +123,7 @@
       {
         "name": "get_my_payment_behaviour",
         "title": "What has my payment frequency been",
-        "description": "Analyse the signed-in customer's actual payment history for their stand: how many payments they have made, how often (average and typical gap in days), total and average amount paid, longest gap without a payment, payments in the last 6 and 12 months, and a plain-language consistency rating. Useful for answering 'how regularly have I been paying?'.",
+        "description": "Analyse actual payment history for a stand: how many payments have been made, how often (average and typical gap in days), total and average amount paid, longest gap without a payment, payments in the last 6 and 12 months, and a plain-language consistency rating. With LOVABLE_API_KEY, pass stand_number.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -120,7 +134,7 @@
           "properties": {
             "stand_number": {
               "type": "string",
-              "description": "Stand number to analyse. Defaults to the customer's first stand."
+              "description": "Stand number to analyse. Required with LOVABLE_API_KEY; defaults to the customer's first stand when using a customer JWT."
             }
           },
           "additionalProperties": false,
