@@ -69,6 +69,33 @@ export function parsePaynowResponse(text: string): Record<string, string> {
   return out;
 }
 
+/**
+ * Paynow has blocked some shared egress IPs. If PAYNOW_PROXY_URL is set, the
+ * request is relayed through it; otherwise Paynow is called directly.
+ */
+export async function paynowFetch(targetUrl: string, body: string): Promise<Response> {
+  const proxy = Deno.env.get("PAYNOW_PROXY_URL");
+  if (proxy) {
+    try {
+      return await fetch(proxy, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Paynow-Target": targetUrl,
+        },
+        body,
+      });
+    } catch (e) {
+      console.error("Paynow proxy failed, falling back to direct call:", e);
+    }
+  }
+  return await fetch(targetUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+}
+
 export function encodeForm(values: Record<string, string>): string {
   return Object.entries(values)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? "")}`)
