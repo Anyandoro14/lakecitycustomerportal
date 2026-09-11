@@ -116,3 +116,13 @@ verify_jwt = false
 
 [functions.sync-stand-portal-settings]
 verify_jwt = false
+
+[functions.paynow-init]
+verify_jwt = true
+
+[functions.paynow-webhook]
+verify_jwt = false
+
+[functions.paynow-status]
+verify_jwt = true
+

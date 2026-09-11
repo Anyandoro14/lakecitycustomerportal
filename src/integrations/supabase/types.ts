@@ -824,6 +824,88 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_receipts: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          gateway: string
+          gateway_metadata: Json | null
+          gateway_reference: string | null
+          id: string
+          odoo_payment_id: number | null
+          odoo_sync_status: string | null
+          payment_date: string
+          qc_notes: string | null
+          qc_reviewed_at: string | null
+          qc_reviewer_id: string | null
+          qc_status: string
+          receipt_file_url: string | null
+          stand_number: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          gateway?: string
+          gateway_metadata?: Json | null
+          gateway_reference?: string | null
+          id?: string
+          odoo_payment_id?: number | null
+          odoo_sync_status?: string | null
+          payment_date: string
+          qc_notes?: string | null
+          qc_reviewed_at?: string | null
+          qc_reviewer_id?: string | null
+          qc_status?: string
+          receipt_file_url?: string | null
+          stand_number: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          gateway?: string
+          gateway_metadata?: Json | null
+          gateway_reference?: string | null
+          id?: string
+          odoo_payment_id?: number | null
+          odoo_sync_status?: string | null
+          payment_date?: string
+          qc_notes?: string | null
+          qc_reviewed_at?: string | null
+          qc_reviewer_id?: string | null
+          qc_status?: string
+          receipt_file_url?: string | null
+          stand_number?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_receipts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "internal_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_qc_reviewer_id_fkey"
+            columns: ["qc_reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "internal_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_transactions: {
         Row: {
           amount_local: number | null
@@ -844,6 +926,7 @@ export type Database = {
           settlement_status: string | null
           stand_number: string
           status: string
+          tenant_id: string | null
           updated_at: string
           user_id: string | null
         }
@@ -866,6 +949,7 @@ export type Database = {
           settlement_status?: string | null
           stand_number: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -888,10 +972,19 @@ export type Database = {
           settlement_status?: string | null
           stand_number?: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1054,25 +1147,31 @@ export type Database = {
       tenants: {
         Row: {
           created_at: string
+          crm_provider: string | null
           id: string
           is_active: boolean
           name: string
+          payment_gateway: string | null
           slug: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          crm_provider?: string | null
           id?: string
           is_active?: boolean
           name: string
+          payment_gateway?: string | null
           slug: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          crm_provider?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          payment_gateway?: string | null
           slug?: string
           updated_at?: string
         }
