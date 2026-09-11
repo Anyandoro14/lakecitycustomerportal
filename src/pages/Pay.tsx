@@ -63,15 +63,26 @@ const Pay = () => {
 
   const instalment = useMemo(() => parseAmount(stand?.monthlyPayment), [stand]);
   const balance = useMemo(() => parseAmount(stand?.standBalance), [stand]);
-  const minAmount = useMemo(() => {
-    if (balance > 0 && balance < instalment) return balance;
-    return instalment > 0 ? instalment : 1;
-  }, [balance, instalment]);
+  // Customers may pay any amount towards their stand at any time.
+  const minAmount = 1;
   const maxAmount = balance > 0 ? balance : 100000;
 
+  const quickAmounts = useMemo(() => {
+    const options: { label: string; value: number }[] = [];
+    if (instalment > 0) {
+      options.push({ label: "1 instalment", value: instalment });
+      options.push({ label: "2 instalments", value: instalment * 2 });
+    }
+    if (balance > 0) options.push({ label: "Full balance", value: balance });
+    return options.filter((o) => o.value > 0 && o.value <= maxAmount);
+  }, [instalment, balance, maxAmount]);
+
   useEffect(() => {
-    if (stand && !amount && minAmount > 0) setAmount(minAmount.toFixed(2));
-  }, [stand, minAmount, amount]);
+    if (stand && !amount) {
+      const preset = instalment > 0 && instalment <= maxAmount ? instalment : Math.min(50, maxAmount);
+      setAmount(preset.toFixed(2));
+    }
+  }, [stand, instalment, maxAmount, amount]);
 
   const handleSubmit = async () => {
     const value = parseAmount(amount);
@@ -189,8 +200,24 @@ const Pay = () => {
             onChange={(e) => setAmount(e.target.value)}
             className="h-12 text-lg"
           />
+          {quickAmounts.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickAmounts.map((q) => (
+                <Button
+                  key={q.label}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAmount(q.value.toFixed(2))}
+                >
+                  {q.label} · {formatUsd(q.value)}
+                </Button>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Minimum {formatUsd(minAmount)} · Maximum {formatUsd(maxAmount)}
+            Pay any amount towards your stand at any time. Minimum {formatUsd(minAmount)} · Maximum{" "}
+            {formatUsd(maxAmount)}
           </p>
         </Card>
 
