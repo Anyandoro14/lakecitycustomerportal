@@ -200,8 +200,24 @@ const Pay = () => {
             onChange={(e) => setAmount(e.target.value)}
             className="h-12 text-lg"
           />
+          {quickAmounts.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickAmounts.map((q) => (
+                <Button
+                  key={q.label}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAmount(q.value.toFixed(2))}
+                >
+                  {q.label} · {formatUsd(q.value)}
+                </Button>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Minimum {formatUsd(minAmount)} · Maximum {formatUsd(maxAmount)}
+            Pay any amount towards your stand at any time. Minimum {formatUsd(minAmount)} · Maximum{" "}
+            {formatUsd(maxAmount)}
           </p>
         </Card>
 
