@@ -60,6 +60,8 @@ const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
 const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
+const Pay = lazy(() => import("./pages/Pay"));
+const PayReturn = lazy(() => import("./pages/PayReturn"));
 
 const queryClient = new QueryClient();
 
@@ -92,6 +94,8 @@ const App = () => (
                   <Route path="/signup" element={<SignUp />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/pay" element={<Pay />} />
+                  <Route path="/pay/return" element={<PayReturn />} />
                   <Route path="/monthly-statements" element={<MonthlyStatements />} />
                   <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
                   <Route path="/reporting" element={<Reporting />} />

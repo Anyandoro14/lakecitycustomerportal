@@ -69,6 +69,33 @@ export function parsePaynowResponse(text: string): Record<string, string> {
   return out;
 }
 
+/**
+ * Paynow has blocked some shared egress IPs. If PAYNOW_PROXY_URL is set, the
+ * request is relayed through it; otherwise Paynow is called directly.
+ */
+export async function paynowFetch(targetUrl: string, body: string): Promise<Response> {
+  const proxy = Deno.env.get("PAYNOW_PROXY_URL");
+  if (proxy) {
+    try {
+      return await fetch(proxy, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Paynow-Target": targetUrl,
+        },
+        body,
+      });
+    } catch (e) {
+      console.error("Paynow proxy failed, falling back to direct call:", e);
+    }
+  }
+  return await fetch(targetUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+}
+
 export function encodeForm(values: Record<string, string>): string {
   return Object.entries(values)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? "")}`)
@@ -118,11 +145,7 @@ export async function initiateTransaction(args: InitiateArgs): Promise<InitiateR
 
   fields.hash = await generateHash(fields, key);
 
-  const res = await fetch(mobile ? PAYNOW_REMOTE_URL : PAYNOW_INITIATE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: encodeForm(fields),
-  });
+  const res = await paynowFetch(mobile ? PAYNOW_REMOTE_URL : PAYNOW_INITIATE_URL, encodeForm(fields));
 
   const text = await res.text();
   const parsed = parsePaynowResponse(text);
@@ -143,7 +166,7 @@ export async function initiateTransaction(args: InitiateArgs): Promise<InitiateR
 /** Poll a Paynow poll URL and return the parsed, hash-verified status payload. */
 export async function pollTransaction(pollUrl: string): Promise<Record<string, string>> {
   const { key } = getPaynowCredentials();
-  const res = await fetch(pollUrl, { method: "POST" });
+  const res = await paynowFetch(pollUrl, "");
   const parsed = parsePaynowResponse(await res.text());
 
   if (parsed.hash && !(await verifyHash(parsed, key))) {
