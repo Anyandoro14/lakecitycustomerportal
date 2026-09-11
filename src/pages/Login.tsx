@@ -535,8 +535,9 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
       <Card className="w-full max-w-md">
+
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
             {/* Wordmark for desktop, Monogram for mobile */}
@@ -618,7 +619,7 @@ const Login = () => {
         </CardContent>
       </Card>
 
-      <footer className="mt-8 text-center text-xs text-muted-foreground space-y-2 max-w-md mx-auto px-4">
+      <footer className="mt-8 w-full max-w-md text-center text-xs text-muted-foreground space-y-2">
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
           <Link to="/landing" className="hover:text-primary hover:underline">About StandLedger</Link>
           <Link to="/landing#pricing" className="hover:text-primary hover:underline">Pricing</Link>
