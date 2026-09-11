@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Menu, Home, FileText, CreditCard, Settings, HelpCircle, LogOut, Newspaper } from "lucide-react";
+import { Menu, Home, FileText, CreditCard, Wallet, Settings, HelpCircle, LogOut, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
 import LogoutConfirmDialog from "@/components/LogoutConfirmDialog";
+import { isPaynowEnabled } from "@/lib/paynow";
 
 const CustomerHeader = () => {
   const navigate = useNavigate();
@@ -62,6 +63,7 @@ const CustomerHeader = () => {
   const menuItems = [
     { icon: Home, label: "Home", path: "/" },
     { icon: Newspaper, label: "Updates", path: "/updates" },
+    ...(isPaynowEnabled() ? [{ icon: Wallet, label: "Make Payment", path: "/pay" }] : []),
     { icon: CreditCard, label: "Monthly Statements", path: "/monthly-statements" },
     { icon: FileText, label: "Agreement of Sale", path: "/agreement-of-sale" },
     { icon: Settings, label: "Settings", path: "/settings" },

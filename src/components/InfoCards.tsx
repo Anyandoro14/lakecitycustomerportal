@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Clock, CreditCard } from "lucide-react";
 import { formatCurrency } from "@/lib/validation";
 
 interface InfoCardsProps {
@@ -17,6 +18,7 @@ interface InfoCardsProps {
   allStands: any[];
   onStandChange: (stand: any) => void;
   paymentNotYetDue?: boolean;
+  onMakePayment?: () => void;
 }
 
 const InfoCards = ({ 
@@ -32,7 +34,8 @@ const InfoCards = ({
   progressPercentage,
   allStands,
   onStandChange,
-  paymentNotYetDue = false
+  paymentNotYetDue = false,
+  onMakePayment,
 }: InfoCardsProps) => {
   // Format currency values for display
   const formattedTotalPaid = formatCurrency(totalPaid);
@@ -118,6 +121,13 @@ const InfoCards = ({
           <p className="text-lg font-bold text-primary break-words leading-tight">{formattedBalance}</p>
         </Card>
       </div>
+
+      {onMakePayment && (
+        <Button className="w-full h-12 text-base font-semibold" onClick={onMakePayment}>
+          <CreditCard className="mr-2 h-4 w-4" />
+          Make Payment
+        </Button>
+      )}
     </div>
   );
 };

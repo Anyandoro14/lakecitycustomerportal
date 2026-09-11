@@ -16,7 +16,7 @@ interface TenantConfig {
   logoUrl: string | null;
   primaryColor: string;
   supportEmail: string | null;
-  paymentGateway: 'manual' | 'kuva';
+  paymentGateway: 'manual' | 'kuva' | 'paynow';
   crmProvider: 'internal' | 'odoo';
 }
 

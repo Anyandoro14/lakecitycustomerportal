@@ -69,6 +69,8 @@ class LakecityReceiptIntake(models.Model):
             return "manual"
         if "kuva" in key:
             return "kuva"
+        if "paynow" in key:
+            return "paynow"
         if "eco" in key:
             return "ecocash"
         if "cash" in key:

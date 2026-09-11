@@ -42,6 +42,8 @@ const TrainingCenter = lazy(() => import("./pages/TrainingCenter"));
 const TrainingModule = lazy(() => import("./pages/TrainingModule"));
 const PaymentGatewayProposal = lazy(() => import("./pages/PaymentGatewayProposal"));
 const PaymentGatewaySpecifications = lazy(() => import("./pages/PaymentGatewaySpecifications"));
+const Pay = lazy(() => import("./pages/Pay"));
+const PayReturn = lazy(() => import("./pages/PayReturn"));
 const DocsHome = lazy(() => import("./pages/docs/DocsHome"));
 const DocsGlossary = lazy(() => import("./pages/docs/DocsGlossary"));
 const DocsDataModels = lazy(() => import("./pages/docs/DocsDataModels"));
@@ -114,6 +116,8 @@ const App = () => (
                   <Route path="/training/:moduleId" element={<TrainingModule />} />
                   <Route path="/payment-gateway-proposal" element={<PaymentGatewayProposal />} />
                   <Route path="/payment-gateway-specifications" element={<PaymentGatewaySpecifications />} />
+                  <Route path="/pay" element={<Pay />} />
+                  <Route path="/pay/return" element={<PayReturn />} />
                   <Route path="/docs" element={<DocsHome />} />
                   <Route path="/docs/glossary" element={<DocsGlossary />} />
                   <Route path="/docs/data-models" element={<DocsDataModels />} />
