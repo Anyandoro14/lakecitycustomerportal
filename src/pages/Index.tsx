@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { useTenant } from "@/contexts/TenantContext";
 import { RefreshCw } from "lucide-react";
+import { isPaynowEnabled } from "@/lib/paynow";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -273,6 +274,7 @@ const Index = () => {
           allStands={allStands}
           onStandChange={setSelectedStand}
           paymentNotYetDue={selectedStand.paymentNotYetDue}
+          onMakePayment={isPaynowEnabled() ? () => navigate("/pay") : undefined}
         />
 
         <DocumentsSection documents={{

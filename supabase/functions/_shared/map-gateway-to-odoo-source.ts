@@ -15,6 +15,15 @@ export function mapGatewayToOdooSource(
   if (g === "paystack") return "paystack";
   if (g === "paypal") return "paypal";
   if (g === "flutterwave") return "flutterwave";
+  if (g === "paynow") {
+    if (method.includes("eco")) return "ecocash";
+    if (method.includes("one") || method.includes("mobile")) return "mobile_money";
+    if (method.includes("card") || method.includes("visa") || method.includes("master") || method.includes("zimswitch")) {
+      return "card";
+    }
+    if (method.includes("bank") || method.includes("transfer")) return "bank_transfer";
+    return "paynow";
+  }
 
   if (
     g === "mobile_money" ||

@@ -96,6 +96,15 @@ verify_jwt = false
 [functions.kuva-webhook]
 verify_jwt = false
 
+[functions.paynow-init]
+verify_jwt = true
+
+[functions.paynow-status]
+verify_jwt = true
+
+[functions.paynow-webhook]
+verify_jwt = false
+
 [functions.incoming-message-webhook]
 verify_jwt = false
 

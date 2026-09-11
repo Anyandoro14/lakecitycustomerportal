@@ -38,6 +38,7 @@ class LakecityLoanPayment(models.Model):
             ("paystack", "Paystack"),
             ("paypal", "PayPal"),
             ("flutterwave", "Flutterwave"),
+            ("paynow", "Paynow"),
             ("odoo", "Odoo"),
             ("mobile_money", "Mobile Money"),
             ("bank_transfer", "Bank Transfer"),
