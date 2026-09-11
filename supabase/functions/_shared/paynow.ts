@@ -118,11 +118,7 @@ export async function initiateTransaction(args: InitiateArgs): Promise<InitiateR
 
   fields.hash = await generateHash(fields, key);
 
-  const res = await fetch(mobile ? PAYNOW_REMOTE_URL : PAYNOW_INITIATE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: encodeForm(fields),
-  });
+  const res = await paynowFetch(mobile ? PAYNOW_REMOTE_URL : PAYNOW_INITIATE_URL, encodeForm(fields));
 
   const text = await res.text();
   const parsed = parsePaynowResponse(text);

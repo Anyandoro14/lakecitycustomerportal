@@ -17,6 +17,24 @@ function json(body: unknown, status = 200) {
   });
 }
 
+/**
+ * Always send the customer back to the portal's /pay/return page with the
+ * merchant reference attached — never to a raw edge-function URL.
+ */
+function buildReturnUrl(returnUrl: string, returnOrigin: string, reference: string): string {
+  let base = (returnUrl || "").trim();
+  if (!base && returnOrigin) base = `${returnOrigin.replace(/\/+$/, "")}/pay/return`;
+  if (!base) return `https://lakecity.standledger.io/pay/return?reference=${encodeURIComponent(reference)}`;
+  try {
+    const u = new URL(base);
+    if (!u.searchParams.get("reference")) u.searchParams.set("reference", reference);
+    return u.toString();
+  } catch {
+    const sep = base.includes("?") ? "&" : "?";
+    return base.includes("reference=") ? base : `${base}${sep}reference=${encodeURIComponent(reference)}`;
+  }
+}
+
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "");
   if (digits.startsWith("263")) return "0" + digits.slice(3);
@@ -44,6 +62,7 @@ serve(async (req) => {
     const method = body.method as string | undefined; // ecocash | onemoney | innbucks
     const phone = body.phone as string | undefined;
     const returnUrl = (body.return_url as string) || "";
+    const returnOrigin = (body.return_origin as string) || "";
 
     if (!Number.isFinite(amount) || amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
       return json({ success: false, error: `Enter an amount between $${MIN_AMOUNT} and $${MAX_AMOUNT}` });
@@ -112,7 +131,7 @@ serve(async (req) => {
       reference,
       amount,
       additionalinfo: `Lake City payment for stand ${standNumber}`,
-      returnurl: returnUrl || `${supabaseUrl}/functions/v1/paynow-status?reference=${reference}`,
+      returnurl: buildReturnUrl(returnUrl, returnOrigin, reference),
       resulturl: resultUrl,
       authemail: authEmail,
       method: mobileMethod,
