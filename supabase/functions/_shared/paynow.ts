@@ -166,7 +166,7 @@ export async function initiateTransaction(args: InitiateArgs): Promise<InitiateR
 /** Poll a Paynow poll URL and return the parsed, hash-verified status payload. */
 export async function pollTransaction(pollUrl: string): Promise<Record<string, string>> {
   const { key } = getPaynowCredentials();
-  const res = await fetch(pollUrl, { method: "POST" });
+  const res = await paynowFetch(pollUrl, "");
   const parsed = parsePaynowResponse(await res.text());
 
   if (parsed.hash && !(await verifyHash(parsed, key))) {
