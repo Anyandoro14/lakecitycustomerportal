@@ -85,25 +85,28 @@ const Pay = () => {
 
     setSubmitting(true);
     try {
+      const returnOrigin = window.location.origin.replace(/\/$/, "");
       const { data, error: fnError } = await supabase.functions.invoke("paynow-init", {
         body: {
           stand_number: stand.standNumber,
           amount: check.amount,
           min_amount: Math.min(minInstalment || check.amount, balance),
           max_amount: balance,
-          return_origin: window.location.origin,
+          return_origin: returnOrigin,
+          return_url: `${returnOrigin}/pay/return`,
           method: method === "hosted" ? undefined : method,
           phone: method === "hosted" ? undefined : phone,
         },
       });
-      if (fnError || data?.error) {
+      if (fnError || data?.success === false || data?.error) {
         throw new Error(data?.error || fnError?.message || "Paynow could not start this payment");
       }
-      if (data.browserurl) {
-        window.location.href = data.browserurl;
+      const checkoutUrl = data.redirect_url || data.browserurl;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
         return;
       }
-      if (data.express && data.reference) {
+      if (data.reference && (data.express || data.instructions || data.method === "ecocash" || data.method === "onemoney")) {
         navigate(`/pay/return?reference=${encodeURIComponent(data.reference)}&express=1`);
         return;
       }

@@ -41,7 +41,9 @@ const PayReturn = () => {
       const { data, error } = await supabase.functions.invoke("paynow-status", {
         body: { reference },
       });
-      if (error) throw error;
+      if (error || data?.success === false) {
+        throw new Error(data?.error || error?.message || "Could not check payment status");
+      }
       setPayload(data);
     } catch (e) {
       setPayload({ error: e instanceof Error ? e.message : "Could not check payment status" });
