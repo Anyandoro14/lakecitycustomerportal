@@ -73,27 +73,73 @@ export function parsePaynowResponse(text: string): Record<string, string> {
  * Paynow has blocked some shared egress IPs. If PAYNOW_PROXY_URL is set, the
  * request is relayed through it; otherwise Paynow is called directly.
  */
+export class PaynowUnreachableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaynowUnreachableError";
+  }
+}
+
+const PAYNOW_HEADERS = {
+  "Content-Type": "application/x-www-form-urlencoded",
+  "Accept": "*/*",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "Connection": "close",
+} as const;
+
+function altHost(url: string): string | null {
+  if (url.includes("://www.paynow.co.zw")) return url.replace("://www.paynow.co.zw", "://paynow.co.zw");
+  if (url.includes("://paynow.co.zw")) return url.replace("://paynow.co.zw", "://www.paynow.co.zw");
+  return null;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Paynow resets connections from some shared egress IPs. If PAYNOW_PROXY_URL is
+ * set, the request is relayed through it; otherwise Paynow is called directly
+ * with retries across both hostnames.
+ */
 export async function paynowFetch(targetUrl: string, body: string): Promise<Response> {
   const proxy = Deno.env.get("PAYNOW_PROXY_URL");
   if (proxy) {
     try {
       return await fetch(proxy, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Paynow-Target": targetUrl,
-        },
+        headers: { ...PAYNOW_HEADERS, "X-Paynow-Target": targetUrl },
         body,
       });
     } catch (e) {
       console.error("Paynow proxy failed, falling back to direct call:", e);
     }
   }
-  return await fetch(targetUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+
+  const urls = [targetUrl, altHost(targetUrl)].filter(Boolean) as string[];
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: PAYNOW_HEADERS,
+          body,
+          redirect: "follow",
+          signal: AbortSignal.timeout(20000),
+        });
+        return res;
+      } catch (e) {
+        lastError = e;
+        console.error(`Paynow request failed (attempt ${attempt + 1}, ${url}):`, e);
+      }
+    }
+    await sleep(400 * (attempt + 1));
+  }
+
+  throw new PaynowUnreachableError(
+    `Could not reach Paynow: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 }
 
 export function encodeForm(values: Record<string, string>): string {
