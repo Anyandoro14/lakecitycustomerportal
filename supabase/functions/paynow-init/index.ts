@@ -100,7 +100,8 @@ serve(async (req) => {
         ? (method as "ecocash" | "onemoney" | "innbucks")
         : undefined;
 
-    if (method && !mobileMethod) {
+    const wantsMobile = !!method && ["ecocash", "onemoney", "innbucks"].includes(method);
+    if (wantsMobile && !mobileMethod) {
       return json({ success: false, error: "A valid mobile number is required for mobile money" });
     }
 
