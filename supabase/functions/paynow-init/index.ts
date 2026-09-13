@@ -167,6 +167,15 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("paynow-init error:", e);
-    return json({ success: false, error: e instanceof Error ? e.message : "Unexpected error" });
+    const msg = e instanceof Error ? e.message : "Unexpected error";
+    const unreachable =
+      (e as Error)?.name === "PaynowUnreachableError" ||
+      /connection reset|error sending request|timed out|Connect/i.test(msg);
+    return json({
+      success: false,
+      error: unreachable
+        ? "We couldn't reach the payment service just now. Please try again in a few minutes."
+        : msg,
+    });
   }
 });
