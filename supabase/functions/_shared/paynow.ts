@@ -103,13 +103,21 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function paynowFetch(targetUrl: string, body: string): Promise<Response> {
   const proxy = Deno.env.get("PAYNOW_PROXY_URL");
+  const proxySecret = Deno.env.get("PAYNOW_PROXY_SECRET");
   if (proxy) {
     try {
-      return await fetch(proxy, {
+      const res = await fetch(proxy, {
         method: "POST",
-        headers: { ...PAYNOW_HEADERS, "X-Paynow-Target": targetUrl },
+        headers: {
+          ...PAYNOW_HEADERS,
+          "X-Paynow-Target": targetUrl,
+          ...(proxySecret ? { "X-Relay-Secret": proxySecret } : {}),
+        },
         body,
+        signal: AbortSignal.timeout(20000),
       });
+      if (res.ok) return res;
+      console.error("Paynow proxy returned", res.status, await res.clone().text());
     } catch (e) {
       console.error("Paynow proxy failed, falling back to direct call:", e);
     }
