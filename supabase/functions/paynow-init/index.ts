@@ -105,7 +105,8 @@ serve(async (req) => {
 
     const reference = `LC-${standNumber}-${Date.now()}`;
     const customerEmail = profile?.email || user.email || "";
-    const authEmail = customerEmail;
+    const testAuthEmail = Deno.env.get("PAYNOW_TEST_AUTHEMAIL")?.trim();
+    const authEmail = testAuthEmail || customerEmail;
     const resultUrl = `${supabaseUrl}/functions/v1/paynow-webhook`;
 
     const mobileMethod =
