@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, CreditCard, Smartphone, ShieldCheck } from "lucide-react";
+import { Loader2, CreditCard, ShieldCheck } from "lucide-react";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
+import ecocashLogo from "@/assets/ecocash-checkout.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
@@ -148,7 +149,7 @@ const Pay = () => {
         return;
       }
 
-      if (result.instructions || method === "ecocash" || method === "onemoney") {
+      if (result.instructions || method === "ecocash") {
         navigate(`/pay/return?reference=${encodeURIComponent(result.reference || "")}&express=1`);
         return;
       }
@@ -235,20 +236,37 @@ const Pay = () => {
         <Card className="p-4 shadow-sm space-y-3">
           <Label>Payment method</Label>
           <RadioGroup value={method} onValueChange={(v) => setMethod(v as PayMethod)} className="space-y-2">
-            <label className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer">
+            <label
+              className={`flex min-h-16 items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                method === "paynow" ? "border-primary bg-accent/30" : "border-border bg-card"
+              }`}
+            >
               <RadioGroupItem value="paynow" id="m-paynow" />
-              <CreditCard className="h-4 w-4 text-primary" />
-              <span className="text-sm">Paynow checkout (card, EcoCash, bank)</span>
+              <div className="flex h-9 w-20 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+                <CreditCard className="h-5 w-5 text-primary" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">Paynow checkout</span>
+                <span className="block text-xs text-muted-foreground">Card, bank and other methods</span>
+              </div>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer">
+            <label
+              className={`flex min-h-16 items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                method === "ecocash" ? "border-primary bg-accent/30" : "border-border bg-card"
+              }`}
+            >
               <RadioGroupItem value="ecocash" id="m-ecocash" />
-              <Smartphone className="h-4 w-4 text-primary" />
-              <span className="text-sm">EcoCash — approve with your PIN</span>
-            </label>
-            <label className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer">
-              <RadioGroupItem value="onemoney" id="m-onemoney" />
-              <Smartphone className="h-4 w-4 text-primary" />
-              <span className="text-sm">OneMoney — approve with your PIN</span>
+              <div className="flex h-9 w-20 shrink-0 items-center justify-center rounded-md border border-border bg-card px-2">
+                <img
+                  src={ecocashLogo.url}
+                  alt="EcoCash"
+                  className="h-auto w-full object-contain"
+                />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">EcoCash</span>
+                <span className="block text-xs text-muted-foreground">Approve securely with your PIN</span>
+              </div>
             </label>
           </RadioGroup>
 

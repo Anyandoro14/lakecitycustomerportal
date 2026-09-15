@@ -8,7 +8,7 @@
  * BillPay vendor statuses: Authorized, BeingProcessed, Paid, Failed, Reversed, Flagged.
  * Classic web-checkout statuses (Cancelled, Awaiting Delivery, Delivered, Sent,
  * Refunded, Disputed, Created, Pending) are mapped into the same journey so the
- * existing checkout and EcoCash / OneMoney flows keep working.
+ * existing checkout and EcoCash flows keep working.
  */
 
 export type PaymentJourneyState =
