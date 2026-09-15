@@ -12,11 +12,12 @@ const PaymentStatusBadge = ({ status, className }: PaymentStatusBadgeProps) => {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wider",
         toneClasses[info.tone],
         className,
       )}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {info.label}
     </span>
   );
