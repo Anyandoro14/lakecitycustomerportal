@@ -133,7 +133,18 @@ const Pay = () => {
 
       const redirect = result.redirect_url || result.browserurl;
       if (redirect) {
-        window.location.href = redirect;
+        // Paynow blocks being embedded in a frame, so always leave the frame:
+        // send the top-level window when we can, otherwise open a new tab.
+        const inFrame = window.self !== window.top;
+        if (inFrame) {
+          try {
+            window.top!.location.href = redirect;
+          } catch {
+            window.open(redirect, "_blank", "noopener,noreferrer");
+          }
+        } else {
+          window.location.href = redirect;
+        }
         return;
       }
 
