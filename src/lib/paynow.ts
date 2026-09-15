@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type PayMethod = "paynow" | "ecocash" | "onemoney";
+export type PayMethod = "paynow" | "ecocash";
 
 export interface InitPaymentArgs {
   amount: number;
