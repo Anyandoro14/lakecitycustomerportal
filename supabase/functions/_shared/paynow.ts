@@ -113,7 +113,9 @@ export async function paynowFetch(targetUrl: string, body = ""): Promise<Respons
       const res = await fetch(proxy, {
         method: "POST",
         headers: {
-          ...PAYNOW_HEADERS,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "*/*",
+          "User-Agent": "lakecity-paynow-relay/1.0",
           "X-Paynow-Target": targetUrl,
           ...(proxySecret ? { "X-Relay-Secret": proxySecret } : {}),
         },
@@ -123,9 +125,15 @@ export async function paynowFetch(targetUrl: string, body = ""): Promise<Respons
       if (res.ok) return res;
       const preview = (await res.clone().text()).slice(0, 200);
       console.error("Paynow proxy returned", res.status, preview);
-      if (res.status === 401 || res.status === 403) {
+      const challenged = /just a moment|cf-mitigated|challenge-platform/i.test(preview);
+      if ((res.status === 401 || res.status === 403) && !challenged) {
         throw new PaynowUnreachableError(
           "Payment relay rejected the request. Check PAYNOW_PROXY_SECRET.",
+        );
+      }
+      if (challenged) {
+        throw new PaynowUnreachableError(
+          "Payment relay is being challenged. Claim the Cloudflare Worker and disable Bot Fight Mode.",
         );
       }
     } catch (e) {
