@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle2, Clock, Loader2, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Loader2, Lock, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
 import CustomerHeader from "@/components/CustomerHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { checkPaymentStatus, formatUsd, type PaymentStatusResult } from "@/lib/paynow";
