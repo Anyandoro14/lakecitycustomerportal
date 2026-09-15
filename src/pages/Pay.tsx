@@ -242,8 +242,9 @@ const Pay = () => {
               }`}
             >
               <RadioGroupItem value="paynow" id="m-paynow" />
-              <div className="flex h-9 w-20 shrink-0 items-center justify-center rounded-md border border-border bg-background">
-                <CreditCard className="h-5 w-5 text-primary" aria-hidden="true" />
+              <div className="flex h-9 w-20 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-2">
+                <VisaMark className="h-3.5 w-auto" />
+                <MastercardMark className="h-5 w-auto" />
               </div>
               <div className="min-w-0">
                 <span className="block text-sm font-medium text-foreground">Paynow checkout</span>
