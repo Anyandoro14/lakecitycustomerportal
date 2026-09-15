@@ -27,7 +27,9 @@
     "odoo:accounting-cutover:dry-run": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run",
     "odoo:accounting-cutover:sweep": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force --sweep-only",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
-    "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
+    "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed",
+    "test:paynow-relay": "node --test scripts/paynow-relay-worker.test.mjs",
+    "paynow-relay:local": "node scripts/paynow-relay-local.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

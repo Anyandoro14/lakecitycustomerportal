@@ -1,0 +1,31 @@
+# Deploy the Paynow IP-relay Worker when Cloudflare secrets are present.
+# Secrets (repo or environment):
+#   CLOUDFLARE_API_TOKEN   — Workers Edit permission
+#   CLOUDFLARE_ACCOUNT_ID
+# After the first deploy, set the Worker secret RELAY_SECRET once:
+#   npx wrangler secret put RELAY_SECRET
+# Then store the same value as PAYNOW_PROXY_SECRET on Lovable Cloud / Supabase
+# together with PAYNOW_PROXY_URL = https://lakecity-paynow-relay.<account>.workers.dev
+
+name: Deploy Paynow relay
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "docs/paynow-relay-worker.js"
+      - "wrangler.toml"
+      - ".github/workflows/deploy-paynow-relay.yml"
+
+jobs:
+  deploy:
+    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
