@@ -16,24 +16,83 @@ import PaymentStatusBadge from "@/components/PaymentStatusBadge";
 
 const MAX_POLLS = 12;
 
-const StateIcon = ({ state }: { state: PaymentJourneyState }) => {
-  const base = "h-10 w-10 mx-auto";
+const ACCENT: Record<string, { bar: string; ring: string; arc: string; icon: string }> = {
+  success: {
+    bar: "bg-primary",
+    ring: "border-primary/15",
+    arc: "border-primary border-t-transparent",
+    icon: "text-primary",
+  },
+  pending: {
+    bar: "bg-amber-400",
+    ring: "border-amber-500/15",
+    arc: "border-amber-500 border-t-transparent",
+    icon: "text-amber-600",
+  },
+  danger: {
+    bar: "bg-destructive",
+    ring: "border-destructive/15",
+    arc: "border-destructive border-t-transparent",
+    icon: "text-destructive",
+  },
+  neutral: {
+    bar: "bg-muted-foreground/40",
+    ring: "border-border",
+    arc: "border-muted-foreground/40 border-t-transparent",
+    icon: "text-muted-foreground",
+  },
+};
+
+const stateIcon = (state: PaymentJourneyState) => {
   switch (state) {
     case "paid":
-      return <CheckCircle2 className={`${base} text-primary`} />;
+      return CheckCircle2;
     case "failed":
     case "cancelled":
-      return <XCircle className={`${base} text-destructive`} />;
+      return XCircle;
     case "reversed":
-      return <RotateCcw className={`${base} text-muted-foreground`} />;
+      return RotateCcw;
     case "flagged":
-      return <ShieldAlert className={`${base} text-amber-600`} />;
+      return ShieldAlert;
     case "authorized":
-      return <Clock className={`${base} text-amber-600`} />;
+      return Clock;
     default:
-      return <Loader2 className={`${base} animate-spin text-primary`} />;
+      return Clock;
   }
 };
+
+const DetailRow = ({
+  label,
+  value,
+  mono,
+  stacked,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  stacked?: boolean;
+  emphasis?: boolean;
+}) =>
+  stacked ? (
+    <div className="flex flex-col py-3 border-b border-border/50 last:border-0">
+      <span className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">{label}</span>
+      <span className="font-mono text-[11px] font-medium text-foreground break-all">{value}</span>
+    </div>
+  ) : (
+    <div className="flex items-center justify-between gap-3 py-3 border-b border-border/50 last:border-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span
+        className={
+          emphasis
+            ? "text-lg font-semibold text-primary"
+            : `text-right text-foreground font-medium ${mono ? "font-mono text-xs" : "text-sm"}`
+        }
+      >
+        {value}
+      </span>
+    </div>
+  );
 
 const PayReturn = () => {
   const navigate = useNavigate();
