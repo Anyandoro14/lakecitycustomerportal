@@ -147,7 +147,7 @@ serve(async (req) => {
     const result = await initiateTransaction({
       reference,
       amount,
-      additionalinfo: `Lake City payment for stand ${standNumber}`,
+      additionalinfo: `LakeCity payment for stand ${standNumber}`,
       returnurl: buildReturnUrl(returnUrl, returnOrigin, reference),
       resulturl: resultUrl,
       authemail: authEmail,
