@@ -270,7 +270,7 @@ const PayReturn = () => {
             </div>
 
             <div className="mt-8 flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-              <ShieldAlert className="h-3 w-3" />
+              <Lock className="h-3 w-3" />
               Secure payment • LakeCity
             </div>
           </div>
