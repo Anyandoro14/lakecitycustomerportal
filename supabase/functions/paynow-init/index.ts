@@ -80,16 +80,28 @@ serve(async (req) => {
       return json({ success: false, error: "No property reference is linked to this account" });
     }
 
-    const { data: tenant } = await supabase
+    // The payment_gateway column may not exist in every environment — fall back
+    // to a plain id lookup so payments are never blocked by schema drift.
+    let tenant: { id: string; payment_gateway?: string | null } | null = null;
+    const full = await supabase
       .from("tenants")
       .select("id, payment_gateway")
       .eq("slug", "lakecity")
       .maybeSingle();
 
+    if (full.error) {
+      console.warn("Tenant lookup with payment_gateway failed:", full.error.message);
+      const basic = await supabase.from("tenants").select("id").eq("slug", "lakecity").maybeSingle();
+      tenant = basic.data ?? null;
+    } else {
+      tenant = full.data ?? null;
+    }
+
     if (!tenant) return json({ success: false, error: "Payments are not configured yet" });
     if (tenant.payment_gateway && tenant.payment_gateway !== "paynow") {
       return json({ success: false, error: "Paynow is not the active payment method" });
     }
+
 
     const reference = `LC-${standNumber}-${Date.now()}`;
     const customerEmail = profile?.email || user.email || "";
