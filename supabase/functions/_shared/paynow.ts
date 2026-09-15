@@ -98,13 +98,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Paynow resets connections from some shared egress IPs. If PAYNOW_PROXY_URL is
- * set, the request is relayed through it; otherwise Paynow is called directly
- * with retries across both hostnames.
+ * set, the request is relayed through it (POST to the Worker, which then
+ * GET/POSTs Paynow). Otherwise Paynow is called directly with retries.
+ * Empty `body` is sent as GET — Paynow poll URLs expect that.
  */
-export async function paynowFetch(targetUrl: string, body: string): Promise<Response> {
-  const proxy = Deno.env.get("PAYNOW_PROXY_URL");
+export async function paynowFetch(targetUrl: string, body = ""): Promise<Response> {
+  const proxy = (Deno.env.get("PAYNOW_PROXY_URL") || "").replace(/\/+$/, "");
   const proxySecret = Deno.env.get("PAYNOW_PROXY_SECRET");
   if (proxy) {
+    if (!proxySecret) {
+      console.error("PAYNOW_PROXY_URL is set but PAYNOW_PROXY_SECRET is missing");
+    }
     try {
       const res = await fetch(proxy, {
         method: "POST",
@@ -117,12 +121,20 @@ export async function paynowFetch(targetUrl: string, body: string): Promise<Resp
         signal: AbortSignal.timeout(20000),
       });
       if (res.ok) return res;
-      console.error("Paynow proxy returned", res.status, await res.clone().text());
+      const preview = (await res.clone().text()).slice(0, 200);
+      console.error("Paynow proxy returned", res.status, preview);
+      if (res.status === 401 || res.status === 403) {
+        throw new PaynowUnreachableError(
+          "Payment relay rejected the request. Check PAYNOW_PROXY_SECRET.",
+        );
+      }
     } catch (e) {
+      if (e instanceof PaynowUnreachableError) throw e;
       console.error("Paynow proxy failed, falling back to direct call:", e);
     }
   }
 
+  const method = body ? "POST" : "GET";
   const urls = [targetUrl, altHost(targetUrl)].filter(Boolean) as string[];
   let lastError: unknown = null;
 
@@ -130,9 +142,9 @@ export async function paynowFetch(targetUrl: string, body: string): Promise<Resp
     for (const url of urls) {
       try {
         const res = await fetch(url, {
-          method: "POST",
+          method,
           headers: PAYNOW_HEADERS,
-          body,
+          ...(body ? { body } : {}),
           redirect: "follow",
           signal: AbortSignal.timeout(20000),
         });

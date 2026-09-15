@@ -74,7 +74,7 @@ SELECT id, slug FROM public.tenants WHERE slug IN ('lakecity', 'richcraft');
 
 Store the secret values in **Supabase Vault** (or your host’s secret store) so `vault_read_secret` works. If Lovable only exposes flat env vars, map those to Vault or adjust ops to match your host’s pattern.
 
-**Other Edge Function env vars** (examples—see each function): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_CLIENT_EMAIL`, `SPREADSHEET_ID` (fallback), `RESEND_API_KEY`, Twilio vars, etc.
+**Other Edge Function env vars** (examples—see each function): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_CLIENT_EMAIL`, `SPREADSHEET_ID` (fallback), `RESEND_API_KEY`, Twilio vars, `PAYNOW_INTEGRATION_ID`, `PAYNOW_INTEGRATION_KEY`, and (when Paynow blocks Supabase egress) `PAYNOW_PROXY_URL` + `PAYNOW_PROXY_SECRET` — see `docs/PAYNOW_RELAY.md`.
 
 Odoo JSON-RPC client settings (if used by your deployment) should match whatever `_shared/odoo-client.ts` and `odoo-sync-payment` expect—often stored per tenant or in env; align with your Odoo host.
 

@@ -1,0 +1,6 @@
+name = "lakecity-paynow-relay"
+main = "docs/paynow-relay-worker.js"
+compatibility_date = "2026-09-15"
+
+# RELAY_SECRET must be a Worker secret (`wrangler secret put RELAY_SECRET`),
+# never a plaintext [vars] value.
