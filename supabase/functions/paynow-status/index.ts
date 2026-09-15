@@ -57,9 +57,15 @@ serve(async (req) => {
       success: true,
       reference,
       paid: outcome.paid,
+      // Raw Paynow status string: Authorized | BeingProcessed | Paid | Failed |
+      // Reversed | Flagged, plus classic checkout statuses.
       status: outcome.status,
-      amount: txn.amount_usd,
+      terminal: outcome.terminal,
+      amount: outcome.amount ?? txn.amount_usd,
       stand_number: txn.stand_number,
+      narration: outcome.narration ?? null,
+      billpay_reference: outcome.billpay_reference ?? null,
+      paynow_reference: outcome.paynow_reference ?? null,
       receipt_id: outcome.receipt_id ?? null,
     });
   } catch (e) {
