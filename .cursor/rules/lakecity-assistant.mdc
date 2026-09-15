@@ -1,0 +1,10 @@
+---
+description: Follow the LakeCity Cursor assistant prompt from Lovable
+alwaysApply: true
+---
+
+You are assisting on the LakeCity Customer Portal. Before making product changes, read and follow `CURSOR_ASSISTANT_PROMPT.md` at the repository root.
+
+Treat that file as the project system prompt: brand and domain, Vite/React/Supabase stack, Collection Schedule as financial source of truth, RLS and auth rules, Paynow/auth/admin state, and what not to touch.
+
+Prefer small, targeted edits. Do not add Odoo dependencies unless explicitly asked. Do not expose Supabase project IDs, service-role keys, or dashboard links.
