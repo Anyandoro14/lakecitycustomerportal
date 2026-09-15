@@ -21,9 +21,13 @@ serve(async (req) => {
     const payload = parsePaynowResponse(raw);
 
     const { key } = getPaynowCredentials();
-    if (!(await verifyHash(payload, key))) {
-      console.error("Paynow webhook: hash verification failed");
-      return new Response("Invalid hash", { status: 401, headers: corsHeaders });
+    const hashValid = await verifyHash(payload, key);
+    if (!hashValid) {
+      // Paynow's callback hashing occasionally differs from the documented
+      // field order/encoding. Rather than dropping the payment, we ignore the
+      // untrusted payload and re-confirm the status directly with Paynow using
+      // the poll URL we stored when the payment was started.
+      console.warn("Paynow webhook: hash verification failed — verifying via stored poll URL instead");
     }
 
     const reference = payload.reference || "";
@@ -31,11 +35,14 @@ serve(async (req) => {
       return new Response("Missing reference", { status: 400, headers: corsHeaders });
     }
 
-    const outcome = await settlePaynowTransaction(supabase, reference, {
-      pollUrl: payload.pollurl,
-      paynowStatus: payload.status,
-      payload,
-    });
+    const outcome = await settlePaynowTransaction(
+      supabase,
+      reference,
+      hashValid
+        ? { pollUrl: payload.pollurl, paynowStatus: payload.status, payload }
+        : {},
+    );
+
 
     console.log(`Paynow webhook ${reference}: status=${outcome.status} paid=${outcome.paid}`);
     return new Response("ok", { headers: corsHeaders });
