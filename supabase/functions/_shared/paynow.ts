@@ -5,10 +5,30 @@ export const PAYNOW_INITIATE_URL = "https://www.paynow.co.zw/interface/initiatet
 export const PAYNOW_REMOTE_URL = "https://www.paynow.co.zw/interface/remotetransaction";
 
 /** Paynow statuses that mean the money is ours. */
-export const PAID_STATUSES = ["paid", "awaiting delivery", "delivered"];
+export const PAID_STATUSES = ["paid", "awaiting delivery", "delivered", "completed"];
 
 export function isPaidStatus(status: string | undefined | null): boolean {
   return PAID_STATUSES.includes((status || "").trim().toLowerCase());
+}
+
+/**
+ * Statuses where no further change is expected.
+ * Docs: https://developers.paynow.co.zw/docs/billpay/vendor/payment-status/
+ */
+export const TERMINAL_FAILED_STATUSES = [
+  "failed",
+  "cancelled",
+  "canceled",
+  "reversed",
+  "refunded",
+];
+
+export function isFailedStatus(status: string | undefined | null): boolean {
+  return TERMINAL_FAILED_STATUSES.includes((status || "").trim().toLowerCase());
+}
+
+export function isTerminalStatus(status: string | undefined | null): boolean {
+  return isPaidStatus(status) || isFailedStatus(status);
 }
 
 export function getPaynowCredentials(): { id: string; key: string } {
