@@ -1,13 +1,19 @@
 // Settlement logic shared by paynow-webhook and paynow-status.
-import { isPaidStatus, pollTransaction } from "./paynow.ts";
+import { isFailedStatus, isPaidStatus, isTerminalStatus, pollTransaction } from "./paynow.ts";
 
 // deno-lint-ignore no-explicit-any
 type Supabase = any;
 
 export interface SettleOutcome {
+  /** Raw Paynow status string, e.g. "Paid", "BeingProcessed", "Flagged". */
   status: string;
   paid: boolean;
   settled: boolean;
+  terminal: boolean;
+  narration?: string | null;
+  billpay_reference?: string | null;
+  paynow_reference?: string | null;
+  amount?: number | null;
   receipt_id?: string | null;
 }
 
@@ -46,26 +52,42 @@ export async function settlePaynowTransaction(
   }
 
   const paid = isPaidStatus(paynowStatus);
-  const normalized = (paynowStatus || "unknown").toLowerCase();
+  const narration = polled?.narration || polled?.reason || null;
+  const billpayReference = polled?.billpayreference || polled?.billpay_reference || null;
+  const paynowReference = polled?.paynowreference || polled?.paynow_reference || null;
+  const polledAmount = polled?.amount ? Number(polled.amount) : null;
 
   const newMetadata = {
     ...metadata,
     ...(opts.payload ? { last_callback: opts.payload } : {}),
     ...(polled ? { last_poll: polled } : {}),
     paynow_status: paynowStatus,
+    ...(narration ? { narration } : {}),
+    ...(billpayReference ? { billpay_reference: billpayReference } : {}),
+    ...(paynowReference ? { paynow_reference: paynowReference } : {}),
   };
 
   if (!paid) {
-    const failed = ["cancelled", "failed", "disputed", "refunded"].includes(normalized);
+    const failed = isFailedStatus(paynowStatus);
     await supabase
       .from("payment_transactions")
       .update({
-        status: failed ? "failed" : "pending",
-        error_message: failed ? `Paynow status: ${paynowStatus}` : null,
+        // Persist the raw Paynow status so every surface can render the same label.
+        status: paynowStatus || "pending",
+        error_message: failed ? narration || `Paynow status: ${paynowStatus}` : null,
         metadata: newMetadata,
       })
       .eq("id", txn.id);
-    return { status: paynowStatus || "pending", paid: false, settled: false };
+    return {
+      status: paynowStatus || "pending",
+      paid: false,
+      settled: false,
+      terminal: isTerminalStatus(paynowStatus),
+      narration,
+      billpay_reference: billpayReference,
+      paynow_reference: paynowReference,
+      amount: polledAmount ?? txn.amount_usd ?? null,
+    };
   }
 
   // Idempotency: never double-post a receipt for the same reference.
@@ -102,7 +124,7 @@ export async function settlePaynowTransaction(
   await supabase
     .from("payment_transactions")
     .update({
-      status: "completed",
+      status: paynowStatus || "Paid",
       settlement_status: "settled",
       completed_at: new Date().toISOString(),
       error_message: null,
@@ -110,5 +132,15 @@ export async function settlePaynowTransaction(
     })
     .eq("id", txn.id);
 
-  return { status: paynowStatus, paid: true, settled: true, receipt_id: receiptId };
+  return {
+    status: paynowStatus,
+    paid: true,
+    settled: true,
+    terminal: true,
+    narration,
+    billpay_reference: billpayReference,
+    paynow_reference: paynowReference,
+    amount: polledAmount ?? txn.amount_usd ?? null,
+    receipt_id: receiptId,
+  };
 }

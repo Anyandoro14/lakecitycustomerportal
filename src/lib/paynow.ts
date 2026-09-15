@@ -57,17 +57,24 @@ export async function initPayment(args: InitPaymentArgs): Promise<InitPaymentRes
   return (data || { success: false, error: "No response from the payment service" }) as InitPaymentResult;
 }
 
-export async function checkPaymentStatus(reference: string) {
+export interface PaymentStatusResult {
+  success: boolean;
+  error?: string;
+  /** Raw Paynow status string, e.g. "Paid", "BeingProcessed", "Flagged" */
+  status?: string;
+  paid?: boolean;
+  amount?: number;
+  stand_number?: string;
+  narration?: string | null;
+  billpay_reference?: string | null;
+  paynow_reference?: string | null;
+  reference?: string;
+}
+
+export async function checkPaymentStatus(reference: string): Promise<PaymentStatusResult> {
   const { data, error } = await supabase.functions.invoke("paynow-status", {
     body: { reference },
   });
-  if (error) return { success: false, error: error.message } as any;
-  return data as {
-    success: boolean;
-    error?: string;
-    paid?: boolean;
-    status?: string;
-    amount?: number;
-    stand_number?: string;
-  };
+  if (error) return { success: false, error: error.message };
+  return (data || { success: false, error: "No response from the payment service" }) as PaymentStatusResult;
 }
