@@ -51,6 +51,8 @@
                             <field name="entered_by"/>
                             <field name="contract_id" readonly="1"/>
                             <field name="loan_payment_id" readonly="1"/>
+                            <field name="contract_warning" readonly="1"
+                                     invisible="not contract_warning"/>
                         </group>
                     </group>
                     <group string="QC">

@@ -145,9 +145,16 @@ Set Odoo system parameter:
 
 - `lakecity_loan.api_token=<strong secret>`
 
+Optional receipt-intake ops alerts (Make-free path; **19.0.1.0.69+**):
+
+- `lakecity_loan.notify_emails` — comma-separated
+- `lakecity_loan.notify_sms_to` — E.164, comma-separated
+- `lakecity_loan.twilio_account_sid` / `lakecity_loan.twilio_auth_token` / `lakecity_loan.twilio_from`
+
 Endpoints (Bearer token required):
 
 - `GET /lakecity/api/v1/health`
+- `POST /lakecity/api/v1/receipt/intake` — Google Form / Apps Script receipt capture → `lakecity.receipt.intake` (`pending_qc`); idempotent `uuid`; see `docs/receipt-intake-google-form-odoo.md`
 - `POST /lakecity/api/v1/loan/upsert` — optional JSON key **`create_crm_lead_first`**: when **true**, creates (or reuses) a **`crm.lead`** **before** `res.partner` and `lakecity.loan.contract`, then links **`partner_id`**. Response includes **`crm_lead_id`**, **`partner_id`**, and **`stand_number`** when the CRM row exists (**19.0.1.0.6+**). Requires **`crm`** (installed automatically as a dependency **19.0.1.0.4+**).
 - `POST /lakecity/api/v1/stand/product-sync` — upsert one **`product.template`** / variant per **`stand_number`** (`lakecity_stand_number`); **sale_ok** and on-hand **qty** follow portal rules (qty **1** when marketable, **0** when sold/reserved). Body may include **`archive: true`** when removing a stand from the portal.
 - `POST /lakecity/api/v1/stand/product-sync-batch` — same for an **`items`** array (max **500** rows). Used by Supabase function **`sync-stand-odoo-product`**.
