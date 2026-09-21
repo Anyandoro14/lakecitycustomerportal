@@ -24,6 +24,24 @@ LAKECITY_STAND_ACCOUNT_CODES = {
     "aos_payable": "213010",
     "conveyancing_payable": "213020",
     "bank_usd_main": "101410",
+    # Pre-cutoff opening cash: Dr equity (not CABS) so live bank is not inflated.
+    "retained_earnings": "303000",
+    "opening_balance_equity": "305000",
+}
+
+# BNPL payment.source → preferred company journal field (falls back to collections / CABS).
+LAKECITY_SOURCE_JOURNAL_FIELD = {
+    "cash": "lakecity_bnpl_cash_journal_id",
+    "ecocash": "lakecity_bnpl_ecocash_journal_id",
+    "mobile_money": "lakecity_bnpl_ecocash_journal_id",
+    "kuva": "lakecity_bnpl_kuva_journal_id",
+    "bank_transfer": "lakecity_bnpl_collections_journal_id",
+    "card": "lakecity_bnpl_collections_journal_id",
+    "paystack": "lakecity_bnpl_collections_journal_id",
+    "paypal": "lakecity_bnpl_collections_journal_id",
+    "flutterwave": "lakecity_bnpl_collections_journal_id",
+    "odoo": "lakecity_bnpl_collections_journal_id",
+    "manual": "lakecity_bnpl_collections_journal_id",
 }
 
 # Books start on this date. Individual receipts dated earlier are not posted to the
@@ -186,10 +204,11 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.ensure_one()
         return self.company_id._lakecity_stand_sales_journal()
 
-    def _lakecity_collections_bank_account(self):
+    def _lakecity_collections_bank_account(self, source=None):
+        """Liquidity account for live (post-cutoff) receipts. Defaults to CABS USD Main."""
         self.ensure_one()
         company = self.company_id
-        journal = company.lakecity_bnpl_collections_journal_id
+        journal = self._lakecity_collections_journal_for_source(source)
         if journal and journal.default_account_id:
             return journal.default_account_id
         acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["bank_usd_main"])
@@ -201,6 +220,33 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             if journal and journal.default_account_id:
                 return journal.default_account_id
         return acc
+
+    def _lakecity_collections_journal_for_source(self, source=None):
+        """Resolve bank/cash journal from payment source; fall back to CABS collections journal."""
+        self.ensure_one()
+        company = self.company_id.sudo()
+        key = (source or "").strip().lower() or "manual"
+        field_name = LAKECITY_SOURCE_JOURNAL_FIELD.get(key, "lakecity_bnpl_collections_journal_id")
+        journal = getattr(company, field_name, False) if field_name else False
+        if journal:
+            return journal
+        if company.lakecity_bnpl_collections_journal_id:
+            return company.lakecity_bnpl_collections_journal_id
+        return self.env["account.journal"].sudo().search(
+            [("company_id", "=", company.id), ("type", "in", ("bank", "cash"))],
+            limit=1,
+        )
+
+    def _lakecity_opening_equity_account(self):
+        """Debit account for pre-cutoff / opening-balance lumps (not live bank)."""
+        self.ensure_one()
+        company = self.company_id.sudo()
+        if company.lakecity_opening_equity_account_id:
+            return company.lakecity_opening_equity_account_id
+        acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["retained_earnings"])
+        if acc:
+            return acc
+        return self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["opening_balance_equity"])
 
     def _lakecity_create_stand_move(self, line_specs, ref, purpose, journal=None, move_date=None):
         self.ensure_one()
@@ -482,7 +528,15 @@ class LakecityStandAccountingMixin(models.AbstractModel):
 
             if not payment.lakecity_stand_accounting_done:
                 ref = _("%(loan)s · opening balance") % {"loan": self.name}
-                self._lakecity_post_stand_payment_moves(paid, payment_date, ref, payment=payment)
+                # Memory Mutande pattern: pre-cutoff cash on cutover date → Dr Retained Earnings
+                # (not CABS), so opening bank balances stay clean.
+                self._lakecity_post_stand_payment_moves(
+                    paid,
+                    payment_date,
+                    ref,
+                    payment=payment,
+                    use_opening_equity=True,
+                )
                 payment.write({"lakecity_stand_accounting_done": True})
 
             if self.deposit_amount and not self.lakecity_deposit_accounting_done:
@@ -548,8 +602,20 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.write({"lakecity_inventory_reclass_move_id": move.id})
         return move
 
-    def _lakecity_post_stand_payment_moves(self, gross, move_date, ref, payment=None):
-        """Post receipt, revenue/VAT, and COS moves for a gross payment amount."""
+    def _lakecity_post_stand_payment_moves(
+        self,
+        gross,
+        move_date,
+        ref,
+        payment=None,
+        use_opening_equity=False,
+    ):
+        """Post receipt, revenue/VAT, and COS moves for a gross payment amount.
+
+        When ``use_opening_equity`` is True (cutover / opening-balance lump), the receipt
+        debits Retained Earnings (or configured opening equity) instead of CABS/bank so
+        live cash is not inflated by historical payments.
+        """
         self.ensure_one()
         if float_is_zero(gross, precision_rounding=self.currency_id.rounding):
             return
@@ -557,7 +623,17 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         net, vat = self._lakecity_split_gross_payment(gross)
         cos = self._lakecity_cos_for_net(net)
         ar = self._lakecity_partner_receivable_account()
-        bank = self._lakecity_collections_bank_account()
+        source = payment.source if payment else None
+        if use_opening_equity or (
+            payment and self._lakecity_is_opening_balance_uid(payment.external_uid)
+        ):
+            debit_acc = self._lakecity_opening_equity_account()
+            receipt_journal = self._lakecity_stand_journal()
+            receipt_label = _("Opening equity receipt — %s") % ref
+        else:
+            debit_acc = self._lakecity_collections_bank_account(source=source)
+            receipt_journal = self._lakecity_collections_journal_for_source(source)
+            receipt_label = _("Receipt — %s") % ref
         liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
         deferred_vat = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
         revenue = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["revenue"])
@@ -566,23 +642,21 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         inventory = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_allocated"])
         partner_id = self.partner_id.commercial_partner_id.id
 
-        collections_journal = self.company_id.lakecity_bnpl_collections_journal_id
-        bank_journal = collections_journal
-        if not bank_journal:
-            bank_journal = self.env["account.journal"].sudo().search(
-                [("company_id", "=", self.company_id.id), ("type", "in", ("bank", "cash"))],
+        if not receipt_journal:
+            receipt_journal = self.env["account.journal"].sudo().search(
+                [("company_id", "=", self.company_id.id), ("type", "in", ("bank", "cash", "general"))],
                 limit=1,
             )
 
-        if bank and ar:
+        if debit_acc and ar:
             receipt_move = self._lakecity_create_stand_move(
                 self._lakecity_build_move_lines(
-                    [(bank, gross, 0.0, False), (ar, 0.0, gross, partner_id)],
-                    _("Receipt — %s") % ref,
+                    [(debit_acc, gross, 0.0, False), (ar, 0.0, gross, partner_id)],
+                    receipt_label,
                 ),
                 ref,
                 "payment_receipt",
-                journal=bank_journal,
+                journal=receipt_journal,
                 move_date=move_date,
             )
             if payment:
@@ -886,8 +960,9 @@ class ResCompany(models.Model):
         default=lambda _self: fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE),
         help="Books start on this date (Lake City: 1 January 2026). Customer receipts dated "
         "earlier are not posted as individual journal entries. Run Accounting start cutover "
-        "to total those receipts into opening-balance JEs on this date, then delete the "
-        "pre-start receipts. The customer portal keeps the full payment history.",
+        "to total those receipts into opening-balance JEs on this date (debit Retained Earnings, "
+        "not bank), then delete the pre-start receipts. The customer portal keeps the full "
+        "payment history.",
     )
     lakecity_stand_sales_accounting_enabled = fields.Boolean(
         string="Stand sales accounting (ZIMRA walkthrough)",
@@ -912,6 +987,36 @@ class ResCompany(models.Model):
         string="Cancellation admin fee (%)",
         default=10.0,
         help="Admin fee retained on voluntary cancellation (walkthrough default 10%).",
+    )
+    lakecity_opening_equity_account_id = fields.Many2one(
+        "account.account",
+        string="Opening equity (pre-cutoff receipts)",
+        check_company=True,
+        domain="[('account_type', 'in', ('equity', 'equity_unaffected'))]",
+        help="Debit account for opening-balance / pre-2026 cash posted on the accounting "
+        "start date. Defaults to Retained Earnings (303000). Must NOT be a bank account — "
+        "live CABS balances stay clean.",
+    )
+    lakecity_bnpl_cash_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL cash journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Inbound journal for source=cash. Falls back to BNPL collections journal (CABS).",
+    )
+    lakecity_bnpl_ecocash_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL EcoCash / mobile money journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Inbound journal for source=ecocash or mobile_money. Falls back to collections.",
+    )
+    lakecity_bnpl_kuva_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL Kuva journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Inbound journal for source=kuva. Falls back to collections.",
     )
 
     def _lakecity_account_by_code(self, code):
@@ -969,6 +1074,14 @@ class ResCompany(models.Model):
                             )
                         if bank_journal:
                             company.lakecity_bnpl_collections_journal_id = bank_journal.id
+                if not company.lakecity_opening_equity_account_id:
+                    equity = company._lakecity_account_by_code(
+                        LAKECITY_STAND_ACCOUNT_CODES["retained_earnings"]
+                    ) or company._lakecity_account_by_code(
+                        LAKECITY_STAND_ACCOUNT_CODES["opening_balance_equity"]
+                    )
+                    if equity:
+                        company.lakecity_opening_equity_account_id = equity.id
                 company.write(
                     {
                         "lakecity_bnpl_future_receivable_gl_enabled": False,

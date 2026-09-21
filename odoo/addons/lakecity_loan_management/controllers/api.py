@@ -653,6 +653,80 @@ class LakecityLoanApiController(http.Controller):
 
         return self._json_response({"ok": True, "contract": self._contract_payload(contract)})
 
+    @http.route("/lakecity/api/v1/loan/reconcile-export", type="http", auth="public", methods=["GET"], csrf=False)
+    def reconcile_export(self, **kwargs):
+        """Export per-stand Odoo snapshot for daily three-way reconciliation.
+
+        Optional query: stand_number (limit to one stand).
+        Includes posted payments with receipt JE debit account codes so ops can
+        detect pre-cutoff cash incorrectly hitting bank (CABS) instead of equity.
+        """
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        stand_number = (kwargs.get("stand_number") or "").strip().upper()
+        domain = []
+        if stand_number:
+            domain = [("stand_number", "=", stand_number)]
+        contracts = Contract.search(domain, order="stand_number")
+        company = request.env.company.sudo()
+        start = company.lakecity_accounting_start_date or fields.Date.from_string("2026-01-01")
+        equity_code = ""
+        if company.lakecity_opening_equity_account_id:
+            equity_code = company.lakecity_opening_equity_account_id.code or ""
+        rows = []
+        for contract in contracts:
+            payments = []
+            for pay in contract.payment_ids.filtered(lambda p: p.state == "posted").sorted(
+                key=lambda p: (p.payment_date or fields.Date.today(), p.id)
+            ):
+                debit_codes = []
+                receipt = pay.lakecity_receipt_move_id
+                if receipt:
+                    for line in receipt.line_ids.filtered(lambda l: l.debit > 0):
+                        if line.account_id:
+                            debit_codes.append(line.account_id.code or "")
+                payments.append(
+                    {
+                        "id": pay.id,
+                        "name": pay.name,
+                        "external_uid": pay.external_uid or "",
+                        "payment_date": fields.Date.to_string(pay.payment_date) if pay.payment_date else "",
+                        "amount": pay.amount,
+                        "source": pay.source,
+                        "is_opening_balance": bool(
+                            (pay.external_uid or "").startswith("opening-balance-")
+                        ),
+                        "receipt_move_id": receipt.id if receipt else False,
+                        "receipt_debit_account_codes": debit_codes,
+                    }
+                )
+            rows.append(
+                {
+                    "stand_number": contract.stand_number or "",
+                    "partner_name": contract.partner_id.name or "",
+                    "external_uid": contract.external_uid or "",
+                    "state": contract.state,
+                    "total_price": contract.total_price,
+                    "total_with_tax": contract.total_with_tax,
+                    "total_paid": contract.total_paid,
+                    "current_balance": contract.current_balance,
+                    "payments": payments,
+                }
+            )
+        return self._json_response(
+            {
+                "ok": True,
+                "accounting_start_date": fields.Date.to_string(start),
+                "opening_equity_account_code": equity_code or "303000",
+                "default_bank_account_code": "101410",
+                "contract_count": len(rows),
+                "contracts": rows,
+            }
+        )
+
     @http.route("/lakecity/api/v1/loan/installments", type="http", auth="public", methods=["GET"], csrf=False)
     def get_installments(self, **kwargs):
         ok, response = self._validate_token()

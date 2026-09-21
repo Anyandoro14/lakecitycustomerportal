@@ -16,9 +16,10 @@
                 <p class="text-muted mb-2">
                     Totals posted BNPL receipts dated before the accounting start (default 1 Jan 2026)
                     and posts one opening-balance journal entry per stand on that date (JE1 for the
-                    contract plus a lumped receipt). Then deletes those pre-start receipts and leftover
-                    stand-sales JEs. The customer portal keeps the full payment history; only Odoo books
-                    are cut over. Take an Odoo.sh backup first.
+                    contract plus a lumped receipt debiting <b>Retained Earnings</b>, not CABS/bank).
+                    Then deletes those pre-start receipts and leftover stand-sales JEs. The customer
+                    portal keeps the full payment history; only Odoo books are cut over. Take an
+                    Odoo.sh backup first.
                 </p>
                 <footer>
                     <button name="action_preview" string="Preview totals" type="object" class="btn-secondary"/>
