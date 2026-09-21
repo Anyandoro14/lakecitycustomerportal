@@ -13,7 +13,8 @@
  * Walkthrough (dated CUTOFF_DATE for every customer that already has an Odoo contract):
  *   JE1 — Dr AR / Cr Contract Liabilities / Cr Deferred Output VAT for sheet TOTAL PRICE
  *   Then for pre-2026 receipts (sum of month columns dated before cutover):
- *     Receipt Dr Bank / Cr AR; Revenue/VAT release Dr CL + Deferred VAT / Cr Revenue + VAT Output
+ *     Receipt Dr Retained Earnings (303000) / Cr AR  (NOT CABS/bank);
+ *     Revenue/VAT release Dr CL + Deferred VAT / Cr Revenue + VAT Output
  *
  * Does NOT create missing contracts — skips stands with no existing Odoo loan.
  * Opening paid = sum of live sheet month cells before cutover (not live TOTAL PAID, which includes 2026+).

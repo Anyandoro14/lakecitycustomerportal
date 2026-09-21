@@ -11,9 +11,11 @@ Methodology: LakeCity Stand Sales JE Walkthrough — tab "02 Initial Contract"
 For Exclusive VAT: net = Column O, VAT = Column P (O + P = TOTAL PRICE).
 For Inclusive VAT: net = Column O + Column P, VAT = Column P (sheet Column O is net − VAT).
 
-Then for TOTAL PAID > 0 (Walkthrough steps 03/05):
-  Receipt      Dr Bank (101410) / Cr AR
+Then for TOTAL PAID > 0 (Walkthrough steps 03/05 — cutover pattern):
+  Receipt      Dr Retained Earnings (303000) / Cr AR   ← NOT bank (CABS)
   Revenue/VAT  Dr CL + Deferred VAT / Cr Revenue + VAT Output
+
+Live post-cutoff receipts continue to hit Bank - CABS USD Main (101410).
 
 Target AR after all entries = Column N (Accounts Receivable).
 
@@ -25,19 +27,21 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
 
 VAT_RATE = 0.155
 TODAY = date.today().isoformat()
+ACCOUNTING_START = "2026-01-01"
 
 ACCOUNTS = {
     "receivable": ("121000", "Accounts Receivable"),
     "contract_liability": ("212010", "Contract Liabilities - Customer Deposits / Instalments"),
     "deferred_vat": ("251020", "Deferred Output VAT"),
     "bank": ("101410", "Bank - CABS USD Main"),
+    "retained_earnings": ("303000", "Retained Earnings"),
     "revenue": ("401000", "Revenue - Stand Sales"),
     "vat_output": ("251010", "VAT Output - ZIMRA"),
     "inventory_allocated": ("110120", "Inventory - Active Allocated Stands"),
@@ -133,20 +137,31 @@ def add_line(lines: list[dict], stand: str, customer: str, je_ref: str, purpose:
 
 
 def parse_move_date(raw) -> str:
+    """Prefer accounting start for opening JEs; parse sheet dates day-first when needed."""
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
-        return TODAY
+        return ACCOUNTING_START
     if isinstance(raw, pd.Timestamp):
-        return raw.strftime("%Y-%m-%d")
+        return ACCOUNTING_START  # opening balances always dated on cutover
     if hasattr(raw, "strftime"):
-        return raw.strftime("%Y-%m-%d")
+        return ACCOUNTING_START
     text = str(raw).strip()
     if not text:
-        return TODAY
+        return ACCOUNTING_START
     text = text.replace("I ", "1 ").replace("l ", "1 ")
-    try:
-        return pd.to_datetime(text).strftime("%Y-%m-%d")
-    except Exception:
-        return TODAY
+    # Slash dates: prefer dd/MM/yyyy (Zimbabwe / UK)
+    import re
+
+    m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$", text)
+    if m:
+        a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        # day-first
+        try:
+            datetime(y, b, a)
+            # Still force opening JE date to accounting start
+            return ACCOUNTING_START
+        except ValueError:
+            pass
+    return ACCOUNTING_START
 
 
 def build_rows(source: Path, inventory_path: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -190,9 +205,10 @@ def build_rows(source: Path, inventory_path: Path) -> tuple[pd.DataFrame, pd.Dat
 
         if total_paid > 0:
             pay_ref = f"OB-{stand}-Receipt"
-            add_line(je_lines, stand, customer, pay_ref, "Receipt (deposit/instalments)", move_date,
-                     "bank", total_paid, 0, f"Cash receipt — opening balance stand {stand}")
-            add_line(je_lines, stand, customer, pay_ref, "Receipt (deposit/instalments)", move_date,
+            add_line(je_lines, stand, customer, pay_ref, "Receipt (opening equity)", move_date,
+                     "retained_earnings", total_paid, 0,
+                     f"Pre-cutoff cash via Retained Earnings — stand {stand} (not CABS)")
+            add_line(je_lines, stand, customer, pay_ref, "Receipt (opening equity)", move_date,
                      "receivable", 0, total_paid, f"Clear receivable — opening balance stand {stand}")
 
             pay_net, pay_vat = split_payment(total_paid, is_exclusive)
@@ -294,7 +310,8 @@ def main():
             ["121000", "Accounts Receivable — per stand (partner = customer)"],
             ["212010", "Contract Liabilities - Customer Deposits / Instalments — Column O (Exclusive) or O+P (Inclusive)"],
             ["251020", "Deferred Output VAT — Column P"],
-            ["101410", "Bank — opening receipts (TOTAL PAID)"],
+            ["101410", "Bank - CABS USD Main — live post-cutoff receipts only"],
+            ["303000", "Retained Earnings — opening / pre-cutoff cash (not bank)"],
             ["401000 / 251010", "Revenue / VAT Output — released on TOTAL PAID"],
             [""],
             ["Target AR balance after all JEs = Column N Accounts Receivable"],
