@@ -192,17 +192,61 @@ class LakecityLoanApiController(http.Controller):
             }
         )
 
+    def _is_placeholder_email(self, email):
+        """True for portal fake addresses or explicit placeholder strings (not blank)."""
+        e = (email or "").strip().lower()
+        if not e:
+            return False
+        if e.endswith("@lakecity.portal"):
+            return True
+        if "placeholder" in e:
+            return True
+        # Common portal pattern stand-{N}@… without a real mailbox
+        if e.startswith("stand-") and "@" in e and e.endswith(".portal"):
+            return True
+        return False
+
+    def _normalize_partner_email(self, email):
+        return (email or "").strip().lower()
+
+    def _should_overwrite_partner_email(self, existing_email, new_email):
+        """Overwrite blank/placeholder; never replace a different real email with blank/placeholder.
+
+        Returns (should_write, reason) where reason is one of:
+        write_blank_existing, write_placeholder_existing, write_same, skip_blank_new,
+        skip_placeholder_new, conflict_real_email.
+        """
+        existing = self._normalize_partner_email(existing_email)
+        new = self._normalize_partner_email(new_email)
+
+        if not new:
+            return False, "skip_blank_new"
+        if self._is_placeholder_email(new):
+            return False, "skip_placeholder_new"
+
+        if not existing:
+            return True, "write_blank_existing"
+        if self._is_placeholder_email(existing):
+            return True, "write_placeholder_existing"
+        if existing == new:
+            return False, "write_same"
+        return False, "conflict_real_email"
+
     def _upsert_partner(self, payload):
         Partner = request.env["res.partner"].sudo()
-        email = (payload.get("email") or "").strip().lower()
+        email = self._normalize_partner_email(payload.get("email"))
         phone = (payload.get("phone") or "").strip()
         name = (payload.get("name") or "").strip() or "Lakecity Customer"
 
         partner = False
-        if email:
+        # Prefer matching a real email; never look up by portal placeholder alone when
+        # a phone match can reclaim the stand contact that still has stand-N@lakecity.portal.
+        if email and not self._is_placeholder_email(email):
             partner = Partner.search([("email", "=", email)], limit=1)
         if not partner and phone:
             partner = Partner.search([("phone", "=", phone)], limit=1)
+        if not partner and email and self._is_placeholder_email(email):
+            partner = Partner.search([("email", "=", email)], limit=1)
         partner_vals = {"name": name, "email": email or False, "phone": phone or False}
         # Sales/Accounting: makes the contact show as a Customer (when module provides the field).
         if "customer_rank" in Partner._fields:
@@ -214,7 +258,8 @@ class LakecityLoanApiController(http.Controller):
             updates = {}
             if name and not partner.name:
                 updates["name"] = name
-            if email and not partner.email:
+            should_write, _reason = self._should_overwrite_partner_email(partner.email, email)
+            if should_write:
                 updates["email"] = email
             if phone and not partner.phone:
                 updates["phone"] = phone
@@ -223,6 +268,54 @@ class LakecityLoanApiController(http.Controller):
             if updates:
                 partner.write(updates)
         return partner
+
+    def _sync_partner_email_update(self, item, dry_run=False):
+        """Apply one stand_number → email update under overwrite rules."""
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        stand_raw = (item.get("stand_number") if isinstance(item, dict) else "") or ""
+        stand = Contract._lakecity_normalize_stand(stand_raw)
+        new_email = self._normalize_partner_email(item.get("email") if isinstance(item, dict) else "")
+
+        if not stand:
+            return {"status": "skipped", "reason": "stand_number_required", "stand_number": ""}
+        if not new_email:
+            return {"status": "skipped", "reason": "email_required", "stand_number": stand}
+
+        contract = Contract.search([("stand_number", "=", stand)], limit=1)
+        if not contract:
+            return {"status": "missing_contract", "stand_number": stand, "email": new_email}
+
+        partner = contract.partner_id
+        if not partner:
+            return {
+                "status": "skipped",
+                "reason": "no_partner",
+                "stand_number": stand,
+                "contract_id": contract.id,
+                "email": new_email,
+            }
+
+        existing = self._normalize_partner_email(partner.email)
+        should_write, reason = self._should_overwrite_partner_email(existing, new_email)
+        base = {
+            "stand_number": stand,
+            "contract_id": contract.id,
+            "partner_id": partner.id,
+            "partner_name": partner.name or "",
+            "old_email": existing or "",
+            "new_email": new_email,
+            "reason": reason,
+        }
+        if reason == "conflict_real_email":
+            return {**base, "status": "conflict"}
+        if reason == "write_same":
+            return {**base, "status": "skipped"}
+        if not should_write:
+            return {**base, "status": "skipped"}
+
+        if not dry_run:
+            partner.write({"email": new_email})
+        return {**base, "status": "updated", "dry_run": bool(dry_run)}
 
     def _ensure_lakecity_crm_lead_first(self, external_uid, stand_number, partner_payload):
         """Create or reuse a CRM lead before partner or contract when strict CRM-first is requested."""
@@ -292,6 +385,66 @@ class LakecityLoanApiController(http.Controller):
         if not ok:
             return response
         return self._json_response({"ok": True, "service": "lakecity_loan_management", "version": "v1"})
+
+    @http.route("/lakecity/api/v1/partner/email/sync", type="http", auth="public", methods=["POST"], csrf=False)
+    def partner_email_sync(self, **kwargs):
+        """Replace portal placeholder partner emails from Collection Schedule rows.
+
+        Body: {"updates": [{"stand_number": "1321", "email": "a@b.com"}, ...], "dry_run": false}
+        Overwrites when partner email is blank or *@lakecity.portal / placeholder;
+        never overwrites a different real email. Counts: updated, skipped, missing_contract, conflicts.
+        """
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        payload = self._parse_json_body()
+        updates = payload.get("updates")
+        if not isinstance(updates, list) or len(updates) == 0:
+            return self._json_response({"ok": False, "error": "updates_array_required"}, status=400)
+        if len(updates) > 1000:
+            return self._json_response({"ok": False, "error": "max_1000_updates"}, status=400)
+
+        dry_run = bool(payload.get("dry_run", False))
+        results = []
+        updated = []
+        skipped = []
+        missing_contract = []
+        conflicts = []
+
+        for raw in updates:
+            if not isinstance(raw, dict):
+                row = {"status": "skipped", "reason": "invalid_item"}
+            else:
+                row = self._sync_partner_email_update(raw, dry_run=dry_run)
+            results.append(row)
+            status = row.get("status")
+            if status == "updated":
+                updated.append(row)
+            elif status == "missing_contract":
+                missing_contract.append(row)
+            elif status == "conflict":
+                conflicts.append(row)
+            else:
+                skipped.append(row)
+
+        return self._json_response(
+            {
+                "ok": True,
+                "dry_run": dry_run,
+                "count": len(results),
+                "updated": updated,
+                "skipped": skipped,
+                "missing_contract": missing_contract,
+                "conflicts": conflicts,
+                "summary": {
+                    "updated": len(updated),
+                    "skipped": len(skipped),
+                    "missing_contract": len(missing_contract),
+                    "conflicts": len(conflicts),
+                },
+            }
+        )
 
     @http.route("/lakecity/api/v1/loan/upsert", type="http", auth="public", methods=["POST"], csrf=False)
     def upsert_loan(self, **kwargs):
