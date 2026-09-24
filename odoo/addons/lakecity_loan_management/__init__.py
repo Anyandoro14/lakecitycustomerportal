@@ -9,13 +9,16 @@ _logger = logging.getLogger(__name__)
 
 
 def post_init_hook(cr, registry):
-    """Backfill GL mirror rows for loans already active after module upgrade."""
+    """Install-only. Keep tiny — heavy COA/CSV/GL work OOMs Odoo.sh workers."""
     try:
         from odoo import SUPERUSER_ID, api
 
         env = api.Environment(cr, SUPERUSER_ID, {})
-        env["lakecity.loan.contract"].sudo().search(
-            [("state", "in", ("active", "defaulted"))]
-        )._lakecity_sync_future_receivable_gl()
+        from odoo.addons.lakecity_loan_management.models import lakecity_coa_sync
+
+        lakecity_coa_sync.sync_lakecity_chart_of_accounts(env)
+        lakecity_coa_sync.ensure_stand_sales_journal(env)
+        env["res.company"].sudo().search([])._lakecity_ensure_stand_sales_setup()
+        _logger.info("Lakecity BNPL post_init: COA/journal setup done (heavy backfills skipped)")
     except Exception:
-        _logger.exception("Lakecity BNPL: post_init_hook GL sync aborted (non-fatal)")
+        _logger.exception("Lakecity BNPL: post_init_hook aborted (non-fatal)")

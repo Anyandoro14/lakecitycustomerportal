@@ -21,6 +21,13 @@ class LakecityLoanPayment(models.Model):
         related="contract_id.partner_id", string="Customer", store=True, readonly=True
     )
     stand_number = fields.Char(related="contract_id.stand_number", store=True, readonly=True)
+    lakecity_stand_phase_id = fields.Many2one(
+        related="contract_id.lakecity_stand_phase_id",
+        string="Project phase",
+        store=True,
+        readonly=True,
+        index=True,
+    )
     payment_date = fields.Date(required=True, default=fields.Date.context_today)
     amount = fields.Monetary(required=True)
     currency_id = fields.Many2one(related="contract_id.currency_id", store=True, readonly=True)
@@ -51,6 +58,33 @@ class LakecityLoanPayment(models.Model):
     account_payment_id = fields.Many2one(
         "account.payment",
         string="Bank/cash payment",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_stand_accounting_done = fields.Boolean(
+        string="Stand sales JEs posted",
+        readonly=True,
+        copy=False,
+        default=False,
+    )
+    lakecity_receipt_move_id = fields.Many2one(
+        "account.move",
+        string="Receipt JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_revenue_move_id = fields.Many2one(
+        "account.move",
+        string="Revenue/VAT JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+    )
+    lakecity_cos_move_id = fields.Many2one(
+        "account.move",
+        string="COS JE",
         readonly=True,
         copy=False,
         check_company=True,
@@ -90,7 +124,9 @@ class LakecityLoanPayment(models.Model):
                         )
         result = super().write(vals)
         if "state" in vals or "amount" in vals or "contract_id" in vals or "payment_date" in vals:
-            self.mapped("contract_id")._rebuild_payment_allocations()
+            contracts = self.mapped("contract_id")
+            contracts._rebuild_payment_allocations()
+            contracts.write({"lakecity_last_statement_sync": False})
         if vals.get("state") == "posted":
             self._lakecity_ensure_bank_payment()
         return result
@@ -101,6 +137,12 @@ class LakecityLoanPayment(models.Model):
     def _lakecity_ensure_bank_payment(self):
         for rec in self:
             company = rec.contract_id.company_id.sudo()
+            if rec.contract_id._lakecity_is_pre_accounting_start(rec.payment_date, rec.external_uid):
+                continue
+            if company.lakecity_stand_sales_accounting_enabled:
+                if rec.state == "posted" and not rec.lakecity_stand_accounting_done:
+                    rec.contract_id._lakecity_post_payment_accounting(rec)
+                continue
             if not company.lakecity_bnpl_post_bank_payment_per_receipt:
                 continue
             if rec.state != "posted":
@@ -117,7 +159,10 @@ class LakecityLoanPayment(models.Model):
         if self.account_payment_id:
             return
         company = self.contract_id.company_id.sudo()
-        journal = company.lakecity_bnpl_collections_journal_id
+        # Route by payment source (cash / EcoCash / Kuva / bank) when journals are configured.
+        journal = self.contract_id._lakecity_collections_journal_for_source(self.source)
+        if not journal:
+            journal = company.lakecity_bnpl_collections_journal_id
         if not journal:
             journal = self.env["account.journal"].sudo().search(
                 [("company_id", "=", company.id), ("type", "=", "bank")],
@@ -136,7 +181,8 @@ class LakecityLoanPayment(models.Model):
                     company=company.display_name,
                 )
             )
-        pm_line = journal.inbound_payment_method_line_ids[:1]
+        # Prefer inbound method matching BNPL source (Transfer / Cash / EcoCash / Kuva).
+        pm_line = self._lakecity_inbound_method_line_for_source(journal, self.source)
         if not pm_line:
             raise UserError(
                 _(
@@ -187,6 +233,26 @@ class LakecityLoanPayment(models.Model):
                 }
             )
         self.with_context(lakecity_skip_bank_payment_write=True).write({"account_payment_id": payment.id})
+
+    def _lakecity_inbound_method_line_for_source(self, journal, source):
+        """Pick inbound payment method line matching BNPL source when available."""
+        self.ensure_one()
+        lines = journal.inbound_payment_method_line_ids
+        if not lines:
+            return False
+        code_map = {
+            "bank_transfer": "lakecity_transfer",
+            "cash": "lakecity_cash",
+            "ecocash": "lakecity_ecocash",
+            "mobile_money": "lakecity_ecocash",
+            "kuva": "lakecity_kuva",
+        }
+        want = code_map.get((source or "").strip().lower())
+        if want:
+            match = lines.filtered(lambda l: (l.code or "") == want or (l.payment_method_id.code or "") == want)
+            if match:
+                return match[:1]
+        return lines[:1]
 
     def action_open_account_payment(self):
         self.ensure_one()

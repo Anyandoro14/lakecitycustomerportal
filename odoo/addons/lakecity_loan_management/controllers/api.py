@@ -38,8 +38,8 @@ class LakecityLoanApiController(http.Controller):
         except Exception:
             return {}
 
-    def _lakecity_receipt_pick(self, payload, answers, keys):
-        """First non-empty match from payload dict then answers dict."""
+    def _lakecity_receipt_pick(self, payload, answers, *keys):
+        """First non-empty match from payload dict then answers dict, in key order."""
         for key in keys:
             val = payload.get(key)
             if val not in (None, "", False):
@@ -225,7 +225,7 @@ class LakecityLoanApiController(http.Controller):
         return partner
 
     def _ensure_lakecity_crm_lead_first(self, external_uid, stand_number, partner_payload):
-        """Create or reuse a CRM lead **before** partner/contract when strict CRM-first is requested."""
+        """Create or reuse a CRM lead before partner or contract when strict CRM-first is requested."""
         Lead = request.env["crm.lead"].sudo()
         existing = Lead.search([("lakecity_contract_external_uid", "=", external_uid)], limit=1)
         if existing:
@@ -266,6 +266,13 @@ class LakecityLoanApiController(http.Controller):
             "payment_start_date": contract.payment_start_date,
             "total_price": contract.total_price,
             "deposit_amount": contract.deposit_amount,
+            "lakecity_portal_enrolled": contract.lakecity_portal_enrolled,
+            "lakecity_deposit_required": contract.lakecity_deposit_required,
+            "lakecity_deposit_split_three": contract.lakecity_deposit_split_three,
+            "lakecity_deposit_due_date": contract.lakecity_deposit_due_date,
+            "lakecity_deposit_date_1": contract.lakecity_deposit_date_1,
+            "lakecity_deposit_date_2": contract.lakecity_deposit_date_2,
+            "lakecity_deposit_date_3": contract.lakecity_deposit_date_3,
             "total_with_tax": contract.total_with_tax,
             "recurring_invoice_amount": contract.recurring_invoice_amount,
             "total_paid": contract.total_paid,
@@ -326,6 +333,13 @@ class LakecityLoanApiController(http.Controller):
             "payment_start_date": payload.get("payment_start_date") or fields.Date.today(),
             "total_price": float(payload.get("total_price") or 0.0),
             "deposit_amount": float(payload.get("deposit_amount") or 0.0),
+            "lakecity_portal_enrolled": bool(payload.get("lakecity_portal_enrolled", False)),
+            "lakecity_deposit_required": bool(payload.get("lakecity_deposit_required", False)),
+            "lakecity_deposit_split_three": bool(payload.get("lakecity_deposit_split_three", False)),
+            "lakecity_deposit_due_date": payload.get("lakecity_deposit_due_date") or False,
+            "lakecity_deposit_date_1": payload.get("lakecity_deposit_date_1") or False,
+            "lakecity_deposit_date_2": payload.get("lakecity_deposit_date_2") or False,
+            "lakecity_deposit_date_3": payload.get("lakecity_deposit_date_3") or False,
             "tax_rate": float(payload.get("tax_rate") or 0.0),
             "is_vat_inclusive": bool(payload.get("is_vat_inclusive", True)),
             "agreement_signed_seller": bool(payload.get("agreement_signed_seller", False)),
@@ -357,6 +371,261 @@ class LakecityLoanApiController(http.Controller):
             out["crm_lead_id"] = crm_row.id
         return self._json_response(out)
 
+    @http.route("/lakecity/api/v1/loan/opening-balance/post", type="http", auth="public", methods=["POST"], csrf=False)
+    def post_opening_balance(self, **kwargs):
+        """Post walkthrough opening-balance JEs for one stand from Collection Schedule amounts.
+
+        Payload TOTAL PRICE / TOTAL PAID / AR come from the Google Sheet (balance SoT).
+        Odoo loan contracts hold schedule + payment allocation for arrears / prepayments.
+        """
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        payload = self._parse_json_body()
+        stand_number = (payload.get("stand_number") or "").strip().upper()
+        external_uid = (payload.get("external_uid") or "").strip()
+        accounts_receivable = float(payload.get("accounts_receivable") or 0.0)
+        contract_liability = float(payload.get("contract_liability") or 0.0)
+        deferred_vat = float(payload.get("deferred_vat") or 0.0)
+        total_paid = float(payload.get("total_paid") or 0.0)
+        total_price = float(payload.get("total_price") or 0.0)
+        payment_date = fields.Date.to_date(payload.get("payment_date") or fields.Date.today())
+        force = bool(payload.get("force", False))
+        loan_payload = payload.get("loan") or {}
+
+        if not stand_number and not external_uid:
+            return self._json_response(
+                {"ok": False, "error": "stand_number or external_uid is required"},
+                status=400,
+            )
+        if accounts_receivable < 0:
+            return self._json_response(
+                {"ok": False, "error": "accounts_receivable cannot be negative"},
+                status=400,
+            )
+        if accounts_receivable == 0 and total_paid <= 0 and total_price <= 0:
+            return self._json_response(
+                {"ok": False, "error": "accounts_receivable must be positive (or provide total_paid / total_price)"},
+                status=400,
+            )
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        contract = False
+        if external_uid:
+            contract = Contract.search([("external_uid", "=", external_uid)], limit=1)
+        if not contract and stand_number:
+            contract = Contract.search([("stand_number", "=", stand_number)], limit=1)
+
+        if loan_payload:
+            loan_payload = dict(loan_payload)
+            loan_payload.setdefault("external_uid", external_uid or ("collection-csv-%s" % stand_number))
+            loan_payload.setdefault("stand_number", stand_number)
+            loan_payload["activate"] = False
+            loan_payload["state"] = loan_payload.get("state") or "draft"
+            partner_payload = loan_payload.get("partner") or {}
+            partner = self._upsert_partner(partner_payload)
+            ext = loan_payload["external_uid"]
+            vals = {
+                "external_uid": ext,
+                "partner_id": partner.id,
+                "stand_number": loan_payload["stand_number"].upper(),
+                "product_id": loan_payload.get("product_id") or False,
+                "term_months": int(loan_payload.get("term_months") or 36),
+                "due_day": int(loan_payload.get("due_day") or 5),
+                "payment_start_date": loan_payload.get("payment_start_date") or fields.Date.today(),
+                "total_price": float(loan_payload.get("total_price") or total_price or 0.0),
+                "deposit_amount": float(loan_payload.get("deposit_amount") or 0.0),
+                "lakecity_portal_enrolled": bool(loan_payload.get("lakecity_portal_enrolled", False)),
+                "lakecity_deposit_required": bool(loan_payload.get("lakecity_deposit_required", False)),
+                "lakecity_deposit_split_three": bool(loan_payload.get("lakecity_deposit_split_three", False)),
+                "lakecity_deposit_due_date": loan_payload.get("lakecity_deposit_due_date") or False,
+                "lakecity_deposit_date_1": loan_payload.get("lakecity_deposit_date_1") or False,
+                "lakecity_deposit_date_2": loan_payload.get("lakecity_deposit_date_2") or False,
+                "lakecity_deposit_date_3": loan_payload.get("lakecity_deposit_date_3") or False,
+                "tax_rate": float(loan_payload.get("tax_rate") or 15.5),
+                "is_vat_inclusive": bool(loan_payload.get("is_vat_inclusive", True)),
+                "agreement_signed_seller": bool(loan_payload.get("agreement_signed_seller", False)),
+                "agreement_signed_buyer": bool(loan_payload.get("agreement_signed_buyer", False)),
+                "agreement_file_url": loan_payload.get("agreement_file_url") or False,
+                "state": "draft",
+            }
+            if contract:
+                contract.write(vals)
+            else:
+                contract = Contract.create(vals)
+            if bool(loan_payload.get("generate_schedule", False)) and not contract.installment_ids:
+                contract.action_generate_schedule()
+
+        if not contract:
+            return self._json_response({"ok": False, "error": "Contract not found"}, status=404)
+
+        gross = total_price or (accounts_receivable + total_paid)
+        if gross <= 0:
+            gross = accounts_receivable + total_paid
+
+        try:
+            result = contract._lakecity_post_opening_balance_migration(
+                gross,
+                contract_liability,
+                deferred_vat,
+                total_paid,
+                payment_date=payment_date,
+                force=force,
+            )
+        except Exception as err:
+            return self._json_response({"ok": False, "error": str(err)}, status=400)
+
+        return self._json_response(
+            {
+                "ok": True,
+                "stand_number": contract.stand_number,
+                "opening_balance": result,
+                "contract": self._contract_payload(contract),
+            }
+        )
+
+    @http.route(
+        "/lakecity/api/v1/loan/opening-balance/cutover-from-payments",
+        type="http",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+    )
+    def cutover_opening_balance_from_payments(self, **kwargs):
+        """Total posted BNPL receipts before cutoff and post opening-balance JEs.
+
+        Unlike /loan/opening-balance/post (Collection Schedule amounts), this uses
+        the payments already in Odoo — the 2025 JEs the accountant sees — then
+        deletes those pre-start receipts. Portal history is not changed.
+        """
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        payload = self._parse_json_body()
+        stand_number = (payload.get("stand_number") or "").strip().upper()
+        force = bool(payload.get("force", True))
+        dry_run = bool(payload.get("dry_run", False))
+        sweep_only = bool(payload.get("sweep_only", False))
+        company = request.env.company.sudo()
+        cutoff = fields.Date.to_date(
+            payload.get("cutoff_date")
+            or payload.get("payment_date")
+            or company.lakecity_accounting_start_date
+            or "2026-01-01"
+        )
+
+        preview = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
+        if dry_run:
+            return self._json_response({"ok": True, "dry_run": True, "preview": preview})
+
+        if sweep_only:
+            if not force:
+                return self._json_response(
+                    {
+                        "ok": False,
+                        "error": "force=true is required with sweep_only to delete leftover pre-start JEs",
+                        "preview": preview,
+                    },
+                    status=400,
+                )
+            sweep = company._lakecity_unlink_pre_cutover_stand_moves(cutoff)
+            after = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
+            return self._json_response(
+                {
+                    "ok": True,
+                    "sweep_only": True,
+                    "cutoff_date": fields.Date.to_string(cutoff),
+                    "orphan_moves": sweep,
+                    "preview_before": {
+                        "pre_count": preview.get("pre_count"),
+                        "pre_total": preview.get("pre_total"),
+                        "orphan_move_count": preview.get("orphan_move_count"),
+                    },
+                    "preview_after": {
+                        "pre_count": after.get("pre_count"),
+                        "pre_total": after.get("pre_total"),
+                        "orphan_move_count": after.get("orphan_move_count"),
+                    },
+                    "posted": 0,
+                    "skipped": 0,
+                    "failures": 0,
+                    "results": [],
+                }
+            )
+
+        if not force:
+            return self._json_response(
+                {
+                    "ok": False,
+                    "error": "force=true is required to delete pre-start receipts and post opening balances",
+                    "preview": preview,
+                },
+                status=400,
+            )
+
+        if company.lakecity_accounting_start_date != cutoff:
+            company.write({"lakecity_accounting_start_date": cutoff})
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        domain = [("company_id", "=", company.id)]
+        if stand_number:
+            domain.append(("stand_number", "=", stand_number))
+        contracts = Contract.search(domain, order="stand_number")
+
+        results = []
+        posted = 0
+        skipped = 0
+        failures = 0
+        for contract in contracts:
+            buckets = contract._lakecity_cutover_buckets(cutoff)
+            initial = contract.lakecity_initial_contract_move_id
+            needs = bool(buckets.get("pre_count") or buckets.get("lump_count"))
+            if initial and initial.date and initial.date < cutoff:
+                needs = True
+            if not needs:
+                skipped += 1
+                continue
+            try:
+                row = contract._lakecity_cutover_from_posted_payments(
+                    cutoff_date=cutoff,
+                    force=True,
+                    dry_run=False,
+                )
+                posted += 1
+                results.append({"ok": True, "stand_number": contract.stand_number, "cutover": row})
+            except Exception as err:
+                failures += 1
+                results.append({"ok": False, "stand_number": contract.stand_number, "error": str(err)})
+
+        sweep = company._lakecity_unlink_pre_cutover_stand_moves(cutoff)
+        after = company._lakecity_cutover_preview(cutoff_date=cutoff, stand_number=stand_number or None)
+        return self._json_response(
+            {
+                "ok": failures == 0,
+                "cutoff_date": fields.Date.to_string(cutoff),
+                "posted": posted,
+                "skipped": skipped,
+                "failures": failures,
+                "orphan_moves": sweep,
+                "preview_before": {
+                    "pre_count": preview.get("pre_count"),
+                    "pre_total": preview.get("pre_total"),
+                    "opening_paid_total": preview.get("opening_paid_total"),
+                    "orphan_move_count": preview.get("orphan_move_count"),
+                    "contract_count": preview.get("contract_count"),
+                },
+                "preview_after": {
+                    "pre_count": after.get("pre_count"),
+                    "pre_total": after.get("pre_total"),
+                    "opening_paid_total": after.get("opening_paid_total"),
+                    "orphan_move_count": after.get("orphan_move_count"),
+                },
+                "results": results,
+            }
+        )
+
     @http.route("/lakecity/api/v1/loan/get", type="http", auth="public", methods=["GET"], csrf=False)
     def get_loan(self, **kwargs):
         ok, response = self._validate_token()
@@ -383,6 +652,80 @@ class LakecityLoanApiController(http.Controller):
             return self._json_response({"ok": False, "error": "Contract not found"}, status=404)
 
         return self._json_response({"ok": True, "contract": self._contract_payload(contract)})
+
+    @http.route("/lakecity/api/v1/loan/reconcile-export", type="http", auth="public", methods=["GET"], csrf=False)
+    def reconcile_export(self, **kwargs):
+        """Export per-stand Odoo snapshot for daily three-way reconciliation.
+
+        Optional query: stand_number (limit to one stand).
+        Includes posted payments with receipt JE debit account codes so ops can
+        detect pre-cutoff cash incorrectly hitting bank (CABS) instead of equity.
+        """
+        ok, response = self._validate_token()
+        if not ok:
+            return response
+
+        Contract = request.env["lakecity.loan.contract"].sudo()
+        stand_number = (kwargs.get("stand_number") or "").strip().upper()
+        domain = []
+        if stand_number:
+            domain = [("stand_number", "=", stand_number)]
+        contracts = Contract.search(domain, order="stand_number")
+        company = request.env.company.sudo()
+        start = company.lakecity_accounting_start_date or fields.Date.from_string("2026-01-01")
+        equity_code = ""
+        if company.lakecity_opening_equity_account_id:
+            equity_code = company.lakecity_opening_equity_account_id.code or ""
+        rows = []
+        for contract in contracts:
+            payments = []
+            for pay in contract.payment_ids.filtered(lambda p: p.state == "posted").sorted(
+                key=lambda p: (p.payment_date or fields.Date.today(), p.id)
+            ):
+                debit_codes = []
+                receipt = pay.lakecity_receipt_move_id
+                if receipt:
+                    for line in receipt.line_ids.filtered(lambda l: l.debit > 0):
+                        if line.account_id:
+                            debit_codes.append(line.account_id.code or "")
+                payments.append(
+                    {
+                        "id": pay.id,
+                        "name": pay.name,
+                        "external_uid": pay.external_uid or "",
+                        "payment_date": fields.Date.to_string(pay.payment_date) if pay.payment_date else "",
+                        "amount": pay.amount,
+                        "source": pay.source,
+                        "is_opening_balance": bool(
+                            (pay.external_uid or "").startswith("opening-balance-")
+                        ),
+                        "receipt_move_id": receipt.id if receipt else False,
+                        "receipt_debit_account_codes": debit_codes,
+                    }
+                )
+            rows.append(
+                {
+                    "stand_number": contract.stand_number or "",
+                    "partner_name": contract.partner_id.name or "",
+                    "external_uid": contract.external_uid or "",
+                    "state": contract.state,
+                    "total_price": contract.total_price,
+                    "total_with_tax": contract.total_with_tax,
+                    "total_paid": contract.total_paid,
+                    "current_balance": contract.current_balance,
+                    "payments": payments,
+                }
+            )
+        return self._json_response(
+            {
+                "ok": True,
+                "accounting_start_date": fields.Date.to_string(start),
+                "opening_equity_account_code": equity_code or "303000",
+                "default_bank_account_code": "101410",
+                "contract_count": len(rows),
+                "contracts": rows,
+            }
+        )
 
     @http.route("/lakecity/api/v1/loan/installments", type="http", auth="public", methods=["GET"], csrf=False)
     def get_installments(self, **kwargs):
@@ -438,13 +781,29 @@ class LakecityLoanApiController(http.Controller):
         vals = {
             "external_uid": external_uid,
             "contract_id": contract.id,
-            "payment_date": payload.get("payment_date") or fields.Date.today(),
+            "payment_date": fields.Date.to_date(payload.get("payment_date") or fields.Date.today()),
             "amount": amount,
             "source": payload.get("source") or "manual",
             "reference": payload.get("reference") or False,
             "note": payload.get("note") or False,
             "state": payload.get("state") or "posted",
         }
+        if contract._lakecity_is_pre_accounting_start(vals["payment_date"], external_uid):
+            start = contract._lakecity_accounting_start_date()
+            return self._json_response(
+                {
+                    "ok": True,
+                    "skipped": True,
+                    "reason": "pre_accounting_start",
+                    "accounting_start_date": fields.Date.to_string(start),
+                    "payment_date": fields.Date.to_string(vals["payment_date"]),
+                    "message": (
+                        "Receipts dated before the accounting start stay on the customer portal. "
+                        "Odoo books start %s; use opening-balance cutover instead of individual pre-start JEs."
+                        % fields.Date.to_string(start)
+                    ),
+                }
+            )
         if payment:
             payment.write(vals)
         else:
@@ -575,6 +934,10 @@ class LakecityLoanApiController(http.Controller):
             if description:
                 create_vals["description"] = description
             tmpl = request.env["product.template"].sudo().create(create_vals)
+
+        cost = request.env["lakecity.stand.cost"].sudo()._lakecity_lookup_by_stand(stand_number)
+        if cost:
+            tmpl._lakecity_apply_stand_cost(cost)
 
         variant = tmpl.product_variant_ids[:1]
         if not variant:

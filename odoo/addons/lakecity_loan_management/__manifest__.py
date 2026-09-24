@@ -1,29 +1,21 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.22",
+    "version": "19.0.1.0.69",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
-    "description": """
-Lakecity BNPL Loan Management
-=============================
-
-Implements a dedicated BNPL loan module with:
-- Loan products and term templates
-- Loan contracts per customer/stand
-- Auto-generated installment schedules
-- Payment posting with oldest-due-first allocation
-- Core financial KPIs used by the customer portal:
-  * monthly payment = (total_with_tax - deposit) / term (flat; 0% products use principal-only split)
-  * installment due dates align to Loan Product due day monthly (default 5th)
-  * total_paid = deposit + posted payments
-  * accrued_amount = past-due unpaid amount
-  * next_payment_due_amount = accrued + current due
-""",
+    # Avoid RST-looking multi-line Python docstrings with indented wraps in this addon; Odoo feeds
+    # them through docutils during registry load and logs "(ERROR/3) Unexpected indentation".
+    "description": (
+        "Lakecity BNPL Loan Management: loan products, per-customer contracts and stands, "
+        "auto installment schedules, oldest-due-first payment allocation, receipt intake, "
+        "and portal-facing balances and KPIs. Schedule math and KPI definitions are in DOCUMENTATION.md."
+    ),
     "author": "Lakecity",
     "license": "LGPL-3",
     "category": "Accounting/Accounting",
     "depends": [
         "base",
+        "lakecity_docutils_patch",
         "mail",
         "contacts",
         "crm",
@@ -36,20 +28,28 @@ Implements a dedicated BNPL loan module with:
         "security/lakecity_loan_security.xml",
         "security/ir.model.access.csv",
         "data/loan_sequence.xml",
+        "data/lakecity_stand_accounting_journals.xml",
         "data/account_payment_methods.xml",
         "data/loan_products.xml",
+        "data/recompute_installment_actions.xml",
         "views/loan_product_views.xml",
         "views/loan_contract_views.xml",
         "views/loan_payment_views.xml",
         "views/loan_installment_views.xml",
+        # Statement UI/PDF deferred from upgrade load (Odoo.sh SIGKILL OOM). Models remain;
+        # re-enable these two lines after Main builds green.
+        # "views/lakecity_loan_statement_views.xml",
+        # "report/lakecity_loan_statement_report.xml",
         "views/receipt_intake_views.xml",
         "wizard/bank_payment_backfill_views.xml",
+        "wizard/accounting_cutover_views.xml",
         "views/loan_menus.xml",
         "views/crm_lead_views.xml",
         "views/account_payment_register_views.xml",
         "views/res_company_views.xml",
         "views/res_partner_views.xml",
         "views/product_template_views.xml",
+        "views/lakecity_stand_cost_views.xml",
     ],
     "application": True,
     "installable": True,

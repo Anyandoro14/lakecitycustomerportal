@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Clock, Wallet } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/validation";
 
 interface InfoCardsProps {
@@ -40,8 +42,19 @@ const InfoCards = ({
   const formattedLastPayment = lastPayment ? formatCurrency(lastPayment) : null;
   const formattedNextPayment = nextPayment ? formatCurrency(nextPayment) : null;
 
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-3">
+      {/* Make Payment */}
+      <Button
+        className="w-full h-12 text-base"
+        onClick={() => navigate("/pay")}
+      >
+        <Wallet className="mr-2 h-5 w-5" />
+        Make Payment
+      </Button>
+
       {/* Payment Progress Bar */}
       <Card className="p-4 shadow-sm">
         <div className="space-y-3">

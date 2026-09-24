@@ -56,6 +56,12 @@ const CrmSpecifications = lazy(() => import("./pages/CrmSpecifications"));
 const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
 const StandInventory = lazy(() => import("./pages/StandInventory"));
+const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
+const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
+const Pay = lazy(() => import("./pages/Pay"));
+const PayReturn = lazy(() => import("./pages/PayReturn"));
 
 const queryClient = new QueryClient();
 
@@ -88,6 +94,8 @@ const App = () => (
                   <Route path="/signup" element={<SignUp />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/pay" element={<Pay />} />
+                  <Route path="/pay/return" element={<PayReturn />} />
                   <Route path="/monthly-statements" element={<MonthlyStatements />} />
                   <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
                   <Route path="/reporting" element={<Reporting />} />
@@ -124,6 +132,13 @@ const App = () => (
                   <Route path="/crm-technical-specs" element={<CrmTechnicalSpecs />} />
                   <Route path="/admin/qc-queue" element={<QcQueue />} />
                   <Route path="/stand-inventory" element={<StandInventory />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<TermsOfService />} />
+                  <Route path="/terms-of-service" element={<TermsOfService />} />
+                  <Route path="/refund-policy" element={<RefundPolicy />} />
+                  <Route path="/refunds" element={<RefundPolicy />} />
+                  <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

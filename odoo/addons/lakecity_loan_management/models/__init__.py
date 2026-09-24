@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
+from . import ir_module_module
 from . import account_move
+from . import account_move_line
+from . import lakecity_stand_cost
 from . import account_payment_bnpl
 from . import account_payment_method
 from . import account_payment_register
 from . import product_template
+from . import lakecity_coa_sync
+from . import lakecity_stand_accounting
+from . import lakecity_ar_consolidation
 from . import res_company
 from . import crm_lead
 from . import loan_product
@@ -11,4 +17,5 @@ from . import res_partner
 from . import receipt_intake
 from . import loan_contract
 from . import loan_installment
+from . import lakecity_loan_monthly_statement
 from . import loan_payment

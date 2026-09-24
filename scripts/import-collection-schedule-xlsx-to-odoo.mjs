@@ -25,8 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
 import { parse as parseCsvWide } from "csv-parse/sync";
-import { parse as parseDate, isValid } from "date-fns";
-import { enGB } from "date-fns/locale/en-GB";
+import { parseSheetDateIso } from "./lib/accounting-cutoff.mjs";
 
 function normalizeISODate(s) {
   const t = String(s || "").trim();
@@ -109,17 +108,8 @@ function parseStartDate(raw) {
   if (raw == null) return null;
   if (raw instanceof Date && !isNaN(+raw)) return raw.toISOString().slice(0, 10);
   if (typeof raw === "number") return excelSerialToISODate(raw);
-  let t = String(raw).trim();
-  if (!t) return null;
-  t = t.replace(/^I\s+/i, "1 ").replace(/^l\s+/i, "1 ");
-  const formats = ["d MMMM yyyy", "d MMM yyyy", "dd/MM/yyyy", "M/d/yyyy"];
-  for (const f of formats) {
-    const d = parseDate(t, f, new Date(), { locale: enGB });
-    if (isValid(d)) return d.toISOString().slice(0, 10);
-  }
-  const fallback = new Date(t);
-  if (!isNaN(+fallback)) return fallback.toISOString().slice(0, 10);
-  return null;
+  // Day-first (en-GB / Zimbabwe). Never silent US mm/dd for slash dates.
+  return parseSheetDateIso(raw);
 }
 
 /** Column header dates in row 1: "5 January 2022" */

@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_daily_reconciliation_exception_user,daily.reconciliation.exception user,model_daily_reconciliation_exception,base.group_user,1,1,1,0
+access_daily_reconciliation_exception_admin,daily.reconciliation.exception admin,model_daily_reconciliation_exception,daily_reconciliation.group_daily_reconciliation_admin,1,1,1,1
+access_daily_reconciliation_action_user,daily.reconciliation.action user,model_daily_reconciliation_action,base.group_user,1,1,1,0
+access_daily_reconciliation_action_admin,daily.reconciliation.action admin,model_daily_reconciliation_action,daily_reconciliation.group_daily_reconciliation_admin,1,1,1,1
+access_daily_reconciliation_import_wizard_user,daily.reconciliation.import.wizard user,model_daily_reconciliation_import_wizard,base.group_user,1,1,1,1

@@ -328,7 +328,7 @@ async function fetchAllCustomerData(accessToken: string): Promise<CustomerData[]
 
   for (const sheetTitle of tabTitles) {
     const monthsFromTitle = parseCollectionScheduleTabMonths(sheetTitle);
-    const range = encodeURIComponent(`${sheetTitle}!A:AZ`);
+    const range = encodeURIComponent(`${sheetTitle}!A:ZZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
 
     const response = await fetch(url, {

@@ -191,14 +191,14 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
-/** Union of stand numbers across all Collection Schedule - Nmo tabs (and legacy tabs). */
-async function fetchValidStandNumbersFromAllCollectionTabs(
+/** Map stand_number -> sheetTitle across all Collection Schedule tabs. */
+async function fetchStandToTabMap(
   accessToken: string,
   spreadsheetId: string,
   sheets: { properties?: { title?: string } }[],
-): Promise<Set<string>> {
+): Promise<Map<string, string>> {
   const tabTitles = listCollectionScheduleDataTabTitles(sheets as { properties: { title?: string } }[]);
-  const validStands = new Set<string>();
+  const standToTab = new Map<string, string>();
 
   for (const sheetTitle of tabTitles) {
     const range = encodeURIComponent(`${sheetTitle}!A:E`);
@@ -225,12 +225,14 @@ async function fetchValidStandNumbersFromAllCollectionTabs(
 
     for (let i = 1; i < rows.length; i++) {
       const standNum = rows[i][standNumIndex]?.toString().trim();
-      if (standNum) validStands.add(standNum);
+      if (standNum && !standToTab.has(standNum)) {
+        standToTab.set(standNum, sheetTitle);
+      }
     }
   }
 
-  console.log(`Found ${validStands.size} valid stand numbers across ${tabTitles.length} collection tab(s)`);
-  return validStands;
+  console.log(`Mapped ${standToTab.size} stand numbers across ${tabTitles.length} collection tab(s)`);
+  return standToTab;
 }
 
 // Fetch one Collection Schedule tab with row mappings for posting
@@ -849,13 +851,14 @@ serve(async (req) => {
     const metadata = await metadataResponse.json();
     const sheets = metadata.sheets || [];
 
-    // Step 1: Valid stands = union across all collection schedule tabs
-    console.log('Step 1: Loading stand numbers from all Collection Schedule tabs...');
-    const validStands = await fetchValidStandNumbersFromAllCollectionTabs(
+    // Step 1: Build stand -> tab map across all collection schedule tabs
+    console.log('Step 1: Mapping stands to Collection Schedule tabs...');
+    const standToTab = await fetchStandToTabMap(
       accessToken,
       spreadsheetId,
       sheets,
     );
+    const validStands = new Set(standToTab.keys());
 
     // Step 2: Fetch and validate receipts from Receipts_Intake
     console.log('Step 2: Processing receipts from Receipts_Intake...');
@@ -877,22 +880,33 @@ serve(async (req) => {
       standToMonths.set(sn, m);
     }
 
-    // Step 3: Post per tab (group receipts by resolved Collection Schedule tab)
+    // Step 3: Post per tab — resolve tab from the actual sheet location of each stand
+    // (authoritative), falling back to profile.payment_plan_months only if the stand is
+    // somehow not in the map.
     console.log('Step 3: Posting approved receipts to Collection Schedule...');
     const posted: PostedReceipt[] = [];
 
     const groups = new Map<string, ApprovedReceipt[]>();
     for (const rec of approved) {
-      const sn = rec.stand_number?.toString().trim().toUpperCase() || '';
-      const months = standToMonths.get(sn) ?? DEFAULT_PAYMENT_PLAN_MONTHS;
-      const resolved = resolveCollectionScheduleSheetTitle(sheets, {
-        paymentPlanMonths: months,
-        envPreferredName: Deno.env.get('SHEET_NAME'),
-        envPreferredGid: Deno.env.get('SHEET_GID'),
-      });
-      const key = resolved.sheetTitle;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(rec);
+      const snRaw = rec.stand_number?.toString().trim() || '';
+      const sn = snRaw.toUpperCase();
+      // PRIMARY: use the tab the stand actually lives in
+      let sheetTitle = standToTab.get(snRaw) || standToTab.get(sn);
+      if (!sheetTitle) {
+        // FALLBACK: profile months → canonical tab name
+        const months = standToMonths.get(sn) ?? DEFAULT_PAYMENT_PLAN_MONTHS;
+        const resolved = resolveCollectionScheduleSheetTitle(sheets, {
+          paymentPlanMonths: months,
+          envPreferredName: Deno.env.get('SHEET_NAME'),
+          envPreferredGid: Deno.env.get('SHEET_GID'),
+        });
+        sheetTitle = resolved.sheetTitle;
+        console.warn(`[FALLBACK TAB] Stand ${snRaw} not found in any tab; using "${sheetTitle}"`);
+      } else {
+        console.log(`[TAB MATCH] Stand ${snRaw} -> "${sheetTitle}"`);
+      }
+      if (!groups.has(sheetTitle)) groups.set(sheetTitle, []);
+      groups.get(sheetTitle)!.push(rec);
     }
 
     for (const [sheetTitle, tabReceipts] of groups) {

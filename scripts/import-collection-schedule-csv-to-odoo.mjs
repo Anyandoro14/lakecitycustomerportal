@@ -23,8 +23,7 @@
 
 import fs from "node:fs";
 import { parse } from "csv-parse/sync";
-import { parse as parseDate, isValid } from "date-fns";
-import { enGB } from "date-fns/locale/en-GB";
+import { parseSheetDateIso } from "./lib/accounting-cutoff.mjs";
 
 const argv = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
 const argsNonFlags = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -73,15 +72,8 @@ function parseStartDate(raw) {
   if (raw == null) return null;
   let t = String(raw).trim();
   if (!t) return null;
-  t = t.replace(/^I\s+/i, "1 ").replace(/^l\s+/i, "1 ");
-  const formats = ["d MMMM yyyy", "d MMM yyyy", "dd/MM/yyyy", "M/d/yyyy"];
-  for (const f of formats) {
-    const d = parseDate(t, f, new Date(), { locale: enGB });
-    if (isValid(d)) return d.toISOString().slice(0, 10);
-  }
-  const fallback = new Date(t);
-  if (isValid(fallback)) return fallback.toISOString().slice(0, 10);
-  return null;
+  // Day-first (en-GB / Zimbabwe). Never silent US mm/dd for slash dates.
+  return parseSheetDateIso(t);
 }
 
 function cleanEmail(raw) {

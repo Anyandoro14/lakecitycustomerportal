@@ -1,0 +1,1589 @@
+# -*- coding: utf-8 -*-
+import logging
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+from odoo.tools.float_utils import float_compare, float_is_zero, float_round
+
+_logger = logging.getLogger(__name__)
+
+LAKECITY_STAND_ACCOUNT_CODES = {
+    "receivable": "121000",
+    "defaulted_receivable": "121015",
+    "inventory_available": "110110",
+    "inventory_allocated": "110120",
+    "contract_liability": "212010",
+    "deferred_vat": "251020",
+    "vat_output": "251010",
+    "revenue": "401000",
+    "forfeiture_income": "406000",
+    "admin_fee_income": "405000",
+    "cancellation_clearing": "212080",
+    "refunds_payable": "212090",
+    "cos": "501000",
+    "aos_payable": "213010",
+    "conveyancing_payable": "213020",
+    "bank_usd_main": "101410",
+    # Pre-cutoff opening cash: Dr equity (not CABS) so live bank is not inflated.
+    "retained_earnings": "303000",
+    "opening_balance_equity": "305000",
+}
+
+# BNPL payment.source → preferred company journal field (falls back to collections / CABS).
+LAKECITY_SOURCE_JOURNAL_FIELD = {
+    "cash": "lakecity_bnpl_cash_journal_id",
+    "ecocash": "lakecity_bnpl_ecocash_journal_id",
+    "mobile_money": "lakecity_bnpl_ecocash_journal_id",
+    "kuva": "lakecity_bnpl_kuva_journal_id",
+    "bank_transfer": "lakecity_bnpl_collections_journal_id",
+    "card": "lakecity_bnpl_collections_journal_id",
+    "paystack": "lakecity_bnpl_collections_journal_id",
+    "paypal": "lakecity_bnpl_collections_journal_id",
+    "flutterwave": "lakecity_bnpl_collections_journal_id",
+    "odoo": "lakecity_bnpl_collections_journal_id",
+    "manual": "lakecity_bnpl_collections_journal_id",
+}
+
+# Books start on this date. Individual receipts dated earlier are not posted to the
+# GL; they are lumped into opening-balance JEs. Customer portal history is unchanged.
+LAKECITY_DEFAULT_ACCOUNTING_START_DATE = "2026-01-01"
+LAKECITY_OPENING_BALANCE_UID_PREFIX = "opening-balance-"
+LAKECITY_PRE_CUTOVER_MOVE_PURPOSES = (
+    "initial_contract",
+    "inventory_reclass",
+    "payment_receipt",
+    "payment_revenue_vat",
+    "payment_cos",
+)
+
+
+class LakecityStandAccountingMixin(models.AbstractModel):
+    _name = "lakecity.stand.accounting.mixin"
+    _description = "Lake City stand sale journal entry helpers (ZIMRA-aligned walkthrough)"
+
+    # ------------------------------------------------------------------
+    # Amount splits (walkthrough formulas)
+    # ------------------------------------------------------------------
+
+    def _lakecity_vat_factor(self):
+        self.ensure_one()
+        return 1.0 + ((self.tax_rate or 0.0) / 100.0)
+
+    def _lakecity_net_contract_price(self):
+        self.ensure_one()
+        base = self.total_price or 0.0
+        factor = self._lakecity_vat_factor()
+        if self.is_vat_inclusive:
+            return float_round(base / factor, precision_rounding=self.currency_id.rounding)
+        return base
+
+    def _lakecity_vat_on_contract(self):
+        self.ensure_one()
+        gross = self.total_with_tax or 0.0
+        net = self._lakecity_net_contract_price()
+        return float_round(gross - net, precision_rounding=self.currency_id.rounding)
+
+    def _lakecity_split_gross_payment(self, gross):
+        """Split a gross receipt into net revenue and VAT (walkthrough deposit/instalment logic)."""
+        self.ensure_one()
+        rnd = self.currency_id.rounding
+        factor = self._lakecity_vat_factor()
+        if float_is_zero(gross, precision_rounding=rnd):
+            return 0.0, 0.0
+        if self.is_vat_inclusive or (self.tax_rate or 0.0):
+            net = float_round(gross / factor, precision_rounding=rnd)
+            vat = float_round(gross - net, precision_rounding=rnd)
+            return net, vat
+        return gross, 0.0
+
+    def _lakecity_cos_for_net(self, net_portion):
+        self.ensure_one()
+        rnd = self.currency_id.rounding
+        stand_cost = self.stand_cost or 0.0
+        net_contract = self._lakecity_net_contract_price()
+        if float_is_zero(stand_cost, precision_rounding=rnd) or float_is_zero(net_contract, precision_rounding=rnd):
+            return 0.0
+        cos = float_round(stand_cost * (net_portion / net_contract), precision_rounding=rnd)
+        return cos
+
+    def _lakecity_company_stand_accounting_enabled(self):
+        self.ensure_one()
+        return bool(self.company_id.lakecity_stand_sales_accounting_enabled)
+
+    def _lakecity_accounting_start_date(self):
+        self.ensure_one()
+        start = self.company_id.lakecity_accounting_start_date
+        if start:
+            return fields.Date.to_date(start)
+        return fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE)
+
+    def _lakecity_is_opening_balance_uid(self, external_uid):
+        return (external_uid or "").strip().startswith(LAKECITY_OPENING_BALANCE_UID_PREFIX)
+
+    def _lakecity_is_pre_accounting_start(self, pay_date, external_uid=None):
+        """True when a receipt must not post as its own JE (before books start)."""
+        if self._lakecity_is_opening_balance_uid(external_uid):
+            return False
+        start = self._lakecity_accounting_start_date()
+        pay_date = fields.Date.to_date(pay_date) if pay_date else False
+        return bool(start and pay_date and pay_date < start)
+
+    def _lakecity_cutover_buckets(self, cutoff_date=None):
+        """Sum posted BNPL receipts before cutoff vs existing opening-balance lumps."""
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else self._lakecity_accounting_start_date()
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        payments = Payment.search([("contract_id", "=", self.id), ("state", "=", "posted")])
+        pre = Payment.browse()
+        lump = Payment.browse()
+        for pay in payments:
+            if self._lakecity_is_opening_balance_uid(pay.external_uid):
+                lump |= pay
+            elif pay.payment_date and pay.payment_date < cutoff_date:
+                pre |= pay
+        rnd = self.currency_id.rounding
+        pre_total = float_round(sum(pre.mapped("amount")), precision_rounding=rnd)
+        lump_total = float_round(sum(lump.mapped("amount")), precision_rounding=rnd)
+        # Prefer the larger figure so a sheet lump is kept if 2025 re-syncs are a subset,
+        # and so actual 2025 receipts win when they are the only (or fuller) source.
+        opening_paid = float_round(max(pre_total, lump_total), precision_rounding=rnd)
+        return {
+            "stand_number": self.stand_number or "",
+            "contract_name": self.name,
+            "contract_id": self.id,
+            "cutoff_date": fields.Date.to_string(cutoff_date),
+            "pre_count": len(pre),
+            "pre_total": pre_total,
+            "lump_count": len(lump),
+            "lump_total": lump_total,
+            "opening_paid": opening_paid,
+            "gross": self.total_with_tax or 0.0,
+            "contract_liability": self._lakecity_net_contract_price(),
+            "deferred_vat": self._lakecity_vat_on_contract(),
+        }
+
+    def _lakecity_cutover_from_posted_payments(self, cutoff_date=None, force=True, dry_run=False):
+        """Lump pre-cutoff receipts into a 1 Jan opening JE and remove those receipts.
+
+        Uses posted ``lakecity.loan.payment`` rows (the JEs the accountant sees), not
+        the Collection Schedule. Portal payment history is not modified.
+        """
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else self._lakecity_accounting_start_date()
+        buckets = self._lakecity_cutover_buckets(cutoff_date)
+        if dry_run:
+            return dict(buckets, dry_run=True, posted=False)
+
+        if not self._lakecity_company_stand_accounting_enabled():
+            return dict(buckets, skipped=True, reason="stand_sales_accounting_disabled", posted=False)
+
+        gross = buckets["gross"]
+        if float_is_zero(gross, precision_rounding=self.currency_id.rounding) and float_is_zero(
+            buckets["opening_paid"], precision_rounding=self.currency_id.rounding
+        ):
+            return dict(buckets, skipped=True, reason="no_contract_price_or_pre_cutoff_paid", posted=False)
+
+        result = self._lakecity_post_opening_balance_migration(
+            gross,
+            buckets["contract_liability"],
+            buckets["deferred_vat"],
+            buckets["opening_paid"],
+            payment_date=cutoff_date,
+            force=force,
+        )
+        posted = dict(buckets)
+        posted.update(result or {})
+        posted["posted"] = True
+        return posted
+
+    def _lakecity_stand_account(self, code):
+        self.ensure_one()
+        return self.company_id._lakecity_account_by_code(code)
+
+    def _lakecity_stand_journal(self):
+        self.ensure_one()
+        return self.company_id._lakecity_stand_sales_journal()
+
+    def _lakecity_collections_bank_account(self, source=None):
+        """Liquidity account for live (post-cutoff) receipts. Defaults to CABS USD Main."""
+        self.ensure_one()
+        company = self.company_id
+        journal = self._lakecity_collections_journal_for_source(source)
+        if journal and journal.default_account_id:
+            return journal.default_account_id
+        acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["bank_usd_main"])
+        if not acc:
+            journal = self.env["account.journal"].sudo().search(
+                [("company_id", "=", company.id), ("type", "in", ("bank", "cash"))],
+                limit=1,
+            )
+            if journal and journal.default_account_id:
+                return journal.default_account_id
+        return acc
+
+    def _lakecity_collections_journal_for_source(self, source=None):
+        """Resolve bank/cash journal from payment source; fall back to CABS collections journal."""
+        self.ensure_one()
+        company = self.company_id.sudo()
+        key = (source or "").strip().lower() or "manual"
+        field_name = LAKECITY_SOURCE_JOURNAL_FIELD.get(key, "lakecity_bnpl_collections_journal_id")
+        journal = getattr(company, field_name, False) if field_name else False
+        if journal:
+            return journal
+        if company.lakecity_bnpl_collections_journal_id:
+            return company.lakecity_bnpl_collections_journal_id
+        return self.env["account.journal"].sudo().search(
+            [("company_id", "=", company.id), ("type", "in", ("bank", "cash"))],
+            limit=1,
+        )
+
+    def _lakecity_opening_equity_account(self):
+        """Debit account for pre-cutoff / opening-balance lumps (not live bank)."""
+        self.ensure_one()
+        company = self.company_id.sudo()
+        if company.lakecity_opening_equity_account_id:
+            return company.lakecity_opening_equity_account_id
+        acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["retained_earnings"])
+        if acc:
+            return acc
+        return self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["opening_balance_equity"])
+
+    def _lakecity_create_stand_move(self, line_specs, ref, purpose, journal=None, move_date=None):
+        self.ensure_one()
+        Move = self.env["account.move"].sudo()
+        journal = journal or self._lakecity_stand_journal()
+        if not journal:
+            raise UserError(_("Configure the Lake City Stand Sales journal on %s.") % self.company_id.display_name)
+        move_date = move_date or fields.Date.context_today(self)
+        partner = self.partner_id.commercial_partner_id
+        phase_id = self.lakecity_stand_phase_id.id if self.lakecity_stand_phase_id else False
+        line_payload = []
+        for ln in line_specs:
+            payload = dict(ln)
+            if phase_id:
+                payload["lakecity_stand_phase_id"] = phase_id
+            line_payload.append((0, 0, payload))
+        vals = {
+            "move_type": "entry",
+            "journal_id": journal.id,
+            "company_id": self.company_id.id,
+            "currency_id": self.currency_id.id,
+            "date": move_date,
+            "ref": ref,
+            "partner_id": partner.id,
+            "lakecity_loan_contract_id": self.id,
+            "lakecity_stand_phase_id": phase_id,
+            "lakecity_stand_move_purpose": purpose,
+            "line_ids": line_payload,
+        }
+        move = Move.create(vals)
+        move.action_post()
+        return move
+
+    def _lakecity_build_move_lines(self, pairs, label):
+        """pairs: list of (account, debit, credit, partner_id or False)."""
+        lines = []
+        for account, debit, credit, partner_id in pairs:
+            if not account:
+                continue
+            if float_is_zero(debit, precision_rounding=self.currency_id.rounding) and float_is_zero(
+                credit, precision_rounding=self.currency_id.rounding
+            ):
+                continue
+            lines.append(
+                {
+                    "account_id": account.id,
+                    "partner_id": partner_id or False,
+                    "name": label,
+                    "debit": debit,
+                    "credit": credit,
+                }
+            )
+        return lines
+
+    def _lakecity_post_initial_contract_recognition(self):
+        """Step 02 JE1 — Dr AR gross / Cr contract liability net / Cr deferred VAT."""
+        self.ensure_one()
+        if self.lakecity_initial_contract_move_id:
+            return self.lakecity_initial_contract_move_id
+        if not self._lakecity_company_stand_accounting_enabled():
+            return False
+
+        ar = self._lakecity_partner_receivable_account()
+        liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
+        deferred_vat = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
+        for acc, label in (
+            (ar, _("receivable")),
+            (liability, _("contract liability")),
+            (deferred_vat, _("deferred VAT")),
+        ):
+            if not acc:
+                raise UserError(
+                    _("Missing GL account for stand sales (%(label)s). Import the Lake City chart of accounts.")
+                    % {"label": label}
+                )
+
+        gross = self.total_with_tax or 0.0
+        net = self._lakecity_net_contract_price()
+        vat = self._lakecity_vat_on_contract()
+        partner = self.partner_id.commercial_partner_id.id
+        label = _("Initial contract — %s stand %s") % (self.name, self.stand_number or "")
+        lines = self._lakecity_build_move_lines(
+            [
+                (ar, gross, 0.0, partner),
+                (liability, 0.0, net, False),
+                (deferred_vat, 0.0, vat, False),
+            ],
+            label,
+        )
+        move = self._lakecity_create_stand_move(lines, self.name, "initial_contract")
+        self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"lakecity_initial_contract_move_id": move.id})
+        return move
+
+    def _lakecity_unlink_stand_move(self, move):
+        """Draft and unlink a posted stand-sales move (opening-balance force repost)."""
+        if not move:
+            return
+        move = move.sudo().exists()
+        if not move:
+            return
+        move.company_id._lakecity_force_delete_moves(move)
+
+    def _lakecity_clear_opening_balance_moves(self, cutoff_date=None):
+        """Remove prior opening JEs and **pre-cutover** BNPL payments for force repost.
+
+        Keeps receipts on/after ``cutoff_date`` (e.g. 2026+ collections). Only removes:
+        - payments dated before the cutover, and
+        - prior lumped ``opening-balance-*`` receipts (so force can repost them).
+        """
+        self.ensure_one()
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else False
+        payments = Payment.search([("contract_id", "=", self.id)])
+        to_clear = Payment.browse()
+        for pay in payments:
+            uid = (pay.external_uid or "").strip()
+            if uid.startswith("opening-balance-"):
+                to_clear |= pay
+                continue
+            if cutoff_date:
+                if pay.payment_date and pay.payment_date < cutoff_date:
+                    to_clear |= pay
+            else:
+                # No cutoff supplied — legacy full clear.
+                to_clear |= pay
+        cleared = len(to_clear)
+        for pay in to_clear:
+            self._lakecity_unlink_stand_move(pay.lakecity_receipt_move_id)
+            self._lakecity_unlink_stand_move(pay.lakecity_revenue_move_id)
+            self._lakecity_unlink_stand_move(pay.lakecity_cos_move_id)
+            if pay.account_payment_id:
+                try:
+                    ap = pay.account_payment_id.sudo()
+                    if ap.state in ("paid", "in_process", "posted"):
+                        if hasattr(ap, "action_draft"):
+                            ap.action_draft()
+                        elif hasattr(ap, "button_draft"):
+                            ap.button_draft()
+                    if ap.state in ("draft", "cancel"):
+                        ap.unlink()
+                except Exception as err:
+                    _logger.warning(
+                        "Lakecity: could not remove bank payment for %s: %s",
+                        pay.display_name,
+                        err,
+                    )
+            pay.with_context(lakecity_skip_bank_payment_write=True).unlink()
+        if self.lakecity_initial_contract_move_id:
+            self._lakecity_unlink_stand_move(self.lakecity_initial_contract_move_id)
+        if self.lakecity_inventory_reclass_move_id:
+            self._lakecity_unlink_stand_move(self.lakecity_inventory_reclass_move_id)
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+                {"lakecity_inventory_reclass_move_id": False}
+            )
+        self.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+            {
+                "lakecity_initial_contract_move_id": False,
+                "lakecity_deposit_accounting_done": False,
+                "lakecity_revenue_recognized": 0.0,
+                "lakecity_vat_released": 0.0,
+                "lakecity_cos_recognized": 0.0,
+            }
+        )
+        # Reset installment paid, then rebuild from remaining (post-cutover) payments +
+        # the new opening-balance receipt that force will post next.
+        if self.installment_ids:
+            self.installment_ids.sudo().write({"amount_paid": 0.0})
+            self.installment_ids.action_lakecity_refresh_stored_computes()
+        self._rebuild_payment_allocations()
+        return cleared
+
+    def _lakecity_post_initial_contract_recognition_amounts(self, gross, contract_liability, deferred_vat_amount, move_date=None):
+        """Step 02 JE1 using explicit sheet amounts (opening-balance migration)."""
+        self.ensure_one()
+        if self.lakecity_initial_contract_move_id:
+            return self.lakecity_initial_contract_move_id
+        if not self._lakecity_company_stand_accounting_enabled():
+            return False
+
+        ar = self._lakecity_partner_receivable_account()
+        liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
+        deferred_vat_acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
+        for acc, label in (
+            (ar, _("receivable")),
+            (liability, _("contract liability")),
+            (deferred_vat_acc, _("deferred VAT")),
+        ):
+            if not acc:
+                raise UserError(
+                    _("Missing GL account for stand sales (%(label)s). Import the Lake City chart of accounts.")
+                    % {"label": label}
+                )
+
+        partner = self.partner_id.commercial_partner_id.id
+        label = _("Initial contract — %s stand %s") % (self.name, self.stand_number or "")
+        lines = self._lakecity_build_move_lines(
+            [
+                (ar, gross, 0.0, partner),
+                (liability, 0.0, contract_liability, False),
+                (deferred_vat_acc, 0.0, deferred_vat_amount, False),
+            ],
+            label,
+        )
+        move = self._lakecity_create_stand_move(
+            lines,
+            self.name,
+            "initial_contract",
+            move_date=move_date,
+        )
+        self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"lakecity_initial_contract_move_id": move.id})
+        return move
+
+    def _lakecity_post_opening_balance_migration(
+        self,
+        gross,
+        contract_liability,
+        deferred_vat_amount,
+        total_paid,
+        payment_date=None,
+        force=False,
+    ):
+        """Post walkthrough opening balances: JE1 + receipt/revenue for sheet TOTAL PAID.
+
+        Balance figures are supplied by the Collection Schedule (Google Sheet SoT), not by
+        recomputing from existing Odoo contract balances. This module stores the payment
+        schedule and payment amounts for arrears / prepayments after cutover.
+
+        ``gross`` is the full contract receivable (sheet TOTAL PRICE).
+        ``contract_liability`` and ``deferred_vat_amount`` map to sheet Columns O and P
+        (for inclusive VAT, Column O net liability = O + P).
+
+        Use ``payment_date`` as the GL cutover date (e.g. 2026-01-01). When ``force``
+        is True, prior opening/initial JEs and **pre-cutover** payments (plus prior
+        ``opening-balance-*`` lumps) are cleared and reposted; receipts on/after the
+        cutover date are kept.
+        """
+        self.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return {"skipped": True, "reason": "stand_sales_accounting_disabled"}
+
+        rnd = self.currency_id.rounding
+        # JSON API may pass ISO strings; Date.to_string() requires a date object.
+        payment_date = fields.Date.to_date(payment_date) if payment_date else fields.Date.context_today(self)
+        payments_cleared = 0
+        if force:
+            payments_cleared = self._lakecity_clear_opening_balance_moves(cutoff_date=payment_date) or 0
+        if float_compare(self.tax_rate or 0.0, 15.5, precision_rounding=0.01) != 0:
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"tax_rate": 15.5})
+        # Sheet TOTAL PRICE is the receivable gross (CL + VAT). Keep Odoo total_with_tax aligned.
+        if not self.is_vat_inclusive:
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"is_vat_inclusive": True})
+
+        initial_move = self._lakecity_post_initial_contract_recognition_amounts(
+            gross,
+            contract_liability,
+            deferred_vat_amount,
+            move_date=payment_date,
+        )
+
+        payment_move_ids = []
+        paid = float(total_paid or 0.0)
+        if not float_is_zero(paid, precision_rounding=rnd):
+            Payment = self.env["lakecity.loan.payment"].sudo()
+            ext_uid = "opening-balance-%s" % (self.stand_number or self.id)
+            payment = Payment.search([("external_uid", "=", ext_uid)], limit=1)
+            vals = {
+                "external_uid": ext_uid,
+                "contract_id": self.id,
+                "payment_date": payment_date,
+                "amount": paid,
+                "source": "manual",
+                "reference": _("Opening balance migration — stand %s") % (self.stand_number or ""),
+                "state": "posted",
+            }
+            if payment:
+                payment.with_context(lakecity_skip_bank_payment_write=True).write(vals)
+            else:
+                payment = Payment.create(vals)
+
+            if not payment.lakecity_stand_accounting_done:
+                ref = _("%(loan)s · opening balance") % {"loan": self.name}
+                # Memory Mutande pattern: pre-cutoff cash on cutover date → Dr Retained Earnings
+                # (not CABS), so opening bank balances stay clean.
+                self._lakecity_post_stand_payment_moves(
+                    paid,
+                    payment_date,
+                    ref,
+                    payment=payment,
+                    use_opening_equity=True,
+                )
+                payment.write({"lakecity_stand_accounting_done": True})
+
+            if self.deposit_amount and not self.lakecity_deposit_accounting_done:
+                self.write({"lakecity_deposit_accounting_done": True})
+
+            payment_move_ids = [
+                mid
+                for mid in (
+                    payment.lakecity_receipt_move_id.id,
+                    payment.lakecity_revenue_move_id.id,
+                    payment.lakecity_cos_move_id.id,
+                )
+                if mid
+            ]
+            self._rebuild_payment_allocations()
+            self._lakecity_update_recognized_totals()
+
+        if self.state == "draft":
+            self.with_context(skip_lakecity_bnpl_gl_sync=True).write({"state": "active"})
+
+        self._lakecity_clear_future_receivable_gl()
+        ar_check = self._lakecity_verify_ar_after_posting("opening_balance")
+        target_ar = ar_check["expected"]
+        return {
+            "initial_move_id": initial_move.id if initial_move else False,
+            "payment_move_ids": payment_move_ids,
+            "target_accounts_receivable": target_ar,
+            "accounts_receivable_gl": ar_check["actual"],
+            "contract_total_paid": self.total_paid,
+            "contract_current_balance": self.current_balance,
+            "payments_cleared": payments_cleared,
+            "force": bool(force),
+            "payment_date": fields.Date.to_string(payment_date),
+            "gross": gross,
+            "total_paid": paid,
+        }
+
+    def _lakecity_post_inventory_reclass(self):
+        """Step 02 optional JE2 — Dr allocated inventory / Cr available inventory at stand cost."""
+        self.ensure_one()
+        if self.lakecity_inventory_reclass_move_id:
+            return self.lakecity_inventory_reclass_move_id
+        if not self._lakecity_company_stand_accounting_enabled():
+            return False
+        if not self.company_id.lakecity_stand_inventory_reclass_enabled:
+            return False
+        cost = self.stand_cost or 0.0
+        if float_is_zero(cost, precision_rounding=self.currency_id.rounding):
+            return False
+
+        allocated = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_allocated"])
+        available = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_available"])
+        if not allocated or not available:
+            _logger.warning("Lakecity stand sales: skip inventory reclass — inventory accounts missing on %s", self.name)
+            return False
+
+        label = _("Inventory reclass — stand %s") % (self.stand_number or self.name)
+        lines = self._lakecity_build_move_lines(
+            [(allocated, cost, 0.0, False), (available, 0.0, cost, False)],
+            label,
+        )
+        move = self._lakecity_create_stand_move(lines, self.name, "inventory_reclass")
+        self.write({"lakecity_inventory_reclass_move_id": move.id})
+        return move
+
+    def _lakecity_post_stand_payment_moves(
+        self,
+        gross,
+        move_date,
+        ref,
+        payment=None,
+        use_opening_equity=False,
+    ):
+        """Post receipt, revenue/VAT, and COS moves for a gross payment amount.
+
+        When ``use_opening_equity`` is True (cutover / opening-balance lump), the receipt
+        debits Retained Earnings (or configured opening equity) instead of CABS/bank so
+        live cash is not inflated by historical payments.
+        """
+        self.ensure_one()
+        if float_is_zero(gross, precision_rounding=self.currency_id.rounding):
+            return
+
+        net, vat = self._lakecity_split_gross_payment(gross)
+        cos = self._lakecity_cos_for_net(net)
+        ar = self._lakecity_partner_receivable_account()
+        source = payment.source if payment else None
+        if use_opening_equity or (
+            payment and self._lakecity_is_opening_balance_uid(payment.external_uid)
+        ):
+            debit_acc = self._lakecity_opening_equity_account()
+            receipt_journal = self._lakecity_stand_journal()
+            receipt_label = _("Opening equity receipt — %s") % ref
+        else:
+            debit_acc = self._lakecity_collections_bank_account(source=source)
+            receipt_journal = self._lakecity_collections_journal_for_source(source)
+            receipt_label = _("Receipt — %s") % ref
+        liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
+        deferred_vat = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
+        revenue = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["revenue"])
+        vat_output = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["vat_output"])
+        cos_acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["cos"])
+        inventory = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_allocated"])
+        partner_id = self.partner_id.commercial_partner_id.id
+
+        if not receipt_journal:
+            receipt_journal = self.env["account.journal"].sudo().search(
+                [("company_id", "=", self.company_id.id), ("type", "in", ("bank", "cash", "general"))],
+                limit=1,
+            )
+
+        if debit_acc and ar:
+            receipt_move = self._lakecity_create_stand_move(
+                self._lakecity_build_move_lines(
+                    [(debit_acc, gross, 0.0, False), (ar, 0.0, gross, partner_id)],
+                    receipt_label,
+                ),
+                ref,
+                "payment_receipt",
+                journal=receipt_journal,
+                move_date=move_date,
+            )
+            if payment:
+                payment.write({"lakecity_receipt_move_id": receipt_move.id})
+
+        stand_journal = self._lakecity_stand_journal()
+        revenue_lines = self._lakecity_build_move_lines(
+            [
+                (liability, net, 0.0, False),
+                (deferred_vat, vat, 0.0, False),
+                (revenue, 0.0, net, False),
+                (vat_output, 0.0, vat, False),
+            ],
+            _("Revenue/VAT release — %s") % ref,
+        )
+        if revenue_lines:
+            revenue_move = self._lakecity_create_stand_move(
+                revenue_lines,
+                ref,
+                "payment_revenue_vat",
+                journal=stand_journal,
+                move_date=move_date,
+            )
+            if payment:
+                payment.write({"lakecity_revenue_move_id": revenue_move.id})
+
+        if cos_acc and inventory and not float_is_zero(cos, precision_rounding=self.currency_id.rounding):
+            cos_move = self._lakecity_create_stand_move(
+                self._lakecity_build_move_lines(
+                    [(cos_acc, cos, 0.0, False), (inventory, 0.0, cos, False)],
+                    _("COS — %s") % ref,
+                ),
+                ref,
+                "payment_cos",
+                journal=stand_journal,
+                move_date=move_date,
+            )
+            if payment:
+                payment.write({"lakecity_cos_move_id": cos_move.id})
+
+    def _lakecity_post_deposit_accounting(self):
+        """Post walkthrough deposit/first-instalment JEs when deposit_amount is on the contract."""
+        self.ensure_one()
+        if self.lakecity_deposit_accounting_done:
+            return
+        gross = self.deposit_amount or 0.0
+        if float_is_zero(gross, precision_rounding=self.currency_id.rounding):
+            return
+        ref = _("%(loan)s · deposit") % {"loan": self.name}
+        self._lakecity_post_stand_payment_moves(gross, fields.Date.context_today(self), ref)
+        self.write({"lakecity_deposit_accounting_done": True})
+        self._lakecity_update_recognized_totals()
+
+    def _lakecity_post_payment_accounting(self, payment):
+        """Steps 03/05/08 — receipt, revenue/VAT release, and COS for one BNPL payment."""
+        self.ensure_one()
+        payment.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return
+        if payment.lakecity_stand_accounting_done:
+            return
+        if self._lakecity_is_pre_accounting_start(payment.payment_date, payment.external_uid):
+            # Do not recreate 2025 (pre-start) JEs. Cutover lumps these into opening balances.
+            return
+
+        gross = payment.amount or 0.0
+        if (
+            self.lakecity_deposit_accounting_done
+            and not float_is_zero(self.deposit_amount or 0.0, precision_rounding=self.currency_id.rounding)
+            and float_compare(gross, self.deposit_amount, precision_rounding=self.currency_id.rounding) == 0
+        ):
+            payment.write({"lakecity_stand_accounting_done": True})
+            return
+
+        if float_is_zero(gross, precision_rounding=self.currency_id.rounding):
+            payment.write({"lakecity_stand_accounting_done": True})
+            return
+
+        ref = _("%(loan)s · %(pay)s") % {"loan": self.name, "pay": payment.name}
+        self._lakecity_post_stand_payment_moves(gross, payment.payment_date, ref, payment=payment)
+        payment.write({"lakecity_stand_accounting_done": True})
+        self._lakecity_update_recognized_totals()
+
+    def _lakecity_update_recognized_totals(self):
+        for rec in self:
+            net_total = 0.0
+            vat_total = 0.0
+            cos_total = 0.0
+            for pay in rec.payment_ids.filtered(lambda p: p.state == "posted" and p.lakecity_stand_accounting_done):
+                net, vat = rec._lakecity_split_gross_payment(pay.amount)
+                net_total += net
+                vat_total += vat
+                cos_total += rec._lakecity_cos_for_net(net)
+            if rec.lakecity_deposit_accounting_done and rec.deposit_amount:
+                net, vat = rec._lakecity_split_gross_payment(rec.deposit_amount)
+                net_total += net
+                vat_total += vat
+                cos_total += rec._lakecity_cos_for_net(net)
+            rec.write(
+                {
+                    "lakecity_revenue_recognized": net_total,
+                    "lakecity_vat_released": vat_total,
+                    "lakecity_cos_recognized": cos_total,
+                }
+            )
+
+    def _lakecity_post_forfeiture_accounting(self):
+        """Step 11 — clear unpaid balances, reclass revenue, reverse COS."""
+        self.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return
+        if self.lakecity_forfeiture_move_ids:
+            raise UserError(_("Forfeiture accounting was already posted for this contract."))
+
+        net_contract = self._lakecity_net_contract_price()
+        gross_contract = self.total_with_tax or 0.0
+        net_rec = self.lakecity_revenue_recognized or 0.0
+        cos_rec = self.lakecity_cos_recognized or 0.0
+        vat_moved = self.lakecity_vat_released or 0.0
+        liability_remaining = float_round(net_contract - net_rec, precision_rounding=self.currency_id.rounding)
+        total_deferred = self._lakecity_vat_on_contract()
+        deferred_remaining = float_round(total_deferred - vat_moved, precision_rounding=self.currency_id.rounding)
+        gross_paid = self.total_paid or 0.0
+        gross_remaining = float_round(gross_contract - gross_paid, precision_rounding=self.currency_id.rounding)
+
+        ar = self._lakecity_partner_receivable_account()
+        liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
+        deferred_vat = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
+        revenue = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["revenue"])
+        forfeiture = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["forfeiture_income"])
+        cos_acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["cos"])
+        inventory = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_allocated"])
+        partner_id = self.partner_id.commercial_partner_id.id
+        ref = _("Forfeiture — %s") % self.name
+        moves = []
+
+        clear_lines = self._lakecity_build_move_lines(
+            [
+                (liability, liability_remaining, 0.0, False),
+                (deferred_vat, deferred_remaining, 0.0, False),
+                (ar, 0.0, liability_remaining + deferred_remaining, partner_id),
+            ],
+            _("Clear unpaid balance — %s") % ref,
+        )
+        if clear_lines:
+            moves.append(self._lakecity_create_stand_move(clear_lines, ref, "forfeiture_clear"))
+
+        if net_rec and revenue and forfeiture:
+            reclass_lines = self._lakecity_build_move_lines(
+                [(revenue, net_rec, 0.0, False), (forfeiture, 0.0, net_rec, False)],
+                _("Reclass revenue to forfeiture — %s") % ref,
+            )
+            moves.append(self._lakecity_create_stand_move(reclass_lines, ref, "forfeiture_revenue"))
+
+        if cos_rec and cos_acc and inventory:
+            reverse_lines = self._lakecity_build_move_lines(
+                [(inventory, cos_rec, 0.0, False), (cos_acc, 0.0, cos_rec, False)],
+                _("Reverse COS — %s") % ref,
+            )
+            moves.append(self._lakecity_create_stand_move(reverse_lines, ref, "forfeiture_cos"))
+
+        if moves:
+            self.write({"lakecity_forfeiture_move_ids": [(6, 0, [m.id for m in moves])]})
+        self.write({"state": "defaulted"})
+
+    def _lakecity_post_cancellation_accounting(self, admin_fee_percent=0.10):
+        """Step 12 — reverse revenue/COS, admin fee, refund payable."""
+        self.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return
+        if self.lakecity_cancellation_move_ids:
+            raise UserError(_("Cancellation accounting was already posted for this contract."))
+
+        gross_paid = self.total_paid or 0.0
+        net_rec = self.lakecity_revenue_recognized or 0.0
+        cos_rec = self.lakecity_cos_recognized or 0.0
+        admin_fee = float_round(gross_paid * (admin_fee_percent or 0.0), precision_rounding=self.currency_id.rounding)
+        refund = float_round(gross_paid - admin_fee, precision_rounding=self.currency_id.rounding)
+
+        revenue = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["revenue"])
+        clearing = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["cancellation_clearing"])
+        admin = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["admin_fee_income"])
+        refunds_pay = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["refunds_payable"])
+        cos_acc = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["cos"])
+        inventory = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_allocated"])
+        ref = _("Cancellation — %s") % self.name
+        moves = []
+
+        if net_rec and revenue and clearing:
+            moves.append(
+                self._lakecity_create_stand_move(
+                    self._lakecity_build_move_lines(
+                        [(revenue, net_rec, 0.0, False), (clearing, 0.0, net_rec, False)],
+                        _("Reverse revenue — %s") % ref,
+                    ),
+                    ref,
+                    "cancellation_revenue",
+                )
+            )
+
+        if cos_rec and cos_acc and inventory:
+            moves.append(
+                self._lakecity_create_stand_move(
+                    self._lakecity_build_move_lines(
+                        [(inventory, cos_rec, 0.0, False), (cos_acc, 0.0, cos_rec, False)],
+                        _("Reverse COS — %s") % ref,
+                    ),
+                    ref,
+                    "cancellation_cos",
+                )
+            )
+
+        fee_lines = []
+        if admin_fee and clearing and admin:
+            fee_lines.extend(
+                self._lakecity_build_move_lines(
+                    [(clearing, admin_fee, 0.0, False), (admin, 0.0, admin_fee, False)],
+                    _("Admin fee — %s") % ref,
+                )
+            )
+        if refund and clearing and refunds_pay:
+            fee_lines.extend(
+                self._lakecity_build_move_lines(
+                    [(clearing, refund, 0.0, False), (refunds_pay, 0.0, refund, False)],
+                    _("Refund payable — %s") % ref,
+                )
+            )
+        if fee_lines:
+            moves.append(self._lakecity_create_stand_move(fee_lines, ref, "cancellation_refund"))
+
+        if moves:
+            self.write({"lakecity_cancellation_move_ids": [(6, 0, [m.id for m in moves])]})
+        self.write({"state": "closed"})
+
+    def _lakecity_post_default_receivable_reclass(self):
+        """Step 10 optional — reclass remaining AR to defaulted receivables account."""
+        self.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return False
+        if self.lakecity_default_reclass_move_id:
+            return self.lakecity_default_reclass_move_id
+
+        gross_contract = self.total_with_tax or 0.0
+        gross_paid = self.total_paid or 0.0
+        remaining = float_round(gross_contract - gross_paid, precision_rounding=self.currency_id.rounding)
+        if float_is_zero(remaining, precision_rounding=self.currency_id.rounding):
+            return False
+
+        ar = self._lakecity_partner_receivable_account()
+        defaulted = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["defaulted_receivable"])
+        if not ar or not defaulted:
+            return False
+
+        partner_id = self.partner_id.commercial_partner_id.id
+        ref = _("Default reclass — %s") % self.name
+        lines = self._lakecity_build_move_lines(
+            [(defaulted, remaining, 0.0, partner_id), (ar, 0.0, remaining, partner_id)],
+            ref,
+        )
+        move = self._lakecity_create_stand_move(lines, ref, "default_reclass")
+        self.write({"lakecity_default_reclass_move_id": move.id})
+        return move
+
+    def _lakecity_post_pass_through(self, amount, pass_type, move_date=None):
+        """Steps 13–14 — AOS or conveyancing pass-through receipt (Dr bank / Cr payable)."""
+        self.ensure_one()
+        if not self._lakecity_company_stand_accounting_enabled():
+            return False
+        if float_is_zero(amount or 0.0, precision_rounding=self.currency_id.rounding):
+            return False
+
+        code_key = "aos_payable" if pass_type == "aos" else "conveyancing_payable"
+        payable = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES[code_key])
+        bank = self._lakecity_collections_bank_account()
+        if not payable or not bank:
+            raise UserError(_("Pass-through accounts or bank account are not configured."))
+
+        purpose = "pass_through_aos" if pass_type == "aos" else "pass_through_conveyancing"
+        ref = _("%(type)s pass-through — %(loan)s") % {
+            "type": pass_type.upper(),
+            "loan": self.name,
+        }
+        lines = self._lakecity_build_move_lines(
+            [(bank, amount, 0.0, False), (payable, 0.0, amount, False)],
+            ref,
+        )
+        journal = self.company_id.lakecity_bnpl_collections_journal_id
+        if not journal:
+            journal = self.env["account.journal"].sudo().search(
+                [("company_id", "=", self.company_id.id), ("type", "in", ("bank", "cash"))],
+                limit=1,
+            )
+        return self._lakecity_create_stand_move(lines, ref, purpose, journal=journal, move_date=move_date)
+
+
+class ResCompany(models.Model):
+    _inherit = "res.company"
+
+    lakecity_accounting_start_date = fields.Date(
+        string="Accounting start date",
+        default=lambda _self: fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE),
+        help="Books start on this date (Lake City: 1 January 2026). Customer receipts dated "
+        "earlier are not posted as individual journal entries. Run Accounting start cutover "
+        "to total those receipts into opening-balance JEs on this date (debit Retained Earnings, "
+        "not bank), then delete the pre-start receipts. The customer portal keeps the full "
+        "payment history.",
+    )
+    lakecity_stand_sales_accounting_enabled = fields.Boolean(
+        string="Stand sales accounting (ZIMRA walkthrough)",
+        default=True,
+        help="Post initial contract, payment revenue/VAT/COS, forfeiture, and pass-through "
+        "entries per the Lake City stand sale JE walkthrough. When enabled, the legacy "
+        "BNPL GL mirror (Dr AR / Cr 251001 clearing) is disabled.",
+    )
+    lakecity_stand_sales_journal_id = fields.Many2one(
+        "account.journal",
+        string="Stand sales journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', '=', 'general')]",
+        help="Miscellaneous journal for revenue/VAT/COS and contract recognition entries.",
+    )
+    lakecity_stand_inventory_reclass_enabled = fields.Boolean(
+        string="Post inventory reclass on contract activation",
+        default=True,
+        help="Optional JE2: Dr Active Allocated Stands / Cr Residential Stands Available at stand cost.",
+    )
+    lakecity_cancellation_admin_fee_percent = fields.Float(
+        string="Cancellation admin fee (%)",
+        default=10.0,
+        help="Admin fee retained on voluntary cancellation (walkthrough default 10%).",
+    )
+    lakecity_opening_equity_account_id = fields.Many2one(
+        "account.account",
+        string="Opening equity (pre-cutoff receipts)",
+        check_company=True,
+        domain="[('account_type', 'in', ('equity', 'equity_unaffected'))]",
+        help="Debit account for opening-balance / pre-2026 cash posted on the accounting "
+        "start date. Defaults to Retained Earnings (303000). Must NOT be a bank account — "
+        "live CABS balances stay clean.",
+    )
+    lakecity_bnpl_cash_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL cash journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Inbound journal for source=cash. Falls back to BNPL collections journal (CABS).",
+    )
+    lakecity_bnpl_ecocash_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL EcoCash / mobile money journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Inbound journal for source=ecocash or mobile_money. Falls back to collections.",
+    )
+    lakecity_bnpl_kuva_journal_id = fields.Many2one(
+        "account.journal",
+        string="BNPL Kuva journal",
+        check_company=True,
+        domain="[('company_id', '=', id), ('type', 'in', ('bank', 'cash'))]",
+        help="Inbound journal for source=kuva. Falls back to collections.",
+    )
+
+    def _lakecity_account_by_code(self, code):
+        self.ensure_one()
+        if not code:
+            return self.env["account.account"]
+        return (
+            self.env["account.account"]
+            .sudo()
+            .with_company(self)
+            .search(
+                [
+                    ("code", "=", str(code)),
+                    ("active", "=", True),
+                    *self.env["account.account"]._check_company_domain(self),
+                ],
+                limit=1,
+            )
+        )
+
+    def _lakecity_stand_sales_journal(self):
+        self.ensure_one()
+        if self.lakecity_stand_sales_journal_id:
+            return self.lakecity_stand_sales_journal_id
+        return (
+            self.env["account.journal"]
+            .sudo()
+            .search([("company_id", "=", self.id), ("code", "=", "STND")], limit=1)
+        )
+
+    def _lakecity_ensure_stand_sales_setup(self):
+        """Bind STND journal, collections journal to CABS USD bank, disable legacy mirror."""
+        Journal = self.env["account.journal"].sudo()
+        for company in self:
+            if company.lakecity_stand_sales_accounting_enabled:
+                if not company.lakecity_stand_sales_journal_id:
+                    j = Journal.search([("company_id", "=", company.id), ("code", "=", "STND")], limit=1)
+                    if j:
+                        company.lakecity_stand_sales_journal_id = j.id
+                if not company.lakecity_bnpl_collections_journal_id:
+                    bank_acc = company._lakecity_account_by_code(LAKECITY_STAND_ACCOUNT_CODES["bank_usd_main"])
+                    if bank_acc:
+                        bank_journal = Journal.search(
+                            [
+                                ("company_id", "=", company.id),
+                                ("type", "in", ("bank", "cash")),
+                                ("default_account_id", "=", bank_acc.id),
+                            ],
+                            limit=1,
+                        )
+                        if not bank_journal:
+                            bank_journal = Journal.search(
+                                [("company_id", "=", company.id), ("type", "=", "bank")],
+                                limit=1,
+                            )
+                        if bank_journal:
+                            company.lakecity_bnpl_collections_journal_id = bank_journal.id
+                if not company.lakecity_opening_equity_account_id:
+                    equity = company._lakecity_account_by_code(
+                        LAKECITY_STAND_ACCOUNT_CODES["retained_earnings"]
+                    ) or company._lakecity_account_by_code(
+                        LAKECITY_STAND_ACCOUNT_CODES["opening_balance_equity"]
+                    )
+                    if equity:
+                        company.lakecity_opening_equity_account_id = equity.id
+                company.write(
+                    {
+                        "lakecity_bnpl_future_receivable_gl_enabled": False,
+                        "lakecity_bnpl_post_bank_payment_per_receipt": False,
+                    }
+                )
+
+    def _lakecity_account_balance(self, account):
+        self.ensure_one()
+        if not account:
+            return 0.0
+        lines = (
+            self.env["account.move.line"]
+            .sudo()
+            .search([("account_id", "=", account.id), ("parent_state", "=", "posted")])
+        )
+        return sum(lines.mapped("credit")) - sum(lines.mapped("debit"))
+
+    def _lakecity_pre_cutover_stand_moves(self, cutoff_date=None):
+        """Stand-sales JEs dated before books start (receipts, revenue/VAT, COS, initial)."""
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else (
+            self.lakecity_accounting_start_date
+            or fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE)
+        )
+        journal = self._lakecity_stand_sales_journal()
+        Move = self.env["account.move"].sudo()
+        domain = [
+            ("company_id", "=", self.id),
+            ("date", "<", cutoff_date),
+            ("lakecity_stand_move_purpose", "in", LAKECITY_PRE_CUTOVER_MOVE_PURPOSES),
+        ]
+        moves = Move.search(domain)
+        if journal:
+            extra = Move.search(
+                [
+                    ("company_id", "=", self.id),
+                    ("date", "<", cutoff_date),
+                    ("journal_id", "=", journal.id),
+                    ("id", "not in", moves.ids),
+                ]
+            )
+            moves |= extra
+        return moves
+
+    def _lakecity_lock_date_fields(self):
+        names = (
+            "fiscalyear_lock_date",
+            "tax_lock_date",
+            "hard_lock_date",
+            "sale_lock_date",
+            "purchase_lock_date",
+            "period_lock_date",
+        )
+        return [n for n in names if n in self._fields]
+
+    def _lakecity_suspend_lock_dates(self):
+        """Clear GL lock dates so pre-start posted moves can be drafted. Returns saved values."""
+        self.ensure_one()
+        saved = {}
+        for name in self._lakecity_lock_date_fields():
+            saved[name] = self[name]
+        changed = {}
+        for name, value in saved.items():
+            try:
+                self.sudo().write({name: False})
+                changed[name] = value
+            except Exception as err:
+                _logger.warning("Lakecity: could not clear lock date %s: %s", name, err)
+        return changed
+
+    def _lakecity_restore_lock_dates(self, saved):
+        self.ensure_one()
+        if not saved:
+            return
+        try:
+            self.sudo().write(saved)
+        except Exception as err:
+            _logger.warning("Lakecity: could not restore lock dates: %s", err)
+
+    def _lakecity_suspend_journal_hash_mode(self, moves):
+        """Turn off inalterable-hash mode on journals of the targeted moves."""
+        saved = {}
+        for journal in moves.mapped("journal_id"):
+            if "restrict_mode_hash_table" not in journal._fields:
+                continue
+            if not journal.restrict_mode_hash_table:
+                continue
+            try:
+                journal.sudo().write({"restrict_mode_hash_table": False})
+                saved[journal.id] = True
+            except Exception as err:
+                _logger.warning(
+                    "Lakecity: could not disable hash mode on journal %s: %s",
+                    journal.display_name,
+                    err,
+                )
+        return saved
+
+    def _lakecity_restore_journal_hash_mode(self, saved):
+        if not saved:
+            return
+        Journal = self.env["account.journal"].sudo()
+        for journal_id, value in saved.items():
+            journal = Journal.browse(journal_id).exists()
+            if not journal:
+                continue
+            try:
+                journal.write({"restrict_mode_hash_table": value})
+            except Exception as err:
+                _logger.warning(
+                    "Lakecity: could not restore hash mode on journal %s: %s",
+                    journal.display_name,
+                    err,
+                )
+
+    def _lakecity_clear_move_hashes(self, moves):
+        """Drop inalterability hashes on the given moves so they can be reset to draft."""
+        if not moves:
+            return 0
+        sets = []
+        if "inalterable_hash" in moves._fields:
+            sets.append("inalterable_hash = NULL")
+        if "secure_sequence_number" in moves._fields:
+            sets.append("secure_sequence_number = 0")
+        if not sets:
+            return 0
+        self.env.cr.execute(
+            "UPDATE account_move SET %s WHERE id IN %%s" % ", ".join(sets),
+            [tuple(moves.ids)],
+        )
+        moves.invalidate_recordset()
+        return len(moves)
+
+    def _lakecity_detach_bnpl_move_links(self, moves):
+        """Clear BNPL Many2ones so leftover 2025 JEs are not restricted on unlink."""
+        if not moves:
+            return
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        Contract = self.env["lakecity.loan.contract"].sudo()
+        pays = Payment.search(
+            [
+                "|",
+                "|",
+                ("lakecity_receipt_move_id", "in", moves.ids),
+                ("lakecity_revenue_move_id", "in", moves.ids),
+                ("lakecity_cos_move_id", "in", moves.ids),
+            ]
+        )
+        if pays:
+            pays.write(
+                {
+                    "lakecity_receipt_move_id": False,
+                    "lakecity_revenue_move_id": False,
+                    "lakecity_cos_move_id": False,
+                }
+            )
+        contracts = Contract.search(
+            [
+                "|",
+                ("lakecity_initial_contract_move_id", "in", moves.ids),
+                ("lakecity_inventory_reclass_move_id", "in", moves.ids),
+            ]
+        )
+        if contracts:
+            contracts.with_context(skip_lakecity_bnpl_gl_sync=True).write(
+                {
+                    "lakecity_initial_contract_move_id": False,
+                    "lakecity_inventory_reclass_move_id": False,
+                }
+            )
+
+    def _lakecity_sql_unreconcile_and_draft(self, move):
+        """Last resort: break reconciles and set draft via SQL (lock dates / hash)."""
+        cr = self.env.cr
+        line_ids = move.line_ids.ids
+        if line_ids:
+            cr.execute(
+                """
+                DELETE FROM account_partial_reconcile
+                 WHERE debit_move_id IN %s OR credit_move_id IN %s
+                """,
+                [tuple(line_ids), tuple(line_ids)],
+            )
+            line_sets = ["full_reconcile_id = NULL"]
+            Line = self.env["account.move.line"]
+            if "statement_line_id" in Line._fields:
+                line_sets.append("statement_line_id = NULL")
+            cr.execute(
+                "UPDATE account_move_line SET %s WHERE id IN %%s" % ", ".join(line_sets),
+                [tuple(line_ids)],
+            )
+            cr.execute(
+                """
+                DELETE FROM account_full_reconcile afr
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM account_move_line aml
+                     WHERE aml.full_reconcile_id = afr.id
+                 )
+                """
+            )
+        cols = ["state = 'draft'"]
+        if "inalterable_hash" in move._fields:
+            cols.append("inalterable_hash = NULL")
+        if "secure_sequence_number" in move._fields:
+            cols.append("secure_sequence_number = 0")
+        if "posted_before" in move._fields:
+            cols.append("posted_before = FALSE")
+        cr.execute(
+            "UPDATE account_move SET %s WHERE id IN %%s" % ", ".join(cols),
+            [tuple(move.ids)],
+        )
+        move.invalidate_recordset()
+        if line_ids:
+            move.line_ids.invalidate_recordset()
+
+    def _lakecity_sql_delete_move(self, move):
+        """Delete a leftover JE at SQL when ORM unlink is still blocked."""
+        cr = self.env.cr
+        move_id = move.id
+        line_ids = move.line_ids.ids
+        if line_ids:
+            cr.execute(
+                """
+                DELETE FROM account_partial_reconcile
+                 WHERE debit_move_id IN %s OR credit_move_id IN %s
+                """,
+                [tuple(line_ids), tuple(line_ids)],
+            )
+            cr.execute(
+                "UPDATE account_move_line SET full_reconcile_id = NULL WHERE id IN %s",
+                [tuple(line_ids)],
+            )
+        Line = self.env["account.move.line"]
+        if "payment_id" in Line._fields:
+            cr.execute(
+                "UPDATE account_move_line SET payment_id = NULL WHERE move_id = %s",
+                [move_id],
+            )
+        if "account.payment" in self.env and "move_id" in self.env["account.payment"]._fields:
+            cr.execute("SAVEPOINT lakecity_del_pay")
+            try:
+                cr.execute("DELETE FROM account_payment WHERE move_id = %s", [move_id])
+            except Exception as err:
+                cr.execute("ROLLBACK TO SAVEPOINT lakecity_del_pay")
+                _logger.warning("Lakecity: SQL payment delete for move %s: %s", move_id, err)
+            else:
+                cr.execute("RELEASE SAVEPOINT lakecity_del_pay")
+        cr.execute("DELETE FROM account_move_line WHERE move_id = %s", [move_id])
+        cr.execute("DELETE FROM account_move WHERE id = %s", [move_id])
+        move.invalidate_recordset()
+
+    def _lakecity_force_delete_one_move(self, move):
+        """Unreconcile, draft/cancel, and unlink one journal entry. Returns error string or None."""
+        move = move.sudo().exists()
+        if not move:
+            return None
+        label = "%s %s" % (move.name or move.id, move.date or "")
+        ctx = {
+            "force_delete": True,
+            "skip_hash_integrity": True,
+            "check_move_validity": False,
+            "tracking_disable": True,
+            "ignore_exception": True,
+        }
+        try:
+            if "account.payment" in self.env:
+                Pay = self.env["account.payment"].sudo()
+                pays = Pay.browse()
+                if "move_id" in Pay._fields:
+                    pays |= Pay.search([("move_id", "=", move.id)])
+                if "payment_id" in move._fields and move.payment_id:
+                    pays |= move.payment_id
+                for pay in pays:
+                    try:
+                        pay = pay.with_context(**ctx)
+                        if pay.state not in ("draft", "cancel"):
+                            if hasattr(pay, "action_cancel"):
+                                try:
+                                    pay.action_cancel()
+                                except Exception:
+                                    pass
+                            if hasattr(pay, "action_draft"):
+                                pay.action_draft()
+                            elif hasattr(pay, "button_draft"):
+                                pay.button_draft()
+                        if pay.exists() and pay.state in ("draft", "cancel"):
+                            pay.unlink()
+                    except Exception as err:
+                        _logger.warning(
+                            "Lakecity: payment %s while deleting move %s: %s",
+                            pay.id,
+                            move.id,
+                            err,
+                        )
+            move = move.exists()
+            if not move:
+                return None
+            lines = move.line_ids
+            if lines and hasattr(lines, "remove_move_reconcile"):
+                try:
+                    lines.remove_move_reconcile()
+                except Exception:
+                    self._lakecity_sql_unreconcile_and_draft(move)
+            move = move.with_context(**ctx)
+            if move.exists() and move.state == "posted":
+                try:
+                    move.button_draft()
+                except Exception:
+                    self._lakecity_sql_unreconcile_and_draft(move)
+            if move.exists() and move.state == "posted" and hasattr(move, "button_cancel"):
+                try:
+                    move.button_cancel()
+                    if move.exists() and move.state == "cancel":
+                        move.button_draft()
+                except Exception:
+                    self._lakecity_sql_unreconcile_and_draft(move)
+            if move.exists() and move.state not in ("draft", "cancel"):
+                self._lakecity_sql_unreconcile_and_draft(move)
+            if move.exists() and move.state in ("draft", "cancel"):
+                try:
+                    move.unlink()
+                except Exception:
+                    self._lakecity_sql_delete_move(move)
+            leftover = move.exists()
+            if leftover:
+                try:
+                    self._lakecity_sql_delete_move(leftover)
+                except Exception as err:
+                    return "%s still %s (%s)" % (label, leftover.state, err)
+            leftover = move.exists()
+            if leftover:
+                return "%s still %s" % (label, leftover.state)
+            return None
+        except Exception as err:
+            try:
+                if move.exists():
+                    self._lakecity_sql_delete_move(move)
+                if not move.exists():
+                    return None
+            except Exception as sql_err:
+                return "%s: %s (sql: %s)" % (label, err, sql_err)
+            return "%s: %s" % (label, err)
+
+    def _lakecity_force_delete_moves(self, moves):
+        """Force-delete posted stand-sales moves (unreconcile, unlock, drop hash)."""
+        self.ensure_one()
+        moves = moves.sudo().exists()
+        if not moves:
+            return {"unlinked": 0, "remaining": 0, "errors": [], "hashes_cleared": 0}
+        self._lakecity_detach_bnpl_move_links(moves)
+        hashes_cleared = self._lakecity_clear_move_hashes(moves)
+        saved_locks = self._lakecity_suspend_lock_dates()
+        saved_hash_mode = self._lakecity_suspend_journal_hash_mode(moves)
+        errors = []
+        ordered = moves.sorted(lambda m: (m.date or fields.Date.to_date("1970-01-01"), m.id), reverse=True)
+        try:
+            for move in ordered:
+                err = self._lakecity_force_delete_one_move(move)
+                if err:
+                    errors.append(err)
+                    _logger.warning("Lakecity: force-delete JE failed: %s", err)
+        finally:
+            self._lakecity_restore_journal_hash_mode(saved_hash_mode)
+            self._lakecity_restore_lock_dates(saved_locks)
+        leftover = moves.exists()
+        return {
+            "unlinked": max(len(moves) - len(leftover), 0),
+            "remaining": len(leftover),
+            "errors": errors[:80],
+            "hashes_cleared": hashes_cleared,
+        }
+
+    def _lakecity_unlink_pre_cutover_stand_moves(self, cutoff_date=None):
+        """Delete leftover stand-sales JEs dated before the accounting start date."""
+        self.ensure_one()
+        moves = self._lakecity_pre_cutover_stand_moves(cutoff_date)
+        result = self._lakecity_force_delete_moves(moves)
+        leftover = self._lakecity_pre_cutover_stand_moves(cutoff_date)
+        result["remaining"] = len(leftover)
+        result["unlinked"] = max((result.get("unlinked") or 0), 0)
+        if leftover:
+            result["remaining_names"] = leftover.mapped("name")[:40]
+        return result
+
+    def _lakecity_cutover_preview(self, cutoff_date=None, stand_number=None):
+        """Company-wide preview: per-stand pre-start payment totals and leftover JEs."""
+        self.ensure_one()
+        cutoff_date = fields.Date.to_date(cutoff_date) if cutoff_date else (
+            self.lakecity_accounting_start_date
+            or fields.Date.from_string(LAKECITY_DEFAULT_ACCOUNTING_START_DATE)
+        )
+        Contract = self.env["lakecity.loan.contract"].sudo()
+        domain = [("company_id", "=", self.id)]
+        if stand_number:
+            domain.append(("stand_number", "=", str(stand_number).strip().upper()))
+        contracts = Contract.search(domain, order="stand_number")
+        stands = []
+        pre_count = 0
+        pre_total = 0.0
+        opening_paid_total = 0.0
+        stands_with_pre = 0
+        for contract in contracts:
+            row = contract._lakecity_cutover_buckets(cutoff_date)
+            stands.append(row)
+            pre_count += row["pre_count"]
+            pre_total += row["pre_total"]
+            opening_paid_total += row["opening_paid"]
+            if row["pre_count"] or row["lump_count"]:
+                stands_with_pre += 1
+        orphan_moves = self._lakecity_pre_cutover_stand_moves(cutoff_date)
+        return {
+            "cutoff_date": fields.Date.to_string(cutoff_date),
+            "company": self.display_name,
+            "contract_count": len(contracts),
+            "stands_with_pre_or_lump": stands_with_pre,
+            "pre_count": pre_count,
+            "pre_total": pre_total,
+            "opening_paid_total": opening_paid_total,
+            "orphan_move_count": len(orphan_moves),
+            "stands": stands,
+        }
+
+    def action_lakecity_open_accounting_cutover_wizard(self):
+        self.ensure_one()
+        cutoff = self.lakecity_accounting_start_date or fields.Date.from_string(
+            LAKECITY_DEFAULT_ACCOUNTING_START_DATE
+        )
+        wiz = self.env["lakecity.accounting.cutover.wizard"].create(
+            {
+                "company_id": self.id,
+                "cutoff_date": cutoff,
+            }
+        )
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Accounting start cutover"),
+            "res_model": "lakecity.accounting.cutover.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "res_id": wiz.id,
+        }
+
+    def action_lakecity_remittance_vat(self):
+        """Step 06 — pay VAT Output balance to bank (manual amount from wizard context)."""
+        self.ensure_one()
+        vat_acc = self._lakecity_account_by_code(LAKECITY_STAND_ACCOUNT_CODES["vat_output"])
+        if not vat_acc:
+            raise UserError(_("VAT Output account (251010) not found."))
+        amount = self.env.context.get("vat_remittance_amount")
+        if amount is None:
+            amount = self._lakecity_account_balance(vat_acc)
+        amount = float(amount or 0.0)
+        if float_is_zero(amount, precision_rounding=self.currency_id.rounding):
+            raise UserError(_("No VAT Output balance to remit."))
+        bank_acc = self._lakecity_account_by_code(LAKECITY_STAND_ACCOUNT_CODES["bank_usd_main"])
+        journal = self.lakecity_bnpl_collections_journal_id or self.env["account.journal"].sudo().search(
+            [("company_id", "=", self.id), ("type", "in", ("bank", "cash"))],
+            limit=1,
+        )
+        if not vat_acc or not bank_acc or not journal:
+            raise UserError(_("Configure VAT Output, bank account, and collections journal."))
+
+        ref = _("VAT remittance")
+        Move = self.env["account.move"].sudo()
+        move = Move.create(
+            {
+                "move_type": "entry",
+                "journal_id": journal.id,
+                "company_id": self.id,
+                "date": fields.Date.context_today(self),
+                "ref": ref,
+                "lakecity_stand_move_purpose": "vat_remittance",
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": vat_acc.id,
+                            "name": ref,
+                            "debit": amount,
+                            "credit": 0.0,
+                        },
+                    ),
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": bank_acc.id,
+                            "name": ref,
+                            "debit": 0.0,
+                            "credit": amount,
+                        },
+                    ),
+                ],
+            }
+        )
+        move.action_post()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("VAT remittance"),
+            "res_model": "account.move",
+            "view_mode": "form",
+            "res_id": move.id,
+        }

@@ -6,6 +6,21 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="inside">
+                <group string="Customer Portal and deposit">
+                    <field name="lakecity_portal_contract_id" options="{'no_create': True}"/>
+                    <group>
+                        <field name="lakecity_portal_enrolled" widget="boolean_toggle"/>
+                        <field name="lakecity_deposit_required"/>
+                        <field name="lakecity_deposit_split_three" invisible="not lakecity_deposit_required"/>
+                    </group>
+                    <group>
+                        <field name="lakecity_deposit_amount" invisible="not lakecity_deposit_required"/>
+                        <field name="lakecity_deposit_due_date" invisible="not lakecity_deposit_required or lakecity_deposit_split_three"/>
+                        <field name="lakecity_deposit_date_1" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                        <field name="lakecity_deposit_date_2" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                        <field name="lakecity_deposit_date_3" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                    </group>
+                </group>
                 <group string="Lakecity BNPL">
                     <field name="lakecity_stand_list"/>
                     <field name="lakecity_loan_contract_ids" mode="list" colspan="2">
@@ -13,6 +28,8 @@
                             <field name="name"/>
                             <field name="stand_number"/>
                             <field name="state"/>
+                            <field name="lakecity_portal_enrolled"/>
+                            <field name="lakecity_deposit_required"/>
                             <field name="current_balance"/>
                         </list>
                     </field>

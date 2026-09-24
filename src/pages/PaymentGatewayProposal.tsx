@@ -190,7 +190,7 @@ const CheckoutMockup = () => {
                   { id: "card", icon: CreditCard, label: "Credit / Debit Card", desc: "Visa, Mastercard" },
                   { id: "bank", icon: Building2, label: "Bank Transfer", desc: "Local ZWL / USD transfer" },
                   { id: "wire", icon: Globe, label: "Wire Transfer", desc: "International wire (SWIFT)" },
-                  { id: "mobile", icon: Smartphone, label: "Mobile Money", desc: "EcoCash, OneMoney" },
+                  { id: "mobile", icon: Smartphone, label: "Mobile Money", desc: "EcoCash" },
                 ].map((m) => (
                   <button
                     key={m.id}

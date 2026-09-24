@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -824,6 +824,88 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_receipts: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          gateway: string
+          gateway_metadata: Json | null
+          gateway_reference: string | null
+          id: string
+          odoo_payment_id: number | null
+          odoo_sync_status: string | null
+          payment_date: string
+          qc_notes: string | null
+          qc_reviewed_at: string | null
+          qc_reviewer_id: string | null
+          qc_status: string
+          receipt_file_url: string | null
+          stand_number: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          gateway?: string
+          gateway_metadata?: Json | null
+          gateway_reference?: string | null
+          id?: string
+          odoo_payment_id?: number | null
+          odoo_sync_status?: string | null
+          payment_date: string
+          qc_notes?: string | null
+          qc_reviewed_at?: string | null
+          qc_reviewer_id?: string | null
+          qc_status?: string
+          receipt_file_url?: string | null
+          stand_number: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          gateway?: string
+          gateway_metadata?: Json | null
+          gateway_reference?: string | null
+          id?: string
+          odoo_payment_id?: number | null
+          odoo_sync_status?: string | null
+          payment_date?: string
+          qc_notes?: string | null
+          qc_reviewed_at?: string | null
+          qc_reviewer_id?: string | null
+          qc_status?: string
+          receipt_file_url?: string | null
+          stand_number?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_receipts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "internal_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_qc_reviewer_id_fkey"
+            columns: ["qc_reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "internal_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_transactions: {
         Row: {
           amount_local: number | null
@@ -844,6 +926,7 @@ export type Database = {
           settlement_status: string | null
           stand_number: string
           status: string
+          tenant_id: string | null
           updated_at: string
           user_id: string | null
         }
@@ -866,6 +949,7 @@ export type Database = {
           settlement_status?: string | null
           stand_number: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -888,10 +972,19 @@ export type Database = {
           settlement_status?: string | null
           stand_number?: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -931,6 +1024,74 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      stand_portal_settings: {
+        Row: {
+          created_at: string
+          deposit_amount: number | null
+          deposit_date_1: string | null
+          deposit_date_2: string | null
+          deposit_date_3: string | null
+          deposit_due_date: string | null
+          deposit_required: boolean
+          deposit_split_three: boolean
+          id: string
+          odoo_contract_id: number | null
+          payment_start_date: string | null
+          portal_enrolled: boolean
+          stand_number: string
+          synced_at: string
+          tenant_id: string
+          term_months: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_date_1?: string | null
+          deposit_date_2?: string | null
+          deposit_date_3?: string | null
+          deposit_due_date?: string | null
+          deposit_required?: boolean
+          deposit_split_three?: boolean
+          id?: string
+          odoo_contract_id?: number | null
+          payment_start_date?: string | null
+          portal_enrolled?: boolean
+          stand_number: string
+          synced_at?: string
+          tenant_id: string
+          term_months?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_date_1?: string | null
+          deposit_date_2?: string | null
+          deposit_date_3?: string | null
+          deposit_due_date?: string | null
+          deposit_required?: boolean
+          deposit_split_three?: boolean
+          id?: string
+          odoo_contract_id?: number | null
+          payment_start_date?: string | null
+          portal_enrolled?: boolean
+          stand_number?: string
+          synced_at?: string
+          tenant_id?: string
+          term_months?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_portal_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_cases: {
         Row: {
@@ -980,6 +1141,39 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          crm_provider: string | null
+          id: string
+          is_active: boolean
+          name: string
+          payment_gateway: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crm_provider?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          payment_gateway?: string | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crm_provider?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          payment_gateway?: string | null
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1141,6 +1335,7 @@ export type Database = {
       get_user_stand_number: { Args: { user_id: string }; Returns: string }
       is_internal_user: { Args: { _user_id: string }; Returns: boolean }
       is_override_approver: { Args: { _user_id: string }; Returns: boolean }
+      jwt_tenant_id: { Args: never; Returns: string }
     }
     Enums: {
       conversation_status:
@@ -1169,12 +1364,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1198,11 +1393,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1223,11 +1418,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1248,11 +1443,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1265,11 +1460,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

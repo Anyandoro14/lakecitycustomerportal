@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
 
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -139,6 +140,14 @@ const handler = async (req: Request): Promise<Response> => {
           error: "An account already exists for this stand number. Please login instead." 
         }),
         { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const portalCheck = await checkStandPortalEnrolled(supabaseAdmin, tenantId, trimmedStand);
+    if (!portalCheck.enrolled) {
+      return new Response(
+        JSON.stringify({ success: false, error: portalCheck.message }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
     }
 

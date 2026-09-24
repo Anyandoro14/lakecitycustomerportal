@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models
+from odoo.tools.float_utils import float_compare, float_is_zero
 
 
 class LakecityLoanInstallment(models.Model):
@@ -9,6 +10,15 @@ class LakecityLoanInstallment(models.Model):
 
     contract_id = fields.Many2one("lakecity.loan.contract", required=True, ondelete="cascade")
     sequence = fields.Integer(required=True)
+    installment_kind = fields.Selection(
+        [
+            ("deposit", "Deposit"),
+            ("regular", "BNPL installment"),
+        ],
+        string="Kind",
+        default="regular",
+        required=True,
+    )
     due_date = fields.Date(required=True)
     amount_due = fields.Monetary(required=True)
     amount_paid = fields.Monetary(default=0.0)
@@ -34,11 +44,24 @@ class LakecityLoanInstallment(models.Model):
     def _compute_state(self):
         today = fields.Date.context_today(self)
         for line in self:
-            if line.amount_paid >= line.amount_due:
+            rnd = line.currency_id.rounding if line.currency_id else 0.01
+            # amount_due == 0 must not read as "Paid" (0 >= 0 is true); usually bad contract data.
+            if float_is_zero(line.amount_due, precision_rounding=rnd):
+                line.state = "pending"
+            elif float_compare(line.amount_paid, line.amount_due, precision_rounding=rnd) >= 0:
                 line.state = "paid"
-            elif line.amount_paid > 0:
+            elif float_compare(line.amount_paid, 0.0, precision_rounding=rnd) > 0:
                 line.state = "partial"
             elif line.due_date and line.due_date < today:
                 line.state = "overdue"
             else:
                 line.state = "pending"
+
+    def action_lakecity_refresh_stored_computes(self):
+        """Refresh stored Outstanding and State from current due/paid amounts (use loan.contract action_recompute_installment_states to re-allocate payments too)."""
+        if not self:
+            return True
+        self._compute_amount_outstanding()
+        self._compute_state()
+        self.flush_recordset()
+        return True

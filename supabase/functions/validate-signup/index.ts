@@ -6,6 +6,7 @@ import {
   parseCollectionScheduleTabMonths,
   DEFAULT_PAYMENT_PLAN_MONTHS,
 } from "../_shared/collection-schedule-sheets.ts";
+import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -303,6 +304,14 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ valid: false, error: "Stand number not found in our records" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const portalCheck = await checkStandPortalEnrolled(supabaseAdmin, tenantId, trimmedStand);
+    if (!portalCheck.enrolled) {
+      return new Response(
+        JSON.stringify({ valid: false, error: portalCheck.message }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
     }
 

@@ -9,7 +9,10 @@
                 <field name="external_uid"/>
                 <field name="partner_id"/>
                 <field name="stand_number"/>
+                <field name="lakecity_stand_phase_id" optional="show"/>
                 <field name="state"/>
+                <field name="lakecity_portal_enrolled" optional="show"/>
+                <field name="lakecity_deposit_required" optional="show"/>
                 <field name="payment_start_date"/>
                 <field name="term_months"/>
                 <field name="recurring_invoice_amount"/>
@@ -26,9 +29,20 @@
         <field name="arch" type="xml">
             <form string="Loan Contract">
                 <header>
+                    <button name="action_enable_portal_enrollment" type="object" string="Enable portal enrolment" class="btn-secondary" invisible="lakecity_portal_enrolled"/>
                     <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'draft'"/>
+                    <!-- Keep Recompute early: some clients collapse trailing header buttons into a menu. -->
+                    <button name="action_recompute_installment_states" type="object" string="Recompute installments" class="btn-secondary"/>
                     <button name="action_generate_schedule" type="object" string="Generate Schedule"/>
+                    <button
+                        name="action_repair_zero_amount_schedule"
+                        type="object"
+                        string="Repair zero-due schedule"
+                        title="Use when every installment shows Amount due = 0 but the contract has positive financed amount (bad import/rounding). Regenerates lines and re-applies posted payments."/>
                     <button name="action_close" type="object" string="Close" invisible="state == 'closed'"/>
+                    <button name="action_mark_defaulted" type="object" string="Mark defaulted" invisible="state not in ('active',)"/>
+                    <button name="action_forfeit" type="object" string="Post forfeiture" invisible="state not in ('active', 'defaulted')" groups="account.group_account_invoice"/>
+                    <button name="action_cancel_with_refund" type="object" string="Cancel with refund" invisible="state not in ('active', 'defaulted')" groups="account.group_account_invoice"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,active,closed,defaulted"/>
                 </header>
                 <sheet>
@@ -38,6 +52,8 @@
                             <field name="external_uid"/>
                             <field name="partner_id"/>
                             <field name="stand_number"/>
+                            <field name="lakecity_stand_phase_id" readonly="1"/>
+                            <field name="lakecity_stand_cost_id" readonly="1"/>
                             <field name="product_id"/>
                             <field name="term_months"/>
                             <field name="payment_start_date"/>
@@ -49,8 +65,9 @@
                         <group>
                             <field name="total_price"/>
                             <field name="deposit_amount"/>
+                            <field name="stand_cost"/>
                             <field name="is_vat_inclusive"/>
-                            <field name="tax_rate" invisible="is_vat_inclusive"/>
+                            <field name="tax_rate"/>
                             <field name="total_with_tax" readonly="1"/>
                             <field name="recurring_invoice_amount" readonly="1"/>
                             <field name="total_paid" readonly="1"/>
@@ -60,12 +77,52 @@
                             <field name="next_payment_due_amount" readonly="1"/>
                             <field name="next_payment_date" readonly="1"/>
                             <field name="days_overdue" readonly="1"/>
+                            <field name="lakecity_revenue_recognized" readonly="1" groups="account.group_account_invoice"/>
+                            <field name="lakecity_vat_released" readonly="1" groups="account.group_account_invoice"/>
+                            <field name="lakecity_cos_recognized" readonly="1" groups="account.group_account_invoice"/>
                         </group>
+                    </group>
+                    <group string="Stand sales journal entries" groups="account.group_account_invoice">
+                        <group>
+                            <field name="lakecity_initial_contract_move_id"/>
+                            <field name="lakecity_inventory_reclass_move_id"/>
+                            <field name="lakecity_default_reclass_move_id"/>
+                        </group>
+                        <group>
+                            <field name="lakecity_forfeiture_move_ids" widget="many2many_tags"/>
+                            <field name="lakecity_cancellation_move_ids" widget="many2many_tags"/>
+                            <field name="lakecity_future_receivable_move_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Customer Portal and deposit">
+                        <group>
+                            <field name="lakecity_portal_enrolled" widget="boolean_toggle"/>
+                            <field name="lakecity_portal_enrolled_at" readonly="1"/>
+                            <field name="lakecity_portal_enrolled_by" readonly="1"/>
+                            <field name="lakecity_deposit_required"/>
+                            <field name="lakecity_deposit_split_three" invisible="not lakecity_deposit_required"/>
+                        </group>
+                        <group>
+                            <field name="deposit_amount" invisible="not lakecity_deposit_required"/>
+                            <field name="financed_amount" readonly="1"/>
+                            <field name="lakecity_deposit_due_date" invisible="not lakecity_deposit_required or lakecity_deposit_split_three"/>
+                            <field name="lakecity_deposit_date_1" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                            <field name="lakecity_deposit_date_2" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                            <field name="lakecity_deposit_date_3" invisible="not lakecity_deposit_required or not lakecity_deposit_split_three"/>
+                            <field name="payment_start_date" string="BNPL payment start"/>
+                        </group>
+                    </group>
+                    <group string="Pass-through fees" groups="account.group_account_invoice">
+                        <field name="lakecity_pass_through_amount"/>
+                        <button name="action_post_aos_pass_through" type="object" string="Post AOS receipt" class="btn-secondary"/>
+                        <button name="action_post_conveyancing_pass_through" type="object" string="Post conveyancing receipt" class="btn-secondary"/>
                     </group>
                     <notebook>
                         <page string="Installments">
                             <field name="installment_ids" readonly="1">
+                                <!-- Nested list: avoid monetary widget/options + column_invisible (Odoo 19 RNG rejects some combos on forms). -->
                                 <list>
+                                    <field name="installment_kind"/>
                                     <field name="sequence"/>
                                     <field name="due_date"/>
                                     <field name="amount_due"/>
@@ -84,6 +141,10 @@
                                     <field name="source"/>
                                     <field name="reference"/>
                                     <field name="state"/>
+                                    <field name="lakecity_stand_accounting_done" optional="hide"/>
+                                    <field name="lakecity_receipt_move_id" optional="hide"/>
+                                    <field name="lakecity_revenue_move_id" optional="hide"/>
+                                    <field name="lakecity_cos_move_id" optional="hide"/>
                                 </list>
                             </field>
                         </page>

@@ -1,0 +1,1 @@
+ALTER TABLE public.monthly_statements REPLICA IDENTITY FULL; ALTER PUBLICATION supabase_realtime ADD TABLE public.monthly_statements;

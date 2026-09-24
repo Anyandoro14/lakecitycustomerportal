@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,13 @@ const MAX_RESEND_ATTEMPTS = 3;
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Preserve /?next= for OAuth consent (/.lovable/oauth/consent) and similar
+  // deep-link entry points. Same-origin, relative-path only.
+  const rawNext = searchParams.get("next");
+  const nextPath =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/index";
+  const goPostLogin = () => navigate(nextPath, { replace: true });
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
@@ -84,7 +91,7 @@ const Login = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && !showVerification) {
-        navigate("/index", { replace: true });
+        goPostLogin();
       }
     };
     checkAuth();
@@ -226,7 +233,7 @@ const Login = () => {
           }
         } else {
           // No phone number, proceed without 2FA
-          navigate("/index", { replace: true });
+          goPostLogin();
         }
       }
     } catch (error: any) {
@@ -340,7 +347,7 @@ const Login = () => {
           title: "Verification successful",
           description: "You have been logged in",
         });
-        navigate("/index", { replace: true });
+        goPostLogin();
       } else {
         throw new Error(data?.error || "Incorrect code. Please try again or request a new one.");
       }
@@ -528,8 +535,9 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
       <Card className="w-full max-w-md">
+
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
             {/* Wordmark for desktop, Monogram for mobile */}
@@ -610,6 +618,17 @@ const Login = () => {
           </form>
         </CardContent>
       </Card>
+
+      <footer className="mt-8 w-full max-w-md text-center text-xs text-muted-foreground space-y-2">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+          <Link to="/landing" className="hover:text-primary hover:underline">About StandLedger</Link>
+          <Link to="/landing#pricing" className="hover:text-primary hover:underline">Pricing</Link>
+          <Link to="/privacy" className="hover:text-primary hover:underline">Privacy</Link>
+          <Link to="/terms" className="hover:text-primary hover:underline">Terms</Link>
+          <Link to="/refund-policy" className="hover:text-primary hover:underline">Refunds</Link>
+        </div>
+        <p>© {new Date().getFullYear()} Warwickshire PVT Ltd. Payments processed by Paddle, our Merchant of Record.</p>
+      </footer>
     </div>
   );
 };
