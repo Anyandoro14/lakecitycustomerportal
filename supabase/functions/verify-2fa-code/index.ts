@@ -1,5 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  emailsMatch,
+  hashCode,
+  loadProfileDestinations,
+  maskEmail,
+  normalizeEmail,
+  phonesMatch,
+  type OtpChannel,
+} from "../_shared/otp-destinations.ts";
 
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -11,9 +20,18 @@ const corsHeaders = {
 };
 
 interface VerifyCodeRequest {
-  phoneNumber: string;
+  userId?: string;
+  phoneNumber?: string;
+  email?: string;
   code: string;
+  channel?: OtpChannel;
 }
+
+const deny = (error: string, status = 'failed') =>
+  new Response(JSON.stringify({ verified: false, status, error }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
@@ -21,37 +39,125 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { phoneNumber, code }: VerifyCodeRequest = await req.json();
+    const { userId, phoneNumber, email, code, channel = 'sms' }: VerifyCodeRequest = await req.json();
 
-    if (!phoneNumber || !code) {
-      throw new Error("Phone number and code are required");
+    if (!code) {
+      return deny("Please enter the verification code.");
     }
 
-    console.log(`Verifying code for ${phoneNumber}`);
+    const validChannel: OtpChannel = channel === 'email' ? 'email' : 'sms';
+
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    let profile: { email: string | null; phones: string[] } | null = null;
+    if (userId) {
+      profile = await loadProfileDestinations(supabaseAdmin, userId);
+      if (!profile) {
+        return deny("We couldn't find your account details. Please try signing in again.");
+      }
+    }
+
+    // ---------------- Email channel ----------------
+    if (validChannel === 'email') {
+      const target = profile?.email ?? email ?? null;
+      if (!target) {
+        return deny("There's no email address on file for this account.");
+      }
+      if (profile?.email && email && !emailsMatch(email, profile.email)) {
+        console.warn('[2FA] Email destination mismatch rejected for user', userId);
+        return deny("That email address doesn't match the one on your account.");
+      }
+
+      const normalized = normalizeEmail(target);
+      const { data: row, error: rowError } = await supabaseAdmin
+        .from('email_otp_codes')
+        .select('*')
+        .eq('email', normalized)
+        .is('consumed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (rowError || !row) {
+        return deny("That code has expired or was already used. Please request a new one.");
+      }
+
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        return deny("That code has expired. Please request a new one.");
+      }
+
+      if (row.attempts >= row.max_attempts) {
+        await supabaseAdmin
+          .from('email_otp_codes')
+          .update({ consumed_at: new Date().toISOString() })
+          .eq('id', row.id);
+        return deny("Too many incorrect attempts. Please request a new code.");
+      }
+
+      const candidate = await hashCode(String(code).trim(), row.salt);
+      if (candidate !== row.code_hash) {
+        await supabaseAdmin
+          .from('email_otp_codes')
+          .update({ attempts: row.attempts + 1 })
+          .eq('id', row.id);
+        console.log('[2FA] Incorrect email code for', maskEmail(normalized));
+        return deny("Incorrect code. Please double-check and try again, or request a new one.");
+      }
+
+      await supabaseAdmin
+        .from('email_otp_codes')
+        .update({ consumed_at: new Date().toISOString() })
+        .eq('id', row.id);
+
+      console.log('[2FA] Email verification approved for', maskEmail(normalized));
+
+      return new Response(
+        JSON.stringify({ verified: true, status: 'approved', channel: 'email' }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
+    }
+
+    // ---------------- SMS channel ----------------
+    let target = phoneNumber ?? null;
+    if (profile) {
+      if (target) {
+        const matched = profile.phones.find((p) => phonesMatch(p, target));
+        if (!matched) {
+          console.warn('[2FA] Phone destination mismatch rejected for user', userId);
+          return deny("That phone number doesn't match the one on your account.");
+        }
+        target = matched;
+      } else {
+        target = profile.phones[0] ?? null;
+      }
+    }
+
+    if (!target) {
+      return deny("There's no phone number on file for this account.");
+    }
+
+    console.log(`Verifying code for a stored phone number`);
 
     // First, check if this is an admin bypass code
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
     const { data: bypassCode, error: bypassError } = await supabaseAdmin
       .from('twofa_bypass_codes')
       .select('*')
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', target)
       .eq('bypass_code', code)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 
-    // Check if bypass code exists and is valid (either unused OR reusable)
     const isValidBypass = bypassCode && !bypassError && (
       bypassCode.used_at === null || bypassCode.is_reusable === true
     );
 
     if (isValidBypass) {
       const isReusable = bypassCode.is_reusable === true;
-      console.log(`Valid ${isReusable ? 'reusable' : 'single-use'} bypass code used for ${phoneNumber}`);
-      
-      // Only mark as used if it's NOT a reusable code
+      console.log(`Valid ${isReusable ? 'reusable' : 'single-use'} bypass code used`);
+
       if (!isReusable) {
         await supabaseAdmin
           .from('twofa_bypass_codes')
@@ -59,7 +165,6 @@ const handler = async (req: Request): Promise<Response> => {
           .eq('id', bypassCode.id);
       }
 
-      // Log the bypass code usage to audit log
       await supabaseAdmin
         .from('audit_log')
         .insert({
@@ -71,54 +176,38 @@ const handler = async (req: Request): Promise<Response> => {
           details: {
             stand_number: bypassCode.stand_number,
             customer_name: bypassCode.customer_name,
-            phone_number_masked: phoneNumber.slice(0, 4) + '****' + phoneNumber.slice(-2),
+            phone_number_masked: target.slice(0, 4) + '****' + target.slice(-2),
             bypass_code_id: bypassCode.id,
-            is_reusable: isReusable
-          }
+            is_reusable: isReusable,
+          },
         });
 
       return new Response(
-        JSON.stringify({ verified: true, status: 'approved', bypassUsed: true, isReusable }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        JSON.stringify({ verified: true, status: 'approved', bypassUsed: true, isReusable, channel: 'sms' }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
     }
 
-    // Not a bypass code, verify with Twilio
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
-      throw new Error("Twilio credentials not configured");
+      return deny("Verification service is temporarily unavailable. Please try again.");
     }
 
-    console.log(`Verifying via Twilio for ${phoneNumber}`);
-
-    // Verify code using Twilio Verify API
     const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`;
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)
+        'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
       },
-      body: new URLSearchParams({
-        To: phoneNumber,
-        Code: code
-      })
+      body: new URLSearchParams({ To: target, Code: code }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
       console.error('Twilio error:', data);
-      // Twilio returns 404 when verification has expired or already been consumed.
-      // Return 200 so supabase-js exposes the body to the client (per project standard).
-      const message = (data as any)?.message || 'The code has expired or is no longer valid. Please request a new one.';
-      return new Response(
-        JSON.stringify({ verified: false, status: 'failed', error: message }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return deny((data as any)?.message || 'The code has expired or is no longer valid. Please request a new one.');
     }
 
     const verified = data.status === 'approved';
@@ -128,28 +217,14 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({
         verified,
         status: data.status,
+        channel: 'sms',
         error: verified ? undefined : 'Incorrect code. Please double-check and try again, or request a new one.',
       }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
     );
   } catch (error: any) {
-    console.error("Error in verify-2fa-code function:", error);
-    // Return 200 with verified:false so the client can show a friendly message
-    // instead of the opaque "Edge Function returned a non-2xx status code".
-    return new Response(
-      JSON.stringify({
-        verified: false,
-        status: 'error',
-        error: error?.message || 'Verification service is temporarily unavailable. Please try again.',
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    console.error("Error in verify-2fa-code function:", error?.message);
+    return deny(error?.message || 'Verification service is temporarily unavailable. Please try again.', 'error');
   }
 };
 
