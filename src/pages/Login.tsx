@@ -132,29 +132,26 @@ const Login = () => {
     }
   };
 
-  const sendVerificationCode = async (phone: string, channel: 'sms' = 'sms'): Promise<{ success: boolean; actualChannel: 'sms' }> => {
-    try {
-      const { data, error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
-        body: { phoneNumber: phone, channel }
-      });
+  // The destination is always resolved server-side from the customer's own profile.
+  const sendVerificationCode = async (
+    channel: OtpChannel,
+    destination: string,
+    userId: string | null,
+  ): Promise<void> => {
+    const { data, error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
+      body: channel === 'email'
+        ? { userId, channel: 'email', email: destination }
+        : { userId, channel: 'sms', phoneNumber: destination },
+    });
 
-      if (verifyError) throw verifyError;
-      if (data && data.success === false) {
-        throw new Error(data.error || 'Unable to send verification code. Please try again.');
-      }
-      
-      // Determine actual channel from Twilio's send_code_attempts
-      // If all attempts show 'sms', Twilio fell back to SMS
-      const actualChannel: 'sms' = 'sms';
-      
-      console.log('[2FA] Requested:', channel, 'Actual delivery:', actualChannel, 'Attempts:', data?.sendCodeAttempts);
-      
-      return { success: true, actualChannel };
-    } catch (error: any) {
-      console.error("Failed to send verification code:", error);
-      throw error;
+    if (verifyError) throw verifyError;
+    if (data && data.success === false) {
+      throw new Error(data.error || 'Unable to send verification code. Please try again.');
     }
   };
+
+  const maskDestination = (channel: OtpChannel, destination: string) =>
+    channel === 'email' ? maskEmail(destination) : maskPhoneNumber(destination);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
