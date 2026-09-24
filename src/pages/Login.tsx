@@ -37,9 +37,9 @@ const Login = () => {
   const [verificationCode, setVerificationCode] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [deliveryBlocked, setDeliveryBlocked] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState<'sms'>('sms');
-  const [actualDeliveryChannel, setActualDeliveryChannel] = useState<'sms' | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<OtpChannel>('sms');
   const [showChannelSelection, setShowChannelSelection] = useState(false);
+  const [profileEmail, setProfileEmail] = useState<string>("");
   
   // Resend 2FA state
   const [resendCooldown, setResendCooldown] = useState(0);
