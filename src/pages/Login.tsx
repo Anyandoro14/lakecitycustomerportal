@@ -421,6 +421,76 @@ const Login = () => {
   const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
   const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
 
+  // Channel selection screen — how the customer wants to receive their code.
+  // Destinations shown here come from the account only and cannot be edited.
+  if (showChannelSelection) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-xl">How do you want your code?</CardTitle>
+            <CardDescription>
+              We'll send a 6-digit code to the details saved on your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
+              {phoneNumbers.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="h-auto min-h-16 w-full flex items-center justify-start gap-4 px-4 py-3"
+                  onClick={() => handleChannelSelect('sms')}
+                  disabled={loading}
+                >
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="font-medium">Text message</div>
+                    <div className="text-sm text-muted-foreground font-mono truncate">
+                      {phoneNumbers.length > 1
+                        ? `${phoneNumbers.length} numbers on file`
+                        : maskPhoneNumber(phoneNumbers[0])}
+                    </div>
+                  </div>
+                </Button>
+              )}
+
+              {profileEmail && (
+                <Button
+                  variant="outline"
+                  className="h-auto min-h-16 w-full flex items-center justify-start gap-4 px-4 py-3"
+                  onClick={() => handleChannelSelect('email')}
+                  disabled={loading}
+                >
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Mail className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="font-medium">Email</div>
+                    <div className="text-sm text-muted-foreground font-mono truncate">
+                      {maskEmail(profileEmail)}
+                    </div>
+                  </div>
+                </Button>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full h-12"
+              onClick={handleBackToLogin}
+              disabled={loading}
+            >
+              Back to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Phone number selection screen (when user has multiple phone numbers)
   if (showPhoneSelection) {
     return (
