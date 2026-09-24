@@ -332,7 +332,9 @@ const Login = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('verify-2fa-code', {
-        body: { phoneNumber, code: verificationCode }
+        body: selectedChannel === 'email'
+          ? { userId: pendingUserId, channel: 'email', email: profileEmail, code: verificationCode }
+          : { userId: pendingUserId, channel: 'sms', phoneNumber, code: verificationCode },
       });
 
       if (error) throw error;
