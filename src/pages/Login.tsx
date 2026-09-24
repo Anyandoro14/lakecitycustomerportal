@@ -16,6 +16,8 @@ import {
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
 
+type OtpChannel = 'sms' | 'email';
+
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_RESEND_ATTEMPTS = 3;
 
