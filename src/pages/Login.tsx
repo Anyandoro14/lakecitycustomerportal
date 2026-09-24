@@ -386,20 +386,38 @@ const Login = () => {
     setPendingUserId(null);
     setPhoneNumber("");
     setPhoneNumbers([]);
+    setProfileEmail("");
     setDeliveryBlocked(false);
     setResendAttempts(0);
     setResendCooldown(0);
     setSelectedChannel('sms');
-    setActualDeliveryChannel(null);
   };
 
   const handlePhoneSelect = (phone: string) => {
     setPhoneNumber(phone);
-    setShowPhoneSelection(false);
-    handleDirectSMSSend(phone);
+    sendCode('sms', phone, pendingUserId);
   };
 
-  const maskedPhone = maskPhoneNumber(phoneNumber);
+  const handleChannelSelect = (channel: OtpChannel) => {
+    if (channel === 'email') {
+      sendCode('email', profileEmail, pendingUserId);
+      return;
+    }
+    setSelectedChannel('sms');
+    if (phoneNumbers.length > 1) {
+      setShowChannelSelection(false);
+      setShowPhoneSelection(true);
+      return;
+    }
+    setPhoneNumber(phoneNumbers[0]);
+    sendCode('sms', phoneNumbers[0], pendingUserId);
+  };
+
+  const activeDestination = selectedChannel === 'email' ? profileEmail : phoneNumber;
+  const maskedDestination = activeDestination
+    ? maskDestination(selectedChannel, activeDestination)
+    : '';
+  const channelLabel = selectedChannel === 'email' ? 'email' : 'SMS';
   const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
   const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
 
