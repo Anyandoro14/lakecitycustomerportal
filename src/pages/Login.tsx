@@ -255,32 +255,34 @@ const Login = () => {
     }
   };
 
-  const handleDirectSMSSend = async (phone: string) => {
-    setSelectedChannel('sms');
+  const sendCode = async (channel: OtpChannel, destination: string, userId: string | null) => {
+    setSelectedChannel(channel);
     setLoading(true);
     setDeliveryBlocked(false);
-    setActualDeliveryChannel(null);
+
+    const masked = maskDestination(channel, destination);
 
     try {
-      const { actualChannel } = await sendVerificationCode(phone, 'sms');
-      setActualDeliveryChannel(actualChannel);
+      await sendVerificationCode(channel, destination, userId);
       startCooldownTimer();
       setShowChannelSelection(false);
+      setShowPhoneSelection(false);
       setShowVerification(true);
-      
+
       toast({
         title: "Verification code sent",
-        description: `We've sent a 6-digit code via SMS to ${maskPhoneNumber(phone)}`,
+        description: `We've sent a 6-digit code by ${channel === 'email' ? 'email' : 'SMS'} to ${masked}`,
       });
     } catch (err: any) {
-      console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err);
+      console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err?.message);
       setDeliveryBlocked(true);
       setShowChannelSelection(false);
+      setShowPhoneSelection(false);
       setShowVerification(true);
-      
+
       toast({
         title: "Verification code delivery unavailable",
-        description: `We couldn't deliver a code to ${maskPhoneNumber(phone)}. If support provided you a bypass code, enter it below to continue.`,
+        description: `We couldn't deliver a code to ${masked}. If support provided you a bypass code, enter it below to continue.`,
       });
     } finally {
       setLoading(false);
