@@ -5,14 +5,20 @@
  * Replaces blank / stand-{N}@lakecity.portal placeholder partner emails.
  * Never overwrites a different real email (those land in `conflicts`).
  *
+ * Target Staging first (see docs/partner-email-sync.md):
+ *   ODOO_ORIGIN=https://lakecity-standledger-staging-38585394.dev.odoo.com
+ * Production-looking (only after Staging looks clean):
+ *   ODOO_ORIGIN=https://lakecity-standledger.odoo.com
+ *
  * Usage:
  *   node --env-file=.env scripts/sync-partner-emails-from-csv.mjs path/to/stand_email_updates.csv --dry-run
  *   node --env-file=.env scripts/sync-partner-emails-from-csv.mjs path/to/stand_email_updates.csv
  *
  * Env: ODOO_ORIGIN, LAKECITY_LOAN_API_TOKEN (same as Odoo lakecity_loan.api_token)
+ * Optional: STAND_EMAIL_CSV_PATH when CSV path is omitted
  *
- * CSV columns (header row required): stand_number, email
- * Optional columns (ignored by API): name, source_sheet
+ * CSV columns (header row required): stand_number,email
+ * Optional columns (ignored by API): name,source_sheet
  *
  * Flags:
  *   --dry-run     POST with dry_run=true (server evaluates, does not write)
@@ -45,6 +51,11 @@ const chunkSize = Math.min(
 const csvPath = argsNonFlags[0] || process.env.STAND_EMAIL_CSV_PATH || "";
 const odooOrigin = (process.env.ODOO_ORIGIN || "").replace(/\/$/, "");
 const apiToken = process.env.LAKECITY_LOAN_API_TOKEN || "";
+
+/** Known Collection Schedule preferences over conflicting BDO / sheet rows. */
+const EMAIL_OVERRIDES = {
+  "1543": "leeroymechshub@gmail.com",
+};
 
 function normHeader(h) {
   return String(h ?? "")
@@ -158,7 +169,16 @@ async function main() {
   for (const raw of rows) {
     const r = rowByNorm(raw);
     const stand = cleanStand(pick(r, ["stand_number", "Stand Number", "Stand"]));
-    const email = cleanEmail(pick(r, ["email", "Email"]));
+    let email = cleanEmail(pick(r, ["email", "Email"]));
+    if (stand && EMAIL_OVERRIDES[stand]) {
+      const preferred = EMAIL_OVERRIDES[stand];
+      if (email && email !== preferred) {
+        console.warn(
+          `Override stand ${stand}: CSV had ${email} → using ${preferred}`,
+        );
+      }
+      email = preferred;
+    }
     if (!stand || !email) {
       parseSkipped++;
       continue;
@@ -185,7 +205,16 @@ async function main() {
 
   if (!odooOrigin || !apiToken) {
     console.error("Set ODOO_ORIGIN and LAKECITY_LOAN_API_TOKEN (or use --local-only)");
+    console.error(
+      "Staging first: ODOO_ORIGIN=https://lakecity-standledger-staging-38585394.dev.odoo.com",
+    );
     process.exit(1);
+  }
+  if (/lakecity-standledger\.odoo\.com$/i.test(odooOrigin) && !dryRun) {
+    console.warn(
+      "WARN: ODOO_ORIGIN points at production-looking Standledger. Prefer Staging first:",
+    );
+    console.warn("  https://lakecity-standledger-staging-38585394.dev.odoo.com");
   }
 
   const allUpdated = [];

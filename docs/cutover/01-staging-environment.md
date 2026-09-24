@@ -72,10 +72,13 @@ If your UI looks like “Fork `main`” and “To: …”, that is exactly “br
 5. Click **Connect** on the staging branch — note the URL pattern:
 
    ```
-   https://anyandoro14-standledger-staging-<NNNN>.dev.odoo.com
+   https://lakecity-standledger-staging-<NNNN>.dev.odoo.com
    ```
 
-   where `<NNNN>` is the build number. This will rebuild on each push.
+   **Confirmed Staging (current):** `https://lakecity-standledger-staging-38585394.dev.odoo.com`  
+   **Production-looking:** `https://lakecity-standledger.odoo.com`  
+   (Older docs may still say `anyandoro14-standledger-*`; prefer the `lakecity-standledger-*` hosts above.)
+
 6. The staging DB name is the full subdomain (without `https://`) — copy it for Vault setup in § 4 below.
 
 ## 3. Get the staging Lovable Cloud connection details
