@@ -51,8 +51,4 @@ Trade-off: Odoo.sh sees the full monorepo (portal, Supabase, xlsx files). Standl
 - Portal app (`src/`, `supabase/`, etc.)
 - Root spreadsheets and scripts (except what lives under `odoo/addons/.../scripts`)
 
-Only the three addons are copied:
-
-- `lakecity_branding`
-- `lakecity_docutils_patch`
-- `lakecity_loan_management`
+Every directory under `odoo/addons/` is copied (currently including `daily_reconciliation`, `lakecity_branding`, `lakecity_docutils_patch`, `lakecity_loan_management`). New addon folders are picked up automatically by `scripts/sync-odoo-to-standledger.sh` — no allowlist edit required.
