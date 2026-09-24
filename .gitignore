@@ -38,3 +38,7 @@ node.pkg
 # Odoo addons (Python bytecode — never commit)
 odoo/**/*.pyc
 odoo/**/__pycache__/
+
+# Local Collection Schedule / partner email CSVs (may contain PII)
+exports/*.csv
+exports/*.xlsx

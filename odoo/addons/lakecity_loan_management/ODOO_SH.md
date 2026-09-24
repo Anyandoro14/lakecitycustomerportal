@@ -184,8 +184,10 @@ In this repo root (with `@supabase/supabase-js` already in `package.json`):
 
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY` — service role bypasses RLS for a one-off admin migration  
-   - `ODOO_ORIGIN` — production base URL, no trailing slash, e.g. `https://<project>.odoo.com`
+   - `ODOO_ORIGIN` — base URL, no trailing slash. **Staging first:** `https://lakecity-standledger-staging-38585394.dev.odoo.com`. Production-looking: `https://lakecity-standledger.odoo.com`.
    - `LAKECITY_LOAN_API_TOKEN` — exact match to Odoo parameter `lakecity_loan.api_token`
+
+   Partner placeholder email backfill (Collection Schedule CSV): see **`docs/partner-email-sync.md`** and `POST /lakecity/api/v1/partner/email/sync` (**19.0.1.0.70+**).
 
    Optional: `TENANT_SLUG=lakecity` (default); `SKIP_PREFLIGHT=1` skips Odoo `GET /health` (not recommended); `MIGRATE_ODOO_RETRIES` (default `4`) for transient 429/502/503. Finish partial runs despite row errors: `MIGRATE_CONTINUE_ON_ERROR=1`.
 
