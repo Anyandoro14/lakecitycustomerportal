@@ -36,9 +36,20 @@ stand_number,email,name,source_sheet
 - **Optional:** `name`, `source_sheet` (logged locally only; not sent to the API)
 - Invalid emails (no `@`, missing TLD) are skipped by the script
 
+Expected file path for ops: `exports/stand_email_updates.csv` (gitignored; may contain PII).
+
+Current Collection Schedule export (**180** stands):
+
+| `source_sheet` | Count |
+|---|---|
+| Collection Schedule - 36mo | 87 |
+| BDO Import | 54 |
+| Collection Schedule - 48mo | 22 |
+| Sales Master (gap fill) | 17 |
+
 Prefer Collection Schedule over BDO when sources disagree. Known override:
 
-- **Stand 1543** → `leeroymechshub@gmail.com` (prefer over BDO `leeroyleethawani@gmail.com`)
+- **Stand 1543** → `leeroymechshub@gmail.com` (prefer over BDO `leeroyleethawani@gmail.com`; script `EMAIL_OVERRIDES`)
 
 ## Staging runbook
 
