@@ -297,18 +297,16 @@ const Login = () => {
     setIsResending(true);
 
     try {
-      const { actualChannel } = await sendVerificationCode(phoneNumber, selectedChannel);
-      
-      // Update actual delivery channel in case it changed
-      setActualDeliveryChannel(actualChannel);
-      
+      // Resend via the same channel, to the same on-file destination
+      const destination = selectedChannel === 'email' ? profileEmail : phoneNumber;
+      await sendVerificationCode(selectedChannel, destination, pendingUserId);
+
       setResendAttempts((prev) => prev + 1);
       startCooldownTimer();
-      
-      const channelName = 'SMS';
+
       toast({
         title: "New code sent",
-        description: `A new verification code has been sent via ${channelName} to ${maskPhoneNumber(phoneNumber)}`,
+        description: `A new verification code has been sent by ${selectedChannel === 'email' ? 'email' : 'SMS'} to ${maskDestination(selectedChannel, destination)}`,
       });
     } catch (error: any) {
       toast({
