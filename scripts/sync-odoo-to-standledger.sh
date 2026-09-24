@@ -12,7 +12,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 STANDLEGER_REPO="${STANDLEGER_REPO:-https://github.com/Anyandoro14/Standledger.git}"
-ADDONS=(lakecity_branding lakecity_docutils_patch lakecity_loan_management)
+# Sync every addon directory under odoo/addons/ (new modules are included automatically).
+ADDONS=()
+for dir in "$ROOT/odoo/addons"/*/; do
+  [[ -d "$dir" ]] || continue
+  ADDONS+=("$(basename "$dir")")
+done
+if [[ ${#ADDONS[@]} -eq 0 ]]; then
+  echo "ERROR: no addon directories found under odoo/addons/" >&2
+  exit 1
+fi
 PORTAL_BRANCH="$(git branch --show-current)"
 
 case "$PORTAL_BRANCH" in
