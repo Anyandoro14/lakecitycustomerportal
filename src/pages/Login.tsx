@@ -550,8 +550,8 @@ const Login = () => {
             <CardTitle className="text-xl">Verification</CardTitle>
             <CardDescription>
               {deliveryBlocked
-                ? `We couldn't deliver a code to ${maskedPhone}. If you have a bypass code from support, enter it below.`
-                : `We've sent a 6-digit verification code via SMS to ${maskedPhone}`}
+                ? `We couldn't deliver a code to ${maskedDestination}. If you have a bypass code from support, enter it below.`
+                : `We've sent a 6-digit verification code by ${channelLabel} to ${maskedDestination}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
