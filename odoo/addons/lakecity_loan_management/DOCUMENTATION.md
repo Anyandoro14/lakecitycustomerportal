@@ -56,7 +56,7 @@ Settings sync to Supabase `stand_portal_settings` when system parameters `lakeci
 
 Upgrade **19.0.1.0.52** grandfathers **active** contracts as enrolled; existing `profiles.stand_number` rows are enrolled via SQL migration.
 
-## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+, cutover-from-payments in 19.0.1.0.67+, force-delete in 19.0.1.0.68+)
+## Opening balance cutover — 1 Jan 2026 (19.0.1.0.54+, cutover-from-payments in 19.0.1.0.67+, force-delete in 19.0.1.0.68+, opening equity in 19.0.1.0.69+)
 
 Accounting books start **2026-01-01**. The **customer portal keeps the full payment history**; Odoo must not keep individual receipts dated before the start.
 
@@ -64,9 +64,12 @@ Accounting books start **2026-01-01**. The **customer portal keeps the full paym
 
 1. Total all stand receipts through **31 Dec 2025**.
 2. Post **one opening-balance journal entry per stand** dated **1 Jan 2026** (JE1 for the contract + lumped cash received).
-3. **Delete** stand-sales receipts / JEs dated before 1 Jan 2026 so the 2025 journal list is empty.
+3. Opening cash debits **Retained Earnings (303000)**, **not** CABS/bank, so live bank is not inflated (**19.0.1.0.69+**).
+4. **Delete** stand-sales receipts / JEs dated before 1 Jan 2026 so the 2025 journal list is empty.
 
 Do **not** break the portal link. Pre-2026 portal receipts stay on the dashboard and are no longer synced as individual Odoo JEs.
+
+Operator runbook (bank mapping, day-first dates, daily three-way reconcile): **`docs/bnpl-accounting-cutover-and-daily-reconcile.md`**.
 
 ### Run the cutover (from posted Odoo payments)
 

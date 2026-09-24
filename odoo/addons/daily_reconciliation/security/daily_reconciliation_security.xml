@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Odoo 19: res.groups uses privilege_id (not category_id).
+  Default ACL is open to internal users so non-accounting staff can view/act.
+  Admin group is for optional tighter menus later; not required for daily ops.
+-->
+<odoo>
+    <record id="module_category_daily_reconciliation" model="ir.module.category">
+        <field name="name">Daily Reconciliation</field>
+        <field name="description">BNPL three-way reconcile exception queue.</field>
+        <field name="sequence">23</field>
+    </record>
+
+    <record id="res_groups_privilege_daily_reconciliation" model="res.groups.privilege">
+        <field name="name">Daily Reconciliation</field>
+        <field name="placeholder">Reconcile queue access</field>
+        <field name="sequence">51</field>
+        <field name="category_id" ref="module_category_daily_reconciliation"/>
+    </record>
+
+    <!-- Optional admin group (implied for settings / wipe); day-to-day uses internal user. -->
+    <record id="group_daily_reconciliation_admin" model="res.groups">
+        <field name="name">Daily Reconciliation Admin</field>
+        <field name="privilege_id" ref="res_groups_privilege_daily_reconciliation"/>
+        <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+</odoo>

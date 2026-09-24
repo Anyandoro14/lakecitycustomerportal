@@ -56,6 +56,10 @@
                     <group string="Bank journal for stand sale receipts"
                            invisible="not lakecity_stand_sales_accounting_enabled">
                         <field name="lakecity_bnpl_collections_journal_id"/>
+                        <field name="lakecity_bnpl_cash_journal_id"/>
+                        <field name="lakecity_bnpl_ecocash_journal_id"/>
+                        <field name="lakecity_bnpl_kuva_journal_id"/>
+                        <field name="lakecity_opening_equity_account_id"/>
                     </group>
                 </page>
             </xpath>

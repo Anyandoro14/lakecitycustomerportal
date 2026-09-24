@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- List: oldest first via model _order; side-by-side + mismatch badge -->
+    <record id="view_daily_reconciliation_exception_list" model="ir.ui.view">
+        <field name="name">daily.reconciliation.exception.list</field>
+        <field name="model">daily.reconciliation.exception</field>
+        <field name="arch" type="xml">
+            <list string="Exception queue"
+                  decoration-danger="severity == 'critical' and state == 'open'"
+                  decoration-warning="severity in ('high', 'medium') and state == 'open'"
+                  decoration-muted="state in ('matched', 'closed', 'adjusted')"
+                  default_order="first_seen asc, id asc"
+                  create="0">
+                <header>
+                    <button name="action_match" type="object" string="Match"/>
+                    <button name="action_adjust_date" type="object" string="Adjust Date"/>
+                    <button name="action_needs_review" type="object" string="Needs Review"/>
+                </header>
+                <field name="name" optional="show"/>
+                <field name="age_days" string="Age (d)"/>
+                <field name="first_seen" optional="hide"/>
+                <field name="stand_number"/>
+                <field name="partner_name" optional="show"/>
+                <field name="mismatch_type" widget="badge"
+                         decoration-danger="mismatch_type in ('pre_cutoff_hit_bank', 'missing_receipt_unposted', 'amount_mismatch')"
+                         decoration-warning="mismatch_type in ('balance_mismatch', 'stand_price_mismatch', 'wrong_date_day_month_swap', 'missing_in_odoo', 'manual_total_error')"
+                         decoration-info="mismatch_type in ('ambiguous_date_day_month', 'liquidity_account_unexpected', 'missing_in_collection')"
+                         decoration-muted="mismatch_type == 'other'"/>
+                <field name="severity" widget="badge"
+                         decoration-danger="severity == 'critical'"
+                         decoration-warning="severity == 'high'"
+                         decoration-info="severity == 'medium'"
+                         decoration-muted="severity == 'low'"/>
+                <field name="collection_label" string="Collection side" optional="show"/>
+                <field name="collection_value" string="Collection value"/>
+                <field name="odoo_label" string="Bank/Odoo side" optional="show"/>
+                <field name="odoo_value" string="Bank/Odoo value"/>
+                <field name="difference_summary" string="Differs"/>
+                <field name="state" widget="badge"
+                         decoration-success="state == 'matched'"
+                         decoration-info="state == 'needs_review'"
+                         decoration-warning="state == 'adjusted'"
+                         decoration-muted="state == 'closed'"
+                         decoration-danger="state == 'open'"/>
+                <field name="reconcile_date" optional="hide"/>
+                <button name="action_match" type="object" string="Match" icon="fa-check"
+                        invisible="state in ('matched', 'closed')"/>
+                <button name="action_adjust_date" type="object" string="Adjust Date" icon="fa-calendar"
+                        invisible="state in ('adjusted', 'closed')"/>
+                <button name="action_needs_review" type="object" string="Needs Review" icon="fa-flag"
+                        invisible="state in ('needs_review', 'closed')"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_daily_reconciliation_exception_kanban" model="ir.ui.view">
+        <field name="name">daily.reconciliation.exception.kanban</field>
+        <field name="model">daily.reconciliation.exception</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_daily_reconciliation_kanban" create="0">
+                <field name="name"/>
+                <field name="stand_number"/>
+                <field name="mismatch_type"/>
+                <field name="severity"/>
+                <field name="collection_value"/>
+                <field name="odoo_value"/>
+                <field name="difference_summary"/>
+                <field name="age_days"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="o_daily_recon_card">
+                            <div class="o_daily_recon_card_top">
+                                <strong t-out="record.stand_number.value"/>
+                                <span t-attf-class="badge o_daily_recon_badge o_daily_recon_badge_#{record.mismatch_type.raw_value}">
+                                    <t t-out="record.mismatch_type.value"/>
+                                </span>
+                            </div>
+                            <div class="text-muted small">Age: <t t-out="record.age_days.value"/>d · <t t-out="record.severity.value"/></div>
+                            <div class="o_daily_recon_sides mt-2">
+                                <div>
+                                    <div class="text-muted small">Collection</div>
+                                    <div t-out="record.collection_value.value or '—'"/>
+                                </div>
+                                <div>
+                                    <div class="text-muted small">Bank / Odoo</div>
+                                    <div t-out="record.odoo_value.value or '—'"/>
+                                </div>
+                            </div>
+                            <div class="small mt-2" t-out="record.difference_summary.value"/>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_daily_reconciliation_exception_form" model="ir.ui.view">
+        <field name="name">daily.reconciliation.exception.form</field>
+        <field name="model">daily.reconciliation.exception</field>
+        <field name="arch" type="xml">
+            <form string="Reconcile exception" create="0">
+                <header>
+                    <button name="action_match" type="object" string="Match" class="btn-primary"
+                            invisible="state in ('matched', 'closed')"/>
+                    <button name="action_adjust_date" type="object" string="Adjust Date"
+                            invisible="state in ('adjusted', 'closed')"/>
+                    <button name="action_needs_review" type="object" string="Needs Review"
+                            invisible="state in ('needs_review', 'closed')"/>
+                    <button name="action_close" type="object" string="Close"
+                            invisible="state == 'closed'"/>
+                    <button name="action_reopen" type="object" string="Reopen"
+                            invisible="state == 'open'"/>
+                    <field name="state" widget="statusbar"
+                            statusbar_visible="open,needs_review,adjusted,matched,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                        <h2>
+                            Stand <field name="stand_number" class="oe_inline" readonly="1"/>
+                            <field name="mismatch_type" widget="badge" class="ms-2"/>
+                        </h2>
+                    </div>
+                    <group>
+                        <group string="Meta">
+                            <field name="severity" widget="badge"/>
+                            <field name="age_days"/>
+                            <field name="first_seen"/>
+                            <field name="last_seen"/>
+                            <field name="reconcile_date"/>
+                            <field name="field_name"/>
+                        </group>
+                        <group string="Contract">
+                            <field name="partner_name"/>
+                            <field name="contract_id"/>
+                            <field name="contract_external_uid"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="fingerprint" groups="base.group_no_one"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Collection Schedule">
+                            <field name="collection_label" string="Source"/>
+                            <field name="collection_value" string="Value"/>
+                            <field name="collection_date" string="Date"/>
+                            <field name="collection_amount" string="Amount"/>
+                        </group>
+                        <group string="Bank / Odoo">
+                            <field name="odoo_label" string="Source"/>
+                            <field name="odoo_value" string="Value"/>
+                            <field name="odoo_date" string="Date"/>
+                            <field name="odoo_amount" string="Amount"/>
+                        </group>
+                    </group>
+                    <group string="Expected / extra" invisible="not expected_label and not expected_value">
+                        <field name="expected_label"/>
+                        <field name="expected_value"/>
+                    </group>
+                    <group string="What differs">
+                        <field name="difference_summary" nolabel="1" colspan="2"/>
+                        <field name="hint" nolabel="1" colspan="2" placeholder="Operator hint from reconcile run…"/>
+                    </group>
+                    <notebook>
+                        <page string="Action history" name="actions">
+                            <field name="action_ids" readonly="1">
+                                <list>
+                                    <field name="create_date"/>
+                                    <field name="action_type"/>
+                                    <field name="user_id"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Raw" name="raw" groups="base.group_no_one">
+                            <field name="raw_payload" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_daily_reconciliation_exception_search" model="ir.ui.view">
+        <field name="name">daily.reconciliation.exception.search</field>
+        <field name="model">daily.reconciliation.exception</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="stand_number"/>
+                <field name="partner_name"/>
+                <field name="mismatch_type"/>
+                <field name="name"/>
+                <filter name="open" string="Open" domain="[('state', '=', 'open')]"/>
+                <filter name="needs_review" string="Needs Review" domain="[('state', '=', 'needs_review')]"/>
+                <filter name="matched" string="Matched" domain="[('state', '=', 'matched')]"/>
+                <filter name="adjusted" string="Adjusted" domain="[('state', '=', 'adjusted')]"/>
+                <filter name="closed" string="Closed" domain="[('state', '=', 'closed')]"/>
+                <filter name="today" string="Today's run" domain="[('reconcile_date', '=', context_today())]"/>
+                <filter name="critical" string="Critical" domain="[('severity', '=', 'critical')]"/>
+                <separator/>
+                <filter name="group_mismatch" string="Mismatch type" context="{'group_by': 'mismatch_type'}"/>
+                <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                <filter name="group_stand" string="Stand" context="{'group_by': 'stand_number'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Main queue action — empty help = All Clear banner -->
+    <record id="action_daily_reconciliation_queue" model="ir.actions.act_window">
+        <field name="name">Exception Queue</field>
+        <field name="res_model">daily.reconciliation.exception</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_daily_reconciliation_exception_search"/>
+        <field name="context">{'search_default_open': 1, 'search_default_today': 1}</field>
+        <field name="help" type="html">
+            <div class="o_daily_recon_all_clear">
+                <p class="o_view_nocontent_smiling_face">All Clear</p>
+                <p>
+                    No open exceptions for today's reconcile queue.
+                    Safe signal to close the books for the day.
+                </p>
+                <p class="text-muted">
+                    Run the three-way reconcile script, then use
+                    <strong>Import today's reconcile</strong> to load any new issues.
+                </p>
+            </div>
+        </field>
+    </record>
+
+    <!-- All items (any day / state) -->
+    <record id="action_daily_reconciliation_all" model="ir.actions.act_window">
+        <field name="name">All Exceptions</field>
+        <field name="res_model">daily.reconciliation.exception</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="context">{}</field>
+    </record>
+</odoo>

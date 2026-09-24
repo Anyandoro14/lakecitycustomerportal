@@ -1,0 +1,59 @@
+/* Daily Reconciliation — mismatch badges + All Clear empty state */
+
+.o_daily_recon_all_clear {
+    text-align: center;
+    padding: 2rem 1rem;
+
+    .o_view_nocontent_smiling_face {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #0f766e;
+        margin-bottom: 0.5rem;
+    }
+}
+
+.o_daily_recon_card {
+    .o_daily_recon_card_top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .o_daily_recon_sides {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+}
+
+.o_daily_recon_badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+/* Severity-ish colour hints for common mismatch types */
+.o_daily_recon_badge_pre_cutoff_hit_bank,
+.o_daily_recon_badge_missing_receipt_unposted,
+.o_daily_recon_badge_amount_mismatch {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.o_daily_recon_badge_balance_mismatch,
+.o_daily_recon_badge_stand_price_mismatch,
+.o_daily_recon_badge_wrong_date_day_month_swap,
+.o_daily_recon_badge_missing_in_odoo,
+.o_daily_recon_badge_manual_total_error {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.o_daily_recon_badge_ambiguous_date_day_month,
+.o_daily_recon_badge_liquidity_account_unexpected,
+.o_daily_recon_badge_missing_in_collection {
+    background: #e0f2fe;
+    color: #075985;
+}
