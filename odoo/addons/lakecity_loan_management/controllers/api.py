@@ -133,7 +133,11 @@ class LakecityLoanApiController(http.Controller):
 
     @http.route("/lakecity/api/v1/receipt/intake", type="http", auth="public", methods=["POST"], csrf=False)
     def receipt_intake(self, **kwargs):
-        """Receive receipt submissions from Make.com (QC happens inside Odoo)."""
+        """Receive receipt submissions from Google Forms / Apps Script (QC in Odoo).
+
+        Accepts flat fields and/or a Google-Forms-style ``answers`` object.
+        Idempotent on ``uuid`` while still ``pending_qc``; returns 409 once QC completed.
+        """
         ok, response = self._validate_token()
         if not ok:
             return response
@@ -142,15 +146,44 @@ class LakecityLoanApiController(http.Controller):
         flat = self._flatten_receipt_intake_payload(payload)
 
         if not flat["intake_uuid"]:
-            return self._json_response({"ok": False, "error": "uuid_required"}, status=400)
+            return self._json_response(
+                {
+                    "ok": False,
+                    "error": "uuid_required",
+                    "message": "Provide uuid (or intake_uuid / Intake_ID) for idempotent intake.",
+                },
+                status=400,
+            )
         if not flat["stand_number"]:
-            return self._json_response({"ok": False, "error": "stand_number_required"}, status=400)
+            return self._json_response(
+                {
+                    "ok": False,
+                    "error": "stand_number_required",
+                    "message": "Stand number is required (stand_number / Stand Number).",
+                },
+                status=400,
+            )
         if flat["payment_amount"] <= 0:
-            return self._json_response({"ok": False, "error": "positive_amount_required"}, status=400)
+            return self._json_response(
+                {
+                    "ok": False,
+                    "error": "positive_amount_required",
+                    "message": "Amount must be a number greater than zero.",
+                },
+                status=400,
+            )
         if not flat["receipt_url"] or not str(flat["receipt_url"]).startswith("https://"):
-            return self._json_response({"ok": False, "error": "https_receipt_url_required"}, status=400)
+            return self._json_response(
+                {
+                    "ok": False,
+                    "error": "https_receipt_url_required",
+                    "message": "Receipt URL must be https:// (share Drive uploads as anyone-with-link).",
+                },
+                status=400,
+            )
 
         Intake = request.env["lakecity.receipt.intake"].sudo()
+        Contract = request.env["lakecity.loan.contract"].sudo()
         existing = Intake.search([("intake_uuid", "=", flat["intake_uuid"])], limit=1)
         vals = {
             "intake_uuid": flat["intake_uuid"],
@@ -166,12 +199,25 @@ class LakecityLoanApiController(http.Controller):
             "entered_by": flat["entered_by"],
             "state": "pending_qc",
         }
+        warnings = []
+        contract = Contract.search([("stand_number", "=", flat["stand_number"])], limit=1)
+        if not contract:
+            warnings.append(
+                {
+                    "code": "contract_not_found",
+                    "message": "No loan contract found for stand %s. Intake still saved as pending_qc; "
+                    "create the contract before QC approve."
+                    % flat["stand_number"],
+                }
+            )
+
         if existing:
             if existing.state != "pending_qc":
                 return self._json_response(
                     {
                         "ok": False,
                         "error": "intake_already_processed",
+                        "message": "This uuid was already QC-processed (state=%s)." % existing.state,
                         "state": existing.state,
                         "intake_id": existing.id,
                     },
@@ -179,6 +225,8 @@ class LakecityLoanApiController(http.Controller):
                 )
             existing.write(vals)
             record = existing
+            # Re-run soft contract check after update (create() notify already ran once).
+            record._lakecity_apply_contract_warning()
         else:
             record = Intake.create(vals)
 
@@ -188,6 +236,9 @@ class LakecityLoanApiController(http.Controller):
                 "intake_id": record.id,
                 "state": record.state,
                 "stand_number": record.stand_number,
+                "contract_found": bool(contract),
+                "contract_id": contract.id if contract else None,
+                "warnings": warnings,
                 "next_step": "Lakecity Loans → Receipt intakes (QC) → approve when validated.",
             }
         )

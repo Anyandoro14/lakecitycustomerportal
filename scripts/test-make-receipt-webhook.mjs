@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * POST a sample receipt payload to Make (Custom webhook) for smoke-testing the chain.
+ * DEPRECATED — prefer scripts/test-odoo-receipt-intake.mjs (Make-free path).
+ *
+ * POST a sample receipt payload to Make (Custom webhook) for legacy rollback smoke tests.
  *
  *   MAKE_WEBHOOK_URL=https://hook.us2.make.com/... node scripts/test-make-receipt-webhook.mjs
  *
