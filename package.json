@@ -29,6 +29,7 @@
     "odoo:bnpl:reconcile": "node --env-file=.env scripts/daily-bnpl-three-way-reconcile.mjs",
     "test:accounting-cutoff": "node scripts/lib/accounting-cutoff.self-test.mjs",
     "test:bnpl-reconcile": "node scripts/lib/daily-reconcile.self-test.mjs",
+    "test:daily-reconciliation": "node scripts/daily-reconciliation-queue.self-test.mjs",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
     "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
   },

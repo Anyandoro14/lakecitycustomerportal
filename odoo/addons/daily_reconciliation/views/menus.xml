@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Top-level app — NOT under Accounting -->
+    <menuitem
+        id="menu_daily_reconciliation_root"
+        name="Daily Reconciliation"
+        sequence="25"
+        web_icon="daily_reconciliation,static/description/icon.png"
+        groups="base.group_user"/>
+
+    <menuitem
+        id="menu_daily_reconciliation_queue"
+        name="Exception Queue"
+        parent="menu_daily_reconciliation_root"
+        action="action_daily_reconciliation_queue"
+        sequence="10"
+        groups="base.group_user"/>
+
+    <menuitem
+        id="menu_daily_reconciliation_import"
+        name="Import today's reconcile"
+        parent="menu_daily_reconciliation_root"
+        action="action_daily_reconciliation_import_wizard"
+        sequence="20"
+        groups="base.group_user"/>
+
+    <menuitem
+        id="menu_daily_reconciliation_all"
+        name="All Exceptions"
+        parent="menu_daily_reconciliation_root"
+        action="action_daily_reconciliation_all"
+        sequence="30"
+        groups="base.group_user"/>
+</odoo>

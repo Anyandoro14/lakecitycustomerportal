@@ -13,9 +13,13 @@
  *   --out-dir PATH      Report directory (default docs/output/reconcile)
  *   --stand N           Limit to one stand
  *
+ *   --push-queue        POST issues to Odoo Daily Reconciliation ingest API
+ *                       (needs ODOO_ORIGIN + LAKECITY_LOAN_API_TOKEN; addon daily_reconciliation)
+ *
  * Outputs:
  *   bnpl-reconcile-YYYY-MM-DD.csv
  *   bnpl-reconcile-YYYY-MM-DD.md
+ *   bnpl-reconcile-YYYY-MM-DD.json  (for Daily Reconciliation import / --push-queue)
  *
  * Required Collection columns (case-insensitive): Stand Number, TOTAL PRICE,
  * TOTAL PAID, Current Balance (or Accounts Receivable). Month-grid payment cells optional.
@@ -65,6 +69,7 @@ const collectionPath =
 const salesPath = flagVal("--sales") || process.env.SALES_MASTER_PATH || "";
 const odooJsonPath = flagVal("--odoo-json") || "";
 const fetchOdoo = hasFlag("--odoo") || Boolean(process.env.ODOO_ORIGIN && !odooJsonPath);
+const pushQueue = hasFlag("--push-queue");
 const moneyTol = Number(process.env.RECONCILE_MONEY_TOLERANCE || "1"); // USD
 
 const SEVERITY = { critical: 1, high: 2, medium: 3, low: 4 };
@@ -586,6 +591,7 @@ function writeReports(issues) {
   const base = `bnpl-reconcile-${day}`;
   const csvPath = path.join(outDir, `${base}.csv`);
   const mdPath = path.join(outDir, `${base}.md`);
+  const jsonPath = path.join(outDir, `${base}.json`);
 
   const headers = [
     "severity",
@@ -634,9 +640,44 @@ function writeReports(issues) {
     }
     if (issues.length > 500) md.push("", `_… ${issues.length - 500} more rows in CSV_`, "");
   }
-  md.push("", `CSV: \`${csvPath}\``, "");
+  md.push("", `CSV: \`${csvPath}\``, `JSON: \`${jsonPath}\``, "");
   fs.writeFileSync(mdPath, md.join("\n"), "utf8");
-  return { csvPath, mdPath, counts };
+
+  const jsonPayload = {
+    reconcile_date: day,
+    accounting_start_date: cutoffDate,
+    issues,
+  };
+  fs.writeFileSync(jsonPath, JSON.stringify(jsonPayload, null, 2) + "\n", "utf8");
+  return { csvPath, mdPath, jsonPath, day, counts };
+}
+
+async function pushIssuesToQueue(issues, reconcileDate) {
+  const origin = (process.env.ODOO_ORIGIN || "").replace(/\/$/, "");
+  const token = process.env.LAKECITY_LOAN_API_TOKEN || "";
+  if (!origin || !token) {
+    throw new Error("--push-queue needs ODOO_ORIGIN and LAKECITY_LOAN_API_TOKEN");
+  }
+  const url = `${origin}/lakecity/api/v1/daily-reconciliation/ingest`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ reconcile_date: reconcileDate, issues }),
+  });
+  const text = await res.text();
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = { raw: text };
+  }
+  if (!res.ok) {
+    throw new Error(`Queue ingest failed HTTP ${res.status}: ${text.slice(0, 400)}`);
+  }
+  return body;
 }
 
 async function main() {
@@ -660,13 +701,22 @@ async function main() {
   );
 
   const issues = reconcile(collection, sales, odoo);
-  const { csvPath, mdPath, counts } = writeReports(issues);
+  const { csvPath, mdPath, jsonPath, day, counts } = writeReports(issues);
 
   console.log(
     `Issues: ${issues.length} (critical ${counts.critical || 0}, high ${counts.high || 0}, medium ${counts.medium || 0}, low ${counts.low || 0})`,
   );
   console.log(`Wrote ${csvPath}`);
   console.log(`Wrote ${mdPath}`);
+  console.log(`Wrote ${jsonPath}`);
+
+  if (pushQueue) {
+    const result = await pushIssuesToQueue(issues, day);
+    console.log(
+      `Pushed to Daily Reconciliation queue: created ${result?.stats?.created ?? "?"}, updated ${result?.stats?.updated ?? "?"}, open ${result?.open_count ?? "?"}, all_clear=${result?.all_clear}`,
+    );
+  }
+
   process.exit(counts.critical ? 2 : 0);
 }
 

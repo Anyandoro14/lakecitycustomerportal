@@ -142,6 +142,7 @@ Reports land in `docs/output/reconcile/`:
 
 - `bnpl-reconcile-YYYY-MM-DD.csv`
 - `bnpl-reconcile-YYYY-MM-DD.md`
+- `bnpl-reconcile-YYYY-MM-DD.json` (for the **Daily Reconciliation** Odoo queue)
 
 Exit code `2` if any **critical** issues remain.
 
@@ -149,6 +150,12 @@ npm alias:
 
 ```bash
 npm run odoo:bnpl:reconcile -- --collection ./collection.csv --odoo
+```
+
+Push issues straight into the Odoo exception queue (requires addon `daily_reconciliation` installed):
+
+```bash
+npm run odoo:bnpl:reconcile -- --collection ./collection.csv --odoo --push-queue
 ```
 
 ---
@@ -168,12 +175,29 @@ npm run odoo:bnpl:reconcile -- --collection ./collection.csv --odoo
 
 Tolerance for money compares defaults to **$1** (`RECONCILE_MONEY_TOLERANCE`).
 
+Work the same codes in Odoo under **Daily Reconciliation → Exception Queue** (Match / Adjust Date / Needs Review). See `odoo/addons/daily_reconciliation/README.md`.
+
 ---
 
 ## 6. Quick checklist (daily)
 
 1. Export Collection Schedule (+ Sales Master if prices changed) to CSV.  
-2. Run three-way reconcile with `--odoo`.  
-3. Fix **critical** rows before posting new receipts.  
-4. Import only **post-cutoff** sheet payments.  
-5. Keep cutover date configurable but default **2026-01-01**.
+2. Run three-way reconcile with `--odoo` (add `--push-queue` or Import wizard).  
+3. Clear **Daily Reconciliation** open items (or confirm **All Clear**).  
+4. Fix **critical** rows before posting new receipts.  
+5. Import only **post-cutoff** sheet payments.  
+6. Keep cutover date configurable but default **2026-01-01**.
+
+---
+
+## 7. Daily Reconciliation app (Odoo)
+
+Standalone top-level app **`daily_reconciliation`** — not nested under Accounting.
+
+| Feed | How |
+|------|-----|
+| UI | **Daily Reconciliation → Import today's reconcile** (CSV/JSON from step 4, or sample data) |
+| API | `POST /lakecity/api/v1/daily-reconciliation/ingest` with Bearer `lakecity_loan.api_token` |
+| Script | `--push-queue` on `daily-bnpl-three-way-reconcile.mjs` |
+
+Empty open queue for today shows the **All Clear** banner (safe to close the books).
