@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RefreshCw, Phone } from "lucide-react";
+import { RefreshCw, Phone, Mail, MessageSquare } from "lucide-react";
 import { 
   verificationCodeSchema,
   standNumberSchema,
-  maskPhoneNumber
+  maskPhoneNumber,
+  maskEmail
 } from "@/lib/validation";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
