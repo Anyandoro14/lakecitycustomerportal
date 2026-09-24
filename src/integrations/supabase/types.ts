@@ -576,6 +576,48 @@ export type Database = {
         }
         Relationships: []
       }
+      email_otp_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          max_attempts: number
+          salt: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          max_attempts?: number
+          salt: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          max_attempts?: number
+          salt?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       internal_notes: {
         Row: {
           conversation_id: string
@@ -1327,6 +1369,7 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_bypass_codes: { Args: never; Returns: undefined }
+      cleanup_expired_email_otp_codes: { Args: never; Returns: undefined }
       cleanup_expired_password_reset_tokens: { Args: never; Returns: undefined }
       get_internal_role: {
         Args: { _user_id: string }

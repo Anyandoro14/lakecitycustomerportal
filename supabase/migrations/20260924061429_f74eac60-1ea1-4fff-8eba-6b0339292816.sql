@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.cleanup_expired_email_otp_codes() FROM PUBLIC, anon, authenticated;

@@ -52,6 +52,13 @@ export const maskPhoneNumber = (phone: string): string => {
   return `${visibleStart}${maskedMiddle}${visibleEnd}`;
 };
 
+// Helper to mask an email address for display, e.g. a***@domain.com
+export const maskEmail = (email: string): string => {
+  const [local, domain] = (email || '').split('@');
+  if (!local || !domain) return email;
+  return `${local.slice(0, 1)}***@${domain}`;
+};
+
 // Helper to format currency consistently
 export const formatCurrency = (value: string | number, currency = 'USD'): string => {
   const numValue = typeof value === 'string' 

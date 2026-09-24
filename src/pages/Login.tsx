@@ -6,14 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RefreshCw, Phone } from "lucide-react";
+import { RefreshCw, Phone, Mail, MessageSquare } from "lucide-react";
 import { 
   verificationCodeSchema,
   standNumberSchema,
-  maskPhoneNumber
+  maskPhoneNumber,
+  maskEmail
 } from "@/lib/validation";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
+
+type OtpChannel = 'sms' | 'email';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_RESEND_ATTEMPTS = 3;
@@ -36,9 +39,9 @@ const Login = () => {
   const [verificationCode, setVerificationCode] = useState("");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [deliveryBlocked, setDeliveryBlocked] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState<'sms'>('sms');
-  const [actualDeliveryChannel, setActualDeliveryChannel] = useState<'sms' | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<OtpChannel>('sms');
   const [showChannelSelection, setShowChannelSelection] = useState(false);
+  const [profileEmail, setProfileEmail] = useState<string>("");
   
   // Resend 2FA state
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -131,29 +134,26 @@ const Login = () => {
     }
   };
 
-  const sendVerificationCode = async (phone: string, channel: 'sms' = 'sms'): Promise<{ success: boolean; actualChannel: 'sms' }> => {
-    try {
-      const { data, error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
-        body: { phoneNumber: phone, channel }
-      });
+  // The destination is always resolved server-side from the customer's own profile.
+  const sendVerificationCode = async (
+    channel: OtpChannel,
+    destination: string,
+    userId: string | null,
+  ): Promise<void> => {
+    const { data, error: verifyError } = await supabase.functions.invoke('send-2fa-code', {
+      body: channel === 'email'
+        ? { userId, channel: 'email', email: destination }
+        : { userId, channel: 'sms', phoneNumber: destination },
+    });
 
-      if (verifyError) throw verifyError;
-      if (data && data.success === false) {
-        throw new Error(data.error || 'Unable to send verification code. Please try again.');
-      }
-      
-      // Determine actual channel from Twilio's send_code_attempts
-      // If all attempts show 'sms', Twilio fell back to SMS
-      const actualChannel: 'sms' = 'sms';
-      
-      console.log('[2FA] Requested:', channel, 'Actual delivery:', actualChannel, 'Attempts:', data?.sendCodeAttempts);
-      
-      return { success: true, actualChannel };
-    } catch (error: any) {
-      console.error("Failed to send verification code:", error);
-      throw error;
+    if (verifyError) throw verifyError;
+    if (data && data.success === false) {
+      throw new Error(data.error || 'Unable to send verification code. Please try again.');
     }
   };
+
+  const maskDestination = (channel: OtpChannel, destination: string) =>
+    channel === 'email' ? maskEmail(destination) : maskPhoneNumber(destination);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,10 +200,10 @@ const Login = () => {
         // Sync the stand number to the user's profile
         await syncStandNumberToProfile(data.user.id, lookupData.standNumber || loginStandNumber.trim());
 
-        // Get phone numbers for 2FA (now we're authenticated, RLS allows it)
+        // Get the 2FA destinations on file (now we're authenticated, RLS allows it)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('phone_number, phone_number_2')
+          .select('email, phone_number, phone_number_2')
           .eq('id', data.user.id)
           .maybeSingle();
 
@@ -212,27 +212,35 @@ const Login = () => {
         if (profile?.phone_number) availablePhones.push(profile.phone_number);
         if (profile?.phone_number_2) availablePhones.push(profile.phone_number_2);
 
-        if (availablePhones.length > 0) {
+        // Email on file: prefer the profile email, fall back to the login email
+        const availableEmail = (profile?.email || lookupData.email || "").trim();
+
+        if (availablePhones.length > 0 || availableEmail) {
           // Sign out immediately - user must complete 2FA to get a valid session
           await supabase.auth.signOut();
-          
+
           setPendingUserId(data.user.id);
           setPhoneNumbers(availablePhones);
-          
+          setProfileEmail(availableEmail);
+
           // Reset resend state for new login attempt
           setResendAttempts(0);
           setResendCooldown(0);
-          
-          if (availablePhones.length === 1) {
-            // Only one phone number - send SMS directly
-            setPhoneNumber(availablePhones[0]);
-            handleDirectSMSSend(availablePhones[0]);
-          } else {
-            // Multiple phone numbers - show phone selection first
+
+          if (availablePhones.length > 0 && availableEmail) {
+            // Both available - let the customer choose how to receive the code
+            setShowChannelSelection(true);
+          } else if (availablePhones.length > 1) {
+            setSelectedChannel('sms');
             setShowPhoneSelection(true);
+          } else if (availablePhones.length === 1) {
+            setPhoneNumber(availablePhones[0]);
+            sendCode('sms', availablePhones[0], data.user.id);
+          } else {
+            sendCode('email', availableEmail, data.user.id);
           }
         } else {
-          // No phone number, proceed without 2FA
+          // Nothing on file to verify against, proceed without 2FA
           goPostLogin();
         }
       }
@@ -247,32 +255,34 @@ const Login = () => {
     }
   };
 
-  const handleDirectSMSSend = async (phone: string) => {
-    setSelectedChannel('sms');
+  const sendCode = async (channel: OtpChannel, destination: string, userId: string | null) => {
+    setSelectedChannel(channel);
     setLoading(true);
     setDeliveryBlocked(false);
-    setActualDeliveryChannel(null);
+
+    const masked = maskDestination(channel, destination);
 
     try {
-      const { actualChannel } = await sendVerificationCode(phone, 'sms');
-      setActualDeliveryChannel(actualChannel);
+      await sendVerificationCode(channel, destination, userId);
       startCooldownTimer();
       setShowChannelSelection(false);
+      setShowPhoneSelection(false);
       setShowVerification(true);
-      
+
       toast({
         title: "Verification code sent",
-        description: `We've sent a 6-digit code via SMS to ${maskPhoneNumber(phone)}`,
+        description: `We've sent a 6-digit code by ${channel === 'email' ? 'email' : 'SMS'} to ${masked}`,
       });
     } catch (err: any) {
-      console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err);
+      console.warn('[Login] 2FA delivery failed; allowing bypass entry:', err?.message);
       setDeliveryBlocked(true);
       setShowChannelSelection(false);
+      setShowPhoneSelection(false);
       setShowVerification(true);
-      
+
       toast({
         title: "Verification code delivery unavailable",
-        description: `We couldn't deliver a code to ${maskPhoneNumber(phone)}. If support provided you a bypass code, enter it below to continue.`,
+        description: `We couldn't deliver a code to ${masked}. If support provided you a bypass code, enter it below to continue.`,
       });
     } finally {
       setLoading(false);
@@ -287,18 +297,16 @@ const Login = () => {
     setIsResending(true);
 
     try {
-      const { actualChannel } = await sendVerificationCode(phoneNumber, selectedChannel);
-      
-      // Update actual delivery channel in case it changed
-      setActualDeliveryChannel(actualChannel);
-      
+      // Resend via the same channel, to the same on-file destination
+      const destination = selectedChannel === 'email' ? profileEmail : phoneNumber;
+      await sendVerificationCode(selectedChannel, destination, pendingUserId);
+
       setResendAttempts((prev) => prev + 1);
       startCooldownTimer();
-      
-      const channelName = 'SMS';
+
       toast({
         title: "New code sent",
-        description: `A new verification code has been sent via ${channelName} to ${maskPhoneNumber(phoneNumber)}`,
+        description: `A new verification code has been sent by ${selectedChannel === 'email' ? 'email' : 'SMS'} to ${maskDestination(selectedChannel, destination)}`,
       });
     } catch (error: any) {
       toast({
@@ -324,7 +332,9 @@ const Login = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('verify-2fa-code', {
-        body: { phoneNumber, code: verificationCode }
+        body: selectedChannel === 'email'
+          ? { userId: pendingUserId, channel: 'email', email: profileEmail, code: verificationCode }
+          : { userId: pendingUserId, channel: 'sms', phoneNumber, code: verificationCode },
       });
 
       if (error) throw error;
@@ -376,22 +386,110 @@ const Login = () => {
     setPendingUserId(null);
     setPhoneNumber("");
     setPhoneNumbers([]);
+    setProfileEmail("");
     setDeliveryBlocked(false);
     setResendAttempts(0);
     setResendCooldown(0);
     setSelectedChannel('sms');
-    setActualDeliveryChannel(null);
   };
 
   const handlePhoneSelect = (phone: string) => {
     setPhoneNumber(phone);
-    setShowPhoneSelection(false);
-    handleDirectSMSSend(phone);
+    sendCode('sms', phone, pendingUserId);
   };
 
-  const maskedPhone = maskPhoneNumber(phoneNumber);
+  const handleChannelSelect = (channel: OtpChannel) => {
+    if (channel === 'email') {
+      sendCode('email', profileEmail, pendingUserId);
+      return;
+    }
+    setSelectedChannel('sms');
+    if (phoneNumbers.length > 1) {
+      setShowChannelSelection(false);
+      setShowPhoneSelection(true);
+      return;
+    }
+    setPhoneNumber(phoneNumbers[0]);
+    sendCode('sms', phoneNumbers[0], pendingUserId);
+  };
+
+  const activeDestination = selectedChannel === 'email' ? profileEmail : phoneNumber;
+  const maskedDestination = activeDestination
+    ? maskDestination(selectedChannel, activeDestination)
+    : '';
+  const channelLabel = selectedChannel === 'email' ? 'email' : 'SMS';
   const canResend = resendCooldown === 0 && resendAttempts < MAX_RESEND_ATTEMPTS && !isResending;
   const remainingResends = MAX_RESEND_ATTEMPTS - resendAttempts;
+
+  // Channel selection screen — how the customer wants to receive their code.
+  // Destinations shown here come from the account only and cannot be edited.
+  if (showChannelSelection) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-xl">How do you want your code?</CardTitle>
+            <CardDescription>
+              We'll send a 6-digit code to the details saved on your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
+              {phoneNumbers.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="h-auto min-h-16 w-full flex items-center justify-start gap-4 px-4 py-3"
+                  onClick={() => handleChannelSelect('sms')}
+                  disabled={loading}
+                >
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="font-medium">Text message</div>
+                    <div className="text-sm text-muted-foreground font-mono truncate">
+                      {phoneNumbers.length > 1
+                        ? `${phoneNumbers.length} numbers on file`
+                        : maskPhoneNumber(phoneNumbers[0])}
+                    </div>
+                  </div>
+                </Button>
+              )}
+
+              {profileEmail && (
+                <Button
+                  variant="outline"
+                  className="h-auto min-h-16 w-full flex items-center justify-start gap-4 px-4 py-3"
+                  onClick={() => handleChannelSelect('email')}
+                  disabled={loading}
+                >
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Mail className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="font-medium">Email</div>
+                    <div className="text-sm text-muted-foreground font-mono truncate">
+                      {maskEmail(profileEmail)}
+                    </div>
+                  </div>
+                </Button>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full h-12"
+              onClick={handleBackToLogin}
+              disabled={loading}
+            >
+              Back to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Phone number selection screen (when user has multiple phone numbers)
   if (showPhoneSelection) {
@@ -444,7 +542,6 @@ const Login = () => {
     );
   }
 
-  // Channel selection is no longer shown - SMS is sent directly
   if (showVerification) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
@@ -453,8 +550,8 @@ const Login = () => {
             <CardTitle className="text-xl">Verification</CardTitle>
             <CardDescription>
               {deliveryBlocked
-                ? `We couldn't deliver a code to ${maskedPhone}. If you have a bypass code from support, enter it below.`
-                : `We've sent a 6-digit verification code via SMS to ${maskedPhone}`}
+                ? `We couldn't deliver a code to ${maskedDestination}. If you have a bypass code from support, enter it below.`
+                : `We've sent a 6-digit verification code by ${channelLabel} to ${maskedDestination}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
