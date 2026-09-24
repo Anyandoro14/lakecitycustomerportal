@@ -200,10 +200,10 @@ const Login = () => {
         // Sync the stand number to the user's profile
         await syncStandNumberToProfile(data.user.id, lookupData.standNumber || loginStandNumber.trim());
 
-        // Get phone numbers for 2FA (now we're authenticated, RLS allows it)
+        // Get the 2FA destinations on file (now we're authenticated, RLS allows it)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('phone_number, phone_number_2')
+          .select('email, phone_number, phone_number_2')
           .eq('id', data.user.id)
           .maybeSingle();
 
@@ -212,27 +212,35 @@ const Login = () => {
         if (profile?.phone_number) availablePhones.push(profile.phone_number);
         if (profile?.phone_number_2) availablePhones.push(profile.phone_number_2);
 
-        if (availablePhones.length > 0) {
+        // Email on file: prefer the profile email, fall back to the login email
+        const availableEmail = (profile?.email || lookupData.email || "").trim();
+
+        if (availablePhones.length > 0 || availableEmail) {
           // Sign out immediately - user must complete 2FA to get a valid session
           await supabase.auth.signOut();
-          
+
           setPendingUserId(data.user.id);
           setPhoneNumbers(availablePhones);
-          
+          setProfileEmail(availableEmail);
+
           // Reset resend state for new login attempt
           setResendAttempts(0);
           setResendCooldown(0);
-          
-          if (availablePhones.length === 1) {
-            // Only one phone number - send SMS directly
-            setPhoneNumber(availablePhones[0]);
-            handleDirectSMSSend(availablePhones[0]);
-          } else {
-            // Multiple phone numbers - show phone selection first
+
+          if (availablePhones.length > 0 && availableEmail) {
+            // Both available - let the customer choose how to receive the code
+            setShowChannelSelection(true);
+          } else if (availablePhones.length > 1) {
+            setSelectedChannel('sms');
             setShowPhoneSelection(true);
+          } else if (availablePhones.length === 1) {
+            setPhoneNumber(availablePhones[0]);
+            sendCode('sms', availablePhones[0], data.user.id);
+          } else {
+            sendCode('email', availableEmail, data.user.id);
           }
         } else {
-          // No phone number, proceed without 2FA
+          // Nothing on file to verify against, proceed without 2FA
           goPostLogin();
         }
       }
