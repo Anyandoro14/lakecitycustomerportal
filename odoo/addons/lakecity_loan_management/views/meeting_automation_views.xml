@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_special_client_map_list" model="ir.ui.view">
+        <field name="name">lakecity.special.client.map.list</field>
+        <field name="model">lakecity.special.client.map</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="stand_number"/>
+                <field name="cabs_account_id"/>
+                <field name="voltage_creditor_partner_id"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_lakecity_special_client_map_form" model="ir.ui.view">
+        <field name="name">lakecity.special.client.map.form</field>
+        <field name="model">lakecity.special.client.map</field>
+        <field name="arch" type="xml">
+            <form string="Special client map">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="partner_id"/>
+                            <field name="stand_number"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="cabs_account_id"/>
+                            <field name="revenue_account_id"/>
+                            <field name="voltage_creditor_partner_id"/>
+                            <field name="creditor_account_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Tanaka notes / template">
+                        <field name="notes" nolabel="1" placeholder="Bank-specific creditor entry template columns…"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_lakecity_special_client_map" model="ir.actions.act_window">
+        <field name="name">Special client maps (Voltage)</field>
+        <field name="res_model">lakecity.special.client.map</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_lakecity_commission_rule_list" model="ir.ui.view">
+        <field name="name">lakecity.commission.rule.list</field>
+        <field name="model">lakecity.commission.rule</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="agent_code"/>
+                <field name="agent_partner_id"/>
+                <field name="rate_percent"/>
+                <field name="payment_timing"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_lakecity_commission_rule_form" model="ir.ui.view">
+        <field name="name">lakecity.commission.rule.form</field>
+        <field name="model">lakecity.commission.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="agent_code"/>
+                            <field name="agent_partner_id"/>
+                            <field name="rate_percent"/>
+                            <field name="payment_timing"/>
+                        </group>
+                        <group>
+                            <field name="stand_number"/>
+                            <field name="phase_id"/>
+                            <field name="expense_account_id"/>
+                            <field name="payable_account_id"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Notes">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_lakecity_commission_rule" model="ir.actions.act_window">
+        <field name="name">Commission rules</field>
+        <field name="res_model">lakecity.commission.rule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_lakecity_stand_reassignment_list" model="ir.ui.view">
+        <field name="name">lakecity.stand.reassignment.list</field>
+        <field name="model">lakecity.stand.reassignment</field>
+        <field name="arch" type="xml">
+            <list decoration-info="state=='pending_approval'" decoration-success="state=='done'">
+                <field name="name"/>
+                <field name="stand_number"/>
+                <field name="outgoing_partner_id"/>
+                <field name="incoming_partner_id"/>
+                <field name="initiator_id"/>
+                <field name="authorizer_id"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_lakecity_stand_reassignment_form" model="ir.ui.view">
+        <field name="name">lakecity.stand.reassignment.form</field>
+        <field name="model">lakecity.stand.reassignment</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_submit_for_approval" type="object" string="Submit for approval"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_approve" type="object" string="Authorize"
+                            class="btn-primary" invisible="state != 'pending_approval'"
+                            groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+                    <button name="action_apply" type="object" string="Apply reassignment"
+                            class="btn-primary" invisible="state != 'approved'"
+                            groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+                    <button name="action_reject" type="object" string="Reject"
+                            invisible="state not in ('draft','pending_approval')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,pending_approval,approved,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="stand_number"/>
+                            <field name="outgoing_contract_id"/>
+                            <field name="outgoing_partner_id"/>
+                            <field name="close_outgoing_as"/>
+                        </group>
+                        <group>
+                            <field name="incoming_partner_id"/>
+                            <field name="incoming_contract_id"/>
+                            <field name="initiator_id"/>
+                            <field name="authorizer_id"/>
+                            <field name="approved_at"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Reason">
+                        <field name="reason" nolabel="1"/>
+                    </group>
+                    <group string="Portal sync" invisible="not portal_sync_note">
+                        <field name="portal_sync_note" nolabel="1" readonly="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_lakecity_stand_reassignment" model="ir.actions.act_window">
+        <field name="name">Stand reassignments</field>
+        <field name="res_model">lakecity.stand.reassignment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_lakecity_customer_bank_account_list" model="ir.ui.view">
+        <field name="name">lakecity.customer.bank.account.list</field>
+        <field name="model">lakecity.customer.bank.account</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="partner_id"/>
+                <field name="stand_number"/>
+                <field name="bank_label"/>
+                <field name="account_code"/>
+                <field name="account_id"/>
+                <field name="notes"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_lakecity_customer_bank_account_form" model="ir.ui.view">
+        <field name="name">lakecity.customer.bank.account.form</field>
+        <field name="model">lakecity.customer.bank.account</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_download_csv_template" type="object"
+                            string="Download CSV template" class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="partner_id"/>
+                        <field name="stand_number"/>
+                        <field name="bank_label"/>
+                        <field name="account_code"/>
+                        <field name="account_id"/>
+                        <field name="notes"/>
+                        <field name="active"/>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_lakecity_customer_bank_account" model="ir.actions.act_window">
+        <field name="name">Customer bank accounts</field>
+        <field name="res_model">lakecity.customer.bank.account</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_lakecity_daily_exception_list" model="ir.ui.view">
+        <field name="name">lakecity.daily.exception.list</field>
+        <field name="model">lakecity.daily.exception</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state=='open'">
+                <field name="exception_date"/>
+                <field name="exception_type"/>
+                <field name="source_system"/>
+                <field name="stand_number"/>
+                <field name="partner_id"/>
+                <field name="amount_odoo"/>
+                <field name="amount_other"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_lakecity_daily_exception_form" model="ir.ui.view">
+        <field name="name">lakecity.daily.exception.form</field>
+        <field name="model">lakecity.daily.exception</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_mark_resolved" type="object" string="Resolve"
+                            class="btn-primary" invisible="state != 'open'"/>
+                    <button name="action_mark_ignored" type="object" string="Ignore"
+                            invisible="state != 'open'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="exception_date"/>
+                            <field name="exception_type"/>
+                            <field name="source_system"/>
+                            <field name="stand_number"/>
+                            <field name="partner_id"/>
+                        </group>
+                        <group>
+                            <field name="amount_odoo"/>
+                            <field name="amount_other"/>
+                            <field name="payment_date_odoo"/>
+                            <field name="payment_date_other"/>
+                            <field name="loan_payment_id"/>
+                            <field name="bank_discrepancy_id"/>
+                        </group>
+                    </group>
+                    <group string="Detail">
+                        <field name="detail" nolabel="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="view_lakecity_daily_exception_search" model="ir.ui.view">
+        <field name="name">lakecity.daily.exception.search</field>
+        <field name="model">lakecity.daily.exception</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="stand_number"/>
+                <filter name="open" string="Open" domain="[('state','=','open')]"/>
+                <filter name="bank" string="Bank" domain="[('source_system','=','bank')]"/>
+            </search>
+        </field>
+    </record>
+    <record id="action_lakecity_daily_exception" model="ir.actions.act_window">
+        <field name="name">Daily exceptions</field>
+        <field name="res_model">lakecity.daily.exception</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+</odoo>

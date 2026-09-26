@@ -8,5 +8,6 @@
   "payment_method": "{{1.payment_method}}",
   "payment_date": "{{1.payment_date}}",
   "entered_by": "{{1.entered_by}}",
+  "deposited_to": "{{1.deposited_to}}",
   "answers": "{{1.answers}}"
 }

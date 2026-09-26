@@ -41,6 +41,10 @@ If buttons appear disabled or clicks raise **Access Error**, assign **Loan Manag
 
 Odoo renders Apps descriptions with docutils when HTML is missing. This addon ships `static/description/index.html` **and** extends `ir.module.module._get_desc` for `lakecity_loan_management` so RST is never used for our module (avoids stderr noise if paths differ on the host).
 
+## Sep 2026 meeting automations (19.0.1.0.72+)
+
+Deposit tagging, bank three-way stand reconcile, daily exceptions, Voltage maps, commissions, stand reassignment, and customer bank lists: see `docs/bnpl-deposit-and-bank-reconcile.md` and `docs/meeting-2026-09-23-outstanding.md`.
+
 ## Customer Portal enrolment and deposit (19.0.1.0.52+)
 
 On each **loan contract** (and mirrored on **Accounting → Customer** via **Portal settings contract**):
