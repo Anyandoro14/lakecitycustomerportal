@@ -48,6 +48,12 @@ class LakecityLoanPayment(models.Model):
         default="manual",
         required=True,
     )
+    deposited_to = fields.Char(
+        string="Deposited to",
+        help="Form liquidity destination (Cash / Cabs / Cabs Zig / Jumpstart / Ecocash). "
+        "When set, receipt posts to that COA account instead of the generic collections journal.",
+        index=True,
+    )
     reference = fields.Char()
     note = fields.Text()
     state = fields.Selection(
@@ -159,7 +165,15 @@ class LakecityLoanPayment(models.Model):
         if self.account_payment_id:
             return
         company = self.contract_id.company_id.sudo()
-        journal = company.lakecity_bnpl_collections_journal_id
+        journal = False
+        if self.deposited_to:
+            Deposited = self.env["lakecity.deposited.to.mixin"]
+            acc = Deposited._lakecity_find_liquidity_account_for_deposited_to(
+                self.deposited_to, company=company
+            )
+            journal = Deposited._lakecity_find_journal_for_liquidity_account(acc, company=company)
+        if not journal:
+            journal = company.lakecity_bnpl_collections_journal_id
         if not journal:
             journal = self.env["account.journal"].sudo().search(
                 [("company_id", "=", company.id), ("type", "=", "bank")],
@@ -188,9 +202,13 @@ class LakecityLoanPayment(models.Model):
                 )
             )
         partner = self.contract_id.partner_id.commercial_partner_id
-        memo = _("BNPL %(loan)s · %(pay)s%(ref)s") % {
+        stand_bit = (" · Stand %s" % self.stand_number) if self.stand_number else ""
+        deposited_bit = (" · %s" % self.deposited_to) if self.deposited_to else ""
+        memo = _("BNPL %(loan)s · %(pay)s%(stand)s%(dep)s%(ref)s") % {
             "loan": self.contract_id.display_name,
             "pay": self.name,
+            "stand": stand_bit,
+            "dep": deposited_bit,
             "ref": (" · %s" % self.reference) if self.reference else "",
         }
         Pay = self.env["account.payment"].sudo().with_company(company)
@@ -204,7 +222,10 @@ class LakecityLoanPayment(models.Model):
                 "journal_id": journal.id,
                 "payment_method_line_id": pm_line.id,
                 "memo": memo,
-                "payment_reference": self.reference or self.external_uid or self.name,
+                "payment_reference": (
+                    ("Stand %s · " % self.stand_number) if self.stand_number else ""
+                )
+                + (self.reference or self.external_uid or self.name),
                 "currency_id": self.currency_id.id,
                 "lakecity_loan_payment_id": self.id,
             }

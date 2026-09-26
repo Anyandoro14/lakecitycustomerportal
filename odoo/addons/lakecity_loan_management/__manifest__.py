@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Lakecity BNPL Loan Management",
-    "version": "19.0.1.0.68",
+    "version": "19.0.1.0.72",
     "summary": "BNPL loan contracts, schedules, accruals, and payment allocation (Odoo 19/Odoo.sh)",
     # Avoid RST-looking multi-line Python docstrings with indented wraps in this addon; Odoo feeds
     # them through docutils during registry load and logs "(ERROR/3) Unexpected indentation".
     "description": (
         "Lakecity BNPL Loan Management: loan products, per-customer contracts and stands, "
-        "auto installment schedules, oldest-due-first payment allocation, receipt intake, "
-        "and portal-facing balances and KPIs. Schedule math and KPI definitions are in DOCUMENTATION.md."
+        "auto installment schedules, oldest-due-first payment allocation, receipt intake "
+        "(Form Deposited-to liquidity), bank-statement three-way stand reconcile, "
+        "daily exceptions, Voltage special-client maps, commissions, stand reassignment, "
+        "and customer bank lists. Schedule math and KPI definitions are in DOCUMENTATION.md."
     ),
     "author": "Lakecity",
     "license": "LGPL-3",
@@ -32,6 +34,7 @@
         "data/account_payment_methods.xml",
         "data/loan_products.xml",
         "data/recompute_installment_actions.xml",
+        "data/lakecity_bank_reconcile_models.xml",
         "views/loan_product_views.xml",
         "views/loan_contract_views.xml",
         "views/loan_payment_views.xml",
@@ -41,6 +44,8 @@
         # "views/lakecity_loan_statement_views.xml",
         # "report/lakecity_loan_statement_report.xml",
         "views/receipt_intake_views.xml",
+        "views/bank_reconcile_discrepancy_views.xml",
+        "views/meeting_automation_views.xml",
         "wizard/bank_payment_backfill_views.xml",
         "wizard/accounting_cutover_views.xml",
         "views/loan_menus.xml",

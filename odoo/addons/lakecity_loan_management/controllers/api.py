@@ -115,6 +115,17 @@ class LakecityLoanApiController(http.Controller):
         ).strip()
         reference = str(self._lakecity_receipt_pick(payload, answers, "reference", "Reference") or "").strip()
         entered_by = str(self._lakecity_receipt_pick(payload, answers, "entered_by", "Entered_By", "Receipt Entered by") or "").strip()
+        deposited_to = str(
+            self._lakecity_receipt_pick(
+                payload,
+                answers,
+                "deposited_to",
+                "Deposited to:",
+                "Deposited to",
+                "Deposited To",
+            )
+            or ""
+        ).strip()
         ts_raw = self._lakecity_receipt_pick(payload, answers, "timestamp", "Timestamp")
         pay_date_raw = self._lakecity_receipt_pick(payload, answers, "payment_date", "Payment_Date", "Receipt Date")
 
@@ -124,6 +135,7 @@ class LakecityLoanApiController(http.Controller):
             "customer_name": customer_name or False,
             "payment_amount": self._lakecity_parse_amount(amt_raw),
             "payment_method_raw": payment_method or False,
+            "deposited_to": deposited_to or False,
             "receipt_url": receipt_url or False,
             "reference": reference or False,
             "entered_by": entered_by or False,
@@ -161,6 +173,7 @@ class LakecityLoanApiController(http.Controller):
             "payment_amount": flat["payment_amount"],
             "currency_id": request.env.company.currency_id.id,
             "payment_method_raw": flat["payment_method_raw"],
+            "deposited_to": flat.get("deposited_to") or False,
             "reference": flat["reference"],
             "receipt_url": flat["receipt_url"],
             "entered_by": flat["entered_by"],

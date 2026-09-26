@@ -110,6 +110,11 @@ function onFormSubmit(e) {
   var paymentMethod = pick_(answers, ["Payment Method", "Method of payment"]);
   var receiptDate = pick_(answers, ["Receipt Date", "Payment Date", "Date"]);
   var enteredBy = pick_(answers, ["Receipt Entered by", "Entered by"]);
+  var depositedTo = pick_(answers, [
+    "Deposited to:",
+    "Deposited to",
+    "Deposited To",
+  ]);
 
   var props = PropertiesService.getScriptProperties();
   var hook = lakecityWebhookUrl_(props);
@@ -130,6 +135,7 @@ function onFormSubmit(e) {
     payment_method: String(paymentMethod || ""),
     payment_date: String(receiptDate || ""),
     entered_by: String(enteredBy || ""),
+    deposited_to: String(depositedTo || ""),
 
     answers: answers,
   };
