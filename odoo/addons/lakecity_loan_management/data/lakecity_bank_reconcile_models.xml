@@ -2,7 +2,9 @@
 <odoo noupdate="1">
     <!--
       Per-AR reconcile models for BNPL / stand sales receivables.
-      Native partner + label matching (label contains "Stand").
+      Native label matching (label contains "Stand").
+      Odoo 19: rule_type / match_partner / to_check / boolean auto_reconcile
+      were removed; automated models use trigger=auto_reconcile.
       LakeCity three-way stand check on account.bank.statement.line logs
       lakecity.bank.reconcile.discrepancy when stands/amounts disagree.
       Models are named per AR account; operators can refine in Accounting →
@@ -10,31 +12,22 @@
     -->
     <record id="lakecity_reconcile_model_ar_121000" model="account.reconcile.model">
         <field name="name">LakeCity BNPL — Trade AR 121000 (stand three-way)</field>
-        <field name="rule_type">invoice_matching</field>
-        <field name="auto_reconcile" eval="True"/>
+        <field name="trigger">auto_reconcile</field>
         <field name="match_label">contains</field>
         <field name="match_label_param">Stand</field>
-        <field name="match_partner" eval="True"/>
-        <field name="to_check" eval="False"/>
     </record>
 
     <record id="lakecity_reconcile_model_ar_121010" model="account.reconcile.model">
         <field name="name">LakeCity BNPL — Completed stand sales AR 121010</field>
-        <field name="rule_type">invoice_matching</field>
-        <field name="auto_reconcile" eval="True"/>
+        <field name="trigger">auto_reconcile</field>
         <field name="match_label">contains</field>
         <field name="match_label_param">Stand</field>
-        <field name="match_partner" eval="True"/>
-        <field name="to_check" eval="False"/>
     </record>
 
     <record id="lakecity_reconcile_model_ar_121015" model="account.reconcile.model">
         <field name="name">LakeCity BNPL — Defaulted AR 121015</field>
-        <field name="rule_type">invoice_matching</field>
-        <field name="auto_reconcile" eval="True"/>
+        <field name="trigger">auto_reconcile</field>
         <field name="match_label">contains</field>
         <field name="match_label_param">Stand</field>
-        <field name="match_partner" eval="True"/>
-        <field name="to_check" eval="False"/>
     </record>
 </odoo>
