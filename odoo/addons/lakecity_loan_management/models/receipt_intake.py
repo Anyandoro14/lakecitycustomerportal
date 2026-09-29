@@ -33,7 +33,7 @@ class LakecityReceiptIntake(models.Model):
     payment_method_raw = fields.Char(string="Payment method (form)")
     deposited_to = fields.Char(
         string="Deposited to",
-        help="Google Form 'Deposited to:' label (Cash / Cabs / Cabs Zig / Jumpstart / Ecocash / CBZ).",
+        help="Google Form 'Deposited to:' label (Cash / Cabs / Cabs Zig / Jumpstart / Ecocash / CBZ / Cabs Waltich).",
     )
     reference = fields.Char()
     receipt_url = fields.Char(string="Receipt URL", required=True)

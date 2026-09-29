@@ -50,7 +50,7 @@ class LakecityLoanPayment(models.Model):
     )
     deposited_to = fields.Char(
         string="Deposited to",
-        help="Form liquidity destination (Cash / Cabs / Cabs Zig / Jumpstart / Ecocash / CBZ). "
+        help="Form liquidity destination (Cash / Cabs / Cabs Zig / Jumpstart / Ecocash / CBZ / Cabs Waltich). "
         "When set, receipt posts to that COA account instead of the generic collections journal.",
         index=True,
     )

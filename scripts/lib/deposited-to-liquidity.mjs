@@ -11,6 +11,7 @@ export const DEPOSITED_TO_LABELS = Object.freeze([
   "Jumpstart",
   "Ecocash",
   "CBZ",
+  "Cabs Waltich",
 ]);
 
 /** Preferred COA code + exact account name (from lakecity_chart_of_accounts.xml). */
@@ -35,6 +36,11 @@ export const DEPOSITED_TO_COA = Object.freeze({
     name: "CBZ - Main USD Current Account - 27794540028",
     match: "exact",
   },
+  "Cabs Waltich": {
+    code: "101412",
+    name: "CABS - Waltich - 975",
+    match: "exact",
+  },
 });
 
 export function normalizeDepositedToLabel(raw) {
@@ -51,6 +57,15 @@ export function normalizeDepositedToLabel(raw) {
   if (lower === "cabs zig" || lower === "cabs zig." || lower === "cabs zi g") return "Cabs Zig";
   if (lower === "eco cash" || lower === "eco-cash") return "Ecocash";
   if (lower === "jump start") return "Jumpstart";
+  if (
+    lower === "cabs waltich" ||
+    lower === "cabs - waltich" ||
+    lower === "cabs-waltich" ||
+    lower === "waltich" ||
+    lower === "cabs waltich."
+  ) {
+    return "Cabs Waltich";
+  }
   return "";
 }
 

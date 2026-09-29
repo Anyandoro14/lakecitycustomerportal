@@ -1,6 +1,6 @@
 # BNPL deposit tagging & bank-statement reconcile
 
-Operator notes for LakeCity BNPL on **main** (`lakecity_loan_management` **≥ 19.0.1.0.73**).
+Operator notes for LakeCity BNPL on **main** (`lakecity_loan_management` **≥ 19.0.1.0.74**).
 
 **Daily Reconciliation Odoo app is not used on main.** Use standard bank statement reconcile + LakeCity three-way stand check + Daily exceptions.
 
@@ -14,10 +14,11 @@ Operator notes for LakeCity BNPL on **main** (`lakecity_loan_management` **≥ 1
 | Jumpstart | `Jumpstart (CAD)` `101418` |
 | Ecocash | `Ecocash USD` `101417` |
 | CBZ | `CBZ - Main USD Current Account - 27794540028` `101419` |
+| Cabs Waltich | `CABS - Waltich - 975` `101412` |
 
 Self-test: `npm run test:deposited-to`
 
-**Upgrade note:** chart XML is `noupdate="1"`. Module upgrade to **19.0.1.0.73** runs a post-migrate that creates `101419` if missing. Mapping is by account code — no bank journal is seeded from this repo (Cash/CABS journals live in the Staging DB). After upgrade, confirm a bank journal **CBZ** pointing at `101419` exists; create it in Accounting if not.
+**Upgrade note:** chart XML is `noupdate="1"`. Module upgrade to **19.0.1.0.74** runs a post-migrate that creates `101412` if missing. Mapping is by account code — no bank journal is seeded from this repo (Cash/CABS journals live in the Staging DB). After upgrade, confirm a bank journal for **Waltich** pointing at `101412` exists; create it in Accounting if not.
 
 ## Portal ↔ bank matching
 

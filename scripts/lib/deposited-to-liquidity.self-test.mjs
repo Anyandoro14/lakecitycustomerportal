@@ -15,13 +15,16 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-assert(DEPOSITED_TO_LABELS.length === 6, "six form labels");
+assert(DEPOSITED_TO_LABELS.length === 7, "seven form labels");
 assert(normalizeDepositedToLabel("Cash") === "Cash", "Cash");
 assert(normalizeDepositedToLabel("  cabs  ") === "Cabs", "Cabs normalize");
 assert(normalizeDepositedToLabel("Cabs Zig") === "Cabs Zig", "Cabs Zig");
 assert(normalizeDepositedToLabel("Jumpstart") === "Jumpstart", "Jumpstart");
 assert(normalizeDepositedToLabel("Ecocash") === "Ecocash", "Ecocash");
 assert(normalizeDepositedToLabel("CBZ") === "CBZ", "CBZ");
+assert(normalizeDepositedToLabel("Cabs Waltich") === "Cabs Waltich", "Cabs Waltich");
+assert(normalizeDepositedToLabel("cabs - waltich") === "Cabs Waltich", "waltich alias dash");
+assert(normalizeDepositedToLabel("waltich") === "Cabs Waltich", "waltich alias short");
 assert(normalizeDepositedToLabel("Deposited to:") === "", "header alone is empty");
 assert(normalizeDepositedToLabel("") === "", "empty");
 assert(normalizeDepositedToLabel("Unknown Bank") === "", "unknown");
@@ -42,6 +45,11 @@ assert(
   resolveDepositedToLiquidity("CBZ").name.includes("27794540028"),
   "CBZ account number in name",
 );
+assert(resolveDepositedToLiquidity("Cabs Waltich").code === "101412", "Cabs Waltich → 101412");
+assert(
+  resolveDepositedToLiquidity("Cabs Waltich").name === "CABS - Waltich - 975",
+  "Cabs Waltich COA name",
+);
 
 const accounts = [
   { code: "101410", name: "CABS - Main USD Current Account - 1129888509" },
@@ -59,6 +67,7 @@ assert(pickLiquidityAccount(accounts, "Cabs Zig").code === "101411", "pick Cabs 
 assert(pickLiquidityAccount(accounts, "Jumpstart").code === "101418", "pick Jumpstart");
 assert(pickLiquidityAccount(accounts, "Ecocash").code === "101417", "pick Ecocash");
 assert(pickLiquidityAccount(accounts, "CBZ").code === "101419", "pick CBZ");
+assert(pickLiquidityAccount(accounts, "Cabs Waltich").code === "101412", "pick Cabs Waltich");
 assert(pickLiquidityAccount(accounts, "") === null, "empty pick");
 
 // Fuzzy without code: CABS + USD + Current beats Waltich
