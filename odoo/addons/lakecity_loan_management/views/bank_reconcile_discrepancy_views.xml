@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_bank_reconcile_discrepancy_list" model="ir.ui.view">
+        <field name="name">lakecity.bank.reconcile.discrepancy.list</field>
+        <field name="model">lakecity.bank.reconcile.discrepancy</field>
+        <field name="arch" type="xml">
+            <list string="Bank reconcile discrepancies"
+                  decoration-danger="state=='open'"
+                  decoration-muted="state in ('resolved','ignored')">
+                <field name="name"/>
+                <field name="create_date" string="Logged"/>
+                <field name="reason"/>
+                <field name="stand_portal"/>
+                <field name="stand_partner"/>
+                <field name="stand_bank"/>
+                <field name="amount_payment"/>
+                <field name="amount_bank"/>
+                <field name="statement_line_id"/>
+                <field name="loan_payment_id"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_lakecity_bank_reconcile_discrepancy_form" model="ir.ui.view">
+        <field name="name">lakecity.bank.reconcile.discrepancy.form</field>
+        <field name="model">lakecity.bank.reconcile.discrepancy</field>
+        <field name="arch" type="xml">
+            <form string="Bank reconcile discrepancy">
+                <header>
+                    <button name="action_mark_resolved" type="object" string="Mark resolved"
+                            class="btn-primary" invisible="state != 'open'"/>
+                    <button name="action_mark_ignored" type="object" string="Ignore"
+                            invisible="state != 'open'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="open,resolved,ignored"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="reason"/>
+                            <field name="stand_portal"/>
+                            <field name="stand_partner"/>
+                            <field name="stand_bank"/>
+                            <field name="amount_payment"/>
+                            <field name="amount_bank"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
+                        </group>
+                        <group>
+                            <field name="statement_line_id"/>
+                            <field name="loan_payment_id"/>
+                            <field name="account_payment_id"/>
+                            <field name="receivable_account_id"/>
+                            <field name="bank_label"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Notes">
+                        <field name="notes" nolabel="1" placeholder="Resolution notes…"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_lakecity_bank_reconcile_discrepancy_search" model="ir.ui.view">
+        <field name="name">lakecity.bank.reconcile.discrepancy.search</field>
+        <field name="model">lakecity.bank.reconcile.discrepancy</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="stand_portal"/>
+                <field name="stand_bank"/>
+                <field name="reason"/>
+                <filter name="open" string="Open" domain="[('state','=','open')]"/>
+                <filter name="resolved" string="Resolved" domain="[('state','=','resolved')]"/>
+                <separator/>
+                <filter name="stand_mismatch" string="Stand mismatch" domain="[('reason','=','stand_mismatch')]"/>
+                <filter name="amount_mismatch" string="Amount mismatch" domain="[('reason','=','amount_mismatch')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_lakecity_bank_reconcile_discrepancy" model="ir.actions.act_window">
+        <field name="name">Bank reconcile discrepancies</field>
+        <field name="res_model">lakecity.bank.reconcile.discrepancy</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+</odoo>

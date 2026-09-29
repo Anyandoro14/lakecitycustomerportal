@@ -186,9 +186,17 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         self.ensure_one()
         return self.company_id._lakecity_stand_sales_journal()
 
-    def _lakecity_collections_bank_account(self):
+    def _lakecity_collections_bank_account(self, deposited_to=None):
+        """Liquidity account for live receipts. Prefer Form deposited_to when set."""
         self.ensure_one()
         company = self.company_id
+        if deposited_to:
+            Deposited = self.env["lakecity.deposited.to.mixin"]
+            acc = Deposited._lakecity_find_liquidity_account_for_deposited_to(
+                deposited_to, company=company
+            )
+            if acc:
+                return acc
         journal = company.lakecity_bnpl_collections_journal_id
         if journal and journal.default_account_id:
             return journal.default_account_id
@@ -201,6 +209,25 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             if journal and journal.default_account_id:
                 return journal.default_account_id
         return acc
+
+    def _lakecity_collections_journal(self, deposited_to=None):
+        """Bank/cash journal for receipt posting; prefer journal matching deposited_to liquidity."""
+        self.ensure_one()
+        company = self.company_id.sudo()
+        if deposited_to:
+            Deposited = self.env["lakecity.deposited.to.mixin"]
+            acc = Deposited._lakecity_find_liquidity_account_for_deposited_to(
+                deposited_to, company=company
+            )
+            journal = Deposited._lakecity_find_journal_for_liquidity_account(acc, company=company)
+            if journal:
+                return journal
+        if company.lakecity_bnpl_collections_journal_id:
+            return company.lakecity_bnpl_collections_journal_id
+        return self.env["account.journal"].sudo().search(
+            [("company_id", "=", company.id), ("type", "in", ("bank", "cash"))],
+            limit=1,
+        )
 
     def _lakecity_create_stand_move(self, line_specs, ref, purpose, journal=None, move_date=None):
         self.ensure_one()
@@ -557,7 +584,8 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         net, vat = self._lakecity_split_gross_payment(gross)
         cos = self._lakecity_cos_for_net(net)
         ar = self._lakecity_partner_receivable_account()
-        bank = self._lakecity_collections_bank_account()
+        deposited_to = payment.deposited_to if payment else None
+        bank = self._lakecity_collections_bank_account(deposited_to=deposited_to)
         liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
         deferred_vat = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
         revenue = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["revenue"])
@@ -566,19 +594,24 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         inventory = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["inventory_allocated"])
         partner_id = self.partner_id.commercial_partner_id.id
 
-        collections_journal = self.company_id.lakecity_bnpl_collections_journal_id
-        bank_journal = collections_journal
+        bank_journal = self._lakecity_collections_journal(deposited_to=deposited_to)
         if not bank_journal:
             bank_journal = self.env["account.journal"].sudo().search(
                 [("company_id", "=", self.company_id.id), ("type", "in", ("bank", "cash"))],
                 limit=1,
             )
 
+        receipt_label = _("Receipt — %s") % ref
+        if deposited_to:
+            receipt_label = _("Receipt (%(dep)s) — %(ref)s") % {"dep": deposited_to, "ref": ref}
+        if payment and payment.stand_number and "Stand" not in str(ref):
+            ref = _("Stand %(stand)s · %(ref)s") % {"stand": payment.stand_number, "ref": ref}
+
         if bank and ar:
             receipt_move = self._lakecity_create_stand_move(
                 self._lakecity_build_move_lines(
                     [(bank, gross, 0.0, False), (ar, 0.0, gross, partner_id)],
-                    _("Receipt — %s") % ref,
+                    receipt_label,
                 ),
                 ref,
                 "payment_receipt",
@@ -662,9 +695,18 @@ class LakecityStandAccountingMixin(models.AbstractModel):
             return
 
         ref = _("%(loan)s · %(pay)s") % {"loan": self.name, "pay": payment.name}
+        if payment.stand_number:
+            ref = _("Stand %(stand)s · %(loan)s · %(pay)s") % {
+                "stand": payment.stand_number,
+                "loan": self.name,
+                "pay": payment.name,
+            }
         self._lakecity_post_stand_payment_moves(gross, payment.payment_date, ref, payment=payment)
         payment.write({"lakecity_stand_accounting_done": True})
         self._lakecity_update_recognized_totals()
+        # Optional automations (no-op until config rows exist).
+        self.env["lakecity.special.client.map"].sudo()._lakecity_post_for_payment(payment)
+        self.env["lakecity.commission.rule"].sudo()._lakecity_accrue_for_payment(payment)
 
     def _lakecity_update_recognized_totals(self):
         for rec in self:

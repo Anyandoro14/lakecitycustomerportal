@@ -47,6 +47,54 @@
         groups="lakecity_loan_management.group_lakecity_loan_manager"/>
 
     <menuitem
+        id="menu_lakecity_bank_reconcile_discrepancy"
+        name="Bank reconcile discrepancies"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_bank_reconcile_discrepancy"
+        sequence="18"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_daily_exception"
+        name="Daily exceptions"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_daily_exception"
+        sequence="19"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_special_client_map"
+        name="Special client maps (Voltage)"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_special_client_map"
+        sequence="21"
+        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+
+    <menuitem
+        id="menu_lakecity_commission_rule"
+        name="Commission rules"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_commission_rule"
+        sequence="22"
+        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+
+    <menuitem
+        id="menu_lakecity_stand_reassignment"
+        name="Stand reassignments"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_stand_reassignment"
+        sequence="23"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
+        id="menu_lakecity_customer_bank_account"
+        name="Customer bank accounts"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_customer_bank_account"
+        sequence="24"
+        groups="lakecity_loan_management.group_lakecity_loan_user"/>
+
+    <menuitem
         id="menu_lakecity_loan_installments"
         name="Installments"
         parent="menu_lakecity_loan_root"

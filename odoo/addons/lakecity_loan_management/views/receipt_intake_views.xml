@@ -13,6 +13,7 @@
                 <field name="payment_date"/>
                 <field name="payment_amount"/>
                 <field name="payment_method_raw"/>
+                <field name="deposited_to"/>
                 <field name="state"/>
             </list>
         </field>
@@ -46,6 +47,7 @@
                         </group>
                         <group>
                             <field name="payment_method_raw"/>
+                            <field name="deposited_to"/>
                             <field name="reference"/>
                             <field name="receipt_url" widget="url"/>
                             <field name="entered_by"/>

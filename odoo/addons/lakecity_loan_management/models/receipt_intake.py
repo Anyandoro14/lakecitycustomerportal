@@ -31,6 +31,10 @@ class LakecityReceiptIntake(models.Model):
         required=True,
     )
     payment_method_raw = fields.Char(string="Payment method (form)")
+    deposited_to = fields.Char(
+        string="Deposited to",
+        help="Google Form 'Deposited to:' label (Cash / Cabs / Cabs Zig / Jumpstart / Ecocash).",
+    )
     reference = fields.Char()
     receipt_url = fields.Char(string="Receipt URL", required=True)
     entered_by = fields.Char(string="Entered by")
@@ -105,6 +109,9 @@ class LakecityReceiptIntake(models.Model):
                 )
 
             src = rec.map_payment_source_from_label(rec.payment_method_raw)
+            deposited = (rec.deposited_to or "").strip()
+            Deposited = self.env["lakecity.deposited.to.mixin"]
+            deposited_norm = Deposited._lakecity_normalize_deposited_to_label(deposited) or deposited
             pay_date = rec.payment_date or fields.Date.context_today(rec)
             if contract._lakecity_is_pre_accounting_start(pay_date):
                 start = contract._lakecity_accounting_start_date()
@@ -126,6 +133,7 @@ class LakecityReceiptIntake(models.Model):
                 "payment_date": pay_date,
                 "amount": rec.payment_amount,
                 "source": src,
+                "deposited_to": deposited_norm or False,
                 "reference": rec.reference or rec.intake_uuid,
                 "note": rec._format_payment_note(),
                 "state": "posted",
@@ -178,6 +186,7 @@ class LakecityReceiptIntake(models.Model):
             _("Customer: %s") % (self.customer_name or "—"),
             _("Entered by: %s") % (self.entered_by or "—"),
             _("Original method: %s") % (self.payment_method_raw or "—"),
+            _("Deposited to: %s") % (self.deposited_to or "—"),
             _("Receipt URL: %s") % (self.receipt_url or "—"),
         ]
         if self.qc_notes:

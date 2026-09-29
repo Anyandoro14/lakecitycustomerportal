@@ -197,6 +197,7 @@ Odoo accepts either **flat** keys or a Google-Forms-style **`answers`** object (
 | Receipt date | `payment_date`, `Payment_Date`, `Receipt Date` |
 | Amount | `amount`, `Payment_Amount`, `Amount` |
 | Payment method | `payment_method`, `Payment_Method`, `Payment Method` (maps to BNPL source: Transfer→Bank Transfer, Cash, EcoCash, Kuva, …) |
+| **Deposited to** | `deposited_to`, `Deposited to:`, `Deposited to`, `Deposited To` — Form liquidity (**Cash** / **Cabs** / **Cabs Zig** / **Jumpstart** / **Ecocash**). On QC approve, posts into the mapped COA account when set. |
 | Reference | `reference`, `Reference` |
 | Receipt file URL | `receipt_url`, `receipt_link`, `Receipt_URL`, **`Receipt`**, `Receipt Link`, `Link to receipt` — **must be `https://`** |
 | Entered by | `entered_by`, `Entered_By`, `Receipt Entered by` |

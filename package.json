@@ -26,6 +26,10 @@
     "odoo:accounting-cutover": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs",
     "odoo:accounting-cutover:dry-run": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --dry-run",
     "odoo:accounting-cutover:sweep": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force --sweep-only",
+    "test:accounting-cutoff": "node scripts/lib/accounting-cutoff.self-test.mjs",
+    "test:deposited-to": "node scripts/lib/deposited-to-liquidity.self-test.mjs",
+    "test:bank-stand-reconcile": "node scripts/lib/bank-stand-reconcile.self-test.mjs",
+    "test:meeting-automations": "node scripts/lib/meeting-automations.self-test.mjs",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
     "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
   },

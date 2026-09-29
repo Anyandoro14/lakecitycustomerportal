@@ -8,9 +8,15 @@ Copy [`LakecityReceiptIntake.gs`](./LakecityReceiptIntake.gs) into **Extensions 
 
 - Reads the **submitted row** from tab **`SHEET_NAME`** (default `Form Responses 1`), same as your legacy **RECEIPT_CAPTURE → Make** script.
 - Builds a full **`answers`** map from header row + values (good for debugging and Odoo fallbacks).
-- Adds **`pick_()` aliases** for stand, receipt link, amount, payer — edit the arrays in **`onFormSubmit`** if your column titles differ.
+- Adds **`pick_()` aliases** for stand, receipt link, amount, payer, **Deposited to:** — edit the arrays in **`onFormSubmit`** if your column titles differ.
 - Always sends a fresh **`uuid`** (required for Odoo intake idempotency).
-- Top-level fields **`stand_number`**, **`receipt_link`**, **`amount`**, **`payer_name`** help Make map fewer nested paths.
+- Top-level fields **`stand_number`**, **`receipt_link`**, **`amount`**, **`payer_name`**, **`deposited_to`** help Make map fewer nested paths.
+
+### `Deposited to:` (liquidity destination)
+
+Form dropdown labels (exact): **Cash**, **Cabs**, **Cabs Zig**, **Jumpstart**, **Ecocash**.
+
+Apps Script picks headers **`Deposited to:`** / **`Deposited to`** / **`Deposited To`** into top-level **`deposited_to`** (and keeps the value inside **`answers`**). On QC approve, Odoo posts the receipt into the matching COA liquidity account (see `docs/make-receipt-intake-odoo.md` and `docs/bnpl-deposit-and-bank-reconcile.md`).
 
 ### Webhook URL
 

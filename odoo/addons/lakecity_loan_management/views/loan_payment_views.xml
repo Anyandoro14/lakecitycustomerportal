@@ -13,6 +13,7 @@
                 <field name="stand_number"/>
                 <field name="amount"/>
                 <field name="source"/>
+                <field name="deposited_to"/>
                 <field name="reference"/>
                 <field name="state"/>
             </list>
@@ -39,6 +40,7 @@
                         <field name="payment_date"/>
                         <field name="amount"/>
                         <field name="source"/>
+                        <field name="deposited_to"/>
                         <field name="reference"/>
                         <field name="state"/>
                         <field name="account_payment_id" readonly="1" groups="account.group_account_invoice"/>
