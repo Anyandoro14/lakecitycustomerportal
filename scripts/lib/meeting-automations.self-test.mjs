@@ -49,8 +49,10 @@ for (const rel of [
 
 assert(DEPOSITED_TO_LABELS.includes("Cabs Zig"), "Cabs Zig label");
 assert(DEPOSITED_TO_LABELS.includes("CBZ"), "CBZ label");
+assert(DEPOSITED_TO_LABELS.includes("Cabs Waltich"), "Cabs Waltich label");
 assert(resolveDepositedToLiquidity("Ecocash").code === "101417", "Ecocash map");
 assert(resolveDepositedToLiquidity("CBZ").code === "101419", "CBZ map");
+assert(resolveDepositedToLiquidity("Cabs Waltich").code === "101412", "Cabs Waltich map");
 assert(
   threeWayStandCheck({
     standPortal: "4",
@@ -75,6 +77,6 @@ const manifest = fs.readFileSync(
   path.join(root, "odoo/addons/lakecity_loan_management/__manifest__.py"),
   "utf8",
 );
-assert(/19\.0\.1\.0\.73/.test(manifest), "module version 19.0.1.0.73");
+assert(/19\.0\.1\.0\.74/.test(manifest), "module version 19.0.1.0.74");
 
 console.log("meeting-automations self-test: ok");

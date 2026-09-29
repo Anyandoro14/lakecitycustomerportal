@@ -45,6 +45,12 @@ DEPOSITED_TO_COA = {
         "match": "exact",
         "tokens": (),
     },
+    "Cabs Waltich": {
+        "code": "101412",
+        "name": "CABS - Waltich - 975",
+        "match": "exact",
+        "tokens": (),
+    },
 }
 
 DEPOSITED_TO_LABELS = tuple(DEPOSITED_TO_COA.keys())
@@ -69,6 +75,11 @@ class LakecityDepositedToMixin(models.AbstractModel):
             "eco cash": "Ecocash",
             "eco-cash": "Ecocash",
             "jump start": "Jumpstart",
+            "cabs waltich": "Cabs Waltich",
+            "cabs - waltich": "Cabs Waltich",
+            "cabs-waltich": "Cabs Waltich",
+            "waltich": "Cabs Waltich",
+            "cabs waltich.": "Cabs Waltich",
         }
         return aliases.get(lower, "")
 
