@@ -29,6 +29,7 @@ EXTRA_ACCOUNTS = [
     ("121015", "Defaulted Customer Receivables", "asset_receivable", True),
     ("212080", "Customer Refunds / Cancellation Clearing", "liability_current", False),
     ("212090", "Customer Refunds Payable", "liability_current", False),
+    ("101419", "CBZ - Main USD Current Account - 27794540028", "asset_cash", False),
 ]
 
 BANK_CURRENCY = {
@@ -39,6 +40,7 @@ BANK_CURRENCY = {
     "101414": "USD",
     "101417": "USD",
     "101418": "CAD",
+    "101419": "USD",
 }
 
 

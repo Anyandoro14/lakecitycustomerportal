@@ -39,6 +39,12 @@ DEPOSITED_TO_COA = {
         "match": "exact",
         "tokens": (),
     },
+    "CBZ": {
+        "code": "101419",
+        "name": "CBZ - Main USD Current Account - 27794540028",
+        "match": "exact",
+        "tokens": (),
+    },
 }
 
 DEPOSITED_TO_LABELS = tuple(DEPOSITED_TO_COA.keys())

@@ -72,6 +72,11 @@
         <field name="name">Jumpstart (CAD)</field>
         <field name="account_type">asset_cash</field>
     </record>
+    <record id="lakecity_coa_101419" model="account.account">
+        <field name="code">101419</field>
+        <field name="name">CBZ - Main USD Current Account - 27794540028</field>
+        <field name="account_type">asset_cash</field>
+    </record>
     <record id="lakecity_coa_101701" model="account.account">
         <field name="code">101701</field>
         <field name="name">Liquidity Transfer</field>
