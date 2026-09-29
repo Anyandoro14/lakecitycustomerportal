@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { VisaMark, MastercardMark } from "@/components/CardBrandMarks";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
@@ -296,6 +296,27 @@ const Pay = () => {
           <ShieldCheck className="h-3.5 w-3.5" />
           Payments are processed securely by Paynow.
         </p>
+
+        <Card className="p-4 shadow-sm space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">Other ways to pay</h2>
+            <p className="text-xs text-muted-foreground">Prefer ZikiMall? Pay there instead.</p>
+          </div>
+          <Button asChild variant="outline" className="w-full h-11">
+            <a href="https://zikimall.com/" target="_blank" rel="noopener noreferrer">
+              Pay via ZikiMall
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </a>
+          </Button>
+          <ol className="list-decimal pl-5 space-y-1 text-xs text-muted-foreground">
+            <li>Go to ZikiMall → All Payments → All Billers → search <span className="font-semibold text-foreground">Warwickshire</span>.</li>
+            <li>
+              After paying, email your proof of payment to{" "}
+              <a href="mailto:admin@lakecity.co.zw" className="font-semibold text-primary underline">admin@lakecity.co.zw</a>{" "}
+              so we can allocate it to your stand.
+            </li>
+          </ol>
+        </Card>
       </main>
       <BottomNav />
     </div>
