@@ -1,29 +1,27 @@
 #!/usr/bin/env node
 /**
- * QC: per-stand client balance vs Master List (and optional Odoo exports).
+ * QC: per-stand Odoo client balance vs LakeCity Stand Sales AR (121000),
+ * with Master List / Transaction Detail as external check.
  *
- * Match key: stand_number.
+ * Match key: stand_number (never partner alone — one partner can own many stands).
  *
- * External check (always available from Master List xlsx):
- *   - Master List "Balance Remaining" / "Actual Total Paid"
- *   - Sum of Transaction Detail "Receipt Amount" per stand
+ * Stand Sales identification (from addon, not invented):
+ *   - Journal: "Lake City Stand Sales" / code STND
+ *   - Trade AR: COA 121000
+ *   - Moves linked via account.move.lakecity_loan_contract_id
+ *   - Client balance: lakecity.loan.contract.current_balance
  *
- * Odoo Stand Sales accounting (from addon):
- *   - Journal: "Lake City Stand Sales" (code STND)
- *   - Trade AR: account code 121000 ("Account Receivable")
- *   - Contract field: lakecity.loan.contract.current_balance
- *     (= total_with_tax - total_paid, floored at 0)
+ * Staging export (preferred):
+ *   odoo/addons/lakecity_loan_management/scripts/odoo_sh_export_stand_balances.py
+ *   → CSV with odoo_client_balance + stand_sales_balance
  *
  * Usage:
- *   node scripts/qc-odoo-stand-balances-vs-master.mjs --master-xlsx ... --sheet-only
- *   node scripts/qc-odoo-stand-balances-vs-master.mjs --master-xlsx ... \
- *     --odoo-contracts-csv staging-contracts.csv
+ *   node scripts/qc-odoo-stand-balances-vs-master.mjs --master-xlsx Master.xlsx --sheet-only
+ *   node scripts/qc-odoo-stand-balances-vs-master.mjs --master-xlsx Master.xlsx \
+ *     --odoo-contracts-csv /tmp/lakecity_stand_balance_export.csv \
+ *     --out-dir ./tmp/odoo-balance-qc
  *
- * Odoo contracts CSV columns:
- *   stand_number, current_balance, total_paid, total_with_tax
- *   (optional) partner_receivable_balance  — partner AR residual on 121000
- *
- * Does NOT invent bank/account numbers. Staging analysis only (no writes).
+ * Does NOT write Production / Staging. Analysis + exceptions list only.
  */
 
 import fs from "node:fs";
@@ -31,6 +29,10 @@ import path from "node:path";
 import * as XLSXNS from "xlsx";
 const XLSX = XLSXNS.default ?? XLSXNS;
 import { normStand, parseMoney, parseUkPreferDate } from "./lib/uk-date-parse.mjs";
+import {
+  classifyStandBalanceException,
+  STAND_SALES,
+} from "./lib/stand-balance-reconcile.mjs";
 
 function argVal(flag, fallback = "") {
   const i = process.argv.indexOf(flag);
@@ -117,12 +119,25 @@ function loadOdooContracts(csvPath) {
     if (!stand) continue;
     out.set(stand, {
       stand,
-      current_balance: parseMoney(pick(row, ["current_balance", "Current Balance", "Balance"])),
+      odoo_client_balance: parseMoney(
+        pick(row, ["odoo_client_balance", "current_balance", "Current Balance", "Balance"]),
+      ),
+      stand_sales_balance: parseMoney(
+        pick(row, [
+          "stand_sales_balance",
+          "stand_sales_ar",
+          "partner_receivable_balance",
+          "AR Balance",
+          "receivable_balance",
+          "121000",
+        ]),
+      ),
       total_paid: parseMoney(pick(row, ["total_paid", "Total Paid"])),
       total_with_tax: parseMoney(pick(row, ["total_with_tax", "Total With Tax", "total_price"])),
-      partner_receivable_balance: parseMoney(
-        pick(row, ["partner_receivable_balance", "AR Balance", "receivable_balance", "121000"]),
+      partner_ar_121000_all_stands: parseMoney(
+        pick(row, ["partner_ar_121000_all_stands", "partner_ar_all"]),
       ),
+      partner_name: String(pick(row, ["partner_name", "Partner"]) || "").trim(),
     });
   }
   return out;
@@ -153,50 +168,29 @@ function main() {
     const txn = txnSum.has(stand) ? Math.round(txnSum.get(stand) * 100) / 100 : null;
     if (m.actual_total_paid != null && txn != null && !nearly(m.actual_total_paid, txn, 0.02)) {
       sheetExceptions.push({
-        stand,
-        name: m.name,
-        kind: "master_paid_vs_txn_sum",
+        stand_number: stand,
+        customer_name: m.name,
+        odoo_client_balance: "",
+        stand_sales_balance: "",
+        master_balance: m.balance_remaining,
+        difference: Math.round((txn - m.actual_total_paid) * 100) / 100,
+        likely_cause: "sheet_internal_paid_vs_txn_sum",
         master_actual_total_paid: m.actual_total_paid,
         txn_detail_sum: txn,
-        difference: Math.round((txn - m.actual_total_paid) * 100) / 100,
-        likely_cause: "sheet_internal_inconsistency",
-      });
-    }
-    if (
-      m.purchase_price != null &&
-      m.actual_total_paid != null &&
-      m.balance_remaining != null &&
-      !nearly(m.purchase_price - m.actual_total_paid, m.balance_remaining, tol)
-    ) {
-      sheetExceptions.push({
-        stand,
-        name: m.name,
-        kind: "purchase_minus_paid_vs_balance",
-        purchase_price: m.purchase_price,
-        master_actual_total_paid: m.actual_total_paid,
-        master_balance_remaining: m.balance_remaining,
-        purchase_minus_paid: Math.round((m.purchase_price - m.actual_total_paid) * 100) / 100,
-        difference:
-          Math.round((m.balance_remaining - (m.purchase_price - m.actual_total_paid)) * 100) / 100,
-        likely_cause: "vat_or_price_field_mismatch_or_credits",
       });
     }
   }
 
   const summary = {
+    stand_sales_identification: { ...STAND_SALES },
     master_stands: master.size,
     txn_stands: txnSum.size,
     sheet_exceptions: sheetExceptions.length,
-    stand_sales_identification: {
-      journal_name: "Lake City Stand Sales",
-      journal_code: "STND",
-      trade_receivable_account_code: "121000",
-      contract_balance_field: "lakecity.loan.contract.current_balance",
-      match_key: "stand_number",
-      note:
-        "Do not invent bank account numbers. Liquidity COA codes (101410+) are for deposited-to mapping, not client AR.",
-    },
     mode: sheetOnly ? "sheet_only" : "sheet_vs_odoo",
+    note:
+      "Match key is stand_number. Stand Sales AR must be attributed via " +
+      "account.move.lakecity_loan_contract_id (not partner AR alone). " +
+      "Do not invent bank/account numbers.",
   };
 
   writeCsv(path.join(outDir, "sheet-exceptions.csv"), sheetExceptions);
@@ -207,65 +201,91 @@ function main() {
       process.exit(2);
     }
     const odoo = loadOdooContracts(odooCsv);
-    const odooExceptions = [];
+    const exceptions = [];
+    const samples = [];
+
     for (const [stand, m] of master) {
       const o = odoo.get(stand);
+      const masterPaid =
+        m.actual_total_paid != null
+          ? m.actual_total_paid
+          : txnSum.has(stand)
+            ? Math.round(txnSum.get(stand) * 100) / 100
+            : null;
+
       if (!o) {
-        if (m.balance_remaining != null && m.balance_remaining > 0) {
-          odooExceptions.push({
-            stand,
-            name: m.name,
-            kind: "missing_in_odoo",
+        if (m.balance_remaining != null && Math.abs(m.balance_remaining) > tol) {
+          exceptions.push({
+            stand_number: stand,
+            customer_name: m.name,
+            odoo_client_balance: "",
+            stand_sales_balance: "",
             master_balance: m.balance_remaining,
-            odoo_current_balance: "",
             difference: "",
-            likely_cause: "contract_not_imported_or_stand_mismatch",
+            likely_cause: "contract_missing_in_odoo",
           });
         }
         continue;
       }
-      if (
-        m.balance_remaining != null &&
-        o.current_balance != null &&
-        !nearly(m.balance_remaining, o.current_balance, tol)
-      ) {
-        const diff = Math.round((o.current_balance - m.balance_remaining) * 100) / 100;
-        let cause = "balance_mismatch";
-        if (m.actual_total_paid != null && o.total_paid != null && !nearly(m.actual_total_paid, o.total_paid, tol)) {
-          cause = "paid_total_mismatch_check_date_swaps_or_missing_receipts";
-        }
-        odooExceptions.push({
-          stand,
-          name: m.name,
-          kind: "client_balance_vs_master",
-          master_balance: m.balance_remaining,
-          odoo_current_balance: o.current_balance,
-          master_paid: m.actual_total_paid,
+
+      const classified = classifyStandBalanceException({
+        clientBalance: o.odoo_client_balance,
+        standSalesBalance: o.stand_sales_balance,
+        masterBalance: m.balance_remaining,
+        clientPaid: o.total_paid,
+        masterPaid,
+        tol,
+      });
+
+      if (classified) {
+        const row = {
+          stand_number: stand,
+          customer_name: m.name || o.partner_name,
+          odoo_client_balance: classified.odoo_client_balance,
+          stand_sales_balance: classified.stand_sales_balance,
+          master_balance: classified.master_balance,
+          difference: classified.difference,
+          likely_cause: classified.likely_cause,
+          kind: classified.kind,
           odoo_total_paid: o.total_paid,
-          partner_receivable_121000: o.partner_receivable_balance,
-          difference: diff,
-          likely_cause: cause,
-        });
+          master_paid: masterPaid,
+          partner_ar_121000_all_stands: o.partner_ar_121000_all_stands,
+        };
+        exceptions.push(row);
+        if (samples.length < 15) samples.push(row);
       }
+    }
+
+    // Odoo contracts with no Master row (informational)
+    let orphanOdoo = 0;
+    for (const [stand, o] of odoo) {
+      if (master.has(stand)) continue;
+      orphanOdoo += 1;
       if (
-        o.partner_receivable_balance != null &&
-        o.current_balance != null &&
-        !nearly(o.partner_receivable_balance, o.current_balance, tol)
+        (o.odoo_client_balance != null && Math.abs(o.odoo_client_balance) > tol) ||
+        (o.stand_sales_balance != null && Math.abs(o.stand_sales_balance) > tol)
       ) {
-        odooExceptions.push({
-          stand,
-          name: m.name,
-          kind: "odoo_ar_121000_vs_contract_balance",
-          odoo_current_balance: o.current_balance,
-          partner_receivable_121000: o.partner_receivable_balance,
-          difference: Math.round((o.partner_receivable_balance - o.current_balance) * 100) / 100,
-          likely_cause: "stand_sales_je_vs_bnpl_schedule_drift",
+        exceptions.push({
+          stand_number: stand,
+          customer_name: o.partner_name,
+          odoo_client_balance: o.odoo_client_balance,
+          stand_sales_balance: o.stand_sales_balance,
+          master_balance: "",
+          difference: "",
+          likely_cause: "odoo_stand_not_on_master_list",
+          kind: "odoo_only",
         });
       }
     }
+
     summary.odoo_contracts = odoo.size;
-    summary.odoo_exceptions = odooExceptions.length;
-    writeCsv(path.join(outDir, "odoo-balance-exceptions.csv"), odooExceptions);
+    summary.exceptions = exceptions.length;
+    summary.orphan_odoo_stands = orphanOdoo;
+    summary.sample_exceptions = samples;
+
+    writeCsv(path.join(outDir, "exceptions.csv"), exceptions);
+    // Back-compat alias
+    writeCsv(path.join(outDir, "odoo-balance-exceptions.csv"), exceptions);
   }
 
   fs.writeFileSync(path.join(outDir, "summary.json"), JSON.stringify(summary, null, 2));

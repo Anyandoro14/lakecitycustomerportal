@@ -128,23 +128,82 @@ Outputs:
 
 ---
 
-## 6) Stand Sales vs client balance (match key)
+## 6) Stand Sales vs client balance (Alex report)
 
-| Concept | How identified |
-|---------|----------------|
-| Stand Sales journal | `Lake City Stand Sales` / code `STND` (`lakecity_stand_accounting_journals.xml`) |
-| Client trade AR | COA **`121000`** Account Receivable |
-| Contract balance | `lakecity.loan.contract.current_balance` |
-| Match key | **`stand_number`** (normalize numeric stands) |
-| External check | Master List **Balance Remaining** + Transaction Detail paid sum |
+### How Stand Sales is identified
 
-Likely causes when balances differ: date swap (wrong period / allocation), missing Odoo receipt, opening-balance cutover drift, or AR JE vs schedule field drift (`121000` residual ≠ `current_balance`).
+| Piece | Value | Source |
+|-------|-------|--------|
+| Journal | **Lake City Stand Sales**, code **`STND`** | `data/lakecity_stand_accounting_journals.xml` |
+| Trade receivable (client AR GL) | COA **`121000`** Account Receivable | `LAKECITY_STAND_ACCOUNT_CODES["receivable"]` in `lakecity_stand_accounting.py` |
+| Stand Sales JE link | `account.move.lakecity_loan_contract_id` + `lakecity_stand_move_purpose` | `account_move.py` |
+| Client / loan balance | `lakecity.loan.contract.current_balance` (= `total_with_tax − total_paid`, ≥ 0) | `loan_contract.py` |
+| **Match key** | **`stand_number`** (normalized; never partner alone) | One partner can own multiple stands — partner-level 121000 mixes stands |
 
-Liquidity / bank codes (`101410` CABS, `101412` Waltich, etc.) are **not** client balances — do not invent or substitute account numbers in QC.
+**Stand Sales balance (per stand)** = sum of posted `account.move.line` debit−credit on **121000** where `move.lakecity_loan_contract_id` = that stand’s contract.
+
+**Do not** use liquidity/bank codes (`101410` CABS, `101412` Waltich, …) as client balances. Do not invent account numbers.
+
+### External check (Master List)
+
+- **Balance Remaining** / **Actual Total Paid** on Master List tab  
+- Sum of **Transaction Detail → Receipt Amount** per stand  
+
+On the current Master List file: **0** sheet-internal paid/balance exceptions (txn sum matches Actual Total Paid).
+
+### Staging export → exceptions list
+
+On **Staging** Web Shell only:
+
+```text
+exec(open("…/lakecity_loan_management/scripts/odoo_sh_export_stand_balances.py").read())
+```
+
+Then:
+
+```bash
+node scripts/qc-odoo-stand-balances-vs-master.mjs \
+  --master-xlsx ./Master.xlsx \
+  --odoo-contracts-csv /tmp/lakecity_stand_balance_export.csv \
+  --out-dir ./tmp/odoo-balance-qc
+```
+
+`exceptions.csv` columns: `stand_number`, `odoo_client_balance`, `stand_sales_balance`, `master_balance`, `difference`, `likely_cause`.
+
+Likely causes (heuristics):
+
+| Cause code | Meaning |
+|------------|---------|
+| `stand_sales_je_misallocation_or_orphan_ar` | Master agrees with BNPL; 121000 wrong |
+| `bnpl_schedule_total_paid_wrong_check_date_swaps` | Master agrees with 121000; contract paid/balance wrong |
+| `missing_or_extra_receipt_check_date_swaps` | Paid totals disagree — check date QC list |
+| `contract_missing_in_odoo` | Master stand not imported |
+| `odoo_stand_not_on_master_list` | Odoo-only stand |
+
+### Sample mismatches
+
+Live Staging exceptions are **not** available without the export above (no Staging API token in CI). Fixture self-test examples:
+
+| Stand | Client bal | Stand Sales | Diff | Likely cause |
+|------:|----------:|------------:|-----:|--------------|
+| 1516 | 6425 | 5000 | −1425 | `stand_sales_je_misallocation_or_orphan_ar` |
+| 999 | 40 | 40 | vs master 50 | `missing_receipt_or_date_swap_affecting_paid_total` |
+
+### Proposed fix path (Staging → Alex approval → Production later)
+
+1. Set Staging language Date Format `%d/%m/%Y` (section 1).  
+2. Export Staging balances; run QC → `exceptions.csv`.  
+3. Cross-check high-diff stands against `correction-candidates.csv` (date swaps) and Transaction Detail.  
+4. Fix order on Staging only:  
+   a. Correct swapped **payment dates** (rebuild allocations / Stand Sales receipt JEs).  
+   b. Post missing receipts from Master Transaction Detail (idempotent `external_uid`).  
+   c. Investigate remaining 121000 vs contract drift (orphan AR, cutover opening JE, misallocated partner).  
+5. Re-export until client ↔ Stand Sales ↔ Master align within tolerance (default $1).  
+6. **No Production writes** until Alex signs off.
 
 ---
 
 ## 7) Code follow-ups in this repo
 
 - Receipt intake / API date parsing prefers **dd/mm/yyyy** before US-style ambiguity (`_lakecity_parse_payment_date`).  
-- QC scripts above — analysis only; no Production writes.
+- QC scripts + Staging export helper — analysis only; no Production writes.

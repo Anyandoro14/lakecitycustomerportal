@@ -31,6 +31,7 @@
     "test:bank-stand-reconcile": "node scripts/lib/bank-stand-reconcile.self-test.mjs",
     "test:meeting-automations": "node scripts/lib/meeting-automations.self-test.mjs",
     "test:uk-date-parse": "node scripts/lib/uk-date-parse.self-test.mjs",
+    "test:stand-balance-reconcile": "node scripts/lib/stand-balance-reconcile.self-test.mjs",
     "qc:odoo-receipt-dates": "node scripts/qc-odoo-receipt-dates-vs-master.mjs",
     "qc:odoo-stand-balances": "node scripts/qc-odoo-stand-balances-vs-master.mjs",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
