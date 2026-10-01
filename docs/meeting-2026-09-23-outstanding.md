@@ -15,7 +15,7 @@ Code skeletons for Voltage, commissions, customer↔bank, stand reassignment, an
 
 | Item | Notes |
 |------|--------|
-| Live Google Form **Deposited to:** dropdown | Code path ready (`deposited_to`). Confirm Form question labels: Cash, Cabs, Cabs Zig, Jumpstart, Ecocash, CBZ, Cabs Waltich. Redeploy Apps Script from `scripts/google-forms/`. |
+| Live Google Form **Deposited to:** dropdown | Code path ready (`deposited_to`). Confirm Form question labels: Cash, CABS USD, Cabs Zig, Jumpstart, Ecocash, CBZ USD, Cabs Waltich, CBZ ZIG, EcoCash ZIG. **Blocker:** add CBZ ZiG + EcoCash ZiG COA on Staging (no invent codes). Redeploy Apps Script from `scripts/google-forms/`. |
 | Customer → bank account list | Fill **Customer bank accounts** or CSV template (do not invent rows). |
 | Staging upgrade | Upgrade `lakecity_loan_management` to **19.0.1.0.72+**; uninstall orphaned `daily_reconciliation` if still installed from older staging builds. |
 | OTP email | **Already on `main`** (SMS/Email 2FA picker + `email_otp_codes` + Resend). See `docs/otp-email-staging-check.md`. |

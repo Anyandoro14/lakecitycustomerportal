@@ -61,7 +61,7 @@ class LakecityCustomerBankAccount(models.Model):
                 "Example Customer",
                 "customer@example.com",
                 "26",
-                "Cabs",
+                "CABS USD",
                 "101410",
                 "Fill real rows; leave blank rows out",
             ]
