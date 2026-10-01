@@ -8,7 +8,13 @@ import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
-import { parseAmount, formatUsd } from "@/lib/paynow";
+
+const formatUsd = (value: unknown) => {
+  const parsed = Number.parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed)
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(parsed)
+    : "—";
+};
 
 const Pay = () => {
   const navigate = useNavigate();
@@ -79,11 +85,11 @@ const Pay = () => {
           </div>
            <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Outstanding balance</span>
-             <span className="font-bold text-primary">{stand ? formatUsd(parseAmount(stand.standBalance)) : "—"}</span>
+             <span className="font-bold text-primary">{stand ? formatUsd(stand.standBalance) : "—"}</span>
           </div>
            <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Monthly instalment</span>
-             <span className="font-medium text-foreground">{stand ? formatUsd(parseAmount(stand.monthlyPayment)) : "—"}</span>
+             <span className="font-medium text-foreground">{stand ? formatUsd(stand.monthlyPayment) : "—"}</span>
           </div>
         </Card>
 
