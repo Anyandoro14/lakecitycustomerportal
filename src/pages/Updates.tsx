@@ -191,18 +191,18 @@ const Updates = () => {
       <CustomerHeader />
 
       {/* Hero masthead */}
-      <div className="bg-primary text-primary-foreground border-b-4 border-secondary">
+      <div className="bg-primary text-primary-foreground border-b-4 border-sl-gold">
         <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16">
           <img src={logoWhite} alt="LakeCity" className="h-8 sm:h-9 w-auto mb-8" />
-          <p className="text-xs sm:text-sm font-body font-semibold tracking-[0.25em] uppercase text-secondary mb-3">
+          <p className="text-xs sm:text-sm font-body font-semibold tracking-[0.25em] uppercase text-sl-gold mb-3">
             Investor Communications
           </p>
           <h1 className="font-display text-3xl sm:text-5xl font-medium leading-tight tracking-tight">
-            Updates &<br className="hidden sm:block" /> Announcements
+            Updates &amp;<br className="hidden sm:block" /> Announcements
           </h1>
-          <div className="mt-6 h-px w-16 bg-primary-foreground/20" />
-          <p className="mt-4 text-sm sm:text-base text-primary-foreground/70 max-w-md leading-relaxed font-mono font-medium">
-            Official communications from LakeCity tech team.
+          <div className="mt-6 h-1 w-16 bg-sl-gold rounded-full" />
+          <p className="mt-4 text-sm sm:text-base text-primary-foreground/75 max-w-md leading-relaxed font-body">
+            Official communications from the LakeCity team — newsletters, announcements, and portal updates.
           </p>
         </div>
       </div>

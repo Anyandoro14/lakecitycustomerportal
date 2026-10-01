@@ -58,8 +58,9 @@ const ArticleEditor = ({ article, onSave, onCancel }: ArticleEditorProps) => {
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="welcome">Welcome</SelectItem>
-              <SelectItem value="update">Portal Update</SelectItem>
+              <SelectItem value="newsletter">Newsletter</SelectItem>
               <SelectItem value="announcement">Announcement</SelectItem>
+              <SelectItem value="update">Portal Update</SelectItem>
               <SelectItem value="feature">New Feature</SelectItem>
             </SelectContent>
           </Select>
