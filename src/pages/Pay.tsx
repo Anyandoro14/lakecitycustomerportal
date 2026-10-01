@@ -1,19 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ExternalLink, Loader2, ShieldCheck } from "lucide-react";
-import { VisaMark, MastercardMark } from "@/components/CardBrandMarks";
+import { ExternalLink, Loader2, Landmark, Globe2 } from "lucide-react";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
-import ecocashLogo from "@/assets/ecocash-checkout.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
-import { initPayment, parseAmount, formatUsd, type PayMethod } from "@/lib/paynow";
+import { parseAmount, formatUsd } from "@/lib/paynow";
 
 const Pay = () => {
   const navigate = useNavigate();
@@ -21,11 +16,7 @@ const Pay = () => {
   const { tenantId, loading: tenantLoading } = useTenant();
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [stand, setStand] = useState<any>(null);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PayMethod>("paynow");
-  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -63,114 +54,6 @@ const Pay = () => {
     };
   }, [tenantId, tenantLoading, navigate, toast]);
 
-  const instalment = useMemo(() => parseAmount(stand?.monthlyPayment), [stand]);
-  const balance = useMemo(() => parseAmount(stand?.standBalance), [stand]);
-  // Customers may pay any amount towards their stand at any time.
-  const minAmount = 1;
-  const maxAmount = balance > 0 ? balance : 100000;
-
-  const quickAmounts = useMemo(() => {
-    const options: { label: string; value: number }[] = [];
-    if (instalment > 0) {
-      options.push({ label: "1 instalment", value: instalment });
-      options.push({ label: "2 instalments", value: instalment * 2 });
-    }
-    if (balance > 0) options.push({ label: "Full balance", value: balance });
-    return options.filter((o) => o.value > 0 && o.value <= maxAmount);
-  }, [instalment, balance, maxAmount]);
-
-  useEffect(() => {
-    if (stand && !amount) {
-      const preset = instalment > 0 && instalment <= maxAmount ? instalment : Math.min(50, maxAmount);
-      setAmount(preset.toFixed(2));
-    }
-  }, [stand, instalment, maxAmount, amount]);
-
-  const handleSubmit = async () => {
-    const value = parseAmount(amount);
-    if (value < minAmount) {
-      toast({
-        title: "Amount too low",
-        description: `The minimum payment is ${formatUsd(minAmount)}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    if (value > maxAmount) {
-      toast({
-        title: "Amount too high",
-        description: `Your outstanding balance is ${formatUsd(maxAmount)}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    if (method !== "paynow" && !/^[0-9+\s]{9,15}$/.test(phone.trim())) {
-      toast({
-        title: "Mobile number needed",
-        description: "Enter the mobile number registered for this wallet.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const result = await initPayment({
-        amount: value,
-        method,
-        phone: phone.trim(),
-        standNumber: stand?.standNumber || "",
-        minAmount,
-        maxAmount,
-      });
-
-      if (!result?.success || result.error) {
-        toast({
-          title: "Payment could not start",
-          description: result?.error || "Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const redirect = result.redirect_url || result.browserurl;
-      if (redirect) {
-        // Paynow blocks being embedded in a frame, so always leave the frame:
-        // send the top-level window when we can, otherwise open a new tab.
-        const inFrame = window.self !== window.top;
-        if (inFrame) {
-          try {
-            window.top!.location.href = redirect;
-          } catch {
-            window.open(redirect, "_blank", "noopener,noreferrer");
-          }
-        } else {
-          window.location.href = redirect;
-        }
-        return;
-      }
-
-      if (result.instructions || method === "ecocash") {
-        navigate(`/pay/return?reference=${encodeURIComponent(result.reference || "")}&express=1`);
-        return;
-      }
-
-      toast({
-        title: "Payment could not start",
-        description: "The payment service did not return a checkout link.",
-        variant: "destructive",
-      });
-    } catch (e: any) {
-      toast({
-        title: "Payment could not start",
-        description: e?.message || "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (loading || tenantLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -186,137 +69,71 @@ const Pay = () => {
         <h1 className="text-xl font-bold text-foreground">Make Payment</h1>
 
         <Card className="p-4 shadow-sm space-y-2">
-          <div className="flex justify-between text-sm">
+           <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Account</span>
             <span className="font-medium text-foreground">{stand?.customerName || "—"}</span>
           </div>
-          <div className="flex justify-between text-sm">
+           <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Property reference</span>
             <span className="font-medium text-foreground">{stand?.standNumber || "—"}</span>
           </div>
-          <div className="flex justify-between text-sm">
+           <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Outstanding balance</span>
-            <span className="font-bold text-primary">{formatUsd(balance)}</span>
+             <span className="font-bold text-primary">{stand ? formatUsd(parseAmount(stand.standBalance)) : "—"}</span>
           </div>
-          <div className="flex justify-between text-sm">
+           <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Monthly instalment</span>
-            <span className="font-medium text-foreground">{formatUsd(instalment)}</span>
+             <span className="font-medium text-foreground">{stand ? formatUsd(parseAmount(stand.monthlyPayment)) : "—"}</span>
           </div>
         </Card>
 
-        <Card className="p-4 shadow-sm space-y-3">
-          <Label htmlFor="amount">Amount to pay (USD)</Label>
-          <Input
-            id="amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="h-12 text-lg"
-          />
-          {quickAmounts.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {quickAmounts.map((q) => (
-                <Button
-                  key={q.label}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAmount(q.value.toFixed(2))}
-                >
-                  {q.label} · {formatUsd(q.value)}
-                </Button>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Pay any amount towards your stand at any time. Minimum {formatUsd(minAmount)} · Maximum{" "}
-            {formatUsd(maxAmount)}
-          </p>
-        </Card>
-
-        <Card className="p-4 shadow-sm space-y-3">
-          <Label>Payment method</Label>
-          <RadioGroup value={method} onValueChange={(v) => setMethod(v as PayMethod)} className="space-y-2">
-            <label
-              className={`flex min-h-16 items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                method === "paynow" ? "border-primary bg-accent/30" : "border-border bg-card"
-              }`}
-            >
-              <RadioGroupItem value="paynow" id="m-paynow" />
-              <div className="flex h-9 w-20 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-2">
-                <VisaMark className="h-3.5 w-auto" />
-                <MastercardMark className="h-5 w-auto" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-sm font-medium text-foreground">Paynow checkout</span>
-                <span className="block text-xs text-muted-foreground">Card, bank and other methods</span>
-              </div>
-            </label>
-            <label
-              className={`flex min-h-16 items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                method === "ecocash" ? "border-primary bg-accent/30" : "border-border bg-card"
-              }`}
-            >
-              <RadioGroupItem value="ecocash" id="m-ecocash" />
-              <div className="flex h-9 w-20 shrink-0 items-center justify-center rounded-md border border-border bg-card px-2">
-                <img
-                  src={ecocashLogo.url}
-                  alt="EcoCash"
-                  className="h-auto w-full object-contain"
-                />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-sm font-medium text-foreground">EcoCash</span>
-                <span className="block text-xs text-muted-foreground">Approve securely with your PIN</span>
-              </div>
-            </label>
-          </RadioGroup>
-
-          {method !== "paynow" && (
-            <div className="space-y-2 pt-1">
-              <Label htmlFor="phone">Mobile number</Label>
-              <Input
-                id="phone"
-                inputMode="tel"
-                placeholder="0771234567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="h-12"
-              />
-            </div>
-          )}
-        </Card>
-
-        <Button className="w-full h-12 text-base" onClick={handleSubmit} disabled={submitting}>
-          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {submitting ? "Starting payment..." : `Pay ${formatUsd(parseAmount(amount))}`}
-        </Button>
-
-        <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Payments are processed securely by Paynow.
-        </p>
-
-        <Card className="p-4 shadow-sm space-y-3">
+        <section className="space-y-4" aria-labelledby="online-payment">
           <div>
-            <h2 className="text-sm font-semibold">Other ways to pay</h2>
-            <p className="text-xs text-muted-foreground">Prefer ZikiMall? Pay there instead.</p>
+            <h2 id="online-payment" className="text-lg font-semibold text-foreground">Pay online with ZikiMall</h2>
+            <p className="text-sm text-muted-foreground">Visa, Mastercard, EcoCash or Zimswitch through ZikiMall.</p>
           </div>
-          <Button asChild variant="outline" className="w-full h-11">
+          <Button asChild className="w-full h-12 text-base">
             <a href="https://zikimall.com/" target="_blank" rel="noopener noreferrer">
               Pay via ZikiMall
               <ExternalLink className="ml-2 h-4 w-4" />
             </a>
           </Button>
-          <ol className="list-decimal pl-5 space-y-1 text-xs text-muted-foreground">
-            <li>Go to ZikiMall → All Payments → All Billers → search <span className="font-semibold text-foreground">Warwickshire</span>.</li>
-            <li>
-              After paying, email your proof of payment to{" "}
-              <a href="mailto:admin@lakecity.co.zw" className="font-semibold text-primary underline">admin@lakecity.co.zw</a>{" "}
-              so we can allocate it to your stand.
-            </li>
+          <p className="text-sm text-muted-foreground">On ZikiMall, only payments from the UK, South Africa and Canada are working for now.</p>
+          <ol className="list-decimal pl-5 space-y-2 text-sm text-foreground">
+            <li>Open <strong>All Payments</strong> → <strong>All Billers</strong> and search <strong>Warwickshire</strong>.</li>
+            <li>Enter your stand number, initials and surname in the account details. <strong>Do not validate.</strong></li>
+            <li>Choose a supported payment option and submit.</li>
           </ol>
-        </Card>
+        </section>
+
+        <section className="space-y-3 border-t border-border pt-5" aria-labelledby="bank-transfers">
+          <h2 id="bank-transfers" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Landmark className="h-5 w-5 text-primary" /> Bank transfers</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card className="p-4 space-y-1 shadow-sm">
+              <h3 className="font-semibold text-foreground">CABS</h3>
+              <p className="text-sm text-muted-foreground">Warwickshire P/L</p>
+              <p className="font-mono text-base font-semibold text-foreground select-all">112988509</p>
+            </Card>
+            <Card className="p-4 space-y-1 shadow-sm">
+              <h3 className="font-semibold text-foreground">CBZ Holdings</h3>
+              <p className="text-sm text-muted-foreground">Warwickshire Pvt Ltd</p>
+              <p className="font-mono text-base font-semibold text-foreground select-all">2779454018</p>
+            </Card>
+          </div>
+        </section>
+
+        <section className="space-y-2 border-t border-border pt-5" aria-labelledby="remittances">
+          <h2 id="remittances" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Globe2 className="h-5 w-5 text-primary" /> International transfers</h2>
+          <p className="text-sm text-foreground">WorldRemit · MoneyGram · Mukuru · Remitly · HelloPaisa · Western Union</p>
+          <p className="text-sm text-muted-foreground">Payable to <strong className="text-foreground">Tapiwa Nyandoro</strong> and <strong className="text-foreground">Brenda Tembo</strong>.</p>
+        </section>
+
+        <section className="border-t border-border pt-5 text-sm text-foreground">
+          <p className="font-semibold">After any payment, email your proof of payment to{" "}
+            <a href="mailto:admin@lakecity.co.zw" className="text-primary underline underline-offset-2 break-all">admin@lakecity.co.zw</a>.
+          </p>
+          <p className="mt-1 text-muted-foreground">Include your property reference so we can allocate the payment to your account.</p>
+        </section>
       </main>
       <BottomNav />
     </div>
