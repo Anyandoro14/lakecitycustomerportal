@@ -9,6 +9,7 @@ export type LakecityPostPaymentPayload = {
   reference?: string | null;
   note?: string | null;
   state?: string;
+  deposited_to?: string | null;
 };
 
 export type LakecityPostPaymentResult = {
@@ -66,6 +67,7 @@ export async function lakecityPostLoanPayment(
       reference: payload.reference ?? undefined,
       note: payload.note ?? undefined,
       state: payload.state ?? "posted",
+      deposited_to: payload.deposited_to ?? undefined,
     }),
   });
 

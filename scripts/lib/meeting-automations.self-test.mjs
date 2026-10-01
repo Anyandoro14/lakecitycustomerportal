@@ -81,6 +81,6 @@ const manifest = fs.readFileSync(
   path.join(root, "odoo/addons/lakecity_loan_management/__manifest__.py"),
   "utf8",
 );
-assert(/19\.0\.1\.0\.76/.test(manifest), "module version 19.0.1.0.76");
+assert(/19\.0\.1\.0\.78/.test(manifest), "module version 19.0.1.0.78");
 
 console.log("meeting-automations self-test: ok");

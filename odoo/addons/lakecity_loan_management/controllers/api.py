@@ -752,6 +752,12 @@ class LakecityLoanApiController(http.Controller):
             "note": payload.get("note") or False,
             "state": payload.get("state") or "posted",
         }
+        deposited_raw = (payload.get("deposited_to") or payload.get("Deposited to") or "").strip()
+        if deposited_raw:
+            Deposited = request.env["lakecity.deposited.to.mixin"]
+            vals["deposited_to"] = (
+                Deposited._lakecity_normalize_deposited_to_label(deposited_raw) or deposited_raw
+            )
         if contract._lakecity_is_pre_accounting_start(vals["payment_date"], external_uid):
             start = contract._lakecity_accounting_start_date()
             return self._json_response(

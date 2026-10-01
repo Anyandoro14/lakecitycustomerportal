@@ -36,6 +36,7 @@ class AccountMove(models.Model):
             ("cancellation_refund", "Cancellation — refund"),
             ("default_reclass", "Default — receivable reclass"),
             ("vat_remittance", "VAT remittance"),
+            ("vat_revenue_correction", "VAT revenue correction"),
             ("pass_through_aos", "AOS pass-through receipt"),
             ("pass_through_conveyancing", "Conveyancing pass-through receipt"),
         ],

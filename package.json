@@ -28,6 +28,7 @@
     "odoo:accounting-cutover:sweep": "node --env-file=.env scripts/cutover-odoo-from-posted-payments.mjs --force --sweep-only",
     "test:accounting-cutoff": "node scripts/lib/accounting-cutoff.self-test.mjs",
     "test:deposited-to": "node scripts/lib/deposited-to-liquidity.self-test.mjs",
+    "test:vat-split": "node scripts/lib/vat-split.self-test.mjs",
     "test:bank-stand-reconcile": "node scripts/lib/bank-stand-reconcile.self-test.mjs",
     "test:meeting-automations": "node scripts/lib/meeting-automations.self-test.mjs",
     "test:uk-date-parse": "node scripts/lib/uk-date-parse.self-test.mjs",
