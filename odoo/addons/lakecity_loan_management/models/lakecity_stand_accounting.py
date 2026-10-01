@@ -65,18 +65,39 @@ class LakecityStandAccountingMixin(models.AbstractModel):
         net = self._lakecity_net_contract_price()
         return float_round(gross - net, precision_rounding=self.currency_id.rounding)
 
+    def _lakecity_payment_vat_rate(self):
+        """ZIMRA-inclusive rate for cash receipts (Tanaka: VAT = rate/(100+rate) × gross).
+
+        Portal / Form receipts are always gross-inclusive. Default 15.5% when the contract
+        rate is blank so we never credit full gross to revenue by accident.
+        """
+        self.ensure_one()
+        rate = self.tax_rate or 0.0
+        if float_is_zero(rate, precision_rounding=0.01):
+            # Explicitly exempt only when tax_rate is 0 AND not VAT-inclusive stand sales.
+            if self.is_vat_inclusive or self._lakecity_company_stand_accounting_enabled():
+                return 15.5
+            return 0.0
+        return rate
+
     def _lakecity_split_gross_payment(self, gross):
-        """Split a gross receipt into net revenue and VAT (walkthrough deposit/instalment logic)."""
+        """Split a gross receipt into net revenue and VAT (Tanaka / walkthrough formula).
+
+        VAT = (rate / (100 + rate)) × gross  e.g. (15.5 / 115.5) × receipt.
+        Net = gross − VAT. Always treats the receipt amount as VAT-inclusive when a
+        rate applies — matching portal post-time automation Tanaka approved.
+        """
         self.ensure_one()
         rnd = self.currency_id.rounding
-        factor = self._lakecity_vat_factor()
         if float_is_zero(gross, precision_rounding=rnd):
             return 0.0, 0.0
-        if self.is_vat_inclusive or (self.tax_rate or 0.0):
-            net = float_round(gross / factor, precision_rounding=rnd)
-            vat = float_round(gross - net, precision_rounding=rnd)
-            return net, vat
-        return gross, 0.0
+        rate = self._lakecity_payment_vat_rate()
+        if float_is_zero(rate, precision_rounding=0.01):
+            return gross, 0.0
+        factor = 1.0 + (rate / 100.0)
+        net = float_round(gross / factor, precision_rounding=rnd)
+        vat = float_round(gross - net, precision_rounding=rnd)
+        return net, vat
 
     def _lakecity_cos_for_net(self, net_portion):
         self.ensure_one()
@@ -622,6 +643,16 @@ class LakecityStandAccountingMixin(models.AbstractModel):
                 payment.write({"lakecity_receipt_move_id": receipt_move.id})
 
         stand_journal = self._lakecity_stand_journal()
+        # Fail closed: never credit full gross to revenue when VAT applies.
+        if not float_is_zero(net, precision_rounding=self.currency_id.rounding) and not revenue:
+            raise UserError(_("Revenue account (401000) not found for stand sales VAT split."))
+        if not float_is_zero(vat, precision_rounding=self.currency_id.rounding) and not vat_output:
+            raise UserError(_("VAT Output account (251010) not found for stand sales VAT split."))
+        if not float_is_zero(net, precision_rounding=self.currency_id.rounding) and not liability:
+            raise UserError(_("Contract liability account (212010) not found for stand sales VAT split."))
+        if not float_is_zero(vat, precision_rounding=self.currency_id.rounding) and not deferred_vat:
+            raise UserError(_("Deferred Output VAT account (251020) not found for stand sales VAT split."))
+
         revenue_lines = self._lakecity_build_move_lines(
             [
                 (liability, net, 0.0, False),
@@ -730,6 +761,220 @@ class LakecityStandAccountingMixin(models.AbstractModel):
                     "lakecity_cos_recognized": cos_total,
                 }
             )
+
+    def _lakecity_move_account_credits(self, move, code):
+        """Sum credits on posted move lines for a COA code."""
+        if not move:
+            return 0.0
+        return sum(
+            line.credit
+            for line in move.line_ids
+            if (line.account_id.code or "") == code and not line.display_type
+        )
+
+    def _lakecity_move_account_debits(self, move, code):
+        if not move:
+            return 0.0
+        return sum(
+            line.debit
+            for line in move.line_ids
+            if (line.account_id.code or "") == code and not line.display_type
+        )
+
+    def _lakecity_payment_overstated_revenue_diagnosis(self, payment):
+        """Detect Tanaka overstated-revenue patterns on a posted BNPL payment.
+
+        Returns a dict with keys: kind, gross, net, vat, revenue_credit, vat_credit
+        or False when the payment already splits VAT correctly / has no GL yet.
+        """
+        payment.ensure_one()
+        self.ensure_one()
+        if payment.contract_id != self:
+            return False
+        if payment.lakecity_vat_correction_move_id:
+            return False
+        rnd = self.currency_id.rounding
+        gross = payment.amount or 0.0
+        if float_is_zero(gross, precision_rounding=rnd):
+            return False
+        net, vat = self._lakecity_split_gross_payment(gross)
+        if float_is_zero(vat, precision_rounding=rnd):
+            return False
+
+        rev_code = LAKECITY_STAND_ACCOUNT_CODES["revenue"]
+        vat_code = LAKECITY_STAND_ACCOUNT_CODES["vat_output"]
+        ar_code = LAKECITY_STAND_ACCOUNT_CODES["receivable"]
+        cl_code = LAKECITY_STAND_ACCOUNT_CODES["contract_liability"]
+        def_code = LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"]
+
+        revenue_move = payment.lakecity_revenue_move_id
+        receipt_move = payment.lakecity_receipt_move_id
+        if not receipt_move and payment.account_payment_id and payment.account_payment_id.move_id:
+            receipt_move = payment.account_payment_id.move_id
+
+        # Case B: cash receipt credited revenue (Dr Bank / Cr Revenue full gross).
+        if receipt_move:
+            receipt_rev = self._lakecity_move_account_credits(receipt_move, rev_code)
+            receipt_ar = self._lakecity_move_account_credits(receipt_move, ar_code)
+            receipt_vat = self._lakecity_move_account_credits(receipt_move, vat_code)
+            if (
+                float_compare(receipt_rev, 0.0, precision_rounding=rnd) > 0
+                and float_is_zero(receipt_ar, precision_rounding=rnd)
+                and float_is_zero(receipt_vat, precision_rounding=rnd)
+            ):
+                # Overstated when revenue credit is full gross (or greater than net with no VAT).
+                if float_compare(receipt_rev, net, precision_rounding=rnd) > 0:
+                    return {
+                        "kind": "bank_to_revenue",
+                        "gross": gross,
+                        "net": net,
+                        "vat": float_round(receipt_rev - net, precision_rounding=rnd)
+                        if float_compare(receipt_rev, gross, precision_rounding=rnd) != 0
+                        else vat,
+                        "revenue_credit": receipt_rev,
+                        "vat_credit": receipt_vat,
+                        "cl_debit": self._lakecity_move_account_debits(revenue_move, cl_code)
+                        if revenue_move
+                        else 0.0,
+                        "def_debit": self._lakecity_move_account_debits(revenue_move, def_code)
+                        if revenue_move
+                        else 0.0,
+                    }
+
+        # Case A: revenue/VAT release credited full gross to 401000 with no VAT output.
+        if revenue_move:
+            rev_credit = self._lakecity_move_account_credits(revenue_move, rev_code)
+            vat_credit = self._lakecity_move_account_credits(revenue_move, vat_code)
+            cl_debit = self._lakecity_move_account_debits(revenue_move, cl_code)
+            def_debit = self._lakecity_move_account_debits(revenue_move, def_code)
+            if float_is_zero(rev_credit, precision_rounding=rnd):
+                return False
+            if float_compare(vat_credit, 0.0, precision_rounding=rnd) > 0 and float_compare(
+                rev_credit, net, precision_rounding=rnd
+            ) <= 0:
+                return False
+            if float_compare(rev_credit, net, precision_rounding=rnd) > 0 and float_is_zero(
+                vat_credit, precision_rounding=rnd
+            ):
+                over_vat = float_round(rev_credit - net, precision_rounding=rnd)
+                return {
+                    "kind": "revenue_release_full_gross",
+                    "gross": gross,
+                    "net": net,
+                    "vat": over_vat if not float_is_zero(over_vat, precision_rounding=rnd) else vat,
+                    "revenue_credit": rev_credit,
+                    "vat_credit": vat_credit,
+                    "cl_debit": cl_debit,
+                    "def_debit": def_debit,
+                }
+        return False
+
+    def _lakecity_correct_overstated_revenue_payment(self, payment, dry_run=False):
+        """Post adjusting JE for one overstated-revenue BNPL receipt (real posted amounts).
+
+        Does not invent figures — uses ``payment.amount`` and existing move line credits.
+        Staging-safe when called with dry_run=True.
+        """
+        payment.ensure_one()
+        self.ensure_one()
+        diag = self._lakecity_payment_overstated_revenue_diagnosis(payment)
+        if not diag:
+            return {"skipped": True, "reason": "not_overstated_or_already_corrected", "payment_id": payment.id}
+
+        vat = diag["vat"]
+        rnd = self.currency_id.rounding
+        if float_is_zero(vat, precision_rounding=rnd):
+            return {"skipped": True, "reason": "zero_vat", "payment_id": payment.id}
+
+        revenue = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["revenue"])
+        vat_output = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["vat_output"])
+        liability = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["contract_liability"])
+        deferred_vat = self._lakecity_stand_account(LAKECITY_STAND_ACCOUNT_CODES["deferred_vat"])
+        ar = self._lakecity_partner_receivable_account()
+        for acc, label in (
+            (revenue, "401000"),
+            (vat_output, "251010"),
+        ):
+            if not acc:
+                raise UserError(_("Missing account %s for VAT revenue correction.") % label)
+
+        pairs = [
+            (revenue, vat, 0.0, False),
+            (vat_output, 0.0, vat, False),
+        ]
+        # Case A: release debited full CL and skipped deferred VAT — restore CL / release DefVAT.
+        if diag["kind"] == "revenue_release_full_gross":
+            if (
+                liability
+                and deferred_vat
+                and float_compare(diag.get("cl_debit") or 0.0, diag["gross"], precision_rounding=rnd) == 0
+                and float_is_zero(diag.get("def_debit") or 0.0, precision_rounding=rnd)
+            ):
+                pairs.extend(
+                    [
+                        (deferred_vat, vat, 0.0, False),
+                        (liability, 0.0, vat, False),
+                    ]
+                )
+        # Case B: bank→revenue and no initial JE — also book Tanaka AR / CL leg for this receipt.
+        elif diag["kind"] == "bank_to_revenue" and not self.lakecity_initial_contract_move_id:
+            if ar and liability:
+                partner_id = self.partner_id.commercial_partner_id.id
+                pairs.extend(
+                    [
+                        (ar, diag["gross"], 0.0, partner_id),
+                        (liability, 0.0, diag["gross"], False),
+                    ]
+                )
+
+        ref = _("VAT correction — %(loan)s · %(pay)s") % {"loan": self.name, "pay": payment.name}
+        result = {
+            "payment_id": payment.id,
+            "payment_name": payment.name,
+            "stand_number": payment.stand_number,
+            "kind": diag["kind"],
+            "gross": diag["gross"],
+            "net": diag["net"],
+            "vat": vat,
+            "dry_run": bool(dry_run),
+        }
+        if dry_run:
+            result["skipped"] = False
+            result["would_post"] = True
+            return result
+
+        move = self._lakecity_create_stand_move(
+            self._lakecity_build_move_lines(pairs, ref),
+            ref,
+            "vat_revenue_correction",
+            move_date=payment.payment_date or fields.Date.context_today(self),
+        )
+        payment.write({"lakecity_vat_correction_move_id": move.id})
+        self._lakecity_update_recognized_totals()
+        result["move_id"] = move.id
+        result["skipped"] = False
+        return result
+
+    @api.model
+    def _lakecity_iter_overstated_revenue_payments(self, company=None, limit=0):
+        """Posted BNPL payments whose GL overstated revenue (full gross, no VAT split)."""
+        Payment = self.env["lakecity.loan.payment"].sudo()
+        domain = [
+            ("state", "=", "posted"),
+            ("lakecity_vat_correction_move_id", "=", False),
+        ]
+        if company:
+            domain.append(("contract_id.company_id", "=", company.id))
+        payments = Payment.search(domain, order="payment_date,id")
+        found = Payment.browse()
+        for pay in payments:
+            if not pay.contract_id._lakecity_company_stand_accounting_enabled():
+                continue
+            if pay.contract_id._lakecity_payment_overstated_revenue_diagnosis(pay):
+                found |= pay
+                if limit and len(found) >= limit:
+                    break
+        return found
 
     def _lakecity_post_forfeiture_accounting(self):
         """Step 11 — clear unpaid balances, reclass revenue, reverse COS."""

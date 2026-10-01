@@ -20,6 +20,20 @@ Self-test: `npm run test:deposited-to`
 
 **Upgrade note:** chart XML is `noupdate="1"`. Module upgrade to **19.0.1.0.74** runs a post-migrate that creates `101412` if missing. Mapping is by account code — no bank journal is seeded from this repo (Cash/CABS journals live in the Staging DB). After upgrade, confirm a bank journal for **Waltich** pointing at `101412` exists; create it in Accounting if not.
 
+## Portal receipt VAT split (Tanaka)
+
+Module **≥ 19.0.1.0.78**. Each posted BNPL receipt (Form QC / portal sync) uses `_lakecity_split_gross_payment`:
+
+- **VAT** = `(15.5 / 115.5) × receipt` (inclusive)
+- **Net revenue** = receipt − VAT
+- Walkthrough JEs: Dr bank / Cr AR; Dr contract liability + deferred VAT / Cr revenue (`401000`) + VAT Output (`251010`)
+
+Accounts: contract liability `212010`, deferred VAT `251020`, VAT Output `251010`, revenue `401000`.
+
+**Prior overstated revenue** (full gross credited to `401000`): Staging-first wizard **Lakecity Loans → Correct overstated revenue (VAT)** — Preview / dry-run, then Apply. Uses real posted payment amounts only; does not invent figures; does not add Trade Receivables to company OPB (portal brings AR).
+
+Self-test: `npm run test:vat-split`
+
 ## Portal ↔ bank matching
 
 Receipt JE / `account.payment` memos include **Stand N**. Statement import runs three-way stand+amount check; mismatches → `lakecity.bank.reconcile.discrepancy` + `lakecity.daily.exception`.

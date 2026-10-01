@@ -95,6 +95,15 @@ class LakecityLoanPayment(models.Model):
         copy=False,
         check_company=True,
     )
+    lakecity_vat_correction_move_id = fields.Many2one(
+        "account.move",
+        string="VAT revenue correction JE",
+        readonly=True,
+        copy=False,
+        check_company=True,
+        help="Adjusting entry that splits VAT out of previously overstated revenue "
+        "(Tanaka: VAT = 15.5/115.5 × receipt).",
+    )
 
     _lakecity_loan_payment_external_uid_unique = models.Constraint(
         "unique(external_uid)",

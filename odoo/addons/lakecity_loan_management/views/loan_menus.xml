@@ -47,11 +47,19 @@
         groups="lakecity_loan_management.group_lakecity_loan_manager"/>
 
     <menuitem
+        id="menu_lakecity_vat_revenue_correction"
+        name="Correct overstated revenue (VAT)"
+        parent="menu_lakecity_loan_root"
+        action="action_lakecity_vat_revenue_correction_wizard"
+        sequence="18"
+        groups="lakecity_loan_management.group_lakecity_loan_manager"/>
+
+    <menuitem
         id="menu_lakecity_bank_reconcile_discrepancy"
         name="Bank reconcile discrepancies"
         parent="menu_lakecity_loan_root"
         action="action_lakecity_bank_reconcile_discrepancy"
-        sequence="18"
+        sequence="19"
         groups="lakecity_loan_management.group_lakecity_loan_user"/>
 
     <menuitem
@@ -59,7 +67,7 @@
         name="Daily exceptions"
         parent="menu_lakecity_loan_root"
         action="action_lakecity_daily_exception"
-        sequence="19"
+        sequence="20"
         groups="lakecity_loan_management.group_lakecity_loan_user"/>
 
     <menuitem

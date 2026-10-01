@@ -120,6 +120,7 @@ When **Stand sales accounting** is enabled on the company (Settings → Companie
 |-------|-----------------|
 | Contract **Activate** | Dr AR / Cr contract liability + deferred VAT; optional inventory reclass; deposit JEs if deposit set |
 | Each **posted payment** | Dr bank / Cr AR; Dr liability + deferred VAT / Cr revenue + VAT output; Dr COS / Cr inventory |
+| **Correct overstated revenue (VAT)** wizard | Staging-first adjusting JEs for prior receipts that credited full gross to `401000` (Tanaka: VAT = 15.5/115.5 × receipt → `251010`) |
 | **Remit VAT Output balance** | Company button — Dr 251010 / Cr bank |
 | **Post forfeiture** | Clear unpaid balances; reclass revenue to forfeiture income; reverse COS |
 | **Cancel with refund** | Reverse revenue/COS; admin fee + refund payable |

@@ -118,6 +118,10 @@ serve(async (req) => {
 
     const meta = receipt.gateway_metadata as Record<string, unknown> | null | undefined;
     const stand = (receipt.stand_number || "").trim();
+    const depositedTo =
+      (typeof meta?.deposited_to === "string" && meta.deposited_to.trim()) ||
+      (typeof meta?.depositedTo === "string" && meta.depositedTo.trim()) ||
+      null;
     const { data: contract } = await supabase
       .from("contracts")
       .select("id")
@@ -157,6 +161,7 @@ serve(async (req) => {
           reference: ref,
           note,
           state: "posted",
+          deposited_to: depositedTo,
         },
         supabase,
       );

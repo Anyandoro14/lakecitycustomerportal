@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_lakecity_vat_revenue_correction_wizard" model="ir.ui.view">
+        <field name="name">lakecity.vat.revenue.correction.wizard.form</field>
+        <field name="model">lakecity.vat.revenue.correction.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Correct overstated revenue (VAT split)">
+                <group>
+                    <field name="company_id"/>
+                    <field name="dry_run"/>
+                    <group colspan="2" invisible="not result_message">
+                        <field name="result_message" colspan="2" nolabel="1"/>
+                    </group>
+                </group>
+                <p class="text-muted mb-2">
+                    Finds prior BNPL receipts that credited full gross to revenue (401000) without
+                    splitting VAT Output (251010) using Tanaka’s formula VAT = (15.5/115.5) × receipt.
+                    Posts adjusting entries from real posted amounts only — Staging-first; dry-run by default.
+                    Does not touch company OPB/2026 opening balances or invent Trade Receivables.
+                </p>
+                <footer>
+                    <button name="action_preview" string="Preview" type="object" class="btn-secondary"/>
+                    <button name="action_apply"
+                            string="Apply corrections"
+                            type="object"
+                            class="btn-primary"
+                            confirm="Post VAT revenue correction journal entries for diagnosed receipts (or dry-run if checked). Continue?"/>
+                    <button string="Discard" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_lakecity_vat_revenue_correction_wizard" model="ir.actions.act_window">
+        <field name="name">Correct overstated revenue (VAT)</field>
+        <field name="res_model">lakecity.vat.revenue.correction.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
