@@ -48,11 +48,18 @@ for (const rel of [
 }
 
 assert(DEPOSITED_TO_LABELS.includes("Cabs Zig"), "Cabs Zig label");
-assert(DEPOSITED_TO_LABELS.includes("CBZ"), "CBZ label");
+assert(DEPOSITED_TO_LABELS.includes("CABS USD"), "CABS USD label");
+assert(DEPOSITED_TO_LABELS.includes("CBZ USD"), "CBZ USD label");
+assert(DEPOSITED_TO_LABELS.includes("CBZ ZIG"), "CBZ ZIG label");
+assert(DEPOSITED_TO_LABELS.includes("EcoCash ZIG"), "EcoCash ZIG label");
 assert(DEPOSITED_TO_LABELS.includes("Cabs Waltich"), "Cabs Waltich label");
 assert(resolveDepositedToLiquidity("Ecocash").code === "101417", "Ecocash map");
-assert(resolveDepositedToLiquidity("CBZ").code === "101419", "CBZ map");
+assert(resolveDepositedToLiquidity("CBZ USD").code === "101419", "CBZ USD map");
+assert(resolveDepositedToLiquidity("CBZ").code === "101419", "legacy CBZ alias");
+assert(resolveDepositedToLiquidity("Cabs").code === "101410", "legacy Cabs alias");
 assert(resolveDepositedToLiquidity("Cabs Waltich").code === "101412", "Cabs Waltich map");
+assert(resolveDepositedToLiquidity("CBZ ZIG").match === "unmapped", "CBZ ZIG blocked");
+assert(resolveDepositedToLiquidity("EcoCash ZIG").match === "unmapped", "EcoCash ZIG blocked");
 assert(
   threeWayStandCheck({
     standPortal: "4",
@@ -81,6 +88,6 @@ const manifest = fs.readFileSync(
   path.join(root, "odoo/addons/lakecity_loan_management/__manifest__.py"),
   "utf8",
 );
-assert(/19\.0\.1\.0\.76/.test(manifest), "module version 19.0.1.0.76");
+assert(/19\.0\.1\.0\.77/.test(manifest), "module version 19.0.1.0.77");
 
 console.log("meeting-automations self-test: ok");

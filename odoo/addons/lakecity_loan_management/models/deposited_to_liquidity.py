@@ -2,12 +2,16 @@
 """Form 'Deposited to:' → LakeCity COA liquidity account mapping.
 
 Mirrors scripts/lib/deposited-to-liquidity.mjs — keep labels/codes in sync.
+
+Unmapped entries (match='unmapped', code=None) recognize live Form labels that
+have no COA on main yet — find/pick fail closed; do not invent account numbers.
 """
 import re
 
 from odoo import api, models
 
 # Exact Form dropdown labels → preferred COA code + name match strategy.
+# Historical labels "Cabs" / "CBZ" normalize via aliases to CABS USD / CBZ USD.
 DEPOSITED_TO_COA = {
     "Cash": {
         "code": "101416",
@@ -15,7 +19,7 @@ DEPOSITED_TO_COA = {
         "match": "exact",
         "tokens": (),
     },
-    "Cabs": {
+    "CABS USD": {
         "code": "101410",
         "name": "CABS - Main USD Current Account - 1129888509",
         "match": "fuzzy",
@@ -39,7 +43,7 @@ DEPOSITED_TO_COA = {
         "match": "exact",
         "tokens": (),
     },
-    "CBZ": {
+    "CBZ USD": {
         "code": "101419",
         "name": "CBZ - Main USD Current Account - 27794540028",
         "match": "exact",
@@ -50,6 +54,29 @@ DEPOSITED_TO_COA = {
         "name": "CABS - Waltich - 975",
         "match": "exact",
         "tokens": (),
+    },
+    # TODO(blocker): no CBZ ZiG/ZWG liquidity account in chart XML or Account.xlsx.
+    # Do not invent account numbers. Wire code/name when COA exists on Staging.
+    "CBZ ZIG": {
+        "code": None,
+        "name": None,
+        "match": "unmapped",
+        "tokens": (),
+        "blocker": (
+            "No CBZ ZiG/ZWG liquidity COA on main (searched chart XML + Account.xlsx). "
+            "Fail-closed until account exists."
+        ),
+    },
+    # TODO(blocker): only Ecocash USD 101417 exists; no EcoCash ZiG/ZWG cash account.
+    "EcoCash ZIG": {
+        "code": None,
+        "name": None,
+        "match": "unmapped",
+        "tokens": (),
+        "blocker": (
+            "No EcoCash ZiG/ZWG cash COA on main (only Ecocash USD 101417). "
+            "Fail-closed until account exists."
+        ),
     },
 }
 
@@ -70,6 +97,11 @@ class LakecityDepositedToMixin(models.AbstractModel):
             if label.lower() == lower:
                 return label
         aliases = {
+            # Historical Form labels (pre CABS USD / CBZ USD rename)
+            "cabs": "CABS USD",
+            "cabs usd": "CABS USD",
+            "cbz": "CBZ USD",
+            "cbz usd": "CBZ USD",
             "cabs zig": "Cabs Zig",
             "cabs zi g": "Cabs Zig",
             "eco cash": "Ecocash",
@@ -80,6 +112,14 @@ class LakecityDepositedToMixin(models.AbstractModel):
             "cabs-waltich": "Cabs Waltich",
             "waltich": "Cabs Waltich",
             "cabs waltich.": "Cabs Waltich",
+            "cbz zig": "CBZ ZIG",
+            "cbz zi g": "CBZ ZIG",
+            "cbz zwg": "CBZ ZIG",
+            "ecocash zig": "EcoCash ZIG",
+            "eco cash zig": "EcoCash ZIG",
+            "eco-cash zig": "EcoCash ZIG",
+            "ecocash zwg": "EcoCash ZIG",
+            "eco cash zwg": "EcoCash ZIG",
         }
         return aliases.get(lower, "")
 
@@ -96,6 +136,8 @@ class LakecityDepositedToMixin(models.AbstractModel):
     @api.model
     def _lakecity_score_account_for_deposited_to(self, account, mapping):
         if not mapping or not account:
+            return -1
+        if mapping.get("match") == "unmapped" or not mapping.get("code"):
             return -1
         name = (account.name or "").strip()
         if not name:
@@ -121,9 +163,14 @@ class LakecityDepositedToMixin(models.AbstractModel):
 
     @api.model
     def _lakecity_find_liquidity_account_for_deposited_to(self, deposited_to, company=None):
-        """Return account.account matching Form deposited_to, or empty recordset."""
+        """Return account.account matching Form deposited_to, or empty recordset.
+
+        Fail-closed for unmapped labels (no invent COA codes).
+        """
         mapping = self._lakecity_deposited_to_mapping(deposited_to)
         if not mapping:
+            return self.env["account.account"]
+        if mapping.get("match") == "unmapped" or not mapping.get("code"):
             return self.env["account.account"]
         company = company or self.env.company
         Account = self.env["account.account"].sudo()

@@ -14,7 +14,9 @@ Copy [`LakecityReceiptIntake.gs`](./LakecityReceiptIntake.gs) into **Extensions 
 
 ### `Deposited to:` (liquidity destination)
 
-Form dropdown labels (exact): **Cash**, **Cabs**, **Cabs Zig**, **Jumpstart**, **Ecocash**, **CBZ**, **Cabs Waltich**.
+Form dropdown labels (exact): **Cash**, **CABS USD**, **Cabs Zig**, **Jumpstart**, **Ecocash**, **CBZ USD**, **Cabs Waltich**, **CBZ ZIG**, **EcoCash ZIG**.
+
+Legacy **Cabs** / **CBZ** still normalize to **CABS USD** / **CBZ USD**. **CBZ ZIG** and **EcoCash ZIG** are recognized but have no COA on main yet (fail-closed until accounts are added).
 
 Apps Script picks headers **`Deposited to:`** / **`Deposited to`** / **`Deposited To`** into top-level **`deposited_to`** (and keeps the value inside **`answers`**). On QC approve, Odoo posts the receipt into the matching COA liquidity account (see `docs/make-receipt-intake-odoo.md` and `docs/bnpl-deposit-and-bank-reconcile.md`).
 
