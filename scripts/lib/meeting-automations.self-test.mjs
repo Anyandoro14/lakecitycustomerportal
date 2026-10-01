@@ -71,12 +71,16 @@ assert(
 );
 assert(fs.existsSync(path.join(root, "docs/bank-reconcile-variance-sop.md")), "variance SOP");
 assert(fs.existsSync(path.join(root, "docs/otp-email-staging-check.md")), "otp staging doc");
+assert(
+  fs.existsSync(path.join(root, "docs/odoo-staging-date-format-and-qc.md")),
+  "odoo staging date QC doc",
+);
 
 // Manifest version bump
 const manifest = fs.readFileSync(
   path.join(root, "odoo/addons/lakecity_loan_management/__manifest__.py"),
   "utf8",
 );
-assert(/19\.0\.1\.0\.74/.test(manifest), "module version 19.0.1.0.74");
+assert(/19\.0\.1\.0\.76/.test(manifest), "module version 19.0.1.0.76");
 
 console.log("meeting-automations self-test: ok");
