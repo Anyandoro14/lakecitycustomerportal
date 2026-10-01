@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Loader2, Landmark, Globe2 } from "lucide-react";
+import { ExternalLink, Loader2, Landmark, Globe2, Mail } from "lucide-react";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,28 +75,30 @@ const Pay = () => {
         <h1 className="text-xl font-bold text-foreground">Make Payment</h1>
 
         <Card className="p-4 shadow-sm space-y-2">
-           <div className="flex justify-between text-sm gap-3">
+          <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Account</span>
             <span className="font-medium text-foreground">{stand?.customerName || "—"}</span>
           </div>
-           <div className="flex justify-between text-sm gap-3">
+          <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Property reference</span>
             <span className="font-medium text-foreground">{stand?.standNumber || "—"}</span>
           </div>
-           <div className="flex justify-between text-sm gap-3">
+          <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Outstanding balance</span>
-             <span className="font-bold text-primary">{stand ? formatUsd(stand.standBalance) : "—"}</span>
+            <span className="font-bold text-primary">{stand ? formatUsd(stand.standBalance) : "—"}</span>
           </div>
-           <div className="flex justify-between text-sm gap-3">
+          <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Monthly instalment</span>
-             <span className="font-medium text-foreground">{stand ? formatUsd(stand.monthlyPayment) : "—"}</span>
+            <span className="font-medium text-foreground">{stand ? formatUsd(stand.monthlyPayment) : "—"}</span>
           </div>
         </Card>
 
-        <section className="space-y-4" aria-labelledby="online-payment">
+        <Card className="p-4 shadow-sm space-y-4 border-primary/20">
           <div>
-            <h2 id="online-payment" className="text-lg font-semibold text-foreground">Pay online with ZikiMall</h2>
-            <p className="text-sm text-muted-foreground">Visa, Mastercard, EcoCash or Zimswitch through ZikiMall.</p>
+            <h2 className="text-lg font-semibold text-foreground">Pay online with ZikiMall</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Visa, Mastercard, EcoCash or Zimswitch through ZikiMall.
+            </p>
           </div>
           <Button asChild className="w-full h-12 text-base">
             <a href="https://zikimall.com/" target="_blank" rel="noopener noreferrer">
@@ -104,16 +106,38 @@ const Pay = () => {
               <ExternalLink className="ml-2 h-4 w-4" />
             </a>
           </Button>
-          <p className="text-sm text-muted-foreground">On ZikiMall, only payments from the UK, South Africa and Canada are working for now.</p>
-          <ol className="list-decimal pl-5 space-y-2 text-sm text-foreground">
-            <li>Open <strong>All Payments</strong> → <strong>All Billers</strong> and search <strong>Warwickshire</strong>.</li>
-            <li>Enter your stand number, initials and surname in the account details. <strong>Do not validate.</strong></li>
-            <li>Choose a supported payment option and submit.</li>
-          </ol>
-        </section>
+          <p className="text-sm text-muted-foreground rounded-md bg-accent/40 px-3 py-2">
+            ZikiMall currently works for payments from the <strong className="text-foreground">UK</strong>,{" "}
+            <strong className="text-foreground">South Africa</strong>, and{" "}
+            <strong className="text-foreground">Canada</strong>.
+          </p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-2">How to pay</p>
+            <ol className="list-decimal pl-5 space-y-2 text-sm text-foreground">
+              <li>
+                Go to ZikiMall → <strong>All Payments</strong> → <strong>All Billers</strong> and search{" "}
+                <strong>Warwickshire</strong>.
+              </li>
+              <li>
+                Enter your stand number, initials and surname in the account details.{" "}
+                <strong>Do not validate.</strong>
+              </li>
+              <li>Choose a supported payment option and submit.</li>
+              <li>
+                Email your proof of payment to{" "}
+                <a href="mailto:admin@lakecity.co.zw" className="font-semibold text-primary underline">
+                  admin@lakecity.co.zw
+                </a>
+                .
+              </li>
+            </ol>
+          </div>
+        </Card>
 
-        <section className="space-y-3 border-t border-border pt-5" aria-labelledby="bank-transfers">
-          <h2 id="bank-transfers" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Landmark className="h-5 w-5 text-primary" /> Bank transfers</h2>
+        <section className="space-y-3" aria-labelledby="bank-transfers">
+          <h2 id="bank-transfers" className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Landmark className="h-5 w-5 text-primary" /> Bank transfers
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="p-4 space-y-1 shadow-sm">
               <h3 className="font-semibold text-foreground">CABS</h3>
@@ -128,18 +152,37 @@ const Pay = () => {
           </div>
         </section>
 
-        <section className="space-y-2 border-t border-border pt-5" aria-labelledby="remittances">
-          <h2 id="remittances" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Globe2 className="h-5 w-5 text-primary" /> International transfers</h2>
-          <p className="text-sm text-foreground">WorldRemit · MoneyGram · Mukuru · Remitly · HelloPaisa · Western Union</p>
-          <p className="text-sm text-muted-foreground">Payable to <strong className="text-foreground">Tapiwa Nyandoro</strong> and <strong className="text-foreground">Brenda Tembo</strong>.</p>
+        <section className="space-y-2" aria-labelledby="remittances">
+          <h2 id="remittances" className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Globe2 className="h-5 w-5 text-primary" /> International remittances
+          </h2>
+          <Card className="p-4 space-y-2 shadow-sm">
+            <p className="text-sm text-foreground">
+              WorldRemit · MoneyGram · Mukuru · Remitly · HelloPaisa · Western Union
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Payable to{" "}
+              <strong className="text-foreground">Tapiwa Nyandoro</strong> &amp;{" "}
+              <strong className="text-foreground">Brenda Tembo</strong>.
+            </p>
+          </Card>
         </section>
 
-        <section className="border-t border-border pt-5 text-sm text-foreground">
-          <p className="font-semibold">After any payment, email your proof of payment to{" "}
-            <a href="mailto:admin@lakecity.co.zw" className="text-primary underline underline-offset-2 break-all">admin@lakecity.co.zw</a>.
+        <Card className="p-4 shadow-sm space-y-2 bg-primary/5 border-primary/15">
+          <p className="flex items-start gap-2 text-sm font-semibold text-foreground">
+            <Mail className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+            <span>
+              Always email your proof of payment (POP) to{" "}
+              <a href="mailto:admin@lakecity.co.zw" className="text-primary underline underline-offset-2 break-all">
+                admin@lakecity.co.zw
+              </a>
+              .
+            </span>
           </p>
-          <p className="mt-1 text-muted-foreground">Include your property reference so we can allocate the payment to your account.</p>
-        </section>
+          <p className="text-xs text-muted-foreground pl-6">
+            Include your property reference so we can allocate the payment to your stand.
+          </p>
+        </Card>
       </main>
       <BottomNav />
     </div>
