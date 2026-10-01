@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import logoWhite from "@/assets/logo-wordmark-white.svg";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useArticles, useArticleAdmin } from "@/hooks/useArticles";
@@ -190,9 +191,10 @@ const Updates = () => {
       <CustomerHeader />
 
       {/* Hero masthead */}
-      <div className="bg-primary text-primary-foreground">
+      <div className="bg-primary text-primary-foreground border-b-4 border-secondary">
         <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16">
-          <p className="text-xs sm:text-sm font-body font-light tracking-[0.25em] uppercase text-primary-foreground/60 mb-3">
+          <img src={logoWhite} alt="LakeCity" className="h-8 sm:h-9 w-auto mb-8" />
+          <p className="text-xs sm:text-sm font-body font-semibold tracking-[0.25em] uppercase text-secondary mb-3">
             Investor Communications
           </p>
           <h1 className="font-display text-3xl sm:text-5xl font-medium leading-tight tracking-tight">
