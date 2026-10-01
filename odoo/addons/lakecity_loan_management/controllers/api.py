@@ -57,14 +57,39 @@ class LakecityLoanApiController(http.Controller):
             return 0.0
 
     def _lakecity_parse_payment_date(self, raw):
+        """Parse receipt/payment dates with LakeCity UK day-first convention.
+
+        Prefer ISO ``YYYY-MM-DD``, then ``dd/mm/yyyy`` (and ``dd-mm-yyyy`` /
+        ``dd.mm.yyyy``). Do **not** let US-first parsers turn ``03/04/2026``
+        (3 April) into 4 March. Falls back to Odoo datetime parsing last.
+        """
         if not raw:
             return False
+        from datetime import datetime as _dt
+
+        s = str(raw).strip()
+        if not s:
+            return False
+        # ISO
+        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+            try:
+                return fields.Date.from_string(s[:10])
+            except Exception:
+                pass
+        # UK day-first (LakeCity / Zimbabwe)
+        for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y", "%d-%m-%y"):
+            try:
+                # Use a length that fits the format (avoid trailing time noise)
+                probe = s[:10] if len(s) >= 10 else s
+                return fields.Date.to_date(_dt.strptime(probe, fmt).date())
+            except Exception:
+                continue
         try:
             return fields.Date.to_date(fields.Datetime.to_datetime(raw))
         except Exception:
             pass
         try:
-            return fields.Date.from_string(str(raw)[:10])
+            return fields.Date.from_string(s[:10])
         except Exception:
             return False
 
