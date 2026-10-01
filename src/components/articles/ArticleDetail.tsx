@@ -1,8 +1,10 @@
 import { format } from "date-fns";
-import { ArrowLeft, BookOpen, BookOpenCheck } from "lucide-react";
+import { ArrowLeft, BookOpen, BookOpenCheck, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Article, ArticleReadStatus } from "@/hooks/useArticles";
 import ArticleFeedbackForm from "./ArticleFeedbackForm";
+import { getCategoryLabel } from "./articleCategory";
+import logoWhite from "@/assets/logo-wordmark-white.svg";
 
 interface ArticleDetailProps {
   article: Article;
@@ -21,7 +23,21 @@ const renderInline = (text: string) => {
   let key = 0;
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    if (match[1] && match[2]) {
+    if (match[1] && match[2] && /\.pdf($|\?)/i.test(match[2])) {
+      nodes.push(
+        <a
+          key={key++}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          className="my-2 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground no-underline shadow-sm ring-1 ring-secondary/40 transition-colors hover:bg-primary/90"
+        >
+          <Download className="h-4 w-4" />
+          {match[1]}
+        </a>
+      );
+    } else if (match[1] && match[2]) {
       nodes.push(
         <a
           key={key++}
@@ -48,7 +64,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
     ? format(new Date(article.published_at), "d MMMM yyyy")
     : format(new Date(article.created_at), "d MMMM yyyy");
 
-  const categoryLabel = article.category === "welcome" ? "Welcome" : "Customer Portal Announcement";
+  const categoryLabel = getCategoryLabel(article.category);
 
   return (
     <div className="min-h-screen bg-background">
@@ -81,12 +97,12 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
       </div>
 
       {/* Article hero */}
-      <div className="bg-primary text-primary-foreground">
+      <div className="bg-primary text-primary-foreground border-b-4 border-secondary">
         <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16">
-          {/* Category tag */}
-          <p className="text-[11px] sm:text-xs font-body font-medium tracking-[0.25em] uppercase text-primary-foreground/50 mb-6">
+          <img src={logoWhite} alt="LakeCity" className="h-7 sm:h-8 w-auto mb-8" />
+          <span className="inline-block rounded-full bg-secondary px-3 py-1 text-[10px] sm:text-[11px] font-body font-semibold tracking-[0.2em] uppercase text-secondary-foreground mb-5">
             {categoryLabel}
-          </p>
+          </span>
 
           {/* Title */}
           <h1 className="font-display text-2xl sm:text-4xl lg:text-5xl font-medium leading-tight tracking-tight max-w-2xl">
