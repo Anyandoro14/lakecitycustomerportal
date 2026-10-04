@@ -25,15 +25,17 @@ const ArticleCard = ({ article, readStatus, onClick }: ArticleCardProps) => {
       <div className="flex items-center gap-2.5 mb-3">
         <span
           className={`rounded-full px-2.5 py-0.5 text-[10px] sm:text-[11px] font-body font-semibold tracking-[0.15em] uppercase ${
-            isNewsletter ? "bg-secondary/20 text-foreground" : "bg-primary/10 text-primary"
+            isNewsletter
+              ? "bg-sl-gold/20 text-sl-gold-dark border border-sl-gold/35"
+              : "bg-primary/10 text-primary border border-primary/15"
           }`}
         >
           {categoryLabel}
         </span>
         <span className="text-[11px] sm:text-xs text-muted-foreground font-body">{publishedDate}</span>
         {!isRead && (
-          <span className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-secondary">
-            <span className="h-2 w-2 rounded-full bg-secondary" /> New
+          <span className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-sl-gold-dark">
+            <span className="h-2 w-2 rounded-full bg-sl-gold" /> New
           </span>
         )}
       </div>

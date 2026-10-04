@@ -31,9 +31,9 @@ const renderInline = (text: string) => {
           target="_blank"
           rel="noopener noreferrer"
           download
-          className="my-2 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground no-underline shadow-sm ring-1 ring-secondary/40 transition-colors hover:bg-primary/90"
+          className="my-2 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground no-underline shadow-sm ring-1 ring-sl-gold/50 transition-colors hover:bg-primary/90"
         >
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4 text-sl-gold" />
           {match[1]}
         </a>
       );
@@ -97,10 +97,10 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
       </div>
 
       {/* Article hero */}
-      <div className="bg-primary text-primary-foreground border-b-4 border-secondary">
+      <div className="bg-primary text-primary-foreground border-b-4 border-sl-gold">
         <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16">
           <img src={logoWhite} alt="LakeCity" className="h-7 sm:h-8 w-auto mb-8" />
-          <span className="inline-block rounded-full bg-secondary px-3 py-1 text-[10px] sm:text-[11px] font-body font-semibold tracking-[0.2em] uppercase text-secondary-foreground mb-5">
+          <span className="inline-block rounded-full bg-sl-gold/20 border border-sl-gold/40 px-3 py-1 text-[10px] sm:text-[11px] font-body font-semibold tracking-[0.2em] uppercase text-sl-gold mb-5">
             {categoryLabel}
           </span>
 
@@ -124,7 +124,7 @@ const ArticleDetail = ({ article, readStatus, onBack, onToggleRead, onSubmitFeed
       {/* Article body */}
       <div className="max-w-3xl mx-auto px-6 sm:px-8 py-10 sm:py-16 pb-32">
         {/* Opening line accent */}
-        <div className="h-px w-12 bg-secondary mb-10" />
+        <div className="h-1 w-12 bg-sl-gold mb-10 rounded-full" />
 
         {/* Content */}
         <div className="space-y-6">
