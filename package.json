@@ -18,6 +18,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e:opt-out": "playwright test e2e/opt-out-telemetry.spec.ts",
+    "mock:posthog": "node scripts/mock-posthog/server.mjs",
     "preview": "vite preview",
     "migrate:odoo-bnpl": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs",
     "migrate:odoo-bnpl:preflight": "node --env-file=.env scripts/migrate-supabase-to-odoo-bnpl.mjs --preflight-only",
@@ -100,6 +102,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.51.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
