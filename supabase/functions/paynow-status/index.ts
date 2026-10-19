@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { settlePaynowTransaction } from "../_shared/paynow-settle.ts";
+import { OTEL_CORS_HEADERS, withOtel } from "../_shared/otel.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    `authorization, x-client-info, apikey, content-type, ${OTEL_CORS_HEADERS}`,
 };
 
 function json(body: unknown, status = 200) {
@@ -14,7 +16,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-serve(async (req) => {
+serve(withOtel("paynow-status", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -72,4 +74,4 @@ serve(async (req) => {
     console.error("paynow-status error:", e);
     return json({ success: false, error: e instanceof Error ? e.message : "Unexpected error" });
   }
-});
+}));

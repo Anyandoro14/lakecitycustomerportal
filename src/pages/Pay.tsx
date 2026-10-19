@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,10 @@ import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
+import {
+  trackPaymentFlowStarted,
+  trackPaymentMethodSelected,
+} from "@/lib/telemetry";
 
 const formatUsd = (value: unknown) => {
   const parsed = Number.parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""));
@@ -23,6 +27,7 @@ const Pay = () => {
 
   const [loading, setLoading] = useState(true);
   const [stand, setStand] = useState<any>(null);
+  const flowStarted = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +38,11 @@ const Pay = () => {
         return;
       }
       if (tenantLoading) return;
+
+      if (!flowStarted.current) {
+        flowStarted.current = true;
+        trackPaymentFlowStarted("pay_page");
+      }
 
       try {
         const { data, error } = await supabase.functions.invoke("fetch-google-sheets", {
@@ -74,7 +84,7 @@ const Pay = () => {
       <main className="max-w-md mx-auto px-4 py-4 space-y-4">
         <h1 className="text-xl font-bold text-foreground">Make Payment</h1>
 
-        <Card className="p-4 shadow-sm space-y-2">
+        <Card className="p-4 shadow-sm space-y-2 ph-no-capture">
            <div className="flex justify-between text-sm gap-3">
             <span className="text-muted-foreground">Account</span>
             <span className="font-medium text-foreground">{stand?.customerName || "—"}</span>
@@ -99,20 +109,29 @@ const Pay = () => {
             <p className="text-sm text-muted-foreground">Visa, Mastercard, EcoCash or Zimswitch through ZikiMall.</p>
           </div>
           <Button asChild className="w-full h-12 text-base">
-            <a href="https://zikimall.com/" target="_blank" rel="noopener noreferrer">
+            <a
+              href="https://zikimall.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackPaymentMethodSelected("zikimall")}
+            >
               Pay via ZikiMall
               <ExternalLink className="ml-2 h-4 w-4" />
             </a>
           </Button>
           <p className="text-sm text-muted-foreground">On ZikiMall, only payments from the UK, South Africa and Canada are working for now.</p>
-          <ol className="list-decimal pl-5 space-y-2 text-sm text-foreground">
+          <ol className="list-decimal pl-5 space-y-2 text-sm text-foreground ph-no-capture">
             <li>Open <strong>All Payments</strong> → <strong>All Billers</strong> and search <strong>Warwickshire</strong>.</li>
             <li>Enter your stand number, initials and surname in the account details. <strong>Do not validate.</strong></li>
             <li>Choose a supported payment option and submit.</li>
           </ol>
         </section>
 
-        <section className="space-y-3 border-t border-border pt-5" aria-labelledby="bank-transfers">
+        <section
+          className="space-y-3 border-t border-border pt-5 ph-no-capture"
+          aria-labelledby="bank-transfers"
+          onClick={() => trackPaymentMethodSelected("bank_transfer")}
+        >
           <h2 id="bank-transfers" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Landmark className="h-5 w-5 text-primary" /> Bank transfers</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="p-4 space-y-1 shadow-sm">
@@ -128,10 +147,14 @@ const Pay = () => {
           </div>
         </section>
 
-        <section className="space-y-2 border-t border-border pt-5" aria-labelledby="remittances">
+        <section
+          className="space-y-2 border-t border-border pt-5"
+          aria-labelledby="remittances"
+          onClick={() => trackPaymentMethodSelected("remittance")}
+        >
           <h2 id="remittances" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Globe2 className="h-5 w-5 text-primary" /> International transfers</h2>
           <p className="text-sm text-foreground">WorldRemit · MoneyGram · Mukuru · Remitly · HelloPaisa · Western Union</p>
-          <p className="text-sm text-muted-foreground">Payable to <strong className="text-foreground">Tapiwa Nyandoro</strong> and <strong className="text-foreground">Brenda Tembo</strong>.</p>
+          <p className="text-sm text-muted-foreground ph-no-capture">Payable to <strong className="text-foreground">Tapiwa Nyandoro</strong> and <strong className="text-foreground">Brenda Tembo</strong>.</p>
         </section>
 
         <section className="border-t border-border pt-5 text-sm text-foreground">

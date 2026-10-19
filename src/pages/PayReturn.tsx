@@ -13,6 +13,11 @@ import {
   type PaymentJourneyState,
 } from "@/lib/paynowStatus";
 import PaymentStatusBadge from "@/components/PaymentStatusBadge";
+import {
+  categorizePaynowFailure,
+  trackPaynowPaymentCompleted,
+  trackPaynowPaymentFailed,
+} from "@/lib/telemetry";
 
 const MAX_POLLS = 12;
 
@@ -108,6 +113,8 @@ const PayReturn = () => {
   const stopped = useRef(false);
   const attempt = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionTracked = useRef(false);
+  const failureTracked = useRef(false);
 
   const info = normalizePaymentStatus(result?.status);
 
@@ -126,6 +133,22 @@ const PayReturn = () => {
     }
 
     const current = normalizePaymentStatus(res?.status);
+    const paid = !!res?.paid || current.state === "paid";
+
+    // North Star: only after server-confirmed paid (paynow-status settlement).
+    if (paid && !completionTracked.current) {
+      completionTracked.current = true;
+      trackPaynowPaymentCompleted();
+    } else if (
+      current.terminal &&
+      !paid &&
+      ["failed", "cancelled", "reversed", "flagged"].includes(current.state) &&
+      !failureTracked.current
+    ) {
+      failureTracked.current = true;
+      trackPaynowPaymentFailed(categorizePaynowFailure(res?.status, !!res?.error));
+    }
+
     if (res?.paid || current.terminal) return;
 
     if (attempt.current >= MAX_POLLS) {
@@ -222,7 +245,7 @@ const PayReturn = () => {
               </p>
             )}
 
-            <div className="mb-8 w-full">
+            <div className="mb-8 w-full ph-no-capture">
               {typeof result?.amount === "number" && result.amount > 0 && (
                 <DetailRow label="Amount" value={formatUsd(result.amount)} emphasis />
               )}

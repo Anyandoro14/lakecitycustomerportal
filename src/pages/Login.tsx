@@ -555,7 +555,7 @@ const Login = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleVerifyCode} className="space-y-4">
+            <form onSubmit={handleVerifyCode} className="space-y-4 ph-no-capture">
               <div className="space-y-2">
                 <Label htmlFor="code">Verification Code</Label>
                 <Input
@@ -655,7 +655,7 @@ const Login = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4 ph-no-capture">
             <div className="space-y-2">
               <Label htmlFor="login-stand">Stand Number</Label>
               <Input

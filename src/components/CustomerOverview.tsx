@@ -17,7 +17,7 @@ interface CustomerOverviewProps {
 
 const CustomerOverview = ({ customerId, customerName, standNumber, allStands, onStandChange }: CustomerOverviewProps) => {
   return (
-    <Card className="p-3.5 shadow-sm">
+    <Card className="p-3.5 shadow-sm ph-no-capture">
       <div className="flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-bold text-foreground truncate">{customerName}</h2>

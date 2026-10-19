@@ -1,4 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  paymentTraceHeaders,
+  trackPaymentMethodSelected,
+  trackPaynowPaymentFailed,
+  trackPaynowRedirected,
+  type PaymentMethodType,
+} from "@/lib/telemetry";
 
 export type PayMethod = "paynow" | "ecocash";
 
@@ -35,10 +42,17 @@ export function formatUsd(value: number): string {
   })}`;
 }
 
+function toTelemetryMethod(method: PayMethod): PaymentMethodType {
+  return method === "ecocash" ? "ecocash" : "paynow";
+}
+
 export async function initPayment(args: InitPaymentArgs): Promise<InitPaymentResult> {
   const origin = window.location.origin;
+  const methodType = toTelemetryMethod(args.method);
+  trackPaymentMethodSelected(methodType);
 
   const { data, error } = await supabase.functions.invoke("paynow-init", {
+    headers: paymentTraceHeaders(),
     body: {
       amount: args.amount,
       method: args.method === "paynow" ? undefined : args.method,
@@ -52,9 +66,24 @@ export async function initPayment(args: InitPaymentArgs): Promise<InitPaymentRes
   });
 
   if (error) {
+    trackPaynowPaymentFailed("init_failed");
     return { success: false, error: error.message || "Could not start the payment" };
   }
-  return (data || { success: false, error: "No response from the payment service" }) as InitPaymentResult;
+  const result = (data || {
+    success: false,
+    error: "No response from the payment service",
+  }) as InitPaymentResult;
+
+  if (!result.success) {
+    trackPaynowPaymentFailed("init_failed");
+    return result;
+  }
+
+  if (result.redirect_url || result.browserurl) {
+    trackPaynowRedirected(methodType);
+  }
+
+  return result;
 }
 
 export interface PaymentStatusResult {
@@ -73,6 +102,7 @@ export interface PaymentStatusResult {
 
 export async function checkPaymentStatus(reference: string): Promise<PaymentStatusResult> {
   const { data, error } = await supabase.functions.invoke("paynow-status", {
+    headers: paymentTraceHeaders(),
     body: { reference },
   });
   if (error) return { success: false, error: error.message };

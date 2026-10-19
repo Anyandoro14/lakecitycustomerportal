@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import lakecityLogo from "@/assets/lakecity-logo.svg";
 import { format, parseISO } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { trackStatementViewed } from "@/lib/telemetry";
 
 interface MonthlyStatement {
   id: string;
@@ -78,6 +79,7 @@ const MonthlyStatements = () => {
 
         // Show whatever we have immediately so the user isn't blocked
         await fetchStatements(standNumber);
+        trackStatementViewed();
         setLoading(false);
 
         // Refresh from the latest sheet data, then re-fetch
@@ -198,7 +200,7 @@ const MonthlyStatements = () => {
             <p className="text-sm text-muted-foreground">View and download your account statements</p>
           </div>
 
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden ph-no-capture">
             <div className="bg-primary/5 px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-primary" />
@@ -301,8 +303,8 @@ const MonthlyStatements = () => {
           </div>
         </div>
 
-        {/* Statement Document */}
-        <Card className="p-4 md:p-8 shadow-lg bg-card">
+        {/* Statement Document — PII / balances blocked from autocapture */}
+        <Card className="p-4 md:p-8 shadow-lg bg-card ph-no-capture">
           {/* Header with Logos */}
           <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4 md:mb-6 pb-4 md:pb-6 border-b-2 border-primary/20">
             <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">

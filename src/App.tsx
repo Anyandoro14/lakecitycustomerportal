@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import TelemetryProvider from "@/components/TelemetryProvider";
 import { LookingGlassProvider } from "@/contexts/LookingGlassContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import MaintenanceGate, { MaintenanceRibbon } from "@/components/MaintenanceGate";
@@ -78,6 +79,7 @@ const App = () => (
         {!isSupabaseConfigured ? (
           <SupabaseConfigMissing />
         ) : (
+        <TelemetryProvider>
         <TenantProvider>
         <LookingGlassProvider>
           <Toaster />
@@ -146,6 +148,7 @@ const App = () => (
           </BrowserRouter>
         </LookingGlassProvider>
         </TenantProvider>
+        </TelemetryProvider>
         )}
       </TooltipProvider>
     </QueryClientProvider>

@@ -30,6 +30,22 @@ class ErrorBoundary extends Component<Props, State> {
       stack: error.stack?.split('\n').slice(0, 5).join('\n'),
       componentStack: errorInfo.componentStack?.split('\n').slice(0, 5).join('\n'),
     });
+    // PostHog exception autocapture also runs globally; this is a belt-and-suspenders
+    // capture for React render errors. Scrubbing happens in telemetry before_send.
+    try {
+      void import('@/lib/telemetry').then(({ captureEvent, scrubExceptionText }) => {
+        captureEvent('$exception', {
+          $exception_message: scrubExceptionText(error.message),
+          $exception_stack_trace_raw: scrubExceptionText(
+            error.stack?.split('\n').slice(0, 8).join('\n') ?? '',
+          ),
+          $exception_type: error.name || 'Error',
+          source: 'react_error_boundary',
+        });
+      });
+    } catch {
+      /* telemetry must never break the UI */
+    }
   }
 
   private handleRetry = () => {

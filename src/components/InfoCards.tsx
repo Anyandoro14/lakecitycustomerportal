@@ -55,8 +55,8 @@ const InfoCards = ({
         Make Payment
       </Button>
 
-      {/* Payment Progress Bar */}
-      <Card className="p-4 shadow-sm">
+      {/* Payment Progress Bar — financial figures blocked from autocapture */}
+      <Card className="p-4 shadow-sm ph-no-capture">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Payment Progress</h3>
@@ -71,7 +71,7 @@ const InfoCards = ({
       </Card>
 
       {/* Info Cards Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 ph-no-capture">
         <Card className="p-4 shadow-sm">
           <h3 className="text-xs font-semibold text-foreground mb-2">Last Payment</h3>
           <p className="text-lg font-bold text-primary break-words leading-tight">{formattedLastPayment || 'No payments yet'}</p>

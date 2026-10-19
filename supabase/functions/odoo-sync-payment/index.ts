@@ -3,10 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { mapGatewayToOdooSource } from "../_shared/map-gateway-to-odoo-source.ts";
 import { getSupabaseServiceClient, lakecityPostLoanPayment } from "../_shared/odoo-loan-http.ts";
 import { isPreAccountingStart, resolveAccountingStartDate } from "../_shared/accounting-cutoff.ts";
+import { OTEL_CORS_HEADERS, withOtel } from "../_shared/otel.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    `authorization, x-client-info, apikey, content-type, ${OTEL_CORS_HEADERS}`,
 };
 
 async function isAuthorizedCaller(
@@ -23,7 +25,7 @@ async function isAuthorizedCaller(
   return true;
 }
 
-serve(async (req) => {
+serve(withOtel("odoo-sync-payment", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -222,4 +224,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-});
+}));
