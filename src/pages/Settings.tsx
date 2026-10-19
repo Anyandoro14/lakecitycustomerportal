@@ -5,7 +5,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import CustomerHeader from "@/components/CustomerHeader";
@@ -14,7 +13,6 @@ import LogoutConfirmDialog from "@/components/LogoutConfirmDialog";
 import { ArrowLeft, CheckCircle2, XCircle, Info } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { passwordSchema, phoneSchema, getPasswordErrors } from "@/lib/validation";
-import { getAnalyticsEnabled, setAnalyticsEnabled } from "@/lib/telemetry";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -25,26 +23,13 @@ const Settings = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [analyticsOn, setAnalyticsOn] = useState(true);
 
   // Session timeout hook
   useSessionTimeout();
 
   useEffect(() => {
     loadProfile();
-    setAnalyticsOn(getAnalyticsEnabled());
   }, []);
-
-  const handleAnalyticsToggle = (enabled: boolean) => {
-    setAnalyticsOn(enabled);
-    setAnalyticsEnabled(enabled);
-    toast({
-      title: enabled ? "Analytics on" : "Analytics off",
-      description: enabled
-        ? "Anonymous product analytics are enabled."
-        : "Product analytics are turned off on this device.",
-    });
-  };
 
   const loadProfile = async () => {
     try {
@@ -289,33 +274,6 @@ const Settings = () => {
                 {loading ? "Updating..." : "Change Password"}
               </Button>
             </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Privacy</CardTitle>
-            <CardDescription>
-              Product analytics help us improve the portal. No payment amounts or personal details are collected.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="analytics-toggle" className="text-base">
-                  Turn off analytics
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  When on, this device will not send analytics events.
-                </p>
-              </div>
-              <Switch
-                id="analytics-toggle"
-                checked={!analyticsOn}
-                onCheckedChange={(off) => handleAnalyticsToggle(!off)}
-                aria-label="Turn off analytics"
-              />
-            </div>
           </CardContent>
         </Card>
 

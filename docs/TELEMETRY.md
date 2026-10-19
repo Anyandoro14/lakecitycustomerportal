@@ -28,7 +28,7 @@ If `VITE_POSTHOG_KEY` is missing, the client is **fully inert**. If `POSTHOG_PRO
 - **EU host by default:** `https://eu.i.posthog.com` on client and server when host env is empty.
 - Session recording: **`disable_session_recording: true`** and **`disable_external_dependency_loading: true`** (recorder.js never loads).
 - **Persistence: `memory`** — PostHog writes no cookies or localStorage. Opt-out preference uses a single local flag `lakecity_analytics_opt_out`, checked **before** init.
-- **Turn off analytics:** Settings → Privacy toggle calls `opt_out_capturing` / `opt_in_capturing`.
+- **Turn off analytics:** Global portal footer → **Privacy & analytics** (`/privacy-analytics`) toggle calls `opt_out_capturing` / `opt_in_capturing`. The footer (with this link) appears on every page, including login and OTP screens.
 - `mask_all_text` and `mask_all_element_attributes`: true.
 - Input values are never captured; sensitive DOM uses `ph-no-capture`.
 - URLs: query strings and hash fragments stripped via `before_send` / sanitizers.

@@ -10,6 +10,7 @@ import TelemetryProvider from "@/components/TelemetryProvider";
 import { LookingGlassProvider } from "@/contexts/LookingGlassContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import MaintenanceGate, { MaintenanceRibbon } from "@/components/MaintenanceGate";
+import PortalShell from "@/components/PortalShell";
 import SupabaseConfigMissing from "@/components/SupabaseConfigMissing";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
 
@@ -58,6 +59,7 @@ const CrmTechnicalSpecs = lazy(() => import("./pages/CrmTechnicalSpecs"));
 const QcQueue = lazy(() => import("./pages/admin/QcQueue"));
 const StandInventory = lazy(() => import("./pages/StandInventory"));
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
+const PrivacyAnalytics = lazy(() => import("./pages/PrivacyAnalytics"));
 const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
 const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
@@ -87,6 +89,7 @@ const App = () => (
           <BrowserRouter>
             <MaintenanceRibbon />
             <MaintenanceGate>
+              <PortalShell>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<Login />} />
@@ -136,6 +139,7 @@ const App = () => (
                   <Route path="/stand-inventory" element={<StandInventory />} />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/privacy-analytics" element={<PrivacyAnalytics />} />
                   <Route path="/terms" element={<TermsOfService />} />
                   <Route path="/terms-of-service" element={<TermsOfService />} />
                   <Route path="/refund-policy" element={<RefundPolicy />} />
@@ -144,6 +148,7 @@ const App = () => (
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
+              </PortalShell>
             </MaintenanceGate>
           </BrowserRouter>
         </LookingGlassProvider>

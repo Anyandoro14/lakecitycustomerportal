@@ -140,7 +140,8 @@ export function setAnalyticsEnabled(enabled: boolean): void {
   if (!enabled) {
     writeAnalyticsOptOutFlag(true);
     try {
-      if (posthogStarted) posthog.opt_out_capturing?.();
+      // Always opt out if the SDK is present (safe when not yet started).
+      posthog.opt_out_capturing?.();
     } catch {
       /* ignore */
     }
