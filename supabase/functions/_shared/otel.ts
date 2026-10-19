@@ -2,13 +2,51 @@
  * Minimal OTLP/HTTP JSON trace exporter for Supabase Edge Functions.
  * Inert when OTEL_EXPORTER_OTLP_ENDPOINT is unset (no network, no throw).
  *
- * Span attributes: function name, status, duration only — never request bodies
- * or user data.
+ * Span attributes: function name, status, duration only.
+ * Never records request/response bodies or client IP / user-agent.
  */
 
 const OTEL_ENDPOINT = () =>
   (Deno.env.get("OTEL_EXPORTER_OTLP_ENDPOINT") || "").trim().replace(/\/+$/, "");
 const OTEL_HEADERS = () => (Deno.env.get("OTEL_EXPORTER_OTLP_HEADERS") || "").trim();
+
+/** Keys that must never appear on exported spans (STATUTE / UK). */
+export const OTEL_FORBIDDEN_ATTR_KEYS = [
+  "client.address",
+  "http.client_ip",
+  "net.peer.ip",
+  "net.sock.peer.addr",
+  "net.host.ip",
+  "user_agent.original",
+  "http.user_agent",
+  "user_agent",
+  "http.request.body",
+  "http.response.body",
+  "http.request.body.content",
+  "http.response.body.content",
+] as const;
+
+const FORBIDDEN = new Set<string>(
+  OTEL_FORBIDDEN_ATTR_KEYS.map((k) => k.toLowerCase()),
+);
+
+export type OtelAttr = {
+  key: string;
+  value: { stringValue?: string; intValue?: number; doubleValue?: number };
+};
+
+export function scrubOtelSpanAttributes(attrs: OtelAttr[]): OtelAttr[] {
+  return attrs.filter((a) => {
+    const key = (a.key || "").toLowerCase();
+    if (FORBIDDEN.has(key)) return false;
+    if (key.includes("user_agent")) return false;
+    if (key.endsWith(".ip") || key.includes("client_ip") || key.includes("peer.ip")) {
+      return false;
+    }
+    if (key.includes("request.body") || key.includes("response.body")) return false;
+    return true;
+  });
+}
 
 function parseHeaders(raw: string): Record<string, string> {
   const out: Record<string, string> = { "Content-Type": "application/json" };
@@ -33,7 +71,6 @@ function hexId(bytes: number): string {
 
 function parseTraceparent(header: string | null): { traceId: string; parentSpanId: string } | null {
   if (!header) return null;
-  // version-traceid-spanid-flags
   const parts = header.trim().split("-");
   if (parts.length < 4) return null;
   const [, traceId, parentSpanId] = parts;
@@ -44,8 +81,20 @@ function parseTraceparent(header: string | null): { traceId: string; parentSpanI
 }
 
 function hrTimeNanos(): string {
-  // OTLP expects unix nano as string/number. Deno Date is ms-precision; pad.
   return String(Date.now() * 1_000_000);
+}
+
+function buildSafeSpanAttributes(
+  name: string,
+  statusCode: number,
+  durationMs: number,
+): OtelAttr[] {
+  // Only allow-listed fields — never IP, UA, or bodies.
+  return scrubOtelSpanAttributes([
+    { key: "faas.name", value: { stringValue: name } },
+    { key: "http.status_code", value: { intValue: statusCode } },
+    { key: "duration_ms", value: { doubleValue: durationMs } },
+  ]);
 }
 
 async function exportSpan(payload: {
@@ -87,13 +136,13 @@ async function exportSpan(payload: {
                 kind: 2, // SERVER
                 startTimeUnixNano: payload.startNano,
                 endTimeUnixNano: payload.endNano,
-                attributes: [
-                  { key: "faas.name", value: { stringValue: payload.name } },
-                  { key: "http.status_code", value: { intValue: payload.statusCode } },
-                  { key: "duration_ms", value: { doubleValue: payload.durationMs } },
-                ],
+                attributes: buildSafeSpanAttributes(
+                  payload.name,
+                  payload.statusCode,
+                  payload.durationMs,
+                ),
                 status: {
-                  code: payload.ok ? 1 : 2, // OK | ERROR
+                  code: payload.ok ? 1 : 2,
                 },
               },
             ],
@@ -104,7 +153,6 @@ async function exportSpan(payload: {
   };
 
   try {
-    // Fire-and-forget with a short timeout so we never block the response path long.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1500);
     await fetch(url, {
@@ -123,12 +171,14 @@ export type TracedHandler = (req: Request) => Promise<Response> | Response;
 
 /**
  * Wrap an edge-function handler with a single SERVER span.
- * Reads incoming traceparent when present; otherwise starts a new trace.
+ * Does not read request/response bodies for tracing.
+ * Does not attach client IP or User-Agent from the request.
  */
 export function withOtel(functionName: string, handler: TracedHandler): TracedHandler {
   return async (req: Request) => {
     const start = Date.now();
     const startNano = hrTimeNanos();
+    // Only W3C trace context — never x-forwarded-for / user-agent.
     const incoming = parseTraceparent(req.headers.get("traceparent"));
     const traceId = incoming?.traceId ?? hexId(16);
     const spanId = hexId(8);
@@ -139,7 +189,6 @@ export function withOtel(functionName: string, handler: TracedHandler): TracedHa
       response = await handler(req);
     } catch (err) {
       const durationMs = Date.now() - start;
-      // Do not await — keep failure path fast; still best-effort export.
       void exportSpan({
         traceId,
         spanId,

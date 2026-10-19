@@ -13,26 +13,30 @@ Set these in Vite / hosting (browser) and Supabase Edge Function secrets (server
 | Variable | Where | Purpose |
 |----------|--------|---------|
 | `VITE_POSTHOG_KEY` | Frontend | PostHog project API key |
-| `VITE_POSTHOG_HOST` | Frontend | PostHog host (e.g. `https://us.i.posthog.com`) |
+| `VITE_POSTHOG_HOST` | Frontend | PostHog host — **defaults to `https://eu.i.posthog.com`** if unset |
 | `VITE_TELEMETRY_SALT` | Frontend | Static salt for SHA-256 user identify |
 | `POSTHOG_PROJECT_KEY` | Edge Functions | Same PostHog project key (server capture) |
-| `POSTHOG_HOST` | Edge Functions | Same PostHog host |
+| `POSTHOG_HOST` | Edge Functions | Same host — **defaults to `https://eu.i.posthog.com`** if unset |
 | `TELEMETRY_SALT` | Edge Functions | Same salt as `VITE_TELEMETRY_SALT` (aligned distinct_ids) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Edge Functions | Grafana Cloud OTLP base or `/v1/traces` URL |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Edge Functions | e.g. `Authorization=Basic …` (comma-separated `k=v`) |
 
-If PostHog browser vars are missing, the client is **fully inert**. If `POSTHOG_PROJECT_KEY` / `POSTHOG_HOST` are missing, server capture is skipped. If OTEL endpoint is missing, edge spans are skipped.
+If `VITE_POSTHOG_KEY` is missing, the client is **fully inert**. If `POSTHOG_PROJECT_KEY` is missing, server capture is skipped. If OTEL endpoint is missing, edge spans are skipped.
 
-## Privacy rules
+## Privacy rules (STATUTE / UK)
 
+- **EU host by default:** `https://eu.i.posthog.com` on client and server when host env is empty.
 - Session recording: **`disable_session_recording: true`** and **`disable_external_dependency_loading: true`** (recorder.js never loads).
+- **Persistence: `memory`** — PostHog writes no cookies or localStorage. Opt-out preference uses a single local flag `lakecity_analytics_opt_out`, checked **before** init.
+- **Turn off analytics:** Settings → Privacy toggle calls `opt_out_capturing` / `opt_in_capturing`.
 - `mask_all_text` and `mask_all_element_attributes`: true.
 - Input values are never captured; sensitive DOM uses `ph-no-capture`.
 - URLs: query strings and hash fragments stripped via `before_send` / sanitizers.
 - `person_profiles: 'identified_only'`.
 - Identify only with `SHA-256(internal_user_id + salt)` — never email, name, phone, stand/account numbers, or amounts.
+- **No IP / GeoIP:** client `ip: false` plus `$geoip_disable` / `$ip: null` on events; server `payment_posted_odoo` always sends `$ip: null` and `$geoip_disable: true`.
 - Exception messages/stacks: emails and digit runs of 6+ redacted.
-- OTEL spans: function name, HTTP status, duration only — no bodies or user fields.
+- **OTEL:** function name, HTTP status, duration only — never request/response bodies; scrub drops `client.address`, `http.client_ip`, `net.peer.ip`, `user_agent.original`, `http.user_agent`, and similar.
 - Server `payment_posted_odoo`: `distinct_id` = salted hash; `source` only; `$insert_id` = hash of Odoo payment id (dedupe). No amount / names / refs.
 
 ### `ph-no-capture` areas

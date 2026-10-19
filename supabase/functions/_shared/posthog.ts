@@ -1,9 +1,13 @@
 /**
  * Server-side PostHog capture for Edge Functions.
- * Inert when POSTHOG_PROJECT_KEY or POSTHOG_HOST is unset.
+ * Inert when POSTHOG_PROJECT_KEY is unset.
+ * Default host: EU Cloud (https://eu.i.posthog.com).
  *
  * Never send amounts, names, emails, stand numbers, or raw payment refs.
+ * Always disable IP / GeoIP on capture payloads.
  */
+
+export const DEFAULT_POSTHOG_HOST = "https://eu.i.posthog.com";
 
 function toHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
@@ -15,6 +19,11 @@ export async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest("SHA-256", data);
   return toHex(digest);
+}
+
+export function resolvePostHogHost(raw: string | null | undefined): string {
+  const trimmed = (raw ?? "").trim().replace(/\/+$/, "");
+  return trimmed || DEFAULT_POSTHOG_HOST;
 }
 
 /**
@@ -51,15 +60,18 @@ export type ServerCaptureArgs = {
 };
 
 /**
- * Capture one event via PostHog HTTP API. Never throws; no-op without env.
+ * Capture one event via PostHog HTTP API. Never throws; no-op without key.
+ * Host defaults to EU. Always sets $ip: null and $geoip_disable: true.
  */
 export async function captureServerEvent(args: ServerCaptureArgs): Promise<boolean> {
   const key = (Deno.env.get("POSTHOG_PROJECT_KEY") || "").trim();
-  const host = (Deno.env.get("POSTHOG_HOST") || "").trim().replace(/\/+$/, "");
-  if (!key || !host) return false;
+  if (!key) return false;
+  const host = resolvePostHogHost(Deno.env.get("POSTHOG_HOST"));
 
   const props: Record<string, unknown> = {
     ...(args.properties ?? {}),
+    $ip: null,
+    $geoip_disable: true,
   };
   if (args.insertId) props.$insert_id = args.insertId;
 
@@ -105,4 +117,15 @@ export async function trackPaymentPostedOdoo(opts: {
       source: opts.source,
     },
   });
+}
+
+/** Build the property bag used for payment_posted_odoo (testable without Deno fetch). */
+export function buildPaymentPostedOdooProperties(source: string, insertId?: string) {
+  const props: Record<string, unknown> = {
+    source,
+    $ip: null,
+    $geoip_disable: true,
+  };
+  if (insertId) props.$insert_id = insertId;
+  return props;
 }

@@ -5,9 +5,14 @@ import {
   canIdentify,
   isPostHogConfigured,
   readTelemetryEnv,
+  resolvePostHogHost,
   SESSION_RECORDING_DISABLED,
   type TelemetryEnv,
 } from "./config";
+import {
+  isAnalyticsOptedOut,
+  writeAnalyticsOptOutFlag,
+} from "./consent";
 import { hashUserIdForTelemetry } from "./identify";
 import { sanitizeProperties, sanitizeUrl, scrubExceptionText } from "./sanitize";
 
@@ -19,12 +24,15 @@ type TransportHook = (payload: {
 }) => void;
 
 let initialized = false;
+/** True only after a successful posthog.init (not after opt-out / missing-key skip). */
+let posthogStarted = false;
 let envCache: TelemetryEnv = readTelemetryEnv();
 /** Test-only: capture what would be sent without hitting the network. */
 let testTransport: TransportHook | null = null;
 
 export function __resetTelemetryForTests(): void {
   initialized = false;
+  posthogStarted = false;
   envCache = readTelemetryEnv();
   testTransport = null;
   try {
@@ -40,7 +48,7 @@ export function __setTelemetryTestTransport(hook: TransportHook | null): void {
 }
 
 export function isTelemetryActive(): boolean {
-  return initialized && isPostHogConfigured(envCache);
+  return posthogStarted && isPostHogConfigured(envCache) && !isAnalyticsOptedOut();
 }
 
 export function getSessionRecordingDisabled(): boolean {
@@ -58,6 +66,9 @@ function scrubCaptureResult(event: CaptureResult | null): CaptureResult | null {
   if (typeof props.$pathname === "string") {
     props.$pathname = sanitizeUrl(String(props.$pathname).split("?")[0] || "/");
   }
+  // STATUTE: never enrich with GeoIP / IP on the client.
+  props.$geoip_disable = true;
+  props.$ip = null;
   if (event.event === "$exception") {
     for (const key of [
       "$exception_message",
@@ -76,20 +87,29 @@ function scrubCaptureResult(event: CaptureResult | null): CaptureResult | null {
 }
 
 /**
- * Initialize PostHog once. No-op (no network) when VITE_POSTHOG_KEY or
- * VITE_POSTHOG_HOST is missing.
+ * Initialize PostHog once. No-op when key missing or user opted out
+ * (checked before init — no network).
  */
 export function initTelemetry(env: TelemetryEnv = readTelemetryEnv()): boolean {
-  envCache = env;
+  envCache = {
+    ...env,
+    posthogHost: resolvePostHogHost(env.posthogHost),
+  };
   if (initialized) return isTelemetryActive();
-  if (!isPostHogConfigured(env)) {
-    initialized = true; // mark attempted so we don't retry / throw
+
+  if (isAnalyticsOptedOut()) {
+    initialized = true;
     return false;
   }
 
-  const options = buildPostHogInitOptions(env);
+  if (!isPostHogConfigured(envCache)) {
+    initialized = true;
+    return false;
+  }
 
-  posthog.init(env.posthogKey, {
+  const options = buildPostHogInitOptions(envCache);
+
+  posthog.init(envCache.posthogKey, {
     ...options,
     before_send: (event) => scrubCaptureResult(event),
     loaded: (ph) => {
@@ -108,7 +128,41 @@ export function initTelemetry(env: TelemetryEnv = readTelemetryEnv()): boolean {
   }
 
   initialized = true;
+  posthogStarted = true;
   return true;
+}
+
+/**
+ * Visible "Turn off analytics" control.
+ * Persists a single local flag and calls PostHog opt_out / opt_in.
+ */
+export function setAnalyticsEnabled(enabled: boolean): void {
+  if (!enabled) {
+    writeAnalyticsOptOutFlag(true);
+    try {
+      if (posthogStarted) posthog.opt_out_capturing?.();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+
+  writeAnalyticsOptOutFlag(false);
+
+  if (!posthogStarted) {
+    initialized = false;
+    initTelemetry(envCache);
+  }
+
+  try {
+    if (posthogStarted) posthog.opt_in_capturing?.();
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getAnalyticsEnabled(): boolean {
+  return !isAnalyticsOptedOut();
 }
 
 /**
@@ -124,7 +178,6 @@ export async function identifyUser(
     envCache.telemetrySalt,
   );
   if (!distinctId) return null;
-  // Pass only the hashed id — no person properties.
   posthog.identify(distinctId);
   return distinctId;
 }
@@ -143,6 +196,8 @@ export function captureEvent(
   properties?: TelemetryCaptureProperties,
 ): void {
   const cleaned = sanitizeProperties(properties ?? {});
+  cleaned.$geoip_disable = true;
+  cleaned.$ip = null;
   if (testTransport) {
     testTransport({ event, properties: cleaned });
   }

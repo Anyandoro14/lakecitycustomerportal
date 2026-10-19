@@ -87,6 +87,8 @@ describe("session recorder disabled", () => {
     });
     expect(opts.disable_session_recording).toBe(true);
     expect(opts.disable_external_dependency_loading).toBe(true);
+    expect(opts.persistence).toBe("memory");
+    expect(opts.ip).toBe(false);
 
     initTelemetry({
       posthogKey: "phc_test",
