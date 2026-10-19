@@ -113,11 +113,40 @@ describe("Portal footer Privacy & analytics", () => {
     );
 
     expect(isAnalyticsOptedOut()).toBe(false);
+    expect(screen.getByTestId("analytics-status")).toHaveTextContent(
+      /Analytics is on on this device/i,
+    );
     const toggle = screen.getByRole("switch", { name: /turn off analytics/i });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
     await user.click(toggle);
 
     expect(isAnalyticsOptedOut()).toBe(true);
     expect(memoryStore.getItem(ANALYTICS_OPT_OUT_FLAG)).toBe("1");
     expect(posthog.opt_out_capturing).toHaveBeenCalled();
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toHaveAttribute("data-state", "checked");
+    expect(screen.getByTestId("analytics-status")).toHaveTextContent(
+      /Analytics is off on this device/i,
+    );
+  });
+
+  it("shows the switch checked when the opt-out flag is already set", () => {
+    writeAnalyticsOptOutFlag(true);
+    render(
+      <MemoryRouter initialEntries={["/privacy-analytics"]}>
+        <PortalShell>
+          <Routes>
+            <Route path="/privacy-analytics" element={<PrivacyAnalytics />} />
+          </Routes>
+        </PortalShell>
+      </MemoryRouter>,
+    );
+
+    const toggle = screen.getByRole("switch", { name: /turn off analytics/i });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toHaveAttribute("data-state", "checked");
+    expect(screen.getByTestId("analytics-status")).toHaveTextContent(
+      /Analytics is off on this device/i,
+    );
   });
 });

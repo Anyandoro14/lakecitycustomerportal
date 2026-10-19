@@ -3,23 +3,26 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { getAnalyticsEnabled, setAnalyticsEnabled } from "@/lib/telemetry";
+import { isAnalyticsOptedOut, setAnalyticsEnabled } from "@/lib/telemetry";
 
 /**
  * Privacy & analytics controls — linked from the global portal footer.
  * Available before and after login.
+ *
+ * Switch checked = opted out. Initial state is read synchronously from the
+ * stored flag so first paint / reload match localStorage (no unchecked flash).
  */
 const PrivacyAnalytics = () => {
-  const [analyticsOn, setAnalyticsOn] = useState(true);
+  const [optedOut, setOptedOut] = useState(() => isAnalyticsOptedOut());
 
   useEffect(() => {
-    setAnalyticsOn(getAnalyticsEnabled());
+    // Re-sync if storage changed in another tab or before hydration settled.
+    setOptedOut(isAnalyticsOptedOut());
   }, []);
 
   const handleToggleOff = (turnOff: boolean) => {
-    const enabled = !turnOff;
-    setAnalyticsOn(enabled);
-    setAnalyticsEnabled(enabled);
+    setOptedOut(turnOff);
+    setAnalyticsEnabled(!turnOff);
   };
 
   return (
@@ -37,7 +40,7 @@ const PrivacyAnalytics = () => {
               or personal details. You can turn analytics off on this device at any time.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="analytics-toggle" className="text-base">
@@ -49,11 +52,22 @@ const PrivacyAnalytics = () => {
               </div>
               <Switch
                 id="analytics-toggle"
-                checked={!analyticsOn}
+                checked={optedOut}
                 onCheckedChange={handleToggleOff}
                 aria-label="Turn off analytics"
+                data-testid="analytics-opt-out-switch"
               />
             </div>
+            <p
+              className="text-sm font-medium text-foreground"
+              data-testid="analytics-status"
+              role="status"
+              aria-live="polite"
+            >
+              {optedOut
+                ? "Analytics is off on this device"
+                : "Analytics is on on this device"}
+            </p>
           </CardContent>
         </Card>
 

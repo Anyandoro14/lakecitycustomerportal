@@ -1,4 +1,4 @@
-import { test, expect, type Request } from "@playwright/test";
+import { test, expect, type Locator, type Request } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -14,6 +14,21 @@ function isPostHogRequest(req: Request): boolean {
     url.includes("i.posthog.com") ||
     url.includes("app.posthog.com")
   );
+}
+
+async function expectOptOutUi(toggle: Locator, page: import("@playwright/test").Page) {
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(toggle).toHaveAttribute("data-state", "checked");
+  await expect(page.getByTestId("analytics-status")).toContainText(
+    /Analytics is off on this device/i,
+  );
+  // Brand-coloured track when checked (primary ≈ rgb(11, 65, 47))
+  await expect
+    .poll(async () => {
+      const bg = await toggle.evaluate((el) => getComputedStyle(el).backgroundColor);
+      return bg;
+    })
+    .toMatch(/rgb\(\s*11,\s*65,\s*47\s*\)/);
 }
 
 test.describe("telemetry opt-out evidence", () => {
@@ -68,13 +83,18 @@ test.describe("telemetry opt-out evidence", () => {
       fullPage: true,
     });
 
-    const toggle = page.getByRole("switch", { name: /turn off analytics/i });
+    const toggle = page.getByTestId("analytics-opt-out-switch");
     await expect(toggle).toBeVisible();
-    // Switch checked = analytics OFF
-    if (!(await toggle.isChecked())) {
+    await expect(page.getByTestId("analytics-status")).toContainText(
+      /Analytics is on on this device/i,
+    );
+
+    // Ensure we end ON (checked) — do not click if already opted out
+    if ((await toggle.getAttribute("aria-checked")) !== "true") {
       await toggle.click();
     }
-    await expect(toggle).toBeChecked();
+    await expectOptOutUi(toggle, page);
+
     optedOut = true;
     afterOptOut.length = 0;
 
@@ -91,10 +111,9 @@ test.describe("telemetry opt-out evidence", () => {
 
     // (3) Reload + navigate — zero PostHog requests
     await page.reload({ waitUntil: "networkidle" });
+    await expectOptOutUi(page.getByTestId("analytics-opt-out-switch"), page);
     await page.waitForTimeout(2000);
     await page.goto("/login", { waitUntil: "networkidle" });
-    await page.waitForTimeout(2000);
-    await page.goto("/privacy-analytics", { waitUntil: "networkidle" });
     await page.waitForTimeout(2000);
     await page.goto("/landing", { waitUntil: "networkidle" });
     await page.waitForTimeout(2000);
@@ -109,11 +128,13 @@ test.describe("telemetry opt-out evidence", () => {
       `expected zero PostHog requests after opt-out; got ${JSON.stringify(afterOptOut)}`,
     ).toEqual([]);
 
-    // (4) Flag survives reload
+    // (4) Flag survives reload — switch + status still reflect opt-out
+    await page.goto("/privacy-analytics", { waitUntil: "networkidle" });
     const flagAfter = await page.evaluate(
       () => localStorage.getItem("lakecity_analytics_opt_out"),
     );
     expect(flagAfter).toBe("1");
+    await expectOptOutUi(page.getByTestId("analytics-opt-out-switch"), page);
     await page.screenshot({
       path: path.join(SCREENSHOTS, "opt-out-05-flag-survives.png"),
       fullPage: true,
@@ -142,9 +163,9 @@ Dummy PostHog key pointed at local mock \`${MOCK_HOST}\` (never real PostHog).
 ## Results
 
 1. **Login load (before opt-out):** ${beforeOptOut.length} request(s) to mock PostHog host.
-2. **Privacy & analytics → Turn off analytics:** switch checked; \`lakecity_analytics_opt_out=1\`.
+2. **Privacy & analytics → Turn off analytics:** switch \`aria-checked=true\`, \`data-state=checked\`, brand primary track; status: Analytics is off on this device; \`lakecity_analytics_opt_out=1\`.
 3. **After reload + navigation:** ${afterOptOut.length} PostHog request(s) (must be 0).
-4. **Flag after reload:** \`${flagAfter}\` (must be \`1\`).
+4. **Flag after reload:** \`${flagAfter}\` (must be \`1\`); switch still checked with status line.
 
 ## Sample pre-opt-out requests
 
