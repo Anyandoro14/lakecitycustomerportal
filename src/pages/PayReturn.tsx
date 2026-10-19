@@ -222,7 +222,7 @@ const PayReturn = () => {
               </p>
             )}
 
-            <div className="mb-8 w-full">
+            <div className="mb-8 w-full ph-no-capture">
               {typeof result?.amount === "number" && result.amount > 0 && (
                 <DetailRow label="Amount" value={formatUsd(result.amount)} emphasis />
               )}

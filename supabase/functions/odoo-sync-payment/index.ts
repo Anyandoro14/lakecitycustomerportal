@@ -3,10 +3,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { mapGatewayToOdooSource } from "../_shared/map-gateway-to-odoo-source.ts";
 import { getSupabaseServiceClient, lakecityPostLoanPayment } from "../_shared/odoo-loan-http.ts";
 import { isPreAccountingStart, resolveAccountingStartDate } from "../_shared/accounting-cutoff.ts";
+import { OTEL_CORS_HEADERS, withOtel } from "../_shared/otel.ts";
+import { trackPaymentPostedOdoo } from "../_shared/posthog.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    `authorization, x-client-info, apikey, content-type, ${OTEL_CORS_HEADERS}`,
 };
 
 async function isAuthorizedCaller(
@@ -23,7 +26,7 @@ async function isAuthorizedCaller(
   return true;
 }
 
-serve(async (req) => {
+serve(withOtel("odoo-sync-payment", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -193,6 +196,25 @@ serve(async (req) => {
 
       console.log(`Synced receipt ${receipt_id} → Odoo loan payment ${result.payment_id}`);
 
+      // North Star: payment posted in Odoo for a hashed customer (no amount/PII).
+      // Resolve portal customer via stand → profiles.id; skip quietly if none.
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .ilike("stand_number", stand)
+          .maybeSingle();
+        if (profile?.id && result.payment_id != null) {
+          await trackPaymentPostedOdoo({
+            internalUserId: profile.id,
+            odooPaymentId: result.payment_id,
+            source: "odoo_sync_payment",
+          });
+        }
+      } catch (telemetryErr) {
+        console.warn("payment_posted_odoo telemetry skipped:", telemetryErr);
+      }
+
       return new Response(
         JSON.stringify({
           status: "ok",
@@ -222,4 +244,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-});
+}));
