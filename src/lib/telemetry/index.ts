@@ -25,13 +25,9 @@ export {
 } from "./config";
 export {
   trackPaymentFlowStarted,
-  trackPaymentMethodSelected,
-  trackPaynowRedirected,
-  trackPaynowPaymentCompleted,
-  trackPaynowPaymentFailed,
+  trackZikimallRedirected,
+  trackPaymentInstructionsViewed,
   trackStatementViewed,
-  categorizePaynowFailure,
-  type PaymentMethodType,
-  type PaymentErrorCategory,
+  type PaymentInstructionsSection,
 } from "./events";
 export { paymentTraceHeaders, createTraceparent } from "./trace";

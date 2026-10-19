@@ -103,14 +103,14 @@ describe("test transport", () => {
     const seen: Array<{ event: string; properties: Record<string, unknown> }> = [];
     __setTelemetryTestTransport((p) => seen.push(p));
     initTelemetry({ posthogKey: "", posthogHost: "", telemetrySalt: "" });
-    captureEvent("payment_method_selected", {
-      method: "ecocash",
+    captureEvent("zikimall_redirected", {
       email: "x@y.com",
       amount: 10,
+      source: "pay_page",
     });
     expect(seen).toHaveLength(1);
-    expect(seen[0].event).toBe("payment_method_selected");
-    expect(seen[0].properties.method).toBe("ecocash");
+    expect(seen[0].event).toBe("zikimall_redirected");
+    expect(seen[0].properties.source).toBe("pay_page");
     expect(seen[0].properties.email).toBeUndefined();
     expect(seen[0].properties.amount).toBeUndefined();
   });

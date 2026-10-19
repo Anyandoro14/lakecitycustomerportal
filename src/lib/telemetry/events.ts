@@ -1,66 +1,39 @@
 /**
  * Explicit product events for the payment funnel and statements.
  * Properties must never include PII or monetary amounts.
+ *
+ * North Star `payment_posted_odoo` is emitted server-side from
+ * `odoo-sync-payment` (see supabase/functions/_shared/posthog.ts).
  */
 
 import { captureEvent } from "./client";
 
-export type PaymentMethodType =
-  | "paynow"
-  | "ecocash"
-  | "onemoney"
-  | "innbucks"
-  | "zikimall"
+/** Coarse instruction-section labels only — never bank account numbers. */
+export type PaymentInstructionsSection =
   | "bank_transfer"
   | "remittance"
+  | "pay_page"
   | "other";
-
-/** Coarse failure buckets only — no gateway messages that may contain PII. */
-export type PaymentErrorCategory =
-  | "init_failed"
-  | "cancelled"
-  | "declined"
-  | "timeout"
-  | "network"
-  | "flagged"
-  | "reversed"
-  | "unknown";
 
 export function trackPaymentFlowStarted(source?: string): void {
   captureEvent("payment_flow_started", source ? { source } : undefined);
 }
 
-export function trackPaymentMethodSelected(method: PaymentMethodType): void {
-  captureEvent("payment_method_selected", { method });
+/** Fired when the customer clicks through to ZikiMall (external). No amounts. */
+export function trackZikimallRedirected(): void {
+  captureEvent("zikimall_redirected");
 }
 
-export function trackPaynowRedirected(method?: PaymentMethodType): void {
-  captureEvent("paynow_redirected", method ? { method } : undefined);
-}
-
-/** North Star: fire only from a confirmed-success path (server-confirmed paid). */
-export function trackPaynowPaymentCompleted(): void {
-  captureEvent("paynow_payment_completed");
-}
-
-export function trackPaynowPaymentFailed(errorCategory: PaymentErrorCategory): void {
-  captureEvent("paynow_payment_failed", { error_category: errorCategory });
+/**
+ * Fired when payment instruction UI is opened/viewed.
+ * Properties: section label only — never account numbers or payee details.
+ */
+export function trackPaymentInstructionsViewed(
+  section: PaymentInstructionsSection,
+): void {
+  captureEvent("payment_instructions_viewed", { section });
 }
 
 export function trackStatementViewed(): void {
   captureEvent("statement_viewed");
-}
-
-export function categorizePaynowFailure(
-  status: string | undefined | null,
-  hadError?: boolean,
-): PaymentErrorCategory {
-  const s = (status || "").toLowerCase();
-  if (hadError && !s) return "network";
-  if (s.includes("cancel")) return "cancelled";
-  if (s.includes("flag")) return "flagged";
-  if (s.includes("revers")) return "reversed";
-  if (s.includes("fail") || s.includes("declin")) return "declined";
-  if (s.includes("timeout") || s.includes("expired")) return "timeout";
-  return "unknown";
 }

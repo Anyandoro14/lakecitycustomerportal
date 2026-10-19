@@ -1,12 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { initiateTransaction } from "../_shared/paynow.ts";
-import { OTEL_CORS_HEADERS, withOtel } from "../_shared/otel.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    `authorization, x-client-info, apikey, content-type, ${OTEL_CORS_HEADERS}`,
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const MIN_AMOUNT = 1;
@@ -44,7 +42,7 @@ function normalizePhone(raw: string): string {
   return "0" + digits;
 }
 
-serve(withOtel("paynow-init", async (req) => {
+serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -195,4 +193,4 @@ serve(withOtel("paynow-init", async (req) => {
         : msg,
     });
   }
-}));
+});

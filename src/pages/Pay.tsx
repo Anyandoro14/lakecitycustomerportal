@@ -10,7 +10,8 @@ import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   trackPaymentFlowStarted,
-  trackPaymentMethodSelected,
+  trackPaymentInstructionsViewed,
+  trackZikimallRedirected,
 } from "@/lib/telemetry";
 
 const formatUsd = (value: unknown) => {
@@ -28,6 +29,13 @@ const Pay = () => {
   const [loading, setLoading] = useState(true);
   const [stand, setStand] = useState<any>(null);
   const flowStarted = useRef(false);
+  const instructionsSeen = useRef<Set<string>>(new Set());
+
+  const noteInstructions = (section: "pay_page" | "bank_transfer" | "remittance") => {
+    if (instructionsSeen.current.has(section)) return;
+    instructionsSeen.current.add(section);
+    trackPaymentInstructionsViewed(section);
+  };
 
   useEffect(() => {
     let active = true;
@@ -43,6 +51,8 @@ const Pay = () => {
         flowStarted.current = true;
         trackPaymentFlowStarted("pay_page");
       }
+      // Page opened — label only; bank/payee details stay behind ph-no-capture.
+      noteInstructions("pay_page");
 
       try {
         const { data, error } = await supabase.functions.invoke("fetch-google-sheets", {
@@ -113,7 +123,7 @@ const Pay = () => {
               href="https://zikimall.com/"
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => trackPaymentMethodSelected("zikimall")}
+              onClick={() => trackZikimallRedirected()}
             >
               Pay via ZikiMall
               <ExternalLink className="ml-2 h-4 w-4" />
@@ -130,7 +140,7 @@ const Pay = () => {
         <section
           className="space-y-3 border-t border-border pt-5 ph-no-capture"
           aria-labelledby="bank-transfers"
-          onClick={() => trackPaymentMethodSelected("bank_transfer")}
+          onClick={() => noteInstructions("bank_transfer")}
         >
           <h2 id="bank-transfers" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Landmark className="h-5 w-5 text-primary" /> Bank transfers</h2>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -150,7 +160,7 @@ const Pay = () => {
         <section
           className="space-y-2 border-t border-border pt-5"
           aria-labelledby="remittances"
-          onClick={() => trackPaymentMethodSelected("remittance")}
+          onClick={() => noteInstructions("remittance")}
         >
           <h2 id="remittances" className="flex items-center gap-2 text-lg font-semibold text-foreground"><Globe2 className="h-5 w-5 text-primary" /> International transfers</h2>
           <p className="text-sm text-foreground">WorldRemit · MoneyGram · Mukuru · Remitly · HelloPaisa · Western Union</p>

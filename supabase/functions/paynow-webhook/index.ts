@@ -2,15 +2,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { getPaynowCredentials, parsePaynowResponse, verifyHash } from "../_shared/paynow.ts";
 import { settlePaynowTransaction } from "../_shared/paynow-settle.ts";
-import { OTEL_CORS_HEADERS, withOtel } from "../_shared/otel.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    `authorization, x-client-info, apikey, content-type, ${OTEL_CORS_HEADERS}`,
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(withOtel("paynow-webhook", async (req) => {
+serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -52,4 +50,4 @@ serve(withOtel("paynow-webhook", async (req) => {
     console.error("paynow-webhook error:", e);
     return new Response("error", { status: 500, headers: corsHeaders });
   }
-}));
+});

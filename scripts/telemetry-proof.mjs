@@ -55,16 +55,15 @@ function sanitizeProperties(properties) {
 }
 
 const raw = {
-  event: "payment_flow_started",
+  event: "zikimall_redirected",
   properties: {
     $current_url:
-      "https://lakecity.standledger.io/pay/return?reference=ABC123456789&express=1#status",
-    $pathname: "/pay/return?reference=ABC123456789",
+      "https://lakecity.standledger.io/pay?stand=ABC123456789&amt=100#cta",
+    $pathname: "/pay?stand=ABC123456789",
     email: "customer@example.com",
     amount: 250.5,
     stand_number: "A123",
     note: "help ops@lakecity.co.zw with 2779454018",
-    method: "paynow",
     source: "pay_page",
   },
 };
