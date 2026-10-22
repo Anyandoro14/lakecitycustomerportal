@@ -34,6 +34,10 @@ cat > "$FUNC_ENV" << 'EOF'
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+# Optional Paynow relay (npm run paynow-relay:local). Local Docker can usually
+# reach Paynow directly; set these to exercise the same path as production.
+# PAYNOW_PROXY_URL=http://127.0.0.1:8787
+# PAYNOW_PROXY_SECRET=devsecret
 EOF
 
 echo ""

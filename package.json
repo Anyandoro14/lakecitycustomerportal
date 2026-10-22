@@ -40,7 +40,9 @@
     "qc:odoo-receipt-dates": "node scripts/qc-odoo-receipt-dates-vs-master.mjs",
     "qc:odoo-stand-balances": "node scripts/qc-odoo-stand-balances-vs-master.mjs",
     "logs:gh": "bash scripts/npm_logs_gh.sh",
-    "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
+    "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed",
+    "test:paynow-relay": "node --test scripts/paynow-relay-worker.test.mjs",
+    "paynow-relay:local": "node scripts/paynow-relay-local.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

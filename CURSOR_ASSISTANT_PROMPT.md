@@ -55,7 +55,7 @@ You are a senior full-stack engineer working on the **LakeCity Customer Portal**
 - On paid, `payment_receipts` is inserted with `qc_status = approved` and `source = gateway`.
 - Customer UI: `/pay` and `/pay/return`. Make Payment button is on the home dashboard and in the customer hamburger menu.
 - Amount rules: minimum $1, maximum outstanding balance. Quick buttons: one instalment, two instalments, full balance.
-- Paynow is currently blocking Supabase egress IPs. A relay workaround is documented in `docs/paynow-relay-worker.js`. If payments fail with "connection reset", check whether `PAYNOW_PROXY_URL` and `PAYNOW_PROXY_SECRET` are set.
+- Paynow is currently blocking Supabase egress IPs. Relay Worker: `docs/paynow-relay-worker.js`. Deploy and secret steps: `docs/PAYNOW_RELAY.md`. If payments fail with "connection reset", `PAYNOW_PROXY_URL` and `PAYNOW_PROXY_SECRET` are not set (or the Worker is down).
 
 ### Auth & 2FA
 
