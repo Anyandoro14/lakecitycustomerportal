@@ -1,0 +1,65 @@
+# DRAFT qc-lint config (2026-10-21). Packs are enabled per repo in .github/qc-gate.env or the workflow input.
+# severity: BLOCK | FIX | FLAG.  scope: globs the rule applies to (default: content globs below).
+# allow: regex; if it matches the same line, the hit is ignored (negations, approved exact lines).
+content_globs: ["**/*.md", "**/*.mdx", "**/*.txt", "**/*.html", "src/**/*.tsx", "src/**/*.ts", "posts/**", "captions/**"]
+exclude_globs: [".cursor/**", ".cursor/rules/**", ".github/**", ".github/qc/**", "**/*.test.*", "tests/**", "docs/qc/**", "**/node_modules/**", "**/*.lock", "**/package-lock.json"]
+packs:
+  common:
+    - {id: C-SEC-01, sev: BLOCK, re: "BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY|AIza[0-9A-Za-z_-]{35}|sk_live_[0-9A-Za-z]{10,}|ghp_[0-9A-Za-z]{30,}|xox[bp]-[0-9A-Za-z-]{10,}", all_files: true, msg: "Secret-like value in diff", fix: "Remove; rotate the credential; use env/secrets"}
+    - {id: C-PH-01, sev: BLOCK, re: "\\b(TBC|TODO|PLACEHOLDER|LOREM)\\b|\\[link\\]|utm_content=(\\s|$)", scope: ["posts/**", "captions/**", "ads/**"], msg: "Placeholder in a draft (nothing posts with a placeholder)", fix: "Fill or remove"}
+    - {id: C-INT-01, sev: FIX, re: "\\bCR-\\d{3}\\b|\\bQC-REQ-\\d+|\\bMF-\\d{2,3}\\b|\\b(NJERE|MT)-\\d{8}-\\d{3}\\b|\\b(NJ|MT|HQ|LC|TF)-[A-Z]{2,4}-[A-Z]{3}-\\d{3}\\b|/home/box|/workspace/", msg: "Internal ID or path in customer-facing text (CR-046)", fix: "Remove"}
+    - {id: C-INT-02, sev: FIX, re: "\\b(REGIS|PIXEL|SABLE|JUNO|QUILL|HELM|STATUTE|NJERE-[A-Z]+|Distro Bot|Proto Bot|Website Ops|Grok Bot|Engineer Bot)\\b", msg: "Bot name in customer-facing text (CR-046)", fix: "Remove"}
+    - {id: C-LNK-01, sev: FIX, re: "http://(?!localhost)", msg: "Non-https link", fix: "Use https://"}
+  njere:
+    - {id: RP-01, sev: BLOCK, re: "HIPAA[- ]?(compliant|certified|ready)", allow: "\\b(never|not|no)\\b[^.]{0,20}HIPAA", msg: "HIPAA compliance claim (CR-015)", fix: "Use the CR-041 line only (Alex to pick v2)"}
+    - {id: RP-02, sev: BLOCK, re: "Part\\s?11[- ]ready|BAA (is )?available", msg: "Retired claim", fix: "Delete"}
+    - {id: RP-03, sev: FIX, re: "sign(s|ed)? off (on )?every AI", msg: "Banned AI-oversight line (Alex 2026-10-17 10:52 PT)", fix: "thoughtfully designed AI agents with a human in the loop"}
+    - {id: RP-04, sev: FIX, re: "(?i)\\b(best[- ]in[- ]class|the best|industry[- ]leading|world[- ]class|cutting[- ]edge|unparalleled|unmatched|top[- ]rated|state[- ]of[- ]the[- ]art|revolutionary|#1|number one|most trusted)\\b", msg: "Superlative (CR-017)", fix: "Remove or replace with a sourced, measured statement"}
+    - {id: RP-05, sev: BLOCK, re: "(?i)\\bMedable\\b|\\bJane ?App\\b", msg: "Employer firewall (CR-023)", fix: "Remove; flag Alex"}
+    - {id: RP-06, sev: BLOCK, re: "(?i)zim ?wor(x|ks)|supportdds|worxconnect", msg: "Zimworx hard rule", fix: "Remove"}
+    - {id: RP-07, sev: FIX, re: "(?i)discovery sprint|pilot pack|outcome retainer|usual path|big-provider capability|humans where they matter|\\w+ ?(→|->) ?\\w+ ?(→|->)", msg: "Internal jargon / retired slogan (CR-044)", fix: "Plain words: 'We start with a short scoping call, then a small pilot, and only scale once the results are clear.'"}
+    - {id: RP-09, sev: FIX, re: "(?i)in development|\\bbeta\\b|coming soon|being built|launching soon", msg: "Development-status wording (CR-047)", fix: "Remove"}
+    - {id: RP-10, sev: FIX, re: "(?i)30-minute call|respond within one business day", msg: "Retired CTA/promise (CR-045 supersedes CR-005/006)", fix: "'Book a call' button to https://njere.tech/book"}
+    - {id: RP-11, sev: FIX, re: "(?i)20\\+ years|\\b30 days\\b|\\b30-day\\b|thirty days", msg: "Retired number", fix: "'15+ years of combined clinical-trial experience' / 'first month'"}
+    - {id: RP-12, sev: BLOCK, re: "(?i)standledger|velocity ?os|deal accelerator|hearthreel", msg: "Excluded name in Njere copy", fix: "Remove"}
+    - {id: RP-13, sev: BLOCK, re: "(?i)owned by michaelt|subsidiary of michaelt|michaelt[^.]{0,40}\\bparent\\b", msg: "MichaelT ownership line (CR-053 retired)", fix: "Njere is based in New York with a sister company in Zimbabwe for local operations."}
+    - {id: RP-14, sev: BLOCK, re: "(?i)\\b(FDA|Health Canada|MHRA)[- ](approved|endorsed|approves|endorses)|big CRO", msg: "Regulator endorsement / big CRO (boundary 10)", fix: "Use expects / sets out / requires / states"}
+    - {id: RP-15, sev: FIX, re: "(?i)\\b(our|njere'?s?) (eCOA|EDC|DCT) platform|we are an? (eCOA|EDC|DCT)", msg: "Platform claim (CR-020)", fix: "Njere supports the clinical stack; it does not replace it."}
+    - {id: RP-16, sev: BLOCK, re: "(?i)guarantee[sd]? (regulatory )?(compliance|approval|inspection|audit)", msg: "Regulatory guarantee (CR-021)", fix: "Remove"}
+    - {id: RP-17, sev: FIX, re: "(?<!Njere )(?<!Njere \\*)(?<![*\\w])Eneo\\b(?! by Njere)", msg: "Bare 'Eneo'", fix: "*Njere Eneo*"}
+    - {id: RP-21, sev: FIX, re: "(?<![A-Za-z])(US)?\\$\\s?\\d", scope: ["src/pages/**", "posts/**", "content/njere/**"], msg: "Price in public copy (Odoo pricing lock)", fix: "Remove; warm-lead docs only"}
+    - {id: RP-22, sev: FIX, re: "75\\s?%", allow: "We aim to save you up to 75% compared with typical onshore cost\\.", msg: "75% line not exact CR-031", fix: "We aim to save you up to 75% compared with typical onshore cost."}
+    - {id: RP-24, sev: FIX, re: "(?<![-\\w])(color|behavior|favorite|center|analyze)s?(?![-\\w\"])", msg: "US spelling (UK house standard; Minor)", fix: "UK spelling"}
+  sr:
+    - {id: ST-01, sev: BLOCK, re: "(?i)undetectable|bypass (ai )?detect|evad\\w* (ai|integrity|detection)|avoid detection|humani[sz]e (ai|text)", msg: "Detection-evasion claim (F1/F2)", fix: "Remove"}
+    - {id: ST-02, sev: BLOCK, re: "(?i)(approved|endorsed|recommended|partnered) (by|with) [^.]{0,40}(university|college|russell group)", msg: "Institution endorsement without written consent", fix: "Remove unless consent on file"}
+    - {id: ST-03, sev: BLOCK, re: "HIPAA[- ]?(compliant|ready)|\\bBAA\\b", allow: "(?i)\\bnot\\b[^.]{0,20}HIPAA", msg: "HIPAA/BAA claim (F3/H3)", fix: "Educational Mode is for research learning only. Don't enter patient details."}
+    - {id: ST-04, sev: BLOCK, re: "(?i)guarantee\\w*[^.]{0,30}(integrity|compliance|pass|grade)", msg: "Guarantee (F4)", fix: "Remove"}
+    - {id: ST-05, sev: BLOCK, re: "(?i)\\bSOC ?2\\b|ISO ?27001|cyber essentials|\\bVPAT\\b|(WCAG|ADA)[- ]?(compliant|conformant)", allow: "(?i)roadmap|target", msg: "Certification claimed early (F6)", fix: "'WCAG 2.1 AA target' only"}
+    - {id: ST-06, sev: BLOCK, re: "(?i)\\bAI (as )?(an? )?(co-?)?author", allow: "(?i)never|not|isn't", msg: "AI as author (F8)", fix: "AI is never an author"}
+    - {id: ST-08, sev: FIX, re: "(?i)subscri(be|ption)|auto-?renew|cancel any ?time|recurring", allow: "(?i)nothing renews|not a subscription|no subscription", msg: "Subscription wording (plans are one-time)", fix: "Plans are one-time payments..."}
+    - {id: ST-09, sev: BLOCK, re: "(?i)7-day|seven[- ]day|no questions asked", msg: "Retired refund window (Alex 2026-10-18 00:47 PT)", fix: "Plan payments are generally non-refundable once a paid period begins, except where applicable consumer law requires a refund or other remedy."}
+    - {id: ST-10, sev: FIX, re: "(?i)provenance (log|record)|full[- ]text (retrieval|download)|5 free|start free|free with an account|checkout opens soon|on your topic|takes your topic", msg: "HOLD wording (CLAIM_HOLD v0.3.2)", fix: "'AI-use declaration you can export' / 'See a demo shortlist'"}
+    - {id: ST-11, sev: FIX, re: "systematicreview\\.app", msg: "Non-canonical domain", fix: "systematic-review.app"}
+    - {id: PX-05, sev: FIX, re: "(?i)\\bdelve|seamless(ly)?|\\bunlock\\b|\\belevate\\b|game[- ]changer|in today's fast-paced|supercharge|harness the power", msg: "AI-written feel (PIXEL, Minor)", fix: "Plain, human wording"}
+  affiliate:
+    - {id: DC-08, sev: BLOCK, re: "make\\.com(?!/en/register\\?pc=njere\\b)", msg: "Make link other than pc=njere", fix: "https://www.make.com/en/register?pc=njere"}
+    - {id: DC-04, sev: FIX, re: "\\b(Sekou|Tony)\\b", msg: "Voice named publicly", fix: "Remove"}
+    - {id: DC-14, sev: FIX, re: "#withMake|#NoCode", msg: "Retired hashtag", fix: "#ad #Automation #SmallBusiness"}
+    - {id: ST-26, sev: BLOCK, re: "(?i)owned by michaelt", msg: "CR-053 retired", fix: "Remove"}
+  paid:
+    - {id: DC-09, sev: BLOCK, re: "\\bMake\\b|make\\.com|#withMake", msg: "'Make' in paid ad copy (Alex 2026-10-20 11:03 AM)", fix: "Remove brand name; button to pc=njere; Celonis written consent required"}
+  michaelt:
+    - {id: MT-01, sev: FIX, re: "lovable\\.app|\\binfo@", msg: "Lovable URL or info@ (MT-MKT-REF-001 §5)", fix: "michaeltenablement.com / alex@michaeltenable.com"}
+    - {id: MT-02, sev: FIX, re: "(?i)\\bcompliant\\b", msg: "'Compliant' claim", fix: "'designed around'"}
+    - {id: MT-03, sev: BLOCK, re: "(?i)talkdesk partner|odoo partner", msg: "Invented partnership for MichaelT", fix: "Remove"}
+    - {id: MT-04, sev: BLOCK, re: "(?i)\\bMedable\\b|\\bJane ?App\\b", msg: "Employer firewall", fix: "Remove"}
+    # MT-00 (internal benchmark name) is added from a private config only; never commit it to a public repo.
+  lakecity:
+    - {id: LC-01, sev: FIX, re: "/lakecity/|\\btemplate_id\\b", msg: "Odoo route / template ID in customer copy", fix: "Remove"}
+    - {id: LC-02, sev: FLAG, re: "(?i)\\b(completed|built|tarred|connected)\\b[^.]{0,40}\\b(road|water|sewer|electricity|clinic|school)", msg: "Planned ≠ built: confirm status wording", fix: "'in the approved master plan, delivered in phases'"}
+  hearthreel:
+    - {id: HR-01, sev: BLOCK, list_file: "legal/trademark-avoid-list.txt", msg: "Trademark/likeness avoid list hit", fix: "Rewrite with generic names"}
+    - {id: HR-01b, sev: BLOCK, re: "(?i)in the style of", msg: "Style-of reference", fix: "Remove"}
+    - {id: HR-07, sev: FIX, re: "(?i)only \\d+ left|\\bhurry\\b|ends (tonight|soon)|last chance|countdown", msg: "Dark pattern (§2.1.7)", fix: "Remove"}
+    - {id: HR-02, sev: FLAG, re: "(?i)\\b(election|parliament|president|prime minister|senator|referendum|protest|war)\\b", msg: "Political adjacency check (Compliance)", fix: "Rewrite backdrop"}

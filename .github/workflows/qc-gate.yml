@@ -1,0 +1,91 @@
+# DRAFT .github/workflows/qc-gate.yml (2026-10-21). Free: GITHUB_TOKEN only, no API keys, no paid actions.
+# Deterministic QC: banned-claims/phrase lint, required disclosures, secrets, links, OCR on changed images.
+# Posts one PASS / FIX / BLOCK comment per PR (updated in place) and uploads qc-verdict.json for the box log sync.
+# It never merges, deploys, publishes, posts or sends. Existing CI (build/tests) stays a separate required check.
+name: qc-gate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]          # Lovable commits land on main without a PR: post-hoc check before anyone publishes
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: qc-gate-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  QC_PACKS: ${{ vars.QC_PACKS || 'common,lakecity' }}   # LakeCity portal default; repo var QC_PACKS overrides if set
+jobs:
+  qc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT";
+          else echo "ref=${{ github.event.before || 'HEAD~1' }}" >> "$GITHUB_OUTPUT"; fi
+      - name: Lint (claims, disclosures, secrets)
+        run: |
+          pip install -q pyyaml==6.0.2
+          python3 .github/qc/qc_lint.py --config .github/qc/qc-lint.config.yml --packs "$QC_PACKS" \
+            --diff "${{ steps.base.outputs.ref }}" --json qc-verdict.json > qc-summary.md
+          cat qc-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: OCR changed images (CR-049 no URLs/CTAs in images)
+        run: |
+          imgs=$(git diff --name-only --diff-filter=AM "${{ steps.base.outputs.ref }}"...HEAD | grep -Ei '\.(png|jpe?g|webp)$' || true)
+          [ -z "$imgs" ] && exit 0
+          sudo apt-get -qq install -y tesseract-ocr >/dev/null
+          for f in $imgs; do
+            t=$(tesseract "$f" - 2>/dev/null | tr '\n' ' ')
+            if echo "$t" | grep -Eqi 'https?://|www\.|\.(com|tech|app)\b|book a call|link in bio|sign up'; then
+              echo "| OCR | FIX | CR-049 | \`$f\` | URL/CTA text inside image: \`$(echo "$t" | cut -c1-120)\` | Remove text from image |" >> qc-summary.md
+              python3 - "$f" <<'PY'
+          import json,sys; v=json.load(open("qc-verdict.json")); v["hits"].append({"id":"CR-049","sev":"FIX","file":sys.argv[1],"line":0,"msg":"URL/CTA text in image"})
+          v["verdict"]="BLOCK" if v["verdict"]=="BLOCK" else "FIX"; json.dump(v,open("qc-verdict.json","w"))
+          PY
+            fi
+          done
+      - name: Links in changed docs/posts
+        uses: lycheeverse/lychee-action@v2
+        continue-on-error: true
+        with:
+          args: --no-progress --max-retries 1 --timeout 10 './**/*.md' './posts/**'
+          fail: false
+          output: lychee.md
+      - name: Add metadata to verdict
+        env:   # untrusted PR fields via env only (no ${{ }} inside scripts)
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          v=json.load(open("qc-verdict.json"))
+          v.update(repo=os.environ["GITHUB_REPOSITORY"], sha=os.environ["GITHUB_SHA"][:7], event=os.environ["GITHUB_EVENT_NAME"],
+                   pr=os.environ.get("PR_NUMBER",""), title=os.environ.get("PR_TITLE","")[:120],
+                   author=os.environ.get("PR_AUTHOR",""), run_url=f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}')
+          json.dump(v,open("qc-verdict.json","w"),indent=1)
+          PY
+      - uses: actions/upload-artifact@v4
+        with: { name: qc-verdict, path: qc-verdict.json, retention-days: 30 }
+      - name: PR comment (single, updated in place)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = '<!-- qc-gate -->\n' + fs.readFileSync('qc-summary.md', 'utf8');
+            const {owner, repo} = context.repo; const issue_number = context.issue.number;
+            const cs = await github.paginate(github.rest.issues.listComments, {owner, repo, issue_number});
+            const mine = cs.find(c => c.body && c.body.startsWith('<!-- qc-gate -->'));
+            if (mine) await github.rest.issues.updateComment({owner, repo, comment_id: mine.id, body});
+            else await github.rest.issues.createComment({owner, repo, issue_number, body});
+      - name: Gate
+        run: |
+          v=$(python3 -c "import json;print(json.load(open('qc-verdict.json'))['verdict'])")
+          echo "verdict=$v"; [ "$v" = "PASS" ]   # FIX or BLOCK -> red check (blocks merge when branch protection requires qc-gate)

@@ -1,0 +1,25 @@
+---
+description: LakeCity entity copy rules (LC-MKT-POL-001 / LC-GOV-SOP-002). Used by REGIS-PIXEL as brand reviewer and LakeCity Assistant. Public repo: LakeCity pack only.
+globs: ["src/**/*.{ts,tsx,md}", "content/**", "website/**", "docs/marketing/**", "docs/**/*.md"]
+alwaysApply: false
+---
+<!-- Live 2026-10-22 in shadow mode: runs alongside the existing bot QC gates, which stay in force until this repo's gate has run green for one week. -->
+
+# QC: LakeCity (LC-MKT-POL-001 §1-§8; LC-GOV-SOP-002 §4)
+
+## A. Machine-checkable
+| ID | Rule | Check | Verdict |
+|---|---|---|---|
+| LC-01 | No Odoo routes / template IDs in customer copy | `/lakecity/` or `template_id` in text/links/alt | FIX |
+| LC-02 | Planned ≠ built | status verbs near infrastructure nouns without phase wording | FLAG |
+| LC-nums | Numbers need source + date | numbers (%, $, counts) in public copy without source/date | FIX (auto-FAIL) |
+| LC-sec | No secrets/tokens | secrets/tokens in copy | BLOCK |
+| LC-ids | No internal IDs in public copy | technical IDs, bot names, file paths, Odoo routes, template IDs in text/links/alt | FIX/BLOCK |
+| LC-cust | No customer PII in public copy | customer names/stands/balances; personal remittance payees | BLOCK |
+| LC-fee | No Tapestry fees / off-policy prices | Tapestry fees; prices not from LC-SAL-POL-002 | FIX |
+| LC-pay | Payment proof instruction | payment copy must include "email your proof of payment to admin@lakecity.co.zw" | FIX |
+| LC-lnk | Links work | broken links | FIX |
+
+## B. Judgement
+- "planned ≠ built" wording ("in the approved master plan, delivered in phases").
+- Estimates labelled "estimate, dated <month year>, not guaranteed".
