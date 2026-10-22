@@ -1,0 +1,36 @@
+---
+description: Website Ops evidence checks and engineering test gates for every site/app PR (njere.tech, velocity-os.app, LakeCity portal, michaeltenablement.com, systematic-review.app, HearthReel).
+globs: ["**/*"]
+alwaysApply: true
+---
+<!-- Live 2026-10-22 in shadow mode: runs alongside the existing bot QC gates, which stay in force until this repo's gate has run green for one week. -->
+
+# QC: Website Ops evidence + Engineer Bot test gates
+
+Sources: agent profile 24c7fc2b (Website Ops) · /home/box/njere/WEBSITE_OPS_HANDOFF.md · /home/box/njere/operating-pack/NJ-WEB-SOP-001_Website-Publishing-Gate-Blog-and-Book_v0.2.md §2-§5 ·
+/home/box/michaelt/ops-pack/MT-WEB-SOP-001_Website-Operations_v1.0.md §2-§4 · /workspace/site-audit/REGIS_WebsiteOps_R2026-10-17.md (evidence asked for) · /workspace/site-audit/inventory.md · /workspace/engineering/inventory.md ·
+SHARED_CORE 2026-10-17 10:45 PM (Engineer Bot lead; "automated + manual test gates") · HearthReel charter §14, §17 · LC-GOV-SOP-002 §2 (code reviewers) · repo AGENTS.md files.
+
+## A. Machine-checkable (qc-gate jobs `tests` + `evidence` + `site`)
+| ID | Rule | Check | Verdict |
+|---|---|---|---|
+| WO-01 | Build green | repo CI build job (existing ci.yml) succeeds | BLOCK |
+| WO-02 | Tests green | `test` script (vitest/pytest/Odoo TransactionCase/Playwright e2e where present) succeeds | BLOCK |
+| WO-03 | No secrets | gitleaks-style scan of the diff (private keys, `AIza…`, `sk_live_`, `ghp_`, `xox[bp]-`, credential assignments); any non-example `.env*` file added | BLOCK |
+| WO-04 | Before/after screenshots at 1280 and 375/390 px | PR body or `docs/pr-evidence/<pr>/` has ≥2 images per changed route, names include `1280` and `375|390` | FIX |
+| WO-05 | Changed routes listed | PR body section "Routes changed:" non-empty for UI diffs | FIX |
+| WO-06 | Bundle/source grep for locked strings | count of banned strings in `src/` + built `dist/` (e.g. Njere: "MichaelT" = 0, "sign off every AI" = 0) reported in the comment | FIX if >0 |
+| WO-07 | Links | lychee on changed pages/markdown: 0 broken; external 200; `http://` → https | FIX |
+| WO-08 | SEO/metadata | each public route has title + description in the metadata catalogue; canonical present; private paths noindex; sitemap excludes /tools, /client, auth paths (njyerezw AGENTS.md) | FIX |
+| WO-09 | Accessibility + mobile | axe-core on preview build at 390×844 and 1280×800: 0 serious/critical; contrast ≥4.5:1; tap targets ≥44 px; 0 horizontal scroll | FIX |
+| WO-10 | Performance (HearthReel DoD; others advisory) | Lighthouse mobile ≥90 | FIX (HR) / note |
+| WO-11 | Site-specific locks | MichaelT: no `lovable.app`, no `info@`, contact = alex@michaeltenable.com · +1 (778) 580 8657, no LakeCity branding · Njere: one CTA "Book a call" → https://njere.tech/book, no Calendly admin URL · SR: systematic-review.app only | FIX |
+| WO-12 | Post-deploy live check (after Alex's yes + publish) | workflow_dispatch/scheduled job: every changed URL 200 within 15 min, /book form + Calendly load, no 404 on /blog; logs commit SHA, deploy id, URLs, time PT | FIX (reported, not blocking merge) |
+| WO-13 | Lovable diff clean | evidence line "get_diff: only this change" in PR body (Lovable deploy publishes the whole site) | FIX |
+| WO-14 | Data safety (LakeCity, SR) | migrations touching RLS/schema, questionnaire_submissions, lead_briefs ⇒ FLAG + label `needs-alex` | FLAG |
+| WO-15 | TrackFit PRs | label `needs-thaba` added automatically (Thaba looped in before merge) | FLAG |
+
+## B. Judgement (Cursor agent / Bugbot)
+- Does the screenshot actually show the change, and nothing else moved? Visual regressions.
+- CRO/UX judgement, copy tone (route copy to REGIS-PIXEL/PIXEL/LakeCity packs).
+- Rollback note present for risky changes; Production/Staging branch mapping (Standledger: Staging first, Production needs Alex).

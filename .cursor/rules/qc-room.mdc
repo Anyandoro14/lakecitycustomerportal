@@ -1,0 +1,28 @@
+---
+description: Quality Check room enforcement (org-wide): intake, verdict format, reset rules, decision rights. Applies to every QC item in every repo and in qc-content.
+globs: ["**/*"]
+alwaysApply: true
+---
+<!-- Live 2026-10-22 in shadow mode: runs alongside the existing bot QC gates, which stay in force until this repo's gate has run green for one week. -->
+
+# QC: Quality Check room (enforce)
+
+Sources: /home/box/michaelt/ops-pack/HQ-GOV-REG-001_QC-Log_v1.0.md §1, §1a (draft Cursor amendment), §3 · /home/box/agent-data/agents/7581e92f-…/group.json (members: STATUTE, NJERE-REGIS-PIXEL, LEDGER, VERA, Linha, Legal) ·
+/home/box/lakecity/LC-GOV-SOP-002_Three-Bot-QC-Procedure_v1.1.md §1-§4 · /home/box/michaelt/ops-pack/MT-GOV-POL-001_Quality-Policy_v1.0.md · /home/box/njere/vera/{GATE.md,QA_CHECKLIST.md,TEST_MODE_ACCEPTANCE.md}.
+
+## A. Machine-checkable
+| ID | Rule | Check | Verdict |
+|---|---|---|---|
+| QC-01 | Intake complete | PR template / front matter has: QC-REQ · Entity · Item + version/PR/commit · Type (public copy / doc / code / money) · What changed · Sources · Open items · Risks · Gate rules (doc IDs) · Builder · Deadline (PT) | FIX |
+| QC-02 | Builder never reviews own work | PR author/builder ≠ any reviewer recorded; drafter recused (e.g. STATUTE on its own wording) | BLOCK |
+| QC-03 | Any edit after PASS resets all verdicts | verdict keyed to head SHA (code) or file sha256 (content); new SHA = fresh run; metadata-only edits still re-run but carry note | automatic |
+| QC-04 | Verdict format | `PASS | FIX | BLOCK · Version · Reviewer · Findings (numbered, evidence) · Severity (Blocker/Major/Minor) · Exact fix` | — |
+| QC-05 | Severity mapping | lint BLOCK → Blocker; FIX → Major (core) / Minor (style); FLAG → "judgement needed: <owner>". Log entries mapping High/Medium/Low ⇒ Blocker/Major/Minor | — |
+| QC-06 | Facts sourced | numbers (%, $, counts, durations) in public copy without a source note or TBC ⇒ FLAG (LC: auto-FAIL) | FLAG/FIX |
+| QC-07 | Decision rights never automated | workflows never merge, deploy, publish, post, send, spend or change prices; any job with `deploy|publish|post` on PR events ⇒ BLOCK the workflow change itself | BLOCK |
+| QC-08 | Cursor scripts | dry-run + test-mode logs exist before `--live` (VERA §D) | BLOCK |
+| QC-09 | Routing | Cursor-clean items with no FLAG need only the one relevant gate bot's PASS (§1a draft); FIX/BLOCK/FLAG go to Linha | — |
+
+## B. Judgement
+- Gate conflicts and rule exceptions → Alex. Disputes between gates → Alex.
+- Specialist pull-in (LEDGER for money, VERA for releases, CostGuard for spend, HearthReel Compliance/Legal).
