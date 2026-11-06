@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Product working brief
+
+Read and follow [`CURSOR_ASSISTANT_PROMPT.md`](./CURSOR_ASSISTANT_PROMPT.md) for all product, UI, auth, payments, and Edge Function work. Treat that file as the project system prompt: LakeCity identity, stack, Google Sheet source of truth, architecture rules, current Paynow/auth state, and what to avoid.
+
+When it conflicts with older assumptions, prefer `CURSOR_ASSISTANT_PROMPT.md`, except:
+
+- This repo still contains optional Odoo addons under `odoo/addons/` that deploy on Odoo.sh. Do not add new Odoo dependencies unless explicitly asked.
+- Cloud Agent environment and local-stack instructions in this file still apply.
+
 ## Cursor Cloud specific instructions
 
 ### Product overview
