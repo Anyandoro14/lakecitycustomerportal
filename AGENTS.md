@@ -38,3 +38,7 @@ Use `fuse-overlayfs` storage driver and `iptables-legacy` when running Docker in
 ### Cloud Supabase fallback
 
 Without Docker, `npm run dev` still serves the UI using the publishable anon key and URL baked into `vite.config.ts` (hosted project). Dashboard flows that need Edge Functions require either local `test:env:serve-functions` or deployed functions on that project.
+
+### Commercial / team Cloud Agents
+
+Repo config for shared agents lives in `.cursor/environment.json` (`npm ci` on boot). For Teams upgrade, GitHub integration, team snapshots, secrets, Automations, and Bugbot, follow `docs/CURSOR_COMMERCIAL_AGENT_DEPLOYMENT.md`.
