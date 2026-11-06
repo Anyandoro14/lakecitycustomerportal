@@ -1,4 +1,10 @@
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
+// Edge functions in this repo pin different @supabase/supabase-js versions
+// (2, 2.47.10, 2.49.4). Each esm.sh version is a distinct module, so the named
+// SupabaseClient type from one is not assignable to another's. Keep this loose:
+// a structural query-builder shape makes Deno's type checker recurse too deep.
+export type PortalEnrollmentClient = {
+  from: (...args: any[]) => any;
+};
 
 export const PORTAL_NOT_ENROLLED_MESSAGE =
   "This stand is not yet enrolled on the Customer Portal. Please contact LakeCity.";
@@ -9,7 +15,7 @@ export function normalizeStandNumber(stand: string): string {
 
 /** Default tenant when JWT / request does not carry tenant_id (Lakecity production). */
 export async function resolveDefaultTenantId(
-  supabase: SupabaseClient,
+  supabase: PortalEnrollmentClient,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("tenants")
@@ -25,7 +31,7 @@ export async function resolveDefaultTenantId(
 }
 
 export async function resolveTenantId(
-  supabase: SupabaseClient,
+  supabase: PortalEnrollmentClient,
   tenantId?: string | null,
 ): Promise<string | null> {
   if (tenantId) return tenantId;
@@ -37,7 +43,7 @@ export type PortalEnrollmentResult =
   | { enrolled: false; message: string };
 
 export async function checkStandPortalEnrolled(
-  supabase: SupabaseClient,
+  supabase: PortalEnrollmentClient,
   tenantId: string | null | undefined,
   standNumber: string,
 ): Promise<PortalEnrollmentResult> {

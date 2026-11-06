@@ -71,7 +71,8 @@ describe("identify hashing", () => {
     expect(distinct).toHaveLength(64);
     expect(distinct).not.toBe("internal-user-42");
     expect(posthog.identify).toHaveBeenCalledWith(distinct);
-    expect(posthog.identify.mock.calls[0][0]).not.toContain("internal-user");
+    const identifyMock = posthog.identify as unknown as ReturnType<typeof vi.fn>;
+    expect(identifyMock.mock.calls[0][0]).not.toContain("internal-user");
   });
 });
 
