@@ -277,7 +277,13 @@ Deno.serve(async (req) => {
     }
 
     // Provision each stand
-    const results: { standNumber: string; email: string; status: string; error?: string }[] = [];
+    const results: {
+      standNumber: string;
+      email: string;
+      status: string;
+      error?: string;
+      bypassCode?: string;
+    }[] = [];
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     for (const stand of toProvision) {
