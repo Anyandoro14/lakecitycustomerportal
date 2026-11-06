@@ -1,16 +1,9 @@
 // Edge functions in this repo pin different @supabase/supabase-js versions
 // (2, 2.47.10, 2.49.4). Each esm.sh version is a distinct module, so the named
-// SupabaseClient type from one is not assignable to another's. Describe only the
-// query chain this helper actually runs, so any version's client satisfies it.
-type QueryResult = { data: any; error: { message: string } | null };
-
-type QueryBuilder = {
-  eq(column: string, value: unknown): QueryBuilder;
-  maybeSingle(): Promise<QueryResult>;
-};
-
+// SupabaseClient type from one is not assignable to another's. Keep this loose:
+// a structural query-builder shape makes Deno's type checker recurse too deep.
 export type PortalEnrollmentClient = {
-  from(table: string): { select(columns: string): QueryBuilder };
+  from: (...args: any[]) => any;
 };
 
 export const PORTAL_NOT_ENROLLED_MESSAGE =
