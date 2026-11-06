@@ -22,7 +22,7 @@ export function normalizeStandNumber(stand: string): string {
 
 /** Default tenant when JWT / request does not carry tenant_id (Lakecity production). */
 export async function resolveDefaultTenantId(
-  supabase: SupabaseClient,
+  supabase: PortalEnrollmentClient,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("tenants")
@@ -38,7 +38,7 @@ export async function resolveDefaultTenantId(
 }
 
 export async function resolveTenantId(
-  supabase: SupabaseClient,
+  supabase: PortalEnrollmentClient,
   tenantId?: string | null,
 ): Promise<string | null> {
   if (tenantId) return tenantId;
@@ -50,7 +50,7 @@ export type PortalEnrollmentResult =
   | { enrolled: false; message: string };
 
 export async function checkStandPortalEnrolled(
-  supabase: SupabaseClient,
+  supabase: PortalEnrollmentClient,
   tenantId: string | null | undefined,
   standNumber: string,
 ): Promise<PortalEnrollmentResult> {
