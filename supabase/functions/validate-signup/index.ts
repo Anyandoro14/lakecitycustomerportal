@@ -6,7 +6,8 @@ import {
   parseCollectionScheduleTabMonths,
   DEFAULT_PAYMENT_PLAN_MONTHS,
 } from "../_shared/collection-schedule-sheets.ts";
-import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
+import { checkStandPortalEnrolled, resolveTenantId } from "../_shared/portal-enrollment.ts";
+import { ensureStandContractFromSchedule, enrolViaOdooThenRecheck } from "../_shared/odoo-ensure-contract.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -307,7 +308,20 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const portalCheck = await checkStandPortalEnrolled(supabaseAdmin, tenantId, trimmedStand);
+    let portalCheck = await checkStandPortalEnrolled(supabaseAdmin, tenantId, trimmedStand);
+    if (!portalCheck.enrolled) {
+      // Account creation: ask Odoo to build the loan contract from the stand's
+      // 36mo/48mo Collection Schedule row (phone must match), then re-check.
+      const tid = await resolveTenantId(supabaseAdmin, tenantId);
+      if (tid) {
+        const { enrolled, ensure } = await enrolViaOdooThenRecheck(
+          () => ensureStandContractFromSchedule(supabaseAdmin, tid, trimmedStand, trimmedPhone),
+          async () => (await checkStandPortalEnrolled(supabaseAdmin, tid, trimmedStand)).enrolled,
+        );
+        console.log(`Odoo ensure-from-schedule stand=${trimmedStand} outcome=${ensure.outcome} enrolled=${enrolled}`);
+        if (enrolled) portalCheck = { enrolled: true };
+      }
+    }
     if (!portalCheck.enrolled) {
       return new Response(
         JSON.stringify({ valid: false, error: portalCheck.message }),
