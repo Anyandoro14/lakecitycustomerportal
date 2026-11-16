@@ -1,4 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { normalizePhoneE164 } from "../_shared/phone.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import {
@@ -354,9 +355,9 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (phoneIndex !== -1) {
       // Normalize phone numbers for comparison
-      const normalizePhone = (phone: string): string => {
-        return phone.replace(/[\s\-\(\)]/g, '').replace(/^0/, '+263');
-      };
+      // Strips apostrophes and other stray characters (sheet text markers).
+      const normalizePhone = (phone: string): string =>
+        normalizePhoneE164(phone) ?? phone.replace(/[^\d+]/g, '');
 
       const sheetPhone = customerRow[phoneIndex]?.toString().trim() || '';
       
