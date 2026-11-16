@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
+import { normalizePhoneE164 } from "../_shared/phone.ts";
 
 const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
 const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -68,7 +69,15 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const trimmedStand = standNumber.trim();
-    const trimmedPhone = phoneNumber.trim();
+    // Clean stray characters (e.g. a leading apostrophe from the sheet) before
+    // anything is stored or sent to Twilio Verify.
+    const trimmedPhone = normalizePhoneE164(phoneNumber) ?? "";
+    if (!trimmedPhone) {
+      return new Response(
+        JSON.stringify({ success: false, error: "The phone number on file is not valid. Please contact support." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
     const planMonths =
       typeof paymentPlanMonths === "number" && paymentPlanMonths > 0
         ? Math.round(paymentPlanMonths)
@@ -176,6 +185,19 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Check the verification service before creating anything, so a missing
+    // config never leaves a half-made account behind.
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
+      console.error("Twilio credentials not configured");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Verification service not configured. Please contact support." 
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Create Supabase Auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: authEmail,
@@ -217,16 +239,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send WhatsApp 2FA code via Twilio Verify
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
-      console.error("Twilio credentials not configured");
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Verification service not configured. Please contact support." 
-        }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
 
     const twilioUrl = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/Verifications`;
     let deliveryChannel = 'whatsapp';
@@ -268,15 +280,21 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (!twilioResponse.ok) {
         console.error('SMS also failed:', twilioData);
-        // Don't delete the user, they can request a new code
+        // Roll back so the customer is not left with a half-made account that
+        // blocks a retry ("An account already exists for this stand number").
+        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        if (deleteError) {
+          console.error('Rollback of auth user failed:', deleteError);
+        } else {
+          await supabaseAdmin.from('profiles').delete().eq('id', userId);
+        }
         return new Response(
           JSON.stringify({ 
-            success: true, 
-            userId: userId,
+            success: false, 
             verificationSent: false,
-            error: "Account created but failed to send verification code. Please try logging in."
+            error: "We could not send your verification code, so no account was created. Please check your phone number and try again, or contact support."
           }),
-          { status: 201, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          { status: 502, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       }
     }
