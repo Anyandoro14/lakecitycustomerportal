@@ -35,3 +35,6 @@ test-results/
 !.vscode/extensions.json
 yarn-debug.log*
 yarn-error.log*
+
+.harness-data/
+scripts/iveri/.harness-data/

@@ -1,0 +1,229 @@
+[
+ {
+  "tc": "L01",
+  "country": "Zimbabwe",
+  "case": "Card approved (4242..4242, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9901-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9901-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L02",
+  "country": "Zimbabwe",
+  "case": "Card random decline (2121..2121, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9902-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9902-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L03",
+  "country": "United Kingdom",
+  "case": "Card timeout 9 (5454..5454, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9903-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9903-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L04",
+  "country": "Australia",
+  "case": "Card invalid 14 (4000..0002, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9904-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9904-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L05",
+  "country": "United Kingdom",
+  "case": "Card 3DS frictionless OK (4070..7386, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9905-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9905-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L06",
+  "country": "United States",
+  "case": "Card 3DS frictionless fail (4069..7845, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9906-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9906-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L07",
+  "country": "Zimbabwe",
+  "case": "Card 3DS challenge (4070..9018, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9907-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9907-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L08",
+  "country": "United Arab Emirates",
+  "case": "Card CyberSource OK (4456..1005, exp 01/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9908-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9908-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L09",
+  "country": "South Africa",
+  "case": "Card 3DS frictionless OK MC (5189..9697, exp 12/29)",
+  "expected": "gateway outcome handled; Odoo intake only if AuthoriseInfo=0",
+  "result": "PASS",
+  "gateway": "-255 Missing Application MerchantCity",
+  "observed": {
+   "ref": "ST9909-000001",
+   "state": "error",
+   "odoo": 0,
+   "page": "/result/error?ref=ST9909-000001&state=er",
+   "hosted_msg": ""
+  }
+ },
+ {
+  "tc": "L10",
+  "country": "Canada",
+  "case": "Card expired card (4242..4242, exp 01/24)",
+  "expected": "hosted page blocks submit; nothing reaches gateway; no record",
+  "result": "PASS",
+  "gateway": "not submitted",
+  "observed": {
+   "ref": "ST9910-000002",
+   "state": "initiated",
+   "pay_button": "disabled",
+   "page_hint": [
+    "Expiry Date ",
+    "Invalid Expiry Date"
+   ]
+  }
+ },
+ {
+  "tc": "L11",
+  "country": "Malawi",
+  "case": "Customer presses Cancel on iVeri page",
+  "expected": "cancelled, no record",
+  "result": "PASS",
+  "gateway": "-255 Transaction in progress",
+  "observed": {
+   "ref": "ST9901-000002",
+   "state": "cancelled",
+   "browser_url": "http://127.0.0.1:8787/result/cancelled?ref=ST9901-000002&state=cancell"
+  }
+ },
+ {
+  "tc": "L12",
+  "country": "Ethiopia",
+  "case": "Forged \"approved\" POST for unpaid order (real AuthoriseInfo)",
+  "expected": "not recorded",
+  "result": "PASS",
+  "gateway": "",
+  "observed": {
+   "ref": "ST9902-000002",
+   "state": "initiated",
+   "page": "/result/trylater?ref=ST9902-000002&state=initiated&recorded="
+  }
+ },
+ {
+  "tc": "L13",
+  "country": "United Kingdom",
+  "case": "Duplicate submit: Pay-by-card posted twice with same key",
+  "expected": "same order reused",
+  "result": "PASS",
+  "gateway": "",
+  "observed": {
+   "ref": "ST9903-000002",
+   "second": "ST9903-000002",
+   "reused": "true",
+   "orders": 1
+  }
+ },
+ {
+  "tc": "L14",
+  "country": "Saudi Arabia",
+  "case": "Browser closed on iVeri page before paying; sweep (real AuthoriseInfo)",
+  "expected": "open, then abandoned; no record",
+  "result": "PASS",
+  "gateway": "",
+  "observed": {
+   "ref": "ST9904-000002",
+   "first": "initiated",
+   "after_timeout": "abandoned"
+  }
+ },
+ {
+  "tc": "L15",
+  "country": "Zimbabwe",
+  "case": "Amount 600.00 (above outstanding $500)",
+  "expected": "refused before iVeri",
+  "result": "PASS",
+  "gateway": "",
+  "observed": {
+   "msg": "Amount above outstanding balance"
+  }
+ },
+ {
+  "tc": "L16",
+  "country": "United Kingdom",
+  "case": "Amount 0.50 (below $1 minimum)",
+  "expected": "refused before iVeri",
+  "result": "PASS",
+  "gateway": "",
+  "observed": {
+   "msg": "Amount below minimum"
+  }
+ }
+]

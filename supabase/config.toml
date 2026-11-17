@@ -126,3 +126,12 @@ verify_jwt = false
 [functions.paynow-status]
 verify_jwt = true
 
+
+[functions.iveri-init]
+verify_jwt = true
+
+[functions.iveri-return]
+verify_jwt = false
+
+[functions.iveri-sweep]
+verify_jwt = false

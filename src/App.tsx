@@ -65,6 +65,7 @@ const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const Pay = lazy(() => import("./pages/Pay"));
 const PayReturn = lazy(() => import("./pages/PayReturn"));
+const PayCardResult = lazy(() => import("./pages/PayCardResult"));
 
 const queryClient = new QueryClient();
 
@@ -101,6 +102,7 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/pay" element={<Pay />} />
                   <Route path="/pay/return" element={<PayReturn />} />
+                  <Route path="/pay/card/:result" element={<PayCardResult />} />
                   <Route path="/monthly-statements" element={<MonthlyStatements />} />
                   <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
                   <Route path="/reporting" element={<Reporting />} />

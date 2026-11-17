@@ -1,0 +1,122 @@
+[
+ {
+  "rank": 1,
+  "country": "Zimbabwe",
+  "dial": "+263",
+  "sample_city": "Harare",
+  "test": {
+   "name": "Tendai Test Moyo",
+   "phone": "+263771234567",
+   "email": "tendai.moyo@example.com",
+   "address": "123 Example Street, Borrowdale, Harare, Zimbabwe"
+  }
+ },
+ {
+  "rank": 2,
+  "country": "United Kingdom",
+  "dial": "+44",
+  "sample_city": "No single dominant city (London, Nottingham, West Midlands, Wakefield, Chester and others)",
+  "test": {
+   "name": "James Test Ncube",
+   "phone": "+447700900123",
+   "email": "james.ncube@example.com",
+   "address": "100 Example Road, London, SW1A 1AA, United Kingdom"
+  }
+ },
+ {
+  "rank": 3,
+  "country": "Australia",
+  "dial": "+61",
+  "sample_city": "Baldivis, WA / Lucas, VIC",
+  "test": {
+   "name": "Sarah Test Chikomo",
+   "phone": "+61491570156",
+   "email": "sarah.chikomo@example.com",
+   "address": "15 Example Street, Richmond, VIC 3121, Australia"
+  }
+ },
+ {
+  "rank": 4,
+  "country": "United States",
+  "dial": "+1",
+  "sample_city": "Fairbanks, AK / Aubrey, TX",
+  "test": {
+   "name": "Michael Test Banda",
+   "phone": "+12025550123",
+   "email": "michael.banda@example.com",
+   "address": "1600 Example Avenue NW, Washington, DC 20001, United States"
+  }
+ },
+ {
+  "rank": 5,
+  "country": "United Arab Emirates",
+  "dial": "+971",
+  "sample_city": "No UAE city on file (ZW home addresses listed)",
+  "test": {
+   "name": "Rudo Test Chirwa",
+   "phone": "+971501234567",
+   "email": "rudo.chirwa@example.com",
+   "address": "Apartment 12, Example Tower, Business Bay, Dubai, United Arab Emirates"
+  }
+ },
+ {
+  "rank": 6,
+  "country": "South Africa",
+  "dial": "+27",
+  "sample_city": "No reliable SA city on file (one garbled complex address)",
+  "test": {
+   "name": "Thabo Test Dlamini",
+   "phone": "+27821234567",
+   "email": "thabo.dlamini@example.com",
+   "address": "10 Example Avenue, Sandton, Johannesburg, 2196, South Africa"
+  }
+ },
+ {
+  "rank": 7,
+  "country": "Canada",
+  "dial": "+1",
+  "sample_city": "Innisfil / Brantford, Ontario",
+  "test": {
+   "name": "Grace Test Mutasa",
+   "phone": "+14165550101",
+   "email": "grace.mutasa@example.com",
+   "address": "100 Example Street, Toronto, ON M5V 2T6, Canada"
+  }
+ },
+ {
+  "rank": 8,
+  "country": "Malawi",
+  "dial": "+265",
+  "sample_city": "Blantyre",
+  "test": {
+   "name": "Chisomo Test Banda",
+   "phone": "+265991234567",
+   "email": "chisomo.banda@example.com",
+   "address": "Plot 12, Example Road, Namiwawa, Blantyre, Malawi"
+  }
+ },
+ {
+  "rank": 9,
+  "country": "Ethiopia",
+  "dial": "+251",
+  "sample_city": "No Ethiopian city on file (ZW address: Glendale)",
+  "test": {
+   "name": "Hanna Test Bekele",
+   "phone": "+251911234567",
+   "email": "hanna.bekele@example.com",
+   "address": "Bole Road, Example Building, Addis Ababa, Ethiopia"
+  }
+ },
+ {
+  "rank": 10,
+  "country": "Saudi Arabia",
+  "dial": "+966",
+  "sample_city": "No Saudi city on file (ZW address: Harare)",
+  "test": {
+   "name": "Farai Test Nyathi",
+   "phone": "+966501234567",
+   "email": "farai.nyathi@example.com",
+   "address": "123 Example Street, Al Olaya, Riyadh, 12211, Saudi Arabia"
+  }
+ }
+]

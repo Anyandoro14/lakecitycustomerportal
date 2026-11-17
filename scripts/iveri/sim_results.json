@@ -1,0 +1,250 @@
+[
+ {
+  "tc": "S01",
+  "country": "Zimbabwe",
+  "kase": "Approved non-3DS",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S02",
+  "country": "Zimbabwe",
+  "kase": "Random decline: hot card (3)",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S03",
+  "country": "United Kingdom",
+  "kase": "Random decline: denied (4)",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S04",
+  "country": "Zimbabwe",
+  "kase": "Random: call for approval (5, try later)",
+  "expected": "trylater, no Odoo record",
+  "got": "trylater / page trylater / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S05",
+  "country": "United Kingdom",
+  "kase": "Timeout (9, try later)",
+  "expected": "trylater, no Odoo record",
+  "got": "trylater / page trylater / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S06",
+  "country": "Australia",
+  "kase": "Invalid card (14)",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S07",
+  "country": "United States",
+  "kase": "Expired card (Invalid Expiry Date)",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S08",
+  "country": "Zimbabwe",
+  "kase": "3DS2 frictionless OK, Bankserv Visa",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S09",
+  "country": "United Kingdom",
+  "kase": "3DS2 frictionless OK, Bankserv MC",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S10",
+  "country": "United Arab Emirates",
+  "kase": "3DS2 frictionless fail, Bankserv Visa",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S11",
+  "country": "South Africa",
+  "kase": "3DS2 frictionless fail, Bankserv MC",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S12",
+  "country": "Zimbabwe",
+  "kase": "3DS2 challenge passed, Bankserv Visa",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S13",
+  "country": "Canada",
+  "kase": "3DS2 challenge passed, Bankserv MC",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S14",
+  "country": "United Kingdom",
+  "kase": "CyberSource 3DS2 OK, Visa",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S15",
+  "country": "Malawi",
+  "kase": "CyberSource 3DS2 OK, MC",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S16",
+  "country": "Ethiopia",
+  "kase": "CyberSource 3DS2 fail",
+  "expected": "declined, no Odoo record",
+  "got": "declined / page declined / intakes 0",
+  "result": "PASS"
+ },
+ {
+  "tc": "S17",
+  "country": "Saudi Arabia",
+  "kase": "CyberSource step-up passed",
+  "expected": "approved_pending_recon + 1 Odoo intake pending_qc",
+  "got": "approved_pending_recon / page approved / intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S18",
+  "country": "Zimbabwe",
+  "kase": "Replayed approved return (x2, one with tampered amount)",
+  "expected": "no 2nd record",
+  "got": "intakes 1; already settled",
+  "result": "PASS"
+ },
+ {
+  "tc": "S19",
+  "country": "United Kingdom",
+  "kase": "Forged 'approved' POST, no gateway transaction",
+  "expected": "not recorded",
+  "got": "initiated; approval not confirmed by AuthoriseInfo",
+  "result": "PASS"
+ },
+ {
+  "tc": "S20",
+  "country": "Zimbabwe",
+  "kase": "Declined card, return POST edited to status 0",
+  "expected": "declined (AuthoriseInfo wins)",
+  "got": "declined",
+  "result": "PASS"
+ },
+ {
+  "tc": "S21",
+  "country": "United Kingdom",
+  "kase": "Tampered amount ($250 -> $1 in browser form)",
+  "expected": "amount_mismatch, human queue, no Odoo record",
+  "got": "amount_mismatch amount_mismatch",
+  "result": "PASS"
+ },
+ {
+  "tc": "S22",
+  "country": "Australia",
+  "kase": "Return with wrong nonce (gateway says approved)",
+  "expected": "recorded but flagged nonce_mismatch",
+  "got": "approved_pending_recon flags=nonce_mismatch",
+  "result": "PASS"
+ },
+ {
+  "tc": "S23",
+  "country": "Zimbabwe",
+  "kase": "Duplicate submit (double-click, 2 concurrent returns, re-init after paid)",
+  "expected": "1 order, 1 Odoo record, re-init refused",
+  "got": "orders 1, intakes 1, reinit: Order ST9901-000001 already approved_pen",
+  "result": "PASS"
+ },
+ {
+  "tc": "S24",
+  "country": "United States",
+  "kase": "Browser closed after paying; sweep",
+  "expected": "sweep records approval once",
+  "got": "approved_pending_recon {\"approved_pending_recon\":1}",
+  "result": "PASS"
+ },
+ {
+  "tc": "S25",
+  "country": "United Arab Emirates",
+  "kase": "Browser closed before paying; sweep",
+  "expected": "open, then abandoned after timeout",
+  "got": "initiated -> abandoned",
+  "result": "PASS"
+ },
+ {
+  "tc": "S26",
+  "country": "South Africa",
+  "kase": "Odoo Staging down at approval; sweep retry",
+  "expected": "1 intake after retry",
+  "got": "intakes 1",
+  "result": "PASS"
+ },
+ {
+  "tc": "S27",
+  "country": "Canada",
+  "kase": "Customer presses Cancel on iVeri page",
+  "expected": "cancelled page",
+  "got": "cancelled",
+  "result": "PASS"
+ },
+ {
+  "tc": "S28",
+  "country": "Malawi",
+  "kase": "Amount above balance / below $1 min / 3 decimals / negative",
+  "expected": "all refused server-side",
+  "got": "Amount above outstanding balance; Amount below minimum; Invalid amount; Invalid amount",
+  "result": "PASS"
+ },
+ {
+  "tc": "S29",
+  "country": "Zimbabwe",
+  "kase": "SHA256 Lite_Transaction_Token matches spec",
+  "expected": "time:sha256(secret+time+/Lite/Authorise.aspx+{APPID}+cents+email)",
+  "got": "match",
+  "result": "PASS"
+ },
+ {
+  "tc": "S30",
+  "country": "Ethiopia",
+  "kase": "Live mode lock + Production Odoo refused",
+  "expected": "both refused",
+  "got": "iVeri live mode is locked (IVERI_LIVE_ENABLED != yes) | Refusing non-Staging Odoo target for iVeri pending payments",
+  "result": "PASS"
+ },
+ {
+  "tc": "S31",
+  "country": "Saudi Arabia",
+  "kase": "Reference format ST<stand>-<seq>",
+  "expected": "ST3099-000123",
+  "got": "ST3099-000123",
+  "result": "PASS"
+ }
+]

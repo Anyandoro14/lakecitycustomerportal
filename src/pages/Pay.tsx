@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, Loader2, Landmark, Globe2 } from "lucide-react";
 import CustomerHeader from "@/components/CustomerHeader";
 import BottomNav from "@/components/BottomNav";
+import PayByCardButton from "@/components/PayByCardButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
@@ -112,6 +113,13 @@ const Pay = () => {
              <span className="font-medium text-foreground">{stand ? formatUsd(stand.monthlyPayment) : "—"}</span>
           </div>
         </Card>
+
+        {stand && (
+          <section className="space-y-3" aria-labelledby="card-payment">
+            <h2 id="card-payment" className="text-lg font-semibold text-foreground">Pay by card</h2>
+            <PayByCardButton standNumber={stand.standNumber} amountDue={Number(stand.monthlyPayment) || 0} />
+          </section>
+        )}
 
         <section className="space-y-4" aria-labelledby="online-payment">
           <div>
