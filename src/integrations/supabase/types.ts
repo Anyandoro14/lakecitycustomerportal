@@ -1379,6 +1379,7 @@ export type Database = {
       is_internal_user: { Args: { _user_id: string }; Returns: boolean }
       is_override_approver: { Args: { _user_id: string }; Returns: boolean }
       jwt_tenant_id: { Args: never; Returns: string }
+      vault_read_secret: { Args: { secret_name: string }; Returns: string }
     }
     Enums: {
       conversation_status:
