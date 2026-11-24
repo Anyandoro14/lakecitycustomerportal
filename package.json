@@ -43,6 +43,8 @@
     "logs:gh:failed": "bash scripts/npm_logs_gh.sh failed"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
     "@hookform/resolvers": "^3.10.0",
     "@lovable.dev/cloud-auth-js": "^1.1.1",
     "@lovable.dev/mcp-js": "^0.22.2",
