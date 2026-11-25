@@ -118,8 +118,9 @@ Smallest stand 1,200 m² (USD 54,000), largest 3,288 m² (USD 147,960).
    * **Idempotent:** `payment_events` records each reference once and a repeat returns the recorded outcome
      (so a racing second return can never report "approved" for a payment that wasn't applied). Only applied or
      held-for-check attempts are final; a missing status (buyer still on the card page, cancel) is never stored,
-     and declined attempts are re-checked, so a late approval for a trace is never lost. Attempts with no result
-     after 30 minutes appear under **Payments needing attention**.
+     and declined attempts are re-checked (by "Check payment status" and the return handler alike), so a late
+     approval for a trace is never lost. Attempts not approved after 30 minutes appear under **Payments needing
+     attention**. While a buyer has an approved-but-unapplied payment, new card attempts are refused (409).
    * An approved payment that can't be applied (stand already sold, lead already paid, wrong amount) is **recorded**
      as `unmatched`/`rejected` with a reason, nothing else changes, the buyer is told LakeCity Accounts will contact
      them, and staff see it under **Payments needing attention** on `/internal` (refund route OI-TBC-25).

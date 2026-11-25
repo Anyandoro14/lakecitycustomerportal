@@ -365,6 +365,14 @@ describe("iVeri return handler (mocked gateway)", () => {
     expect(s.emails).toBe(0);
   });
 
+  it("only applied and approved-but-held attempts are settled; every other status is re-checked", () => {
+    expect(isSettled({ status: "approved", cardStatus: 0 })).toBe(true);
+    expect(isSettled({ status: "error", cardStatus: 0 })).toBe(true);
+    for (const [status, cardStatus] of [["started", null], ["pending", null], ["declined", 4], ["retry_later", 9], ["cancelled", null], ["error", 99]] as const) {
+      expect(isSettled({ status, cardStatus })).toBe(false);
+    }
+  });
+
   it("stored results: approved stays approved, approved-but-unmatched stays 'needs check'", () => {
     expect(storedResult({ status: "approved", cardStatus: 0 }).result).toBe("approved");
     expect(storedResult({ status: "error", cardStatus: 0 }).title).toBe("We need to check this payment");

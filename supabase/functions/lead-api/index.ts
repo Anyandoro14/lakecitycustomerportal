@@ -2,7 +2,7 @@
 
 import { CAMPAIGN, paymentDueNowCents } from "../_shared/domain/campaign.ts";
 import { DuplicateStandRecordError, createMockIntegrations, matchesPortalCredentials, prepopulatePortalRecords } from "../_shared/domain/integrations.ts";
-import { buildLiteForm, newMerchantReference, storedResult, type PaymentAttempt } from "../_shared/domain/iveri.ts";
+import { NEEDS_CHECK, buildLiteForm, isSettled, newMerchantReference, storedResult, type PaymentAttempt } from "../_shared/domain/iveri.ts";
 import { normaliseOffer, validateOfferForm } from "../_shared/domain/offer-form.ts";
 import { rowToLead, toCustomerLead } from "../_shared/domain/rows.ts";
 import type { OfferSubmission } from "../_shared/domain/types.ts";
@@ -13,12 +13,10 @@ import { dbFailure, getAttempt, iveriConfig, iveriDeps, latestAttempt, processIv
 
 const now = () => new Date().toISOString();
 
-/** Re-checks AuthoriseInfo while the outcome is open; otherwise returns the stored result. */
-async function resultFor(attempt: PaymentAttempt, kind?: string) {
-  if (attempt.status === "started" || attempt.status === "pending") {
-    return processIveriReturn(iveriDeps(iveriConfig()), { reference: attempt.reference, kind });
-  }
-  return { ...storedResult(attempt, kind), leadId: attempt.leadId, reference: attempt.reference, applied: null };
+/** Settled attempts return their stored result; every other attempt is re-checked with AuthoriseInfo. */
+function resultFor(attempt: PaymentAttempt, kind?: string) {
+  if (isSettled(attempt)) return { ...storedResult(attempt, kind), leadId: attempt.leadId, reference: attempt.reference, applied: null };
+  return processIveriReturn(iveriDeps(iveriConfig()), { reference: attempt.reference, kind });
 }
 
 serve(async (req) => {
@@ -46,6 +44,9 @@ serve(async (req) => {
       if (!lead.offer) throw new HttpError(409, "Complete the offer form first.");
       if (lead.stage !== "form_filled") throw new HttpError(409, "This application has already been paid.");
       if (stand.status !== "available") throw new HttpError(409, "Sorry, this stand is no longer available.");
+      const { data: held, error: heldError } = await adminClient().from("payment_attempts").select("reference").eq("lead_id", lead.id).eq("status", "error").eq("card_status", 0).limit(1);
+      if (heldError) throw dbFailure("payment_attempts held", heldError);
+      if (held?.length) throw new HttpError(409, NEEDS_CHECK.message);
       const config = iveriConfig();
       const reference = newMerchantReference(lead.standNumber);
       const amountCents = paymentDueNowCents();

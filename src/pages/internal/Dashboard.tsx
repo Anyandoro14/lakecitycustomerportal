@@ -98,8 +98,8 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
               <AlertTriangle className="h-5 w-5 text-amber-600" /> Payments needing attention ({issues.length})
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Approved card payments that could not be applied (for example the stand was already sold), and attempts with no
-              result from iVeri after 30 minutes. Nothing changed in inventory. Check them in iVeri BackOffice; refunds are
+              Approved card payments that could not be applied (for example the stand was already sold), and attempts not
+              approved after 30 minutes (re-checked with iVeri whenever the buyer checks again). Nothing changed in inventory. Check them in iVeri BackOffice; refunds are
               handled by LakeCity Accounts (OI-TBC-25).
             </p>
           </CardHeader>

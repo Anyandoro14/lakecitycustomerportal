@@ -10,7 +10,7 @@ import { CAMPAIGN, paymentDueNowCents } from "@shared/domain/campaign.ts";
 import { EMAIL_ATTACHMENTS, buildEmailProps, emailSubject, type EmailTemplateKey } from "@shared/domain/emails.ts";
 import { DuplicateStandRecordError, createMockIntegrations, matchesPortalCredentials, prepopulatePortalRecords } from "@shared/domain/integrations.ts";
 import { handlePaymentConfirmed } from "@shared/domain/payment-events.ts";
-import { isSettled, newMerchantReference, processIveriReturn, type ApplyPaymentInput, type PaymentAttempt } from "@shared/domain/iveri.ts";
+import { NEEDS_CHECK, isSettled, newMerchantReference, processIveriReturn, type ApplyPaymentInput, type PaymentAttempt } from "@shared/domain/iveri.ts";
 import { normaliseOffer, validateOfferForm } from "@shared/domain/offer-form.ts";
 import { validateContact } from "@shared/domain/contact.ts";
 import type { Backend, PaymentIssue, PaymentResultView } from "./types";
@@ -210,6 +210,7 @@ export const mockBackend: Backend = {
     if (!lead.offer) throw new Error("Complete the offer form first.");
     if (lead.stage !== "form_filled") throw new Error("This application has already been paid.");
     if (requireStand(lead.standNumber).status !== "available") throw new Error("Sorry, this stand is no longer available.");
+    if (state.paymentAttempts.some((a) => a.leadId === leadId && a.status === "error" && a.cardStatus === 0)) throw new Error(NEEDS_CHECK.message);
     const attempt: PaymentAttempt = {
       reference: newMerchantReference(lead.standNumber),
       leadId,
@@ -294,14 +295,14 @@ export const mockBackend: Backend = {
     const seen = new Set(recorded.map((i) => i.reference));
     const staleBefore = new Date(Date.now() - 30 * 60_000).toISOString();
     const attempts = state.paymentAttempts
-      .filter((a) => !seen.has(a.reference) && ((a.status === "error" && a.cardStatus === 0) || ((a.status === "started" || a.status === "pending") && a.createdAt < staleBefore)))
+      .filter((a) => !seen.has(a.reference) && !(a.status === "approved") && ((a.status === "error" && a.cardStatus === 0) || a.createdAt < staleBefore))
       .map(
         (a): PaymentIssue => ({
           reference: a.reference,
           standNumber: a.standNumber,
           leadId: a.leadId,
-          outcome: a.status === "error" ? "needs_check" : "unconfirmed",
-          reason: a.status === "error" ? "AuthoriseInfo details didn't match the attempt" : "No result from iVeri yet; check iVeri BackOffice",
+          outcome: a.status === "error" && a.cardStatus === 0 ? "needs_check" : "unconfirmed",
+          reason: a.status === "error" && a.cardStatus === 0 ? "AuthoriseInfo details didn't match the attempt" : `Last seen "${a.status}" from iVeri, not approved; check iVeri BackOffice`,
           createdAt: a.createdAt,
         }),
       );

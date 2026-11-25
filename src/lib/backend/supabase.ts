@@ -6,6 +6,7 @@ import type { OutboxEmailRecord } from "./models";
 import type { PaymentIssue } from "./types";
 
 const STALE_ATTEMPT_MS = 30 * 60_000;
+const unconfirmedReason = (status: string) => `Last seen "${status}" from iVeri, not approved; check iVeri BackOffice`;
 
 // Only constructed when Supabase env vars are present; mock mode never touches it.
 const supabase = useSupabase
@@ -108,7 +109,8 @@ export const supabaseBackend: Backend = {
       supabase
         .from("payment_attempts")
         .select("reference, stand_number, lead_id, status, card_status, created_at")
-        .or(`and(status.eq.error,card_status.eq.0),and(status.in.(started,pending),created_at.lt.${staleBefore})`),
+        .neq("status", "approved")
+        .or(`and(status.eq.error,card_status.eq.0),created_at.lt.${staleBefore}`),
       supabase
       .from("payment_events")
       .select("reference, stand_number, lead_id, outcome, reason, created_at")
@@ -127,8 +129,8 @@ export const supabaseBackend: Backend = {
           reference: r.reference,
           standNumber: r.stand_number,
           leadId: r.lead_id,
-          outcome: r.status === "error" ? "needs_check" : "unconfirmed",
-          reason: r.status === "error" ? "AuthoriseInfo details didn't match the attempt" : "No result from iVeri yet; check iVeri BackOffice",
+          outcome: r.status === "error" && r.card_status === 0 ? "needs_check" : "unconfirmed",
+          reason: r.status === "error" && r.card_status === 0 ? "AuthoriseInfo details didn't match the attempt" : unconfirmedReason(r.status),
           createdAt: r.created_at,
         }),
       );

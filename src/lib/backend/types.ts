@@ -21,7 +21,8 @@ export interface PaymentResultView {
  * A payment that needs staff attention. Never card data.
  * unmatched / rejected: approved by the bank but not applied (recorded in payment_events).
  * needs_check: approved, but AuthoriseInfo's trace or currency didn't match the attempt.
- * unconfirmed: no approval or decline seen after 30 minutes; check it in iVeri BackOffice.
+ * unconfirmed: not approved after 30 minutes (no result, declined, cancelled or try-later); a late approval
+ * on that reference is still applied on the next check, so check it in iVeri BackOffice.
  */
 export interface PaymentIssue {
   reference: string;
