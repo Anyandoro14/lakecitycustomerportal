@@ -41,6 +41,9 @@ await page.goto(BASE);
 await page.waitForSelector('[data-testid="stand-list"] li[data-stand]');
 const all = await page.locator('[data-testid="stand-list"] li[data-stand]').count();
 check(all === 38, `landing lists 38 stands (got ${all})`);
+const phases = await page.locator('[data-testid="stand-phase"]').count();
+check(phases === 38, `every stand card shows its phase (${phases})`);
+check((await page.locator("body").innerText()).includes("incl. 15.5% VAT"), "landing shows prices incl. 15.5% VAT");
 await shot("landing-stand-list");
 await page.setViewportSize({ width: 390, height: 844 });
 await shot("landing-mobile", { fullPage: false });
@@ -99,8 +102,19 @@ await page.getByLabel("Typed signature").fill("Tendai Test Moyo");
 await shot("offer-form-completed");
 await page.getByRole("button", { name: /submit offer/i }).click();
 
-// 5. ZikiMall step: locked $2,250
+// 5. ZikiMall step: plain link, locked account number (= stand) and locked $2,250
 await page.waitForURL(/\/payment$/);
+const account = page.locator("#zikimall-account");
+await account.waitFor();
+check((await account.inputValue()) === "3076", "ZikiMall account number = selected stand 3076");
+check((await account.isEditable()) === false, "ZikiMall account number is read-only");
+await account.press("x").catch(() => {});
+check((await account.inputValue()) === "3076", "ZikiMall account number unchanged after a keypress");
+check((await page.locator('[data-testid="zikimall-account-copy"]').count()) === 1, "account number has a copy button");
+const link = page.locator('[data-testid="zikimall-link"]');
+check((await link.getAttribute("href")) === "https://zikimall.com" && (await link.getAttribute("target")) === "_blank", "ZikiMall button is a plain link opening a new tab");
+const steps = await page.locator('[data-testid="zikimall-steps"] li').allInnerTexts();
+check(steps.length === 7 && steps[4].includes("your stand number: 3076"), "7 ZikiMall steps; step 5 names stand 3076");
 const amount = page.locator("#zikimall-amount");
 await amount.waitFor();
 check(usd(await amount.inputValue()) === 2250, "ZikiMall amount is $2,250");
@@ -108,9 +122,9 @@ check((await amount.isEditable()) === false, "ZikiMall amount is not editable");
 await amount.press("Backspace").catch(() => {});
 check(usd(await amount.inputValue()) === 2250, "ZikiMall amount unchanged after a keypress");
 await shot("payment-zikimall-locked-amount");
-await page.getByRole("button", { name: "Simulate payment confirmed" }).click();
+await page.getByRole("button", { name: "Simulate ZikiMall payment confirmation" }).click();
 
-// 6. Celebration
+// 6. Celebration (the page moves on by itself once the handler has applied the payment)
 await page.waitForURL(/\/celebration$/);
 await page.waitForSelector('[data-testid="celebration"]');
 check((await page.locator('[data-testid="celebration"]').innerText()).includes("3076"), "celebration names stand 3076");
@@ -119,6 +133,8 @@ await shot("celebration");
 // 7. Portal step: stand number + phone -> mock pre-population
 await page.goto(`${BASE}/apply/${leadId}/portal`);
 await page.waitForSelector("#portal-stand");
+const bannerState = async (stage) => page.locator(`[data-testid="portal-progress"] [data-stage="${stage}"]`).getAttribute("data-state");
+check((await bannerState("paid")) === "done" && (await bannerState("signed")) === "current", "portal banner: Paid ticked, Signed current");
 await fill("#portal-stand", "3076");
 await fill("#portal-phone", "0771234560");
 await page.getByRole("button", { name: /set up my account/i }).click();
@@ -132,15 +148,22 @@ const [price, towardPrice, balance] = await Promise.all(
   ["portal-price", "portal-paid-toward-price", "portal-balance"].map(async (id) => usd(await page.locator(`[data-testid="${id}"]`).innerText())),
 );
 check(Math.abs(price - towardPrice - balance) < 0.005, `portal: price ${price} - paid toward price ${towardPrice} = balance ${balance}`);
+check((await bannerState("portal_active")) === "done", "portal banner: Portal active ticked after enrolment");
 await shot("portal-records-prepopulated");
+await page.locator('[data-testid="portal-progress"]').screenshot({ path: join(OUT, `${String(++n).padStart(2, "0")}-portal-progress-banner.png`) });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.evaluate(() => window.scrollTo(0, 0));
+await shot("portal-banner-mobile", { fullPage: false });
+await page.setViewportSize({ width: 1280, height: 900 });
 
 // 8. Staff views
 await page.goto(`${BASE}/internal`);
 if (await page.getByRole("button", { name: "Sign in" }).isVisible().catch(() => false)) {
   await page.getByRole("button", { name: "Sign in" }).click();
 }
-await page.waitForSelector("text=/Paid \\(/");
-await page.getByRole("tab", { name: /Paid/ }).click().catch(() => {});
+await page.waitForSelector("text=/Signed up and Paid \\(/");
+check((await page.locator('[data-testid="count-signed_up_paid"]').innerText()).includes("1"), "report counts 1 'Signed up and Paid'");
+await page.getByRole("tab", { name: /Signed up and Paid/ }).click();
 await shot("staff-dashboard");
 await page.goto(`${BASE}/internal/leads/${leadId}`);
 await page.waitForSelector("text=/Stand 3076/");
@@ -149,7 +172,7 @@ await shot("staff-lead-detail");
 
 // 9. Outbox: email previews (never sent)
 await page.goto(`${BASE}/internal/outbox`);
-await page.waitForSelector("text=/Stage \\d ·/");
+await page.waitForSelector("text=/Automated ·/");
 for (const key of ["offer_completed", "payment_thank_you", "portal_ready"]) {
   const btn = page.locator("ul li button", { hasText: `· ${key}` }).first();
   check((await btn.count()) === 1, `outbox has ${key} preview`);
@@ -157,5 +180,18 @@ for (const key of ["offer_completed", "payment_thank_you", "portal_ready"]) {
   await page.waitForTimeout(700);
   await shot(`email-${key.replace(/_/g, "-")}`);
 }
+
+// 10. Full-length email preview (desktop + mobile) of the thank-you email
+await page.locator("ul li button", { hasText: "· payment_thank_you" }).first().click();
+await page.waitForTimeout(700);
+const html = await page.frameLocator('iframe[title="Email preview"]').locator("html").evaluate((el) => "<!DOCTYPE html>" + el.outerHTML);
+check(html.includes("Progress of your purchase") && html.includes("LakeCity Accounts"), "email has the progress bar and LakeCity Accounts sign-off");
+const mail = await ctx.newPage();
+await mail.setViewportSize({ width: 700, height: 900 });
+await mail.setContent(html, { waitUntil: "load" });
+await mail.screenshot({ path: join(OUT, `${String(++n).padStart(2, "0")}-email-preview-thank-you.png`), fullPage: true });
+await mail.setViewportSize({ width: 390, height: 844 });
+await mail.screenshot({ path: join(OUT, `${String(++n).padStart(2, "0")}-email-preview-mobile.png`), fullPage: true });
+await mail.close();
 
 await browser.close();

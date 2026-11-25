@@ -51,7 +51,7 @@ function OutboxView() {
     <div className="container space-y-6 py-10">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-serif text-3xl font-semibold">Email outbox</h1>
-        <Badge variant="secondary">PREVIEW MODE · EMAILS_LIVE=false</Badge>
+        <Badge variant="secondary">OUTBOX · NOT SENT (OI-TBC-20)</Badge>
       </div>
       <Alert className="border-dashed border-gold bg-accent/40">
         <AlertTitle>Nothing here has been sent</AlertTitle>

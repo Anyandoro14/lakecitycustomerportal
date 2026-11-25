@@ -41,9 +41,9 @@ export default function CelebrationStep() {
                 <Mail className="h-6 w-6 text-gold" />
                 <h2 className="mt-3 font-semibold">Your thank-you email</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  The LakeCity team will email {lead.contact.email} a thank-you note with a link to your offer.
+                  Your payment automatically triggers a thank-you email to {lead.contact.email} with a link to your offer.
                 </p>
-                <p className="mt-2 text-xs text-muted-foreground">Preview mode: the email is prepared for staff to review and send; nothing is sent automatically.</p>
+                <p className="mt-2 text-xs text-muted-foreground">Preview: the email is queued in the LakeCity outbox until email sending is switched on (OI-TBC-20).</p>
               </div>
               <div className="rounded-xl border bg-card p-5">
                 <FileText className="h-6 w-6 text-gold" />

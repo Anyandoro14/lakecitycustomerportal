@@ -1,21 +1,25 @@
 # LakeCity stand sales
 
 Online sales wizard for the LakeCity stand campaign. A buyer picks a stand, fills in contact details and the digital
-offer form, pays the fixed USD 2,250 due at start through ZikiMall (**stub**), sees a celebration page, and then sets
-up their portal account with stand number + phone, which pre-populates their collection schedule, master schedule
-and Odoo records (**mock adapters**). Staff track leads, fill the official-use block and preview emails on internal
-pages.
+offer form, pays the fixed USD 2,250 due at start on zikimall.com (plain link; the app never handles money), and is
+moved on automatically when the payment is confirmed (**mock** ZikiMall/CBZ confirmation adapter). They then set up
+their portal account with stand number + phone, which pre-populates their collection schedule, master schedule and
+Odoo records (**mock adapters**, keyed by stand number). Staff see Valerie's sales report, fill the official-use block
+and preview the automated emails on internal pages.
 
 > **Rules for this build**
 > * Read-only by default. Bots never move money. Nothing here can take a payment.
 > * No Production. **Not deployed to Staging** either: that needs Alex's own yes.
-> * Emails are **preview mode only** (dev outbox). LakeCity staff send customer comms.
+> * Automated customer emails are approved (OI-TBC-18 closed) but stay in the **preview outbox** until an email
+>   provider is configured (OI-TBC-20). Nothing is sent.
+> * Adapters to the real sheets and Odoo are mock/read-only: no writes without Alex's go-ahead.
+> * Bank account numbers are never shown in full: last 4 digits only (CBZ ...0018).
 > * Never commit secrets. ID numbers and other personal data are never logged.
 > * Unknowns are marked TBC with an `OI-TBC-nn` number. They are all listed in [Open items](#open-items-oi-tbc).
 > * Everything customer-facing is PLACEHOLDER copy and design until QC and approval (OI-TBC-01).
 
 Stack (Lovable compatible): Vite, React 18, TypeScript, Tailwind, shadcn/ui, Supabase (Postgres, Auth, Edge
-Functions on Deno), pdf-lib, React Email.
+Functions on Deno), pdf-lib. Emails are plain table-based HTML on the LakeCity standard template v4.
 
 ## Run it locally
 
@@ -25,7 +29,8 @@ npm run dev          # http://127.0.0.1:8137
 ```
 
 With no Supabase env vars the app uses an **in-browser mock backend**: data in `localStorage`, emails rendered to the
-outbox preview, and a "Developer mode" button that simulates ZikiMall's payment-confirmed callback (no money moves).
+outbox preview, and a "Demo mode" button that feeds a simulated ZikiMall/CBZ confirmation through the real
+payment-confirmed handler (no money moves).
 Staff pages need no login in mock mode. "Reset demo data" on `/internal` clears everything.
 
 | Page | URL |
@@ -33,7 +38,7 @@ Staff pages need no login in mock mode. "Reset demo data" on `/internal` clears 
 | Landing: stand list, A/B/C range filter | `/` |
 | Stand page: price summary + contact side pane | `/stands/:standNumber` |
 | Wizard | `/apply/:leadId/{offer,payment,celebration,portal}` (`/apply/:leadId` jumps to the current step) |
-| Staff: lead lists and inventory | `/internal` |
+| Staff: Valerie's sales report (3 statuses, counts, CSV export) and inventory | `/internal` |
 | Staff: lead detail (offer, typed ID check, official use, records) | `/internal/leads/:leadId` |
 | Staff: email outbox preview | `/internal/outbox` |
 
@@ -41,9 +46,9 @@ Scripts:
 
 | Command | What it does |
 | --- | --- |
-| `npm test` | Vitest: pricing, A/B/C banding + filter, non-editable amount, flow, ID validators, templates |
+| `npm test` | Vitest: pricing on the real sizes, A/B/C banding + filter, read-only amount and account number, ZikiMall steps, payment handler (inventory, email, step, idempotency), report statuses, stand-keyed adapters, purchase progress, v4 emails, flow, ID validators |
 | `npm run typecheck` / `npm run lint` / `npm run build` | The usual |
-| `npm run screenshots` | Walks every step in headless Chrome against the running dev server and saves PNGs to `OUT_DIR` (default `/opt/cursor/artifacts`). It also asserts the stand count, band coverage, $2,250 due now, and that the ZikiMall amount can't be edited. Set `CHROME_PATH` if Chrome isn't at `/usr/local/bin/google-chrome`. |
+| `npm run screenshots` | Walks every step in headless Chrome against the running dev server and saves PNGs to `OUT_DIR` (default `/opt/cursor/artifacts`). It also asserts the stand count and phases, band coverage, VAT note, $2,250 due now, the read-only account number and amount, the ZikiMall link and steps, the portal progress banner and the report counts, and saves full-length email previews. Set `CHROME_PATH` if Chrome isn't at `/usr/local/bin/google-chrome`. |
 | `cd supabase/functions && deno check */index.ts` | Typechecks the edge functions |
 
 ## Pricing rules
@@ -52,27 +57,37 @@ Source of truth: `supabase/functions/_shared/domain/campaign.ts`.
 
 | Rule | Value |
 | --- | --- |
-| Stand price | USD 45 × size in m² |
+| Stand price | USD 45 × size in m², **including 15.5% VAT** (shown as "incl. 15.5% VAT"; OI-TBC-06 closed) |
 | Down payment | USD 1,750 (fixed) |
 | Legal fee (Agreement of Sale preparation, non-refundable, to Chigwanda Legal Practitioners) | USD 500 (fixed) |
 | **Due at start (ZikiMall step)** | **USD 2,250** = down payment + legal fee |
 | Balance | price − down payment, over 48 monthly instalments; the last instalment absorbs rounding |
 | Instalment due day | 5th of the month, starting the month after payment (OI-TBC-11) |
-| VAT | Not applied or shown (OI-TBC-06) |
+
+No VAT breakdown is shown for the down payment or the legal fee.
 
 The amount at the ZikiMall step is always computed server-side (`paymentDueNowCents()`), shown in a read-only,
-non-focusable field, and checked again in the `confirm_payment` database function.
+non-focusable field, and checked again by the payment handler and the `apply_payment_confirmed` database function.
 
 **Ranges A / B / C:** the span from the cheapest to the dearest stand price is split into three equal bands,
 A = [min, min + w), B = [min + w, min + 2w), C = [min + 2w, max], where w = (max − min) / 3. Bands are computed over
 every sized stand (sold or not), so a stand keeps its range as others sell (OI-TBC-24).
 
-**Stand sizes are mock values** (`src/data/stands.seed.json`, 300–890 m²) until LakeCity supplies real ones
-(OI-TBC-04). The UI tags them "Mock size". The 38 stand numbers are real. 3 more are TBC (OI-TBC-05).
+**Stand sizes and phases are real** (OI-TBC-04 closed): sheet `1b_ZLUR1WXjQfyhnNBc7oYSspiEJOOd9aKwuhzYR42u0`, tab
+"Marketing Campaign Tracker", column A stand, column J area. They live in `src/data/stands.seed.json` and the seed
+migration `20261125000002_seed_stands.sql`. 3 more campaign stands are TBC (OI-TBC-05).
+
+| Range | Price | Stands |
+| --- | --- | --- |
+| A | USD 54,000 to under USD 85,320 | 10 |
+| B | USD 85,320 to under USD 116,640 | 25 |
+| C | USD 116,640 to USD 147,960 | 3 (3084, 3095, 3096) |
+
+Smallest stand 1,200 m² (USD 54,000), largest 3,288 m² (USD 147,960).
 
 ## Wizard flow
 
-1. **Landing:** every stand with number, size (m²), price and range. Filter by All / A / B / C. Covers loading, error
+1. **Landing:** every stand with number, phase, size (m²), price (incl. 15.5% VAT) and range. Filter by All / A / B / C. Covers loading, error
    (retry) and empty states. Reserved stands are shown but can't be selected.
 2. **Stand selected:** the summary shows total price, $1,750 down payment, $500 legal fee and **$2,250 due now**. A
    side pane collects name, email and phone. Nothing is reserved yet.
@@ -80,52 +95,75 @@ every sized stand (sold or not), so a stand keeps its range as others sell (OI-T
    OI-TBC-12), addresses, up to 3 co-owners, next of kin, the six conditions, and a typed or drawn signature. Email
    and phone are locked to the contact details. On submit, the offer email is queued to the outbox preview with the
    offer PDF.
-4. **ZikiMall:** an auto-populated, **non-editable** $2,250 field. The ZikiMall button stays disabled until the
-   integration exists (OI-TBC-07). On payment confirmation (simulated in dev only) the stand becomes `paid`, the lead
-   moves to the paid list, and the thank-you email is queued.
-5. **Celebration:** names the stand and payment (wording OI-TBC-02). It says staff will send the thank-you email,
-   which is prepared in preview mode (green/white/gold, stage badge, 4-stage progress bar, "View your offer" link).
+4. **ZikiMall** (official Payment Methods document): an **Open zikimall.com** button (plain link, new tab, no API),
+   two read-only fields with copy buttons: the **account number = the selected stand number** and the **$2,250**
+   due now. Below them the 7 steps (All Payments › All Billers › search "Warwickshire" › account number = stand
+   number, Initial and Surname › Visa / Mastercard / Ecocash / Zimswitch › submit), "Keep your proof of payment
+   (screenshot or receipt)" and "Powered by CBZ. Funds settle to the Warwickshire Pvt Ltd CBZ ...0018 account".
+   The page polls and moves on by itself when the payment is confirmed.
+   **Automatic payment confirmation:** a ZikiMall/CBZ confirmation goes to the payment-confirmed handler
+   (`payment-events.ts`; server side `_shared/server/payment.ts` + the `apply_payment_confirmed` SQL function). In
+   one atomic step it takes the stand out of available inventory (`paid`; it is allocated to the buyer only at
+   signing), queues the branded thank-you email and advances the wizard to the portal step. It is keyed by stand
+   number and idempotent per payment reference (`payment_events`): the same reference is processed once. There is
+   no staff confirmation step. The confirmation source is a **mock** adapter until OI-TBC-30 is resolved.
+5. **Celebration:** a confirmation screen naming the stand and payment (wording OI-TBC-02), with a button on to the
+   portal step.
 6. **Portal account:** the customer enters stand number + phone. If they match the application (last 9 digits of
    the phone), mock adapters prepare a collection schedule (49 rows), a master-schedule row and Odoo
-   partner/account/payment records. Ids are prefixed `MOCK-` and nothing is written anywhere real
-   (OI-TBC-14 to 17).
+   partner/account/payment records. **Stand number is the unique key** in every system (`MOCK-CS-<stand>`,
+   `MOCK-MS-<stand>`, `MOCK-ODOO-…-<stand>`): one record per stand, upserted by stand; a second buyer on the same
+   stand is rejected (and a partial unique index enforces one enrolment per stand in the database). Nothing is
+   written anywhere real (OI-TBC-14 to 17). A "Progress of your purchase" banner sits at the top of the portal.
+
+Buyers who pay but never sign are still enrolled in the portal and Odoo: enrolment follows confirmed payment, not
+signing (OI-TBC-09 closed).
+
+**Valerie's report** (`/internal`, `report.ts`): every signed-up lead has exactly one status, with counts and a
+CSV export (no ID numbers): **Signed up** (offer submitted), **Signed up and Paid** (payment confirmed),
+**Signed up, Paid and Signed** (agreement signed). Applications without a submitted offer are left out (OI-TBC-29).
 
 The Agreement of Sale / DocuSign step is **parked** (OI-TBC-13). The code stays in the repo (`docusign.ts`,
 `docusign-connect`, `mark_signed`, the template merge fields) but the core wizard doesn't call it.
 
-## Emails (preview mode only)
+## Emails (automated; preview outbox until a provider is set)
 
-Branded React Email templates in `src/emails/` with the LakeCity header, a gold stage badge and a 4-stage tracker
-(Stand chosen → Offer signed → Payment received → Portal account). All copy is PLACEHOLDER.
+Every automated email is rendered on the **LakeCity standard HTML email template v4**
+(`_shared/domain/email-html.ts`): 600px table layout, green `#0B412F` header with the white wordmark, 60×3 gold
+rule and "Customer Care", summary table with a green header row and gold border, VML button for Outlook, green
+footer with a gold top border, Playfair Display / Inter with Georgia / Arial fallbacks, mobile classes
+`.wrap .pad .cell .logo`, and the sign-off **LakeCity Accounts** (accounts@lakecity.co.zw). Under the header every
+email has a table-based **Progress of your purchase** bar: Signed up › Paid › Signed › Portal active, with ticks on
+completed stages and the current stage in gold. Body copy is still PLACEHOLDER (OI-TBC-01).
 
 | Stage | Trigger | Template | Content |
 | --- | --- | --- | --- |
-| 2 | Offer submitted | `offer_completed` | Price summary, $2,250 due now; **offer-to-purchase.pdf** attached |
-| 3 | Payment confirmed | `payment_thank_you` | Thank you, stand reserved, amount/date/reference, **View your offer** link |
-| 4 | Portal records ready | `portal_ready` | Collection account id, portal link. **Never a password.** |
+| Signed up | Offer submitted | `offer_completed` | Price (incl. 15.5% VAT), $2,250 due now, ZikiMall how-to; **offer-to-purchase.pdf** attached |
+| Paid | Payment confirmed (automatic) | `payment_thank_you` | Thank you, stand reserved, amount/date/reference, **View your offer** link |
+| Portal active | Portal records ready | `portal_ready` | Collection account id, portal link. **Never a password.** |
 
 Every email is written to `email_outbox` (or the in-browser outbox) with status `queued_dev_only` and logged as
 metadata only. The offer link is built only from the server-configured `APP_URL`, never from the request.
-`emailsLive()` is true only if `EMAILS_LIVE=true` **and** `EMAIL_PROVIDER`, `EMAIL_PROVIDER_API_KEY` and
-`EMAIL_LIVE_APPROVAL_REF` are set, and the provider adapters are stubs that throw. Going live needs QC PASS, Alex
-Key 1 + Key 2 approval and an owner decision on automated sends (OI-TBC-18, OI-TBC-20).
+The triggers are wired; the transport is the outbox. `emailsLive()` is true only if `EMAILS_LIVE=true` **and**
+`EMAIL_PROVIDER` and `EMAIL_PROVIDER_API_KEY` are set, and the provider adapters are stubs that throw until the
+provider is chosen (OI-TBC-20).
 
 ## Connecting Supabase (when approved; not done)
 
-1. `supabase link && supabase db push` applies `supabase/migrations/` (schema + the 38 stand numbers, no sizes).
-   For local dev only, `supabase db reset` also runs `supabase/seed.sql` (mock sizes). Never run it on Staging or
-   Production.
+1. `supabase link && supabase db push` applies `supabase/migrations/` (schema, the 38 stands with real sizes and
+   phases, and the payment-events table).
 2. Copy `.env.example` → `.env.local` and fill `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_APP_URL`.
 3. Function secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_URL`, `PORTAL_URL`. Set
    `ALLOW_DEV_SIMULATIONS=true` only on a local stack.
-4. Functions: `lead-intake`, `lead-api`, `zikimall-callback` (returns 501 until OI-TBC-07), `docusign-connect`
-   (parked).
+4. Functions: `lead-intake`, `lead-api`, `zikimall-callback` (returns 501 until the confirmation source is known,
+   OI-TBC-30), `docusign-connect` (parked).
 5. Staff: create a Supabase Auth user, then `insert into public.staff_users (user_id, email) values (…)`.
 
 Security model: customers are anonymous and talk only to edge functions using a random per-lead access token (only
 its SHA-256 hash is stored). Staff read through RLS (`is_staff()`) and write only through the security-definer
-`set_offer_official_use`. `confirm_payment` (offer must be submitted, amount must be 225000 cents) and
-`mark_signed` are service-role only.
+`set_offer_official_use`. `apply_payment_confirmed` (one transaction: reference recorded once, offer submitted,
+stand number matches, amount 225000 cents, stand still available, outbox row) and `mark_signed` are service-role
+only.
 
 ## Importing into Lovable
 
@@ -175,26 +213,30 @@ the lead page. Validators live in a per-country registry (`_shared/domain/id-val
 | OI-TBC-01 | Final copy, design and legal wording everywhere marked PLACEHOLDER | All customer pages, emails, PDFs |
 | OI-TBC-02 | Final celebration-page wording (owner's sentence was cut off) | `CelebrationStep.tsx` |
 | OI-TBC-03 | Real Agreement of Sale template | `public/templates/` |
-| OI-TBC-04 | Real stand sizes (m²). Sizes today are **mock**, so every price is illustrative | `stands.seed.json`, `seed.sql`, "Mock size" tags |
+| OI-TBC-04 | **CLOSED** (Alex, 2026-11-25): real sizes and phases from the Marketing Campaign Tracker sheet | `stands.seed.json`, seed migration |
 | OI-TBC-05 | The 3 additional campaign stands (38 seeded) | `stands.seed.json`, seed migration |
-| OI-TBC-06 | VAT treatment of the USD 45/m² price | `campaign.ts`, schedule PDF |
-| OI-TBC-07 | ZikiMall integration: checkout URL, payload, callback signature, how the fixed amount is passed | `PaymentStep.tsx`, `lead-api`, `zikimall-callback` (501) |
-| OI-TBC-08 | CBZ settlement and reconciliation of ZikiMall payments | Payment confirmation |
-| OI-TBC-09 | Refund / expiry policy if a customer pays but never signs the Agreement of Sale | Paid list |
+| OI-TBC-06 | **CLOSED**: 15.5% VAT is included in the USD 45/m² price; shown as "incl. 15.5% VAT" | `campaign.ts` (`VAT`, `PRICE_VAT_NOTE`) |
+| OI-TBC-07 | ZikiMall: flow defined (official Payment Methods document; plain link, account number = stand number, locked $2,250). Confirmation is automatic through the payment-confirmed handler, fed by a **mock** adapter; source TBC (OI-TBC-30) | `PaymentStep.tsx`, `payment-methods.ts`, `payment-events.ts` |
+| OI-TBC-08 | CBZ settlement (Warwickshire Pvt Ltd CBZ ...0018): flow defined; automatic confirmation handler wired to a **mock** adapter; reconciliation source TBC (OI-TBC-30) | `payment-events.ts`, `_shared/server/payment.ts` |
+| OI-TBC-09 | **CLOSED**: pay-but-never-sign buyers stay enrolled in the portal and Odoo; report shows them as "Signed up and Paid" | `report.ts`, Dashboard |
 | OI-TBC-10 | Collection schedule PDF layout to match the official template on Drive | `src/lib/pdf/documents.ts` |
 | OI-TBC-11 | Standard instalment due day (5th vs 1st) and when instalments start | `campaign.ts`, `schedule.ts` |
 | OI-TBC-12 | ID photos and verification: whether to collect ID images, and an automated provider (none found for Zimbabwe; Dojah, Smile ID, Didit need a vendor and data-protection review) | Offer form, lead detail |
 | OI-TBC-13 | Where the Agreement of Sale / DocuSign step goes in the flow (parked) | `docusign.ts`, `docusign-connect`, `mark_signed` |
 | OI-TBC-14 | StandLedger customer portal integration and login | `PortalStep.tsx`, `PORTAL_URL` |
-| OI-TBC-15 | Collection schedule integration (mock adapter today) | `integrations.ts` |
-| OI-TBC-16 | Master schedule integration (mock adapter today) | `integrations.ts` |
-| OI-TBC-17 | Odoo integration: partner, account, payment (mock adapter today) | `integrations.ts` |
-| OI-TBC-18 | Owner decision on automated customer emails (today staff send all comms) | `emails.ts`, outbox |
+| OI-TBC-15 | Collection Schedule: key decided: stand number; live connection pending (mock, read-only) | `integrations.ts` |
+| OI-TBC-16 | Master Schedule: key decided: stand number; live connection pending (mock, read-only) | `integrations.ts` |
+| OI-TBC-17 | Odoo (partner, account, payment): key decided: stand number; live connection pending (mock, read-only) | `integrations.ts` |
+| OI-TBC-18 | **CLOSED**: automated customer emails allowed, on the standard template v4 | `email-html.ts`, `emails.ts` |
 | OI-TBC-19 | Offer-link URL and access: the link works on the same device only (per-device access token) | `email.ts`, `supabase.ts` |
-| OI-TBC-20 | Email provider choice (Resend vs Google Workspace) | `_shared/server/email.ts` |
+| OI-TBC-20 | Email provider choice (Resend vs Google Workspace). Until then every email stays in the preview outbox | `_shared/server/email.ts` |
 | OI-TBC-21 | DocuSign plan / production account (demo only today) | DocuSign code |
 | OI-TBC-22 | Where signed agreements are filed | Agreement step |
 | OI-TBC-23 | Staging deployment: needs Alex's own yes (not deployed) | Infra |
 | OI-TBC-24 | Range banding basis: all stands vs available only, and whether bands should be fixed price points | `priceBands()` in `campaign.ts` |
-| OI-TBC-25 | Stand hold: two buyers can fill offers for the same stand; the first confirmed payment wins and the second payment must be refused or refunded by ZikiMall | `confirm_payment` |
+| OI-TBC-25 | Stand hold: two buyers can fill offers for the same stand; the first confirmed payment takes the stand (two open offers are told apart by the payer's surname) and a later payment is left unmatched for ZikiMall/CBZ to refund | `payment-events.ts`, `apply_payment_confirmed` |
 | OI-TBC-26 | Retention and data-protection policy for offer-form personal data (IDs, next of kin) | `leads.offer` |
+| OI-TBC-27 | **CLOSED**: the ZikiMall account number a new buyer enters is the stand number (auto-filled, read-only, copy button) | `PaymentStep.tsx`, `zikimallAccountNumber()` |
+| OI-TBC-28 | **WITHDRAWN**: manual staff confirmation of ZikiMall receipts, superseded by automatic confirmation | (none) |
+| OI-TBC-29 | Applications without a submitted offer are not "Signed up" and are left out of Valerie's report; confirm that's wanted | `report.ts` |
+| OI-TBC-30 | Source of automatic ZikiMall/CBZ payment confirmation (webhook, API or bank feed) TBC; a mock adapter feeds the handler today, and unmatched or wrong-amount payments need a staff follow-up route | `payment-events.ts`, `zikimall-callback` (501) |
