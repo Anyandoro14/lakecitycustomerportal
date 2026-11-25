@@ -5,6 +5,8 @@ import type { Backend } from "./types";
 import type { OutboxEmailRecord } from "./models";
 import type { PaymentIssue } from "./types";
 
+const STALE_ATTEMPT_MS = 30 * 60_000;
+
 // Only constructed when Supabase env vars are present; mock mode never touches it.
 const supabase = useSupabase
   ? createClient(config.supabaseUrl, config.supabaseAnonKey)
@@ -101,21 +103,35 @@ export const supabaseBackend: Backend = {
     );
   },
   async listPaymentIssues() {
-    const { data, error } = await supabase
+    const staleBefore = new Date(Date.now() - STALE_ATTEMPT_MS).toISOString();
+    const [attempts, recorded] = await Promise.all([
+      supabase
+        .from("payment_attempts")
+        .select("reference, stand_number, lead_id, status, card_status, created_at")
+        .or(`and(status.eq.error,card_status.eq.0),and(status.in.(started,pending),created_at.lt.${staleBefore})`),
+      supabase
       .from("payment_events")
       .select("reference, stand_number, lead_id, outcome, reason, created_at")
-      .neq("outcome", "applied")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return (data ?? []).map(
-      (r): PaymentIssue => ({
-        reference: r.reference,
-        standNumber: r.stand_number,
-        leadId: r.lead_id,
-        outcome: r.outcome,
-        reason: r.reason,
-        createdAt: r.created_at,
-      }),
+      .neq("outcome", "applied"),
+    ]);
+    if (attempts.error) throw attempts.error;
+    if (recorded.error) throw recorded.error;
+    const fromEvents = (recorded.data ?? []).map(
+      (r): PaymentIssue => ({ reference: r.reference, standNumber: r.stand_number, leadId: r.lead_id, outcome: r.outcome, reason: r.reason, createdAt: r.created_at }),
     );
+    const seen = new Set(fromEvents.map((i) => i.reference));
+    const fromAttempts = (attempts.data ?? [])
+      .filter((r) => !seen.has(r.reference))
+      .map(
+        (r): PaymentIssue => ({
+          reference: r.reference,
+          standNumber: r.stand_number,
+          leadId: r.lead_id,
+          outcome: r.status === "error" ? "needs_check" : "unconfirmed",
+          reason: r.status === "error" ? "AuthoriseInfo details didn't match the attempt" : "No result from iVeri yet; check iVeri BackOffice",
+          createdAt: r.created_at,
+        }),
+      );
+    return [...fromEvents, ...fromAttempts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 };

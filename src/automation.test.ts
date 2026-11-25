@@ -41,7 +41,7 @@ const availableStand = (n = "3076"): Stand => ({ standNumber: n, phase: "3", lan
 function memoryStore(leads: Lead[], stands: Stand[]) {
   const state = { leads, stands, refs: new Map<string, string>(), emails: [] as { leadId: string; template: string }[], commits: 0 };
   const store: PaymentEventStore = {
-    isProcessed: (r) => state.refs.has(r),
+    recordedOutcome: (r) => (state.refs.get(r) as "applied" | "unmatched" | "rejected" | undefined) ?? null,
     lead: (id) => state.leads.find((l) => l.id === id) ?? null,
     stand: (n) => state.stands.find((s) => s.standNumber === n) ?? null,
     commit: ({ reference, outcome, stand, lead, emailFor }) => {

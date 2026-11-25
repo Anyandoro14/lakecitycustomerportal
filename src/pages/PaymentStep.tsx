@@ -136,6 +136,8 @@ function PaymentPane({ lead }: { lead: Lead }) {
   }
 
   const notApproved = result && result.result !== "approved";
+  // The bank approved a payment we couldn't apply: never invite a second charge.
+  const needsCheck = result?.result === "error" && result.cardStatus === 0;
 
   return (
     <StandLayout stand={stand} band={band}>
@@ -176,7 +178,7 @@ function PaymentPane({ lead }: { lead: Lead }) {
 
         <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
           <LockedAmountField id="payment-amount" label={`Amount due now for stand ${lead.standNumber}`} amountCents={amountCents} />
-          <Button size="lg" className="h-12 sm:h-10" onClick={() => void pay()} disabled={busy !== null} data-testid="pay-by-card">
+          <Button size="lg" className="h-12 sm:h-10" onClick={() => void pay()} disabled={busy !== null || needsCheck} data-testid="pay-by-card">
             {busy === "pay" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
             {notApproved ? "Try again" : `Pay ${formatUsd(amountCents)} by card`}
           </Button>

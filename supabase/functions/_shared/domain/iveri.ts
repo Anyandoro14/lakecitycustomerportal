@@ -137,6 +137,8 @@ export interface AuthoriseInfo {
   description: string;
   trace: string | null;
   amountCents: number | null;
+  /** Lite_Currency_AlphaCode when AuthoriseInfo returns it. */
+  currency: string | null;
 }
 
 function field(text: string, name: string): string | null {
@@ -169,6 +171,7 @@ export function parseAuthoriseInfo(text: string): AuthoriseInfo {
     description: (field(text, "Lite_Result_Description") ?? "").slice(0, 200),
     trace: field(text, "Lite_Merchant_Trace") || null,
     amountCents: amount && /^\d+$/.test(amount) ? Number(amount) : null,
+    currency: (field(text, "Lite_Currency_AlphaCode") || "").toUpperCase() || null,
   };
 }
 
@@ -238,10 +241,24 @@ export const NEEDS_CHECK: Pick<PaymentResult, "title" | "message"> = {
   message: "Your bank approved a payment we couldn't apply to this application. LakeCity Accounts will contact you about it; please don't pay again.",
 };
 
+/** The bank approved (status 0) but the payment wasn't applied. cardStatus 0 tells the UI not to offer a retry. */
+export function needsCheckResult(message: string = NEEDS_CHECK.message): PaymentResult {
+  return { result: "error", cardStatus: 0, title: NEEDS_CHECK.title, message };
+}
+
+/**
+ * Settled for good: the payment was applied, or the bank approved it but it needs a staff check. Every other
+ * attempt (declined, cancelled, no answer yet) is re-checked with AuthoriseInfo each time, so a late approval
+ * is never lost.
+ */
+export function isSettled(attempt: Pick<PaymentAttempt, "status" | "cardStatus">): boolean {
+  return attempt.status === "approved" || (attempt.status === "error" && attempt.cardStatus === 0);
+}
+
 /** Result for an attempt that has already been settled (no gateway call). */
 export function storedResult(attempt: Pick<PaymentAttempt, "status" | "cardStatus">, kind?: string): PaymentResult {
   if (attempt.status === "approved") return classifyCardStatus(0);
-  if (attempt.status === "error" && attempt.cardStatus === 0) return { ...classifyCardStatus(-1), ...NEEDS_CHECK, cardStatus: 0 };
+  if (attempt.status === "error" && attempt.cardStatus === 0) return needsCheckResult();
   return classifyCardStatus(attempt.cardStatus, kind);
 }
 
@@ -249,8 +266,12 @@ export interface IveriReturnDeps {
   getAttempt(reference: string): Promise<PaymentAttempt | null>;
   /** Server-side AuthoriseInfo lookup by Lite_Merchant_Trace. */
   authoriseInfo(reference: string): Promise<AuthoriseInfo>;
-  /** Only ever called for card status 0. */
+  /**
+   * Only ever called for card status 0. Returns the recorded outcome; a repeat of an applied reference is
+   * "duplicate", a repeat of an unmatched/rejected one returns that outcome again.
+   */
   applyPayment(input: ApplyPaymentInput): Promise<ApplyStatus>;
+  /** Must never overwrite a settled attempt (see isSettled). */
   markAttempt(reference: string, status: PaymentAttempt["status"], cardStatus: number | null): Promise<void>;
   source: ApplyPaymentInput["source"];
   now?: () => Date;
@@ -273,9 +294,7 @@ export async function processIveriReturn(deps: IveriReturnDeps, input: { referen
     return { ...classifyCardStatus(-1), leadId: null, reference, applied: null, message: "We couldn't find this payment. No money was taken by this page. Please start the payment again." };
   }
   const base = { leadId: attempt.leadId, reference, applied: null as ApplyStatus | null };
-  if (attempt.status !== "started" && attempt.status !== "pending") {
-    return { ...base, ...storedResult(attempt, input.kind) };
-  }
+  if (isSettled(attempt)) return { ...base, ...storedResult(attempt, input.kind) };
 
   let info: AuthoriseInfo;
   try {
@@ -285,26 +304,26 @@ export async function processIveriReturn(deps: IveriReturnDeps, input: { referen
   }
 
   if (info.cardStatus !== 0) {
+    // No status yet (still on the card page, cancelled, or not found) is never stored: a later check can still approve.
     const result = classifyCardStatus(info.cardStatus, input.kind);
-    if (result.result !== "pending") await deps.markAttempt(reference, result.result, info.cardStatus);
+    if (info.cardStatus !== null) await deps.markAttempt(reference, result.result, info.cardStatus);
     return { ...base, ...result };
   }
 
-  const traceMismatch = info.trace !== null && info.trace !== reference;
-  const amountMismatch = info.amountCents !== null && info.amountCents !== attempt.amountCents;
-  if (traceMismatch || amountMismatch) {
+  // Status 0: the gateway's own amount (and trace and currency, when returned) must match this attempt.
+  const paidAt = (deps.now?.() ?? new Date()).toISOString();
+  const apply = (amountCents: number) => deps.applyPayment({ reference, leadId: attempt.leadId, standNumber: attempt.standNumber, amountCents, paidAt, source: deps.source });
+  if (info.amountCents !== attempt.amountCents) {
+    if (info.amountCents !== null) await apply(info.amountCents);
     await deps.markAttempt(reference, "error", 0);
-    return { ...base, ...classifyCardStatus(-1), ...NEEDS_CHECK };
+    return { ...base, applied: info.amountCents !== null ? "rejected" : null, ...needsCheckResult() };
+  }
+  if ((info.trace !== null && info.trace !== reference) || (info.currency !== null && info.currency !== "USD")) {
+    await deps.markAttempt(reference, "error", 0);
+    return { ...base, ...needsCheckResult() };
   }
 
-  const applied = await deps.applyPayment({
-    reference,
-    leadId: attempt.leadId,
-    standNumber: attempt.standNumber,
-    amountCents: attempt.amountCents,
-    paidAt: (deps.now?.() ?? new Date()).toISOString(),
-    source: deps.source,
-  });
+  const applied = await apply(info.amountCents);
   if (applied === "applied" || applied === "duplicate") {
     return { ...base, applied, ...classifyCardStatus(0) };
   }
@@ -312,8 +331,6 @@ export async function processIveriReturn(deps: IveriReturnDeps, input: { referen
   return {
     ...base,
     applied,
-    ...classifyCardStatus(-1),
-    title: NEEDS_CHECK.title,
-    message: "Your payment was approved, but this stand could not be reserved for you (it may already be sold). LakeCity Accounts will contact you about a refund or another stand.",
+    ...needsCheckResult("Your payment was approved, but this stand could not be reserved for you (it may already be sold). LakeCity Accounts will contact you about a refund or another stand; please don't pay again."),
   };
 }

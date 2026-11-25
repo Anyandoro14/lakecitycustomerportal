@@ -4,10 +4,10 @@
 //      at signing, status "signed"),
 //   2. queues the branded welcome/thank-you email (preview outbox until a provider is configured, OI-TBC-20),
 //   3. advances the wizard to the next step (portal account).
-// Idempotent: a payment reference is processed once. Keyed by stand number: the reference encodes the stand
-// and the lead must hold an open offer on that stand. A payment that can't be applied (stand already sold,
-// lead already paid) is still recorded as "unmatched" so staff can refund it. This mirrors the SQL function
-// apply_payment_confirmed used on the server.
+// Idempotent: a payment reference is processed once; a repeat returns its recorded outcome. Keyed by stand
+// number: the reference encodes the stand and the lead must hold an open offer on that stand. A payment that
+// can't be applied (stand already sold, lead already paid) is still recorded as "unmatched" so staff can
+// refund it. This mirrors the SQL function apply_payment_confirmed used on the server.
 
 import { paymentDueNowCents } from "./campaign.ts";
 import type { WizardStep } from "./flow.ts";
@@ -22,7 +22,8 @@ export type PaymentOutcome =
 
 /** Everything the handler reads and the single atomic commit it performs. */
 export interface PaymentEventStore {
-  isProcessed(reference: string): boolean;
+  /** Outcome already recorded for this reference, or null. */
+  recordedOutcome(reference: string): "applied" | "unmatched" | "rejected" | null;
   lead(leadId: string): Lead | null;
   stand(standNumber: string): Stand | null;
   /**
@@ -35,7 +36,9 @@ export interface PaymentEventStore {
 export function handlePaymentConfirmed(store: PaymentEventStore, event: ApplyPaymentInput): PaymentOutcome {
   const reference = event.reference.trim();
   if (!reference) return { status: "rejected", reason: "Missing payment reference." };
-  if (store.isProcessed(reference)) return { status: "duplicate", reference };
+  const recorded = store.recordedOutcome(reference);
+  if (recorded === "applied") return { status: "duplicate", reference };
+  if (recorded) return { status: recorded, reason: "This payment was already recorded." };
 
   const finish = (outcome: PaymentOutcome, extra: { stand?: Stand; lead?: Lead; emailFor?: Lead } = {}) => {
     store.commit({ reference, event, outcome, ...extra });

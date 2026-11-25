@@ -98,8 +98,9 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
               <AlertTriangle className="h-5 w-5 text-amber-600" /> Payments needing attention ({issues.length})
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Card payments the bank approved that could not be applied (for example the stand was already sold). Nothing changed in
-              inventory; LakeCity Accounts should contact the buyer about a refund (OI-TBC-25).
+              Approved card payments that could not be applied (for example the stand was already sold), and attempts with no
+              result from iVeri after 30 minutes. Nothing changed in inventory. Check them in iVeri BackOffice; refunds are
+              handled by LakeCity Accounts (OI-TBC-25).
             </p>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -119,7 +120,7 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
                   <TableRow key={i.reference}>
                     <TableCell className="font-mono text-xs">{i.reference}</TableCell>
                     <TableCell>{i.standNumber}</TableCell>
-                    <TableCell className="capitalize">{i.outcome}</TableCell>
+                    <TableCell className="capitalize">{i.outcome.replace("_", " ")}</TableCell>
                     <TableCell className="text-xs">{i.reason ?? "—"}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs">{i.createdAt.slice(0, 16).replace("T", " ")}</TableCell>
                     <TableCell>

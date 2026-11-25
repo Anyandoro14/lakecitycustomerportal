@@ -68,8 +68,14 @@ export async function latestAttempt(leadId: string): Promise<PaymentAttempt | nu
   return data ? rowToAttempt(data) : null;
 }
 
+/** Never overwrites a settled attempt (approved, or approved-but-needs-check with card status 0). */
 async function markAttempt(reference: string, status: PaymentAttempt["status"], cardStatus: number | null) {
-  const { error } = await adminClient().from("payment_attempts").update({ status, card_status: cardStatus, updated_at: new Date().toISOString() }).eq("reference", reference);
+  const { error } = await adminClient()
+    .from("payment_attempts")
+    .update({ status, card_status: cardStatus, updated_at: new Date().toISOString() })
+    .eq("reference", reference)
+    .neq("status", "approved")
+    .or("card_status.is.null,card_status.neq.0");
   if (error) throw dbFailure("payment_attempts update", error);
 }
 

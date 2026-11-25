@@ -92,6 +92,8 @@ describe("apply_payment_confirmed (SQL)", () => {
     expect(await one(`select stage::text from public.leads where id = $1`, [second])).toEqual({ stage: "form_filled" });
     expect(await one(`select status from public.payment_attempts where reference = $1`, [ref2])).toEqual({ status: "started" });
     expect(await count("public.email_outbox")).toBe(1);
+    expect(await apply(ref2, second)).toBe("unmatched");
+    expect(await count("public.payment_events")).toBe(2);
   });
 
   it("a wrong amount is recorded as rejected and changes nothing else", async () => {

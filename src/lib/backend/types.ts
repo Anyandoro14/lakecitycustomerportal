@@ -17,12 +17,17 @@ export interface PaymentResultView {
   message: string;
 }
 
-/** A payment that needs staff attention (approved but not applied, or rejected). Never card data. */
+/**
+ * A payment that needs staff attention. Never card data.
+ * unmatched / rejected: approved by the bank but not applied (recorded in payment_events).
+ * needs_check: approved, but AuthoriseInfo's trace or currency didn't match the attempt.
+ * unconfirmed: no approval or decline seen after 30 minutes; check it in iVeri BackOffice.
+ */
 export interface PaymentIssue {
   reference: string;
   standNumber: string;
   leadId: string | null;
-  outcome: "unmatched" | "rejected";
+  outcome: "unmatched" | "rejected" | "needs_check" | "unconfirmed";
   reason: string | null;
   createdAt: string;
 }

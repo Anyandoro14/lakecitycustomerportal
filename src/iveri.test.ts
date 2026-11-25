@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildLiteForm,
   classifyCardStatus,
+  isSettled,
   iveriConfigFromEnv,
   newMerchantReference,
   parseAuthoriseInfo,
@@ -161,7 +162,7 @@ function world(opts: { lead?: Lead; stand?: Partial<Stand> } = {}) {
     return reference;
   };
   const answer = (reference: string, cardStatus: number | null, over: Partial<AuthoriseInfo> = {}) =>
-    s.gateway.set(reference, { cardStatus, description: "", trace: reference, amountCents: 225000, ...over });
+    s.gateway.set(reference, { cardStatus, description: "", trace: reference, amountCents: 225000, currency: "USD", ...over });
   const deps: IveriReturnDeps = {
     getAttempt: async (ref) => structuredClone(s.attempts.find((a) => a.reference === ref) ?? null),
     authoriseInfo: async (ref) => {
@@ -174,7 +175,7 @@ function world(opts: { lead?: Lead; stand?: Partial<Stand> } = {}) {
       s.applyCalls++;
       return handlePaymentConfirmed(
         {
-          isProcessed: (r) => s.events.has(r),
+          recordedOutcome: (r) => (s.events.get(r) as "applied" | "unmatched" | "rejected" | undefined) ?? null,
           lead: (id) => s.leads.find((l) => l.id === id) ?? null,
           stand: (n) => s.stands.find((x) => x.standNumber === n) ?? null,
           commit: ({ reference, outcome, stand, lead, emailFor }) => {
@@ -189,7 +190,7 @@ function world(opts: { lead?: Lead; stand?: Partial<Stand> } = {}) {
       ).status;
     },
     markAttempt: async (ref, status, cardStatus) => {
-      s.attempts = s.attempts.map((a) => (a.reference === ref ? { ...a, status, cardStatus } : a));
+      s.attempts = s.attempts.map((a) => (a.reference === ref && !isSettled(a) ? { ...a, status, cardStatus } : a));
     },
     source: "mock-iveri",
     now: () => new Date("2026-11-25T12:00:00Z"),
@@ -247,13 +248,35 @@ describe("iVeri return handler (mocked gateway)", () => {
     expect(s.attempts[0]).toMatchObject({ cardStatus: status });
   });
 
-  it("cancel (no status from AuthoriseInfo) is cancelled and changes nothing", async () => {
+  it("cancel (no status from AuthoriseInfo) is cancelled, changes nothing and is not stored as final", async () => {
     const { s, deps, attempt, answer } = world();
     const ref = attempt();
     answer(ref, null);
     expect((await processIveriReturn(deps, { reference: ref, kind: "fail" })).result).toBe("cancelled");
     expect(s.applyCalls).toBe(0);
-    expect(s.attempts[0].status).toBe("cancelled");
+    expect(s.attempts[0].status).toBe("started");
+  });
+
+  it("an early check with no status (buyer still on the card page) never blocks a later approval", async () => {
+    const { s, deps, attempt, answer } = world();
+    const ref = attempt();
+    answer(ref, null);
+    await processIveriReturn(deps, { reference: ref });
+    await processIveriReturn(deps, { reference: ref, kind: "trylater" });
+    answer(ref, 0);
+    expect(await processIveriReturn(deps, { reference: ref, kind: "success" })).toMatchObject({ result: "approved", applied: "applied" });
+    expect(s.stands[0].status).toBe("paid");
+  });
+
+  it("a declined attempt is re-checked, so a later approval for that trace is still applied", async () => {
+    const { s, deps, attempt, answer } = world();
+    const ref = attempt();
+    answer(ref, 4);
+    await processIveriReturn(deps, { reference: ref, kind: "fail" });
+    expect(s.attempts[0]).toMatchObject({ status: "declined", cardStatus: 4 });
+    answer(ref, 0);
+    expect((await processIveriReturn(deps, { reference: ref })).applied).toBe("applied");
+    expect(s.emails).toBe(1);
   });
 
   it("does not trust the browser: a 'success' return with a declined AuthoriseInfo is declined", async () => {
@@ -274,16 +297,37 @@ describe("iVeri return handler (mocked gateway)", () => {
     expect((await processIveriReturn(deps, { reference: ref })).applied).toBe("applied");
   });
 
-  it("amount or trace mismatch from AuthoriseInfo never applies", async () => {
-    for (const over of [{ amountCents: 100 }, { trace: "LC9999-OTHER" }]) {
+  it("a missing amount, trace mismatch or non-USD currency never applies and needs a staff check", async () => {
+    for (const over of [{ amountCents: null }, { trace: "LC9999-OTHER" }, { currency: "ZWG" }]) {
       const { s, deps, attempt, answer } = world();
       const ref = attempt();
       answer(ref, 0, over);
       const out = await processIveriReturn(deps, { reference: ref, kind: "success" });
-      expect(out.result).toBe("error");
+      expect(out).toMatchObject({ result: "error", cardStatus: 0 });
       expect(s.applyCalls).toBe(0);
       expect(s.stands[0].status).toBe("available");
+      expect(s.attempts[0]).toMatchObject({ status: "error", cardStatus: 0 });
     }
+  });
+
+  it("a wrong gateway amount is recorded as rejected (gateway amount passed through) and never applies", async () => {
+    const { s, deps, attempt, answer } = world();
+    const ref = attempt();
+    answer(ref, 0, { amountCents: 100 });
+    const out = await processIveriReturn(deps, { reference: ref, kind: "success" });
+    expect(out).toMatchObject({ result: "error", applied: "rejected", cardStatus: 0 });
+    expect(s.events.get(ref)).toBe("rejected");
+    expect(s.stands[0].status).toBe("available");
+    expect(s.emails).toBe(0);
+  });
+
+  it("a settled attempt is never overwritten by a later status", async () => {
+    const { s, deps, attempt, answer } = world();
+    const ref = attempt();
+    answer(ref, 0);
+    await processIveriReturn(deps, { reference: ref });
+    await deps.markAttempt(ref, "declined", 4);
+    expect(s.attempts[0]).toMatchObject({ status: "approved", cardStatus: 0 });
   });
 
   it("unknown reference: error, no gateway call", async () => {
@@ -306,8 +350,19 @@ describe("iVeri return handler (mocked gateway)", () => {
     expect(s.emails).toBe(0);
     // A later re-check shows the same "needs check" message and never claims approval.
     const again = await processIveriReturn(deps, { reference: ref });
-    expect(again.result).toBe("error");
+    expect(again).toMatchObject({ result: "error", cardStatus: 0 });
     expect(s.applyCalls).toBe(1);
+  });
+
+  it("a concurrent repeat of an unmatched reference reports the recorded outcome, never 'approved'", async () => {
+    const { s, deps, attempt, answer } = world({ stand: { status: "paid", reservedLeadId: "someone-else" } });
+    const ref = attempt();
+    answer(ref, 0);
+    await processIveriReturn(deps, { reference: ref });
+    s.attempts[0] = { ...s.attempts[0], status: "started", cardStatus: null };
+    const racer = await processIveriReturn(deps, { reference: ref });
+    expect(racer).toMatchObject({ result: "error", applied: "unmatched", cardStatus: 0 });
+    expect(s.emails).toBe(0);
   });
 
   it("stored results: approved stays approved, approved-but-unmatched stays 'needs check'", () => {

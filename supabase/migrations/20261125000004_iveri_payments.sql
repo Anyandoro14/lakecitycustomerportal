@@ -23,8 +23,8 @@ alter table public.payment_events drop constraint payment_events_source_check;
 alter table public.payment_events add constraint payment_events_source_check check (source in ('iveri', 'mock-iveri'));
 alter table public.payment_events add column reason text;
 
--- Payment confirmed (card status 0). ONE transaction: the reference is recorded first (a repeat returns
--- 'duplicate' and changes nothing). If the payment can't be applied it stays recorded as 'unmatched' or
+-- Payment confirmed (card status 0). ONE transaction: the reference is recorded first. A repeat changes
+-- nothing and returns 'duplicate' if the reference was applied, otherwise its recorded outcome again. If the payment can't be applied it stays recorded as 'unmatched' or
 -- 'rejected' and nothing else changes. Otherwise the stand leaves available inventory, the lead is marked
 -- paid, the attempt is marked approved and the thank-you email is queued in the preview outbox.
 create or replace function public.apply_payment_confirmed(
@@ -46,11 +46,15 @@ set search_path = public
 as $$
 declare
   v_lead public.leads%rowtype;
+  v_recorded text;
 begin
   insert into public.payment_events (reference, stand_number, lead_id, amount_cents, source, outcome)
   values (p_reference, p_stand_number, (select id from public.leads where id = p_lead_id), p_amount_cents, p_source, 'applied')
   on conflict (reference) do nothing;
-  if not found then return 'duplicate'; end if;
+  if not found then
+    select outcome into v_recorded from public.payment_events where reference = p_reference;
+    return case when v_recorded = 'applied' then 'duplicate' else v_recorded end;
+  end if;
 
   if p_amount_cents <> 225000 then
     update public.payment_events set outcome = 'rejected', reason = 'amount' where reference = p_reference;

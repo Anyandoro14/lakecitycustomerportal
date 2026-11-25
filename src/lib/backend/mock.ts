@@ -10,7 +10,7 @@ import { CAMPAIGN, paymentDueNowCents } from "@shared/domain/campaign.ts";
 import { EMAIL_ATTACHMENTS, buildEmailProps, emailSubject, type EmailTemplateKey } from "@shared/domain/emails.ts";
 import { DuplicateStandRecordError, createMockIntegrations, matchesPortalCredentials, prepopulatePortalRecords } from "@shared/domain/integrations.ts";
 import { handlePaymentConfirmed } from "@shared/domain/payment-events.ts";
-import { newMerchantReference, processIveriReturn, type ApplyPaymentInput, type PaymentAttempt } from "@shared/domain/iveri.ts";
+import { isSettled, newMerchantReference, processIveriReturn, type ApplyPaymentInput, type PaymentAttempt } from "@shared/domain/iveri.ts";
 import { normaliseOffer, validateOfferForm } from "@shared/domain/offer-form.ts";
 import { validateContact } from "@shared/domain/contact.ts";
 import type { Backend, PaymentIssue, PaymentResultView } from "./types";
@@ -106,12 +106,12 @@ async function mockReturn(leadId: string, reference: string, kind?: string): Pro
       getAttempt: async (ref) => structuredClone(state.paymentAttempts.find((a) => a.reference === ref) ?? null),
       authoriseInfo: async (ref) => {
         if (!(ref in state.mockGateway)) throw new Error("no answer yet");
-        return { cardStatus: state.mockGateway[ref], description: "", trace: ref, amountCents: attempt.amountCents };
+        return { cardStatus: state.mockGateway[ref], description: "", trace: ref, amountCents: attempt.amountCents, currency: "USD" };
       },
       applyPayment: async (input) => applyMockPayment(input),
       markAttempt: async (ref, status, cardStatus) => {
         const a = state.paymentAttempts.find((x) => x.reference === ref);
-        if (a) Object.assign(a, { status, cardStatus });
+        if (a && !isSettled(a)) Object.assign(a, { status, cardStatus });
         save();
       },
       source: "mock-iveri",
@@ -125,7 +125,7 @@ async function mockReturn(leadId: string, reference: string, kind?: string): Pro
 function applyMockPayment(input: ApplyPaymentInput) {
   const outcome = handlePaymentConfirmed(
     {
-      isProcessed: (ref) => state.payments.some((p) => p.reference === ref),
+      recordedOutcome: (ref) => (state.payments.find((p) => p.reference === ref)?.status as "applied" | "unmatched" | "rejected" | undefined) ?? null,
       lead: (id) => state.leads.find((l) => l.id === id) ?? null,
       stand: (n) => state.stands.find((s) => s.standNumber === n) ?? null,
       commit: ({ reference: ref, event, outcome: o, stand, lead: updated, emailFor }) => {
@@ -288,10 +288,24 @@ export const mockBackend: Backend = {
   },
 
   async listPaymentIssues() {
-    return state.payments
+    const recorded = state.payments
       .filter((p) => p.status === "unmatched" || p.status === "rejected")
-      .map((p): PaymentIssue => ({ reference: p.reference, standNumber: p.standNumber, leadId: p.leadId, outcome: p.status as PaymentIssue["outcome"], reason: p.reason, createdAt: p.at }))
-      .reverse();
+      .map((p): PaymentIssue => ({ reference: p.reference, standNumber: p.standNumber, leadId: p.leadId, outcome: p.status as PaymentIssue["outcome"], reason: p.reason, createdAt: p.at }));
+    const seen = new Set(recorded.map((i) => i.reference));
+    const staleBefore = new Date(Date.now() - 30 * 60_000).toISOString();
+    const attempts = state.paymentAttempts
+      .filter((a) => !seen.has(a.reference) && ((a.status === "error" && a.cardStatus === 0) || ((a.status === "started" || a.status === "pending") && a.createdAt < staleBefore)))
+      .map(
+        (a): PaymentIssue => ({
+          reference: a.reference,
+          standNumber: a.standNumber,
+          leadId: a.leadId,
+          outcome: a.status === "error" ? "needs_check" : "unconfirmed",
+          reason: a.status === "error" ? "AuthoriseInfo details didn't match the attempt" : "No result from iVeri yet; check iVeri BackOffice",
+          createdAt: a.createdAt,
+        }),
+      );
+    return [...recorded, ...attempts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
   async resetDemo() {

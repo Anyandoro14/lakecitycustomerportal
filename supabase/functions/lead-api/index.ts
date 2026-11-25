@@ -49,8 +49,6 @@ serve(async (req) => {
       const config = iveriConfig();
       const reference = newMerchantReference(lead.standNumber);
       const amountCents = paymentDueNowCents();
-      const { error } = await adminClient().from("payment_attempts").insert({ reference, lead_id: lead.id, stand_number: lead.standNumber, amount_cents: amountCents });
-      if (error) throw dbFailure("payment_attempts insert", error);
       const returnUrl = env("IVERI_RETURN_URL") || `${env("SUPABASE_URL")}/functions/v1/iveri-return`;
       const form = await buildLiteForm({
         config,
@@ -60,6 +58,8 @@ serve(async (req) => {
         description: `LakeCity stand ${lead.standNumber}: down payment + legal fee`,
         returnUrl,
       });
+      const { error } = await adminClient().from("payment_attempts").insert({ reference, lead_id: lead.id, stand_number: lead.standNumber, amount_cents: amountCents });
+      if (error) throw dbFailure("payment_attempts insert", error);
       return json({ kind: "iveri", reference, amountCents, action: form.action, fields: form.fields, simulationAllowed: devSimulationsAllowed() });
     }
 
@@ -81,7 +81,7 @@ serve(async (req) => {
       if (cardStatus !== null && !Number.isInteger(cardStatus)) throw new HttpError(400, "Invalid card status.");
       const deps = iveriDeps(iveriConfig(), {
         source: "mock-iveri",
-        authoriseInfo: () => Promise.resolve({ cardStatus, description: "", trace: attempt.reference, amountCents: attempt.amountCents }),
+        authoriseInfo: () => Promise.resolve({ cardStatus, description: "", trace: attempt.reference, amountCents: attempt.amountCents, currency: "USD" }),
       });
       return json(await processIveriReturn(deps, { reference: attempt.reference, kind: cardStatus === 0 ? "success" : "fail" }));
     }

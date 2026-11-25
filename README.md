@@ -108,12 +108,18 @@ Smallest stand 1,200 m² (USD 54,000), largest 3,288 m² (USD 147,960).
      amount in cents, USD, the four return URLs, line item, email; `Lite_Transaction_Token` when a shared secret
      is set). The browser POSTs it to `portal.host.iveri.com/Lite/Authorise.aspx`.
    * iVeri sends the browser to the `iveri-return` edge function. Nothing iVeri posts is trusted: it calls
-     **AuthoriseInfo** server-side for that trace and only **card status 0** (with matching trace and amount)
-     calls `apply_payment_confirmed`. It then redirects to the payment step with the reference.
+     **AuthoriseInfo** server-side for that trace and only **card status 0** calls `apply_payment_confirmed`, and
+     only if AuthoriseInfo's own amount is 225000 (a different amount is recorded as `rejected`; a missing
+     amount, another trace or a non-USD currency is held for a staff check). It then redirects to the payment
+     step with the reference.
    * Statuses **3, 4, 5, 9, 14, 255** and cancel show a friendly message (255 explains 3-D Secure cards can't be
      used yet) and **change nothing**; "Try again" starts a new attempt with a new reference. If AuthoriseInfo
      can't be reached the attempt stays open and **Check payment status** re-checks it later.
-   * **Idempotent:** a settled attempt is never re-processed, and `payment_events` records each reference once.
+   * **Idempotent:** `payment_events` records each reference once and a repeat returns the recorded outcome
+     (so a racing second return can never report "approved" for a payment that wasn't applied). Only applied or
+     held-for-check attempts are final; a missing status (buyer still on the card page, cancel) is never stored,
+     and declined attempts are re-checked, so a late approval for a trace is never lost. Attempts with no result
+     after 30 minutes appear under **Payments needing attention**.
    * An approved payment that can't be applied (stand already sold, lead already paid, wrong amount) is **recorded**
      as `unmatched`/`rejected` with a reason, nothing else changes, the buyer is told LakeCity Accounts will contact
      them, and staff see it under **Payments needing attention** on `/internal` (refund route OI-TBC-25).
@@ -260,4 +266,5 @@ the lead page. Validators live in a per-country registry (`_shared/domain/id-val
 | OI-TBC-30 | **CLOSED**: iVeri AuthoriseInfo (server-side, status 0 only) is the payment confirmation source. Unmatched or wrong-amount payments are recorded and listed for staff | `iveri.ts`, `iveri-return`, `apply_payment_confirmed` |
 | OI-TBC-31 | **Blocker before Live:** 3-D Secure / ECI must be enabled on the CBZ iVeri application. 3DS cards return status 255 ("ElectronicCommerceIndicator required") on TEST; the buyer is told to try another card | CBZ / iVeri setup |
 | OI-TBC-32 | iVeri TEST card 5454… returns an iVeri 500 error (iVeri side; raise with iVeri/CBZ). If it happens the buyer sees a generic "payment not completed" message and nothing changes | iVeri |
-| OI-TBC-33 | iVeri **Live** App ID and moving to Production: needs Alex's own yes. Only `IVERI_ENVIRONMENT=test` is accepted today | `iveriConfigFromEnv()` |
+| OI-TBC-33 | iVeri **Live** App ID and moving to Production: needs Alex's own yes. Only `IVERI_ENVIRONMENT=test` is accepted today. iVeri uses the same host for Test and Live, so the App ID itself decides: only a TEST App ID may be configured | `iveriConfigFromEnv()` |
+| OI-TBC-34 | Turn on iVeri **Token Verification** (`IVERI_SHARED_SECRET`) before Live so the posted amount can't be altered in the browser (a changed amount is already caught by the AuthoriseInfo amount check and recorded as rejected), and confirm AuthoriseInfo returns `Lite_Currency_AlphaCode` and how long emails over 40 characters are handled | `buildLiteForm()`, `processIveriReturn()` |
