@@ -6,7 +6,7 @@ import { normaliseOffer, validateOfferForm } from "../_shared/domain/offer-form.
 import { toCustomerLead } from "../_shared/domain/rows.ts";
 import type { OfferSubmission } from "../_shared/domain/types.ts";
 import { queueEmail } from "../_shared/server/email.ts";
-import { HttpError, devSimulationsAllowed, env, json, serve } from "../_shared/server/http.ts";
+import { HttpError, devSimulationsAllowed, json, serve } from "../_shared/server/http.ts";
 import { loadLead, loadLeadForCustomer, loadStand, updateLead } from "../_shared/server/leads.ts";
 import { onPaymentConfirmed } from "../_shared/server/payment.ts";
 
@@ -35,10 +35,10 @@ serve(async (req) => {
 
     case "start-payment": {
       if (!lead.offer) throw new HttpError(409, "Complete the offer form first.");
-      // ZikiMall URL + payload contract TBC (OI-TBC-07): no redirect until it exists. No money moves here.
-      const base = env("ZIKIMALL_URL");
+      // No ZikiMall redirect until OI-TBC-07 is closed (amount contract, signed callback, stand hold).
+      // Deliberately not configurable: no money can move from this build.
       return json({
-        redirectUrl: base ? `${base}?ref=${encodeURIComponent(lead.id)}` : null,
+        redirectUrl: null,
         simulationAllowed: devSimulationsAllowed(),
         amountCents: paymentDueNowCents(),
       });

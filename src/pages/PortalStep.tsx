@@ -99,11 +99,12 @@ function PortalRecordsView({ lead, records }: { lead: Lead; records: PortalRecor
           <CardDescription>Account {cs.accountId}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <dl className="grid gap-3 text-sm sm:grid-cols-4">
-            <div><dt className="text-xs text-muted-foreground">Price</dt><dd className="font-medium">{formatUsd(cs.priceCents)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{formatUsd(cs.paidToDateCents)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Balance</dt><dd className="font-medium">{formatUsd(cs.balanceCents)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Monthly</dt><dd className="font-medium">{formatUsd(cs.monthlyCents)} × {cs.termMonths}</dd></div>
+          <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-5">
+            <div><dt className="text-xs text-muted-foreground">Price</dt><dd className="font-medium" data-testid="portal-price">{formatUsd(cs.priceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Paid toward price</dt><dd className="font-medium" data-testid="portal-paid-toward-price">{formatUsd(cs.paidTowardPriceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Legal fee paid</dt><dd className="font-medium">{formatUsd(cs.legalFeePaidCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Balance</dt><dd className="font-medium" data-testid="portal-balance">{formatUsd(cs.balanceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Monthly</dt><dd className="font-medium">about {formatUsd(cs.monthlyCents)} × {cs.termMonths}</dd></div>
           </dl>
           <div className="overflow-x-auto">
             <Table>

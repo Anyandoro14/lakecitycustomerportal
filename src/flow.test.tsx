@@ -90,6 +90,16 @@ describe("portal account step (mock adapters)", () => {
     expect(r.odoo.payment.amountCents).toBe(2_250_00);
     expect(r.odoo.partner.ref).toMatch(/^MOCK-ODOO-/);
   });
+
+  it("keeps the legal fee out of the balance: price - paid toward price = balance", () => {
+    const cs = prepopulatePortalRecords({ lead, stand, now: new Date("2026-11-25T11:00:00Z") }).collectionSchedule;
+    expect(cs.paidTowardPriceCents).toBe(1_750_00);
+    expect(cs.legalFeePaidCents).toBe(500_00);
+    expect(cs.paidTowardPriceCents + cs.legalFeePaidCents).toBe(cs.paidToDateCents);
+    expect(cs.priceCents - cs.paidTowardPriceCents).toBe(cs.balanceCents);
+    const instalments = cs.rows.slice(1).reduce((sum, row) => sum + row.amountCents, 0);
+    expect(instalments).toBe(cs.balanceCents);
+  });
 });
 
 describe("thank-you email", () => {

@@ -25,7 +25,7 @@ function OfferCompleted(props: EmailProps) {
           ["Down payment", money(props.downPaymentCents)],
           ["Legal fee", money(props.legalFeeCents)],
           ["Due now", money(props.dueNowCents)],
-          ["Then monthly", `${money(props.monthlyCents)} × ${props.termMonths}`],
+          ["Then monthly", `about ${money(props.monthlyCents)} × ${props.termMonths}`],
         ]}
       />
       {mockNote(props)}

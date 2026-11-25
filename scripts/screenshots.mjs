@@ -128,6 +128,10 @@ await fill("#portal-phone", "0771234567");
 await shot("portal-enter-details");
 await page.getByRole("button", { name: /set up my account/i }).click();
 await page.waitForSelector('[data-testid="portal-records"]');
+const [price, towardPrice, balance] = await Promise.all(
+  ["portal-price", "portal-paid-toward-price", "portal-balance"].map(async (id) => usd(await page.locator(`[data-testid="${id}"]`).innerText())),
+);
+check(Math.abs(price - towardPrice - balance) < 0.005, `portal: price ${price} - paid toward price ${towardPrice} = balance ${balance}`);
 await shot("portal-records-prepopulated");
 
 // 8. Staff views

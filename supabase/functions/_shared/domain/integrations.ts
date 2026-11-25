@@ -15,7 +15,12 @@ export interface CollectionScheduleRecord {
   priceCents: number;
   downPaymentCents: number;
   legalFeeCents: number;
+  /** Everything received so far, including the legal fee. */
   paidToDateCents: number;
+  /** The part of paidToDateCents that counts toward the stand price (excludes the legal fee). */
+  paidTowardPriceCents: number;
+  legalFeePaidCents: number;
+  /** priceCents - paidTowardPriceCents. */
   balanceCents: number;
   monthlyCents: number;
   termMonths: number;
@@ -31,6 +36,8 @@ export interface MasterScheduleRow {
   email: string;
   priceCents: number;
   paidToDateCents: number;
+  paidTowardPriceCents: number;
+  legalFeePaidCents: number;
   balanceCents: number;
   status: string;
   paymentReference: string;
@@ -78,6 +85,8 @@ export const mockCollectionScheduleAdapter: CollectionScheduleAdapter = {
     const schedule = computeSchedule({ sizeSqm: stand.sizeSqm, startDate });
     const q = schedule.quote;
     const paid = lead.paymentAmountCents ?? 0;
+    const legalFeePaid = Math.min(paid, q.legalFeeCents);
+    const paidTowardPrice = paid - legalFeePaid;
     const name = lead.offer?.buyer.fullName ?? lead.contact.fullName;
     return {
       accountId: `MOCK-CS-${stand.standNumber}-${suffix(lead.id)}`,
@@ -90,7 +99,9 @@ export const mockCollectionScheduleAdapter: CollectionScheduleAdapter = {
       downPaymentCents: q.downPaymentCents,
       legalFeeCents: q.legalFeeCents,
       paidToDateCents: paid,
-      balanceCents: q.balanceCents,
+      paidTowardPriceCents: paidTowardPrice,
+      legalFeePaidCents: legalFeePaid,
+      balanceCents: q.priceCents - paidTowardPrice,
       monthlyCents: q.monthlyCents,
       termMonths: q.termMonths,
       rows: schedule.rows,
@@ -109,6 +120,8 @@ export const mockMasterScheduleAdapter: MasterScheduleAdapter = {
       email: c.email,
       priceCents: c.priceCents,
       paidToDateCents: c.paidToDateCents,
+      paidTowardPriceCents: c.paidTowardPriceCents,
+      legalFeePaidCents: c.legalFeePaidCents,
       balanceCents: c.balanceCents,
       status: "Down payment + legal fee received",
       paymentReference: lead.paymentReference ?? "",
