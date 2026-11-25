@@ -3,6 +3,7 @@
 import type { CoOwner, Lead, Stand } from "./types.ts";
 
 // deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));

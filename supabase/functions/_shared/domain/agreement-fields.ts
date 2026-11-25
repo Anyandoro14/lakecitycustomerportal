@@ -1,6 +1,6 @@
 // Single source of truth for the Agreement of Sale merge fields.
-// The template PDF must contain AcroForm text fields with exactly these names; the docusign-signing
-// edge function fills them with pdf-lib and flattens the form before sending the envelope.
+// The template PDF must contain AcroForm text fields with exactly these names; the lead-api edge
+// function (signing-session) fills them with pdf-lib and flattens the form before sending the envelope.
 // Signature placement uses DocuSign anchor strings (see SIGNATURE_ANCHORS) printed in the template.
 
 import { countryName } from "./countries.ts";
