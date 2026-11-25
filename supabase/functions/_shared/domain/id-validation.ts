@@ -2,7 +2,7 @@
 // Keep this file dependency-free so it runs unchanged in both runtimes.
 //
 // These are FORMAT checks only. They prove a number is well-formed, not that it was issued to this
-// person. Every ID still goes through the manual LakeCity staff review gate before payment.
+// person. Every ID is still reviewed by LakeCity staff on the lead page (this does not gate payment).
 
 import { isIsoCountry } from "./countries.ts";
 

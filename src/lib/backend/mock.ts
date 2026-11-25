@@ -1,31 +1,37 @@
 // Local mock backend so the whole flow runs without Supabase. State is kept in localStorage so the
 // demo survives reloads. Nothing here is sent anywhere: no money moves, no emails leave the browser,
-// and the portal records are built by MOCK adapters without touching Sheets or Odoo.
+// payment confirmations come from the MOCK ZikiMall/CBZ adapter, and portal records are built by MOCK
+// adapters (keyed by stand number) without touching the real sheets or Odoo.
 
 import seed from "@/data/stands.seed.json";
 import { config } from "@/config";
 import { CAMPAIGN, paymentDueNowCents } from "@shared/domain/campaign.ts";
 import { EMAIL_ATTACHMENTS, buildEmailProps, emailSubject, type EmailTemplateKey } from "@shared/domain/emails.ts";
-import { matchesPortalCredentials, prepopulatePortalRecords } from "@shared/domain/integrations.ts";
+import { DuplicateStandRecordError, createMockIntegrations, matchesPortalCredentials, prepopulatePortalRecords } from "@shared/domain/integrations.ts";
+import { handlePaymentConfirmed, mockPaymentConfirmationAdapter } from "@shared/domain/payment-events.ts";
+import { ZIKIMALL, zikimallAccountNumber } from "@shared/domain/payment-methods.ts";
 import { normaliseOffer, validateOfferForm } from "@shared/domain/offer-form.ts";
 import { validateContact } from "@shared/domain/contact.ts";
 import type { Backend } from "./types";
 import type { Lead, OutboxEmailRecord, Stand } from "./models";
 
-const STORAGE_KEY = "lakecity-mock-v2";
+const STORAGE_KEY = "lakecity-mock-v4";
 const MOCK_STAFF = "dev-staff@lakecity.local";
 
 interface MockState {
   stands: Stand[];
   leads: Lead[];
   outbox: OutboxEmailRecord[];
+  /** Payment references already handled (idempotency), with their outcome. */
+  payments: { reference: string; standNumber: string; status: string; at: string }[];
 }
 
 function freshState(): MockState {
   return {
-    stands: seed.stands.map((s) => ({ standNumber: s.standNumber, sizeSqm: s.sizeSqm, status: "available", reservedLeadId: null })),
+    stands: seed.stands.map((s) => ({ standNumber: s.standNumber, sizeSqm: s.sizeSqm, phase: s.phase, landUse: s.landUse, status: "available", reservedLeadId: null })),
     leads: [],
     outbox: [],
+    payments: [],
   };
 }
 
@@ -141,24 +147,40 @@ export const mockBackend: Backend = {
     await delay(200);
     const lead = requireLead(leadId);
     if (!lead.offer) throw new Error("Complete the offer form first.");
-    return { redirectUrl: null, simulationAllowed: true, amountCents: paymentDueNowCents() };
+    return { zikimallUrl: ZIKIMALL.url, accountNumber: zikimallAccountNumber(lead), simulationAllowed: true, amountCents: paymentDueNowCents() };
   },
 
-  async simulatePaymentConfirmed(leadId) {
+  async simulatePaymentConfirmed(leadId, reference) {
     await delay(600);
     const lead = requireLead(leadId);
-    if (lead.stage !== "form_filled") return;
-    if (!lead.offer) throw new Error("Complete the offer form first.");
-    const stand = requireStand(lead.standNumber);
-    if (stand.status !== "available") throw new Error("Stand no longer available.");
-    stand.status = "paid";
-    stand.reservedLeadId = lead.id;
-    lead.stage = "paid";
-    lead.paidAt = now();
-    lead.paymentAmountCents = paymentDueNowCents();
-    lead.paymentReference = `ZM-SIM-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    queueEmail("payment_thank_you", lead);
+    const surname = (lead.offer?.buyer.fullName ?? lead.contact.fullName).trim().split(/\s+/).at(-1);
+    const event = mockPaymentConfirmationAdapter.simulate({ standNumber: lead.standNumber, payerSurname: surname, reference });
+    const outcome = handlePaymentConfirmed(
+      {
+        isProcessed: (ref) => state.payments.some((p) => p.reference === ref),
+        leads: () => state.leads,
+        stand: (n) => state.stands.find((s) => s.standNumber === n) ?? null,
+        // Single synchronous commit followed by one save(): all or nothing.
+        commit: ({ reference: ref, outcome: o, stand, lead: updated, emailFor }) => {
+          const next = structuredClone(state);
+          next.payments.push({ reference: ref, standNumber: event.standNumber, status: o.status, at: now() });
+          if (stand) next.stands = next.stands.map((s) => (s.standNumber === stand.standNumber ? stand : s));
+          if (updated) next.leads = next.leads.map((l) => (l.id === updated.id ? updated : l));
+          const prev = state;
+          state = next;
+          try {
+            if (emailFor) queueEmail("payment_thank_you", emailFor);
+          } catch (e) {
+            state = prev;
+            throw e;
+          }
+        },
+      },
+      event,
+    );
     save();
+    if (outcome.status === "rejected" || outcome.status === "unmatched") throw new Error(outcome.reason);
+    return outcome;
   },
 
   async enrolPortal(leadId, input) {
@@ -169,7 +191,14 @@ export const mockBackend: Backend = {
       throw new Error("The stand number and phone number don't match this application.");
     }
     if (lead.portalStatus !== "prepopulated") {
-      lead.portalRecords = prepopulatePortalRecords({ lead, stand: requireStand(lead.standNumber), now: new Date() });
+      // One record per stand number in each system: seed the mock adapters with the stand's existing records.
+      const adapters = createMockIntegrations(state.leads.filter((l) => l.standNumber === lead.standNumber && l.portalRecords));
+      try {
+        lead.portalRecords = prepopulatePortalRecords({ lead, stand: requireStand(lead.standNumber), now: new Date() }, adapters);
+      } catch (e) {
+        if (e instanceof DuplicateStandRecordError) throw new Error(`Stand ${lead.standNumber} is already set up for another buyer. Please contact LakeCity.`);
+        throw e;
+      }
       lead.portalStatus = "prepopulated";
       queueEmail("portal_ready", lead);
     }

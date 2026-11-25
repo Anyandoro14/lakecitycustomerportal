@@ -1,7 +1,7 @@
 -- LakeCity stand sales: core schema (not yet applied to any environment).
 -- Customers never read/write these tables directly: all customer actions go through edge functions
 -- (service role) that check the per-lead access token. Staff read via RLS (public.is_staff()).
--- Pricing is never stored: price = USD 45 x size_sqm; USD 2,250 due at start (see campaign.ts).
+-- Pricing is never stored: price = USD 45 x size_sqm, incl. 15.5% VAT; USD 2,250 due at start (see campaign.ts).
 
 create extension if not exists pgcrypto;
 
@@ -28,7 +28,9 @@ $$;
 
 create table public.stands (
   stand_number text primary key,
-  size_sqm numeric check (size_sqm > 0),  -- real sizes TBC (OI-TBC-04); dev seed uses mock sizes
+  phase text,
+  land_use text,
+  size_sqm numeric check (size_sqm > 0),  -- area from the Marketing Campaign Tracker (col J)
   status public.stand_status not null default 'available',
   reserved_lead_id uuid,
   signed_lead_id uuid,

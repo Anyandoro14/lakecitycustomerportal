@@ -127,6 +127,26 @@ describe("filter by range (campaign stands)", () => {
     expect(c.map(price)).toContain(Math.max(...all));
   });
 
+  it("uses the real Marketing Campaign Tracker sizes: 1,200 m² = USD 54,000 to 3,288 m² = USD 147,960", () => {
+    const bands = priceBands(stands.map(price))!;
+    expect(Math.min(...stands.map((s) => s.sizeSqm))).toBe(1200);
+    expect(Math.max(...stands.map((s) => s.sizeSqm))).toBe(3288);
+    expect(bands.minCents).toBe(54_000_00);
+    expect(bands.maxCents).toBe(147_960_00);
+    expect(bands.bands.map((x) => [x.key, x.fromCents, x.toCents])).toEqual([
+      ["A", 54_000_00, 85_320_00],
+      ["B", 85_320_00, 116_640_00],
+      ["C", 116_640_00, 147_960_00],
+    ]);
+    expect([a.length, b.length, c.length]).toEqual([10, 25, 3]);
+    expect(c.map((s) => s.standNumber).sort()).toEqual(["3084", "3095", "3096"]);
+  });
+
+  it("shows a phase for every stand and keeps stand numbers unique", () => {
+    expect(stands.every((s) => typeof s.phase === "string" && s.phase.length > 0)).toBe(true);
+    expect(new Set(stands.map((s) => s.standNumber)).size).toBe(stands.length);
+  });
+
   it("ignores stands without a size", () => {
     const withUnknown = [...stands, { standNumber: "9999", sizeSqm: null }];
     expect(filterByBand(withUnknown, "A").find((s) => s.standNumber === "9999")).toBeUndefined();

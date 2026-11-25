@@ -7,7 +7,7 @@ import { matchesPortalCredentials, prepopulatePortalRecords } from "@shared/doma
 import { validateOfferForm } from "@shared/domain/offer-form.ts";
 import type { Lead, OfferSubmission, Stand } from "@shared/domain/types.ts";
 
-const stand: Stand = { standNumber: "3041", sizeSqm: 500, status: "paid", reservedLeadId: "lead-1" };
+const stand: Stand = { standNumber: "3041", phase: "3", landUse: "Residential", sizeSqm: 500, status: "paid", reservedLeadId: "lead-1" };
 
 const offer: OfferSubmission = {
   buyer: {
@@ -82,13 +82,13 @@ describe("portal account step (mock adapters)", () => {
   it("pre-populates collection schedule, master schedule and Odoo records without writing anywhere", () => {
     const r = prepopulatePortalRecords({ lead, stand, now: new Date("2026-11-25T11:00:00Z") });
     expect(r.adapter).toBe("mock");
-    expect(r.collectionSchedule.accountId).toMatch(/^MOCK-CS-3041-/);
+    expect(r.collectionSchedule.accountId).toBe("MOCK-CS-3041");
     expect(r.collectionSchedule.priceCents).toBe(22_500_00);
     expect(r.collectionSchedule.paidToDateCents).toBe(2_250_00);
     expect(r.collectionSchedule.rows).toHaveLength(49);
     expect(r.masterSchedule.collectionAccountId).toBe(r.collectionSchedule.accountId);
     expect(r.odoo.payment.amountCents).toBe(2_250_00);
-    expect(r.odoo.partner.ref).toMatch(/^MOCK-ODOO-/);
+    expect(r.odoo.partner.ref).toBe("MOCK-ODOO-PARTNER-3041");
   });
 
   it("keeps the legal fee out of the balance: price - paid toward price = balance", () => {
@@ -109,14 +109,15 @@ describe("thank-you email", () => {
     expect(props.offerUrl).toBe(`http://127.0.0.1:8137/apply/${lead.id}/offer`);
   });
 
-  it("names the stand, shows the stage badge and progress bar, and never includes ID numbers", async () => {
-    const html = (await renderEmailHtml("payment_thank_you", props)).replace(/<!-- -->/g, "");
-    expect(html).toContain("stand 3041");
+  it("names the stand, uses the v4 template with the progress bar, and never includes ID numbers", async () => {
+    const html = await renderEmailHtml("payment_thank_you", props);
+    expect(html).toContain("stand <strong");
+    expect(html).toContain(">3041</strong>");
     expect(html).toContain(props.offerUrl);
-    expect(html).toMatch(/Stage 3 of 4/);
+    expect(html).toContain("Progress of your purchase");
     expect(html).toContain("Payment received");
-    expect(html).toContain("#0b3d2e");
-    expect(html).toContain("#d4a52a");
+    expect(html).toContain("#0B412F");
+    expect(html).toContain("#DDA23C");
     expect(html).not.toContain("446236");
     expect(html.toLowerCase()).not.toContain("password:");
   });

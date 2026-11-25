@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { backend, type Stand } from "@/lib/backend";
 import { cn } from "@/lib/utils";
-import { DUE_AT_START_USD, PRICING, bandOf, filterByBand, priceBands, standPriceCents, type PriceBandKey } from "@shared/domain/campaign.ts";
+import { DUE_AT_START_USD, PRICE_VAT_NOTE, PRICING, bandOf, filterByBand, priceBands, standPriceCents, type PriceBandKey } from "@shared/domain/campaign.ts";
 import { formatUsd } from "@shared/domain/schedule.ts";
 
 type Filter = PriceBandKey | "all";
@@ -57,7 +57,7 @@ export default function Landing() {
             Own your stand at LakeCity. {formatUsd(DUE_AT_START_USD * 100)} today, the balance over 48 months.
           </h1>
           <p className="mt-5 max-w-xl text-base text-primary-foreground/80 sm:text-lg">
-            Every stand is priced at USD {PRICING.pricePerSqmUsd} per m². Pick your stand, complete the offer form and pay{" "}
+            Every stand is priced at USD {PRICING.pricePerSqmUsd} per m², {PRICE_VAT_NOTE}. Pick your stand, complete the offer form and pay{" "}
             {formatUsd(PRICING.downPaymentUsd * 100)} down payment plus the {formatUsd(PRICING.legalFeeUsd * 100)} legal fee online.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -78,7 +78,7 @@ export default function Landing() {
           <div>
             <h2 className="font-serif text-2xl font-semibold sm:text-3xl">Choose your stand</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Filter by price range. Stand sizes are mock figures until LakeCity confirms them. <PlaceholderTag>Mock sizes</PlaceholderTag>
+              Filter by price range. All prices are USD {PRICING.pricePerSqmUsd} per m², {PRICE_VAT_NOTE}.
             </p>
           </div>
         </div>
@@ -158,12 +158,15 @@ function StandCard({ stand, band }: { stand: Stand; band?: PriceBandKey }) {
         </div>
         {band && <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">Range {band}</span>}
       </div>
-      <p className="mt-3 flex items-center gap-1.5 text-sm" data-testid="stand-size">
-        <Ruler className="h-3.5 w-3.5 text-gold" /> {stand.sizeSqm!.toLocaleString("en-US")} m²
-      </p>
+      <div className="mt-3 flex items-center justify-between gap-2 text-sm">
+        <p className="flex items-center gap-1.5" data-testid="stand-size">
+          <Ruler className="h-3.5 w-3.5 text-gold" /> {stand.sizeSqm!.toLocaleString("en-US")} m²
+        </p>
+        {stand.phase && <p className="text-xs text-muted-foreground" data-testid="stand-phase">Phase {stand.phase}</p>}
+      </div>
       <div className="mt-3 flex items-end justify-between border-t pt-3">
         <div>
-          <p className="text-xs text-muted-foreground">Total price</p>
+          <p className="text-xs text-muted-foreground">Total price · {PRICE_VAT_NOTE}</p>
           <p className="font-semibold tabular-nums">{formatUsd(standPriceCents(stand.sizeSqm!))}</p>
         </div>
         {sold ? (

@@ -1,9 +1,8 @@
 import { MapPin } from "lucide-react";
-import { PlaceholderTag } from "@/components/Placeholder";
 import { Separator } from "@/components/ui/separator";
 import type { Stand } from "@/lib/backend";
 import { cn } from "@/lib/utils";
-import { PRICING, quoteForSize, type PriceBandKey } from "@shared/domain/campaign.ts";
+import { PRICE_VAT_NOTE, PRICING, quoteForSize, type PriceBandKey } from "@shared/domain/campaign.ts";
 import { formatUsd } from "@shared/domain/schedule.ts";
 
 function Row({ label, value, hint, strong }: { label: string; value: string; hint?: string; strong?: boolean }) {
@@ -35,11 +34,11 @@ export function StandSummary({ stand, band, className }: { stand: Stand; band?: 
         </div>
         <h2 className="mt-2 font-serif text-4xl font-semibold" data-testid="stand-number">Stand {stand.standNumber}</h2>
         <p className="mt-1 text-primary-foreground/80">
-          {stand.sizeSqm.toLocaleString("en-US")} m² <PlaceholderTag className="ml-1 bg-white/10 text-white">Mock size</PlaceholderTag>
+          {stand.sizeSqm.toLocaleString("en-US")} m²{stand.phase ? ` · Phase ${stand.phase}` : ""}
         </p>
       </div>
       <div className="px-6 py-4">
-        <Row label="Total price" hint={`USD ${PRICING.pricePerSqmUsd} × ${stand.sizeSqm.toLocaleString("en-US")} m²`} value={formatUsd(q.priceCents)} strong />
+        <Row label="Total price" hint={`USD ${PRICING.pricePerSqmUsd} × ${stand.sizeSqm.toLocaleString("en-US")} m², ${PRICE_VAT_NOTE}`} value={formatUsd(q.priceCents)} strong />
         <Separator />
         <Row label="Down payment" value={formatUsd(q.downPaymentCents)} />
         <Row label="Legal fee" hint="Agreement of Sale preparation, non-refundable" value={formatUsd(q.legalFeeCents)} />

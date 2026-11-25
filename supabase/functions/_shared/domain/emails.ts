@@ -1,24 +1,15 @@
-// Transactional email catalogue + send policy. Templates (React Email) live in src/emails/.
+// Transactional email catalogue + send policy. HTML is rendered on the LakeCity standard template v4
+// (email-html.ts).
 //
-// PREVIEW / MOCK MODE ONLY. Emails are queued to an outbox and rendered in the internal outbox
-// preview. Nothing is sent: LakeCity staff send customer comms. Live sending would need
-// EMAILS_LIVE=true AND a provider AND credentials AND an approval reference, and even then the
-// provider adapters are unimplemented stubs. Before go-live: Cursor QC PASS + Alex Key 1 and Key 2
-// approval, and an explicit owner decision on automated sends (OI-TBC-18).
+// Automated customer emails are allowed (Alex, 2026-11-25, OI-TBC-18 closed) and are triggered
+// automatically. Transport is still the PREVIEW OUTBOX: nothing leaves the system until an email
+// provider is chosen and configured (OI-TBC-20). The provider adapters are unimplemented stubs.
 
 import { quoteForSize } from "./campaign.ts";
+import { progressFor, type ProgressStage } from "./progress.ts";
 import type { Lead, Stand } from "./types.ts";
 
-/** Progress tracker shown in every email (mirrors the wizard). */
-export const EMAIL_STAGES = [
-  { key: "stand_chosen", label: "Stand chosen" },
-  { key: "offer_completed", label: "Offer signed" },
-  { key: "payment_thank_you", label: "Payment received" },
-  { key: "portal_ready", label: "Portal account" },
-] as const;
-
-export type EmailStageKey = (typeof EMAIL_STAGES)[number]["key"];
-export type EmailTemplateKey = Exclude<EmailStageKey, "stand_chosen">;
+export type EmailTemplateKey = "offer_completed" | "payment_thank_you" | "portal_ready";
 export const EMAIL_TEMPLATE_KEYS: EmailTemplateKey[] = ["offer_completed", "payment_thank_you", "portal_ready"];
 
 export const EMAIL_SUBJECTS: Record<EmailTemplateKey, string> = {
@@ -35,15 +26,17 @@ export const EMAIL_ATTACHMENTS: Partial<Record<EmailTemplateKey, string[]>> = {
   offer_completed: ["offer-to-purchase.pdf"],
 };
 
-export const EMAIL_CONTACT = "admin@lakecity.co.zw";
+export const EMAIL_CONTACT = "accounts@lakecity.co.zw";
 export const EMAIL_SIGN_OFF = "LakeCity Accounts";
 
 /** Props shared by every template. Never include passwords or ID numbers. */
 export interface EmailProps {
   firstName: string;
+  customerName: string;
+  /** Snapshot of "Progress of your purchase" when the email was queued. */
+  progress: ProgressStage[];
   standNumber: string;
   sizeSqm: number | null;
-  isMockSize: boolean;
   priceCents: number | null;
   downPaymentCents: number;
   legalFeeCents: number;
@@ -63,15 +56,16 @@ export function offerUrlFor(appUrl: string, leadId: string): string {
   return `${appUrl.replace(/\/$/, "")}/apply/${leadId}/offer`;
 }
 
-export function buildEmailProps(lead: Lead, stand: Stand, urls: { appUrl: string; portalUrl: string }, mockSizes = true): EmailProps {
+export function buildEmailProps(lead: Lead, stand: Stand, urls: { appUrl: string; portalUrl: string }): EmailProps {
   const q = stand.sizeSqm ? quoteForSize(stand.sizeSqm) : null;
   const fallback = quoteForSize(1);
   const name = lead.offer?.buyer.fullName ?? lead.contact.fullName;
   return {
     firstName: name.split(" ")[0] || name,
+    customerName: name,
+    progress: progressFor(lead),
     standNumber: lead.standNumber,
     sizeSqm: stand.sizeSqm,
-    isMockSize: mockSizes,
     priceCents: q?.priceCents ?? null,
     downPaymentCents: fallback.downPaymentCents,
     legalFeeCents: fallback.legalFeeCents,
@@ -93,15 +87,13 @@ export interface EmailEnv {
   EMAILS_LIVE?: string;
   EMAIL_PROVIDER?: string;
   EMAIL_PROVIDER_API_KEY?: string;
-  EMAIL_LIVE_APPROVAL_REF?: string;
 }
 
-/** Hard gate. Returns false unless every piece of live config is present. */
+/** Hard gate: false unless a provider is fully configured (OI-TBC-20). Adapters are still stubs. */
 export function emailsLive(env: EmailEnv): boolean {
   return (
     env.EMAILS_LIVE === "true" &&
     (env.EMAIL_PROVIDER === "resend" || env.EMAIL_PROVIDER === "google_workspace") &&
-    !!env.EMAIL_PROVIDER_API_KEY &&
-    !!env.EMAIL_LIVE_APPROVAL_REF
+    !!env.EMAIL_PROVIDER_API_KEY
   );
 }

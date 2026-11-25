@@ -1,6 +1,8 @@
 // Campaign settings and pricing rules (Alex, 2026-11-25):
 //   price = USD 45 x sqm; fixed down payment USD 1,750; legal fee USD 500;
 //   due at start = down payment + legal fee = USD 2,250.
+// VAT (Alex, 2026-11-25, OI-TBC-06 closed): the USD 45/sqm price INCLUDES 15.5% VAT; nothing is added on top.
+// No VAT split is shown for the down payment or the legal fee.
 // Open items are tagged OI-TBC-nn (see README "Open items").
 
 export const PRICING = {
@@ -9,6 +11,10 @@ export const PRICING = {
   /** Agreement of Sale preparation (legal) fee, non-refundable. */
   legalFeeUsd: 500,
 } as const;
+
+export const VAT = { ratePercent: 15.5, includedInPrice: true } as const;
+/** Shown next to every stand price on customer surfaces, emails, PDFs and the portal. */
+export const PRICE_VAT_NOTE = `incl. ${VAT.ratePercent}% VAT`;
 
 export const DUE_AT_START_USD = PRICING.downPaymentUsd + PRICING.legalFeeUsd;
 

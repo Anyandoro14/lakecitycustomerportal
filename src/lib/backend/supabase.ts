@@ -52,9 +52,7 @@ export const supabaseBackend: Backend = {
     await leadApi("submit-offer", leadId, { offer });
   },
   startPayment: (leadId) => leadApi("start-payment", leadId),
-  async simulatePaymentConfirmed(leadId) {
-    await leadApi("simulate-payment", leadId);
-  },
+  simulatePaymentConfirmed: (leadId, reference) => leadApi("simulate-payment", leadId, reference ? { reference } : {}),
   async enrolPortal(leadId, input) {
     await leadApi("enrol-portal", leadId, input);
   },

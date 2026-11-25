@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Field } from "@/components/form";
-import { PortalBadge, StageBadge } from "@/components/StatusBadges";
+import { PortalBadge, ReportStatusBadge } from "@/components/StatusBadges";
 import { StaffGate } from "@/components/StaffGate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { useStand } from "@/hooks/useStand";
 import { backend, type Lead, type PersonIdentity } from "@/lib/backend";
 import { downloadPdf } from "@/lib/pdf/builder";
 import { offerPdf, paymentSchedulePdf } from "@/lib/pdf/documents";
-import { quoteForSize } from "@shared/domain/campaign.ts";
+import { PRICE_VAT_NOTE, quoteForSize } from "@shared/domain/campaign.ts";
 import { countryName } from "@shared/domain/countries.ts";
 import { ID_TYPE_LABELS, validateIdentity } from "@shared/domain/id-validation.ts";
 import { formatUsd } from "@shared/domain/schedule.ts";
@@ -47,7 +47,7 @@ function LeadDetailView() {
       </Link>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-serif text-3xl font-semibold">{lead.contact.fullName}</h1>
-        <StageBadge stage={lead.stage} />
+        <ReportStatusBadge lead={lead} />
         <PortalBadge status={lead.portalStatus} />
       </div>
       <p className="text-sm text-muted-foreground">
@@ -117,8 +117,8 @@ function OfferCard({ lead, onChange }: { lead: Lead; onChange: () => Promise<voi
       <CardContent className="space-y-5">
         {q && (
           <dl className="grid gap-3 text-sm sm:grid-cols-4">
-            <div><dt className="text-xs text-muted-foreground">Size</dt><dd>{q.sizeSqm} m² (mock)</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Price</dt><dd>{formatUsd(q.priceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Size</dt><dd>{q.sizeSqm.toLocaleString("en-US")} m²{stand?.phase ? ` · Phase ${stand.phase}` : ""}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Price</dt><dd>{formatUsd(q.priceCents)} {PRICE_VAT_NOTE}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Due at start</dt><dd>{formatUsd(q.dueNowCents)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Monthly</dt><dd>{formatUsd(q.monthlyCents)} × {q.termMonths}</dd></div>
           </dl>

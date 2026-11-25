@@ -12,6 +12,8 @@ export function rowToStand(r: Row): Stand {
   return {
     standNumber: r.stand_number,
     sizeSqm: num(r.size_sqm),
+    phase: r.phase ?? null,
+    landUse: r.land_use ?? null,
     status: r.status,
     reservedLeadId: r.reserved_lead_id ?? null,
   };

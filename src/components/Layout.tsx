@@ -28,7 +28,7 @@ export function Layout() {
     <div className="flex min-h-screen flex-col">
       {!useSupabase && (
         <div className="bg-gold/15 px-4 py-1.5 text-center text-xs text-accent-foreground">
-          Local demo mode: data stays in this browser. Stand sizes are mock figures. No payments are taken and no emails are sent.
+          Local demo mode: data stays in this browser. No payments are taken and no emails are sent.
         </div>
       )}
       <header className="border-b bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
@@ -55,7 +55,7 @@ export function Layout() {
         <div className="container flex flex-col gap-2 py-6 text-xs sm:flex-row sm:items-center sm:justify-between">
           <span>© LakeCity. PLACEHOLDER footer copy.</span>
           <span>
-            Questions? <a className="underline" href="mailto:admin@lakecity.co.zw">admin@lakecity.co.zw</a>
+            Questions? <a className="underline" href="mailto:accounts@lakecity.co.zw">accounts@lakecity.co.zw</a>
           </span>
         </div>
       </footer>

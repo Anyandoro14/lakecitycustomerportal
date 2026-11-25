@@ -2,6 +2,8 @@ import { ArrowUpRight, CheckCircle2, Database, Loader2, Sheet, UserCheck } from 
 import { useState } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/form";
+import { PurchaseProgress } from "@/components/PurchaseProgress";
+import { PRICE_VAT_NOTE } from "@shared/domain/campaign.ts";
 import { PlaceholderTag } from "@/components/Placeholder";
 import { WizardShell } from "@/components/WizardShell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,7 +18,12 @@ import { formatUsd } from "@shared/domain/schedule.ts";
 export default function PortalStep() {
   return (
     <WizardShell step="portal">
-      {({ lead, refresh }) => (lead.portalRecords ? <PortalRecordsView lead={lead} records={lead.portalRecords} /> : <PortalEnrol lead={lead} refresh={refresh} />)}
+      {({ lead, refresh }) => (
+        <div className="space-y-6">
+          <PurchaseProgress lead={lead} />
+          {lead.portalRecords ? <PortalRecordsView lead={lead} records={lead.portalRecords} /> : <PortalEnrol lead={lead} refresh={refresh} />}
+        </div>
+      )}
     </WizardShell>
   );
 }
@@ -100,7 +107,7 @@ function PortalRecordsView({ lead, records }: { lead: Lead; records: PortalRecor
         </CardHeader>
         <CardContent className="space-y-4">
           <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-5">
-            <div><dt className="text-xs text-muted-foreground">Price</dt><dd className="font-medium" data-testid="portal-price">{formatUsd(cs.priceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Price ({PRICE_VAT_NOTE})</dt><dd className="font-medium" data-testid="portal-price">{formatUsd(cs.priceCents)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Paid toward price</dt><dd className="font-medium" data-testid="portal-paid-toward-price">{formatUsd(cs.paidTowardPriceCents)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Legal fee paid</dt><dd className="font-medium">{formatUsd(cs.legalFeePaidCents)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Balance</dt><dd className="font-medium" data-testid="portal-balance">{formatUsd(cs.balanceCents)}</dd></div>

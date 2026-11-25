@@ -1,6 +1,9 @@
 // Portal account step: pre-populate the customer's records in LakeCity's back-office systems.
-// Only interfaces + MOCK adapters exist. They build the records in memory and write nothing to
-// the real Collection Schedule / Master Schedule sheets or to Odoo (OI-TBC-15, OI-TBC-16, OI-TBC-17).
+// STAND NUMBER is the unique identifier and join key across the Collection Schedule, the Master
+// Schedule and Odoo (Alex, 2026-11-25): one record per stand in each system, upserted by stand number;
+// a second buyer for the same stand is rejected.
+// Only interfaces + MOCK adapters exist. They build the records in memory and write nothing to the real
+// sheets or to Odoo until Alex gives the go-ahead (OI-TBC-15/16/17: key decided, live connection pending).
 
 import { computeSchedule, type ScheduleRow } from "./schedule.ts";
 import type { Lead, Stand } from "./types.ts";
@@ -45,6 +48,8 @@ export interface MasterScheduleRow {
 }
 
 export interface OdooRecords {
+  /** Join key: every Odoo ref below is derived from it. */
+  standNumber: string;
   partner: { ref: string; name: string; email: string; phone: string };
   /** Customer receivable / analytic account for the stand. Model names TBC with Odoo admin. */
   account: { ref: string; name: string; standNumber: string };
@@ -60,6 +65,41 @@ export interface PortalRecords {
   adapter: "mock";
 }
 
+export interface PrepopulateInput {
+  lead: Lead;
+  stand: Stand;
+  now: Date;
+}
+
+/** Thrown when a stand already has records that belong to a different lead. */
+export class DuplicateStandRecordError extends Error {
+  constructor(public system: string, public standNumber: string) {
+    super(`Stand ${standNumber} already has a ${system} record for another buyer.`);
+  }
+}
+
+/** One row per stand number. Upsert by stand: same lead updates, another lead is rejected. */
+export class StandKeyedStore<T> {
+  private rows = new Map<string, { leadId: string; record: T }>();
+  constructor(private system: string) {}
+
+  upsert(standNumber: string, leadId: string, record: T): T {
+    const key = standNumber.trim();
+    const existing = this.rows.get(key);
+    if (existing && existing.leadId !== leadId) throw new DuplicateStandRecordError(this.system, key);
+    this.rows.set(key, { leadId, record });
+    return record;
+  }
+
+  get(standNumber: string): T | null {
+    return this.rows.get(standNumber.trim())?.record ?? null;
+  }
+
+  get size(): number {
+    return this.rows.size;
+  }
+}
+
 export interface CollectionScheduleAdapter {
   upsertAccount(input: PrepopulateInput): CollectionScheduleRecord;
 }
@@ -70,95 +110,109 @@ export interface OdooAdapter {
   upsertCustomer(input: PrepopulateInput, collection: CollectionScheduleRecord): OdooRecords;
 }
 
-export interface PrepopulateInput {
-  lead: Lead;
-  stand: Stand;
-  now: Date;
-}
-
-const suffix = (leadId: string) => leadId.replace(/-/g, "").slice(0, 6).toUpperCase();
-
-export const mockCollectionScheduleAdapter: CollectionScheduleAdapter = {
-  upsertAccount({ lead, stand, now }) {
-    if (!stand.sizeSqm) throw new Error("Stand size is unknown.");
-    const startDate = (lead.paidAt ?? now.toISOString()).slice(0, 10);
-    const schedule = computeSchedule({ sizeSqm: stand.sizeSqm, startDate });
-    const q = schedule.quote;
-    const paid = lead.paymentAmountCents ?? 0;
-    const legalFeePaid = Math.min(paid, q.legalFeeCents);
-    const paidTowardPrice = paid - legalFeePaid;
-    const name = lead.offer?.buyer.fullName ?? lead.contact.fullName;
-    return {
-      accountId: `MOCK-CS-${stand.standNumber}-${suffix(lead.id)}`,
-      standNumber: stand.standNumber,
-      sizeSqm: stand.sizeSqm,
-      customerName: name,
-      phone: lead.contact.phone,
-      email: lead.contact.email,
-      priceCents: q.priceCents,
-      downPaymentCents: q.downPaymentCents,
-      legalFeeCents: q.legalFeeCents,
-      paidToDateCents: paid,
-      paidTowardPriceCents: paidTowardPrice,
-      legalFeePaidCents: legalFeePaid,
-      balanceCents: q.priceCents - paidTowardPrice,
-      monthlyCents: q.monthlyCents,
-      termMonths: q.termMonths,
-      rows: schedule.rows,
-    };
-  },
-};
-
-export const mockMasterScheduleAdapter: MasterScheduleAdapter = {
-  upsertRow({ lead }, c) {
-    return {
-      rowId: `MOCK-MS-${c.standNumber}`,
-      standNumber: c.standNumber,
-      sizeSqm: c.sizeSqm,
-      customerName: c.customerName,
-      phone: c.phone,
-      email: c.email,
-      priceCents: c.priceCents,
-      paidToDateCents: c.paidToDateCents,
-      paidTowardPriceCents: c.paidTowardPriceCents,
-      legalFeePaidCents: c.legalFeePaidCents,
-      balanceCents: c.balanceCents,
-      status: "Down payment + legal fee received",
-      paymentReference: lead.paymentReference ?? "",
-      collectionAccountId: c.accountId,
-    };
-  },
-};
-
-export const mockOdooAdapter: OdooAdapter = {
-  upsertCustomer({ lead, now }, c) {
-    const s = suffix(lead.id);
-    return {
-      partner: { ref: `MOCK-ODOO-PARTNER-${s}`, name: c.customerName, email: c.email, phone: c.phone },
-      account: { ref: `MOCK-ODOO-ACC-${c.standNumber}-${s}`, name: `Stand ${c.standNumber} - ${c.customerName}`, standNumber: c.standNumber },
-      payment: {
-        ref: `MOCK-ODOO-PAY-${s}`,
-        amountCents: c.paidToDateCents,
-        date: (lead.paidAt ?? now.toISOString()).slice(0, 10),
-        memo: `Down payment + legal fee, ${lead.paymentReference ?? ""}`.trim(),
-      },
-    };
-  },
-};
-
 export interface Integrations {
   collectionSchedule: CollectionScheduleAdapter;
   masterSchedule: MasterScheduleAdapter;
   odoo: OdooAdapter;
 }
 
-export const MOCK_INTEGRATIONS: Integrations = {
-  collectionSchedule: mockCollectionScheduleAdapter,
-  masterSchedule: mockMasterScheduleAdapter,
-  odoo: mockOdooAdapter,
-};
+function buildCollectionRecord({ lead, stand, now }: PrepopulateInput): CollectionScheduleRecord {
+  if (!stand.sizeSqm) throw new Error("Stand size is unknown.");
+  if (stand.standNumber !== lead.standNumber) throw new Error("Stand number does not match the application.");
+  const startDate = (lead.paidAt ?? now.toISOString()).slice(0, 10);
+  const schedule = computeSchedule({ sizeSqm: stand.sizeSqm, startDate });
+  const q = schedule.quote;
+  const paid = lead.paymentAmountCents ?? 0;
+  const legalFeePaid = Math.min(paid, q.legalFeeCents);
+  const paidTowardPrice = paid - legalFeePaid;
+  return {
+    accountId: `MOCK-CS-${stand.standNumber}`,
+    standNumber: stand.standNumber,
+    sizeSqm: stand.sizeSqm,
+    customerName: lead.offer?.buyer.fullName ?? lead.contact.fullName,
+    phone: lead.contact.phone,
+    email: lead.contact.email,
+    priceCents: q.priceCents,
+    downPaymentCents: q.downPaymentCents,
+    legalFeeCents: q.legalFeeCents,
+    paidToDateCents: paid,
+    paidTowardPriceCents: paidTowardPrice,
+    legalFeePaidCents: legalFeePaid,
+    balanceCents: q.priceCents - paidTowardPrice,
+    monthlyCents: q.monthlyCents,
+    termMonths: q.termMonths,
+    rows: schedule.rows,
+  };
+}
 
-export function prepopulatePortalRecords(input: PrepopulateInput, adapters: Integrations = MOCK_INTEGRATIONS): PortalRecords {
+export interface MockIntegrations extends Integrations {
+  stores: {
+    collectionSchedule: StandKeyedStore<CollectionScheduleRecord>;
+    masterSchedule: StandKeyedStore<MasterScheduleRow>;
+    odoo: StandKeyedStore<OdooRecords>;
+  };
+}
+
+/**
+ * In-memory MOCK adapters (read-only towards real systems). Seed them with the leads that already hold
+ * records so the one-record-per-stand rule holds across calls.
+ */
+export function createMockIntegrations(existing: Pick<Lead, "id" | "portalRecords">[] = []): MockIntegrations {
+  const stores = {
+    collectionSchedule: new StandKeyedStore<CollectionScheduleRecord>("Collection Schedule"),
+    masterSchedule: new StandKeyedStore<MasterScheduleRow>("Master Schedule"),
+    odoo: new StandKeyedStore<OdooRecords>("Odoo"),
+  };
+  for (const l of existing) {
+    const r = l.portalRecords;
+    if (!r) continue;
+    stores.collectionSchedule.upsert(r.collectionSchedule.standNumber, l.id, r.collectionSchedule);
+    stores.masterSchedule.upsert(r.masterSchedule.standNumber, l.id, r.masterSchedule);
+    stores.odoo.upsert(r.odoo.standNumber ?? r.collectionSchedule.standNumber, l.id, r.odoo);
+  }
+  return {
+    stores,
+    collectionSchedule: {
+      upsertAccount: (input) => stores.collectionSchedule.upsert(input.stand.standNumber, input.lead.id, buildCollectionRecord(input)),
+    },
+    masterSchedule: {
+      upsertRow: ({ lead }, c) =>
+        stores.masterSchedule.upsert(c.standNumber, lead.id, {
+          rowId: `MOCK-MS-${c.standNumber}`,
+          standNumber: c.standNumber,
+          sizeSqm: c.sizeSqm,
+          customerName: c.customerName,
+          phone: c.phone,
+          email: c.email,
+          priceCents: c.priceCents,
+          paidToDateCents: c.paidToDateCents,
+          paidTowardPriceCents: c.paidTowardPriceCents,
+          legalFeePaidCents: c.legalFeePaidCents,
+          balanceCents: c.balanceCents,
+          status: "Down payment + legal fee received",
+          paymentReference: lead.paymentReference ?? "",
+          collectionAccountId: c.accountId,
+        }),
+    },
+    odoo: {
+      upsertCustomer: ({ lead, now }, c) =>
+        stores.odoo.upsert(c.standNumber, lead.id, {
+          standNumber: c.standNumber,
+          partner: { ref: `MOCK-ODOO-PARTNER-${c.standNumber}`, name: c.customerName, email: c.email, phone: c.phone },
+          account: { ref: `MOCK-ODOO-ACC-${c.standNumber}`, name: `Stand ${c.standNumber} - ${c.customerName}`, standNumber: c.standNumber },
+          payment: {
+            ref: `MOCK-ODOO-PAY-${c.standNumber}`,
+            amountCents: c.paidToDateCents,
+            date: (lead.paidAt ?? now.toISOString()).slice(0, 10),
+            memo: `Down payment + legal fee, ${lead.paymentReference ?? ""}`.trim(),
+          },
+        }),
+    },
+  };
+}
+
+/** Runs the three adapters in order. All three records carry the same stand number. */
+export function prepopulatePortalRecords(input: PrepopulateInput, adapters: Integrations = createMockIntegrations()): PortalRecords {
   const collectionSchedule = adapters.collectionSchedule.upsertAccount(input);
   return {
     collectionSchedule,

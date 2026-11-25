@@ -1,4 +1,5 @@
 import type { Lead, Stand } from "@/lib/backend";
+import { PRICE_VAT_NOTE } from "@shared/domain/campaign.ts";
 import { countryName } from "@shared/domain/countries.ts";
 import { ID_TYPE_LABELS } from "@shared/domain/id-validation.ts";
 import { offerAcknowledgements } from "@shared/domain/offer-form.ts";
@@ -11,7 +12,6 @@ export function scheduleFor(lead: Lead, stand: Stand) {
 }
 
 const money = (c: number) => (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const MOCK = " · MOCK stand size (OI-TBC-04)";
 
 /** Layout is a clean collection schedule; align to the official Drive template (OI-TBC-10). */
 export async function paymentSchedulePdf(lead: Lead, stand: Stand) {
@@ -19,13 +19,13 @@ export async function paymentSchedulePdf(lead: Lead, stand: Stand) {
   const q = schedule.quote;
   const b = await PdfBuilder.create(
     `Payment Schedule - Stand ${stand.standNumber} (${q.termMonths} months)`,
-    `Generated ${new Date().toISOString().slice(0, 10)}${MOCK}`,
+    `Generated ${new Date().toISOString().slice(0, 10)}`,
   );
   b.keyValues([
     ["Purchaser", [lead.offer?.buyer.fullName ?? lead.contact.fullName, ...(lead.offer?.coOwners ?? []).map((c) => c.fullName)].join(", ")],
     ["Stand", `${stand.standNumber} (${q.sizeSqm} m²)`],
     ["Collection account", lead.portalRecords?.collectionSchedule.accountId ?? "Created at the portal account step"],
-    ["Price (USD 45 x m²)", formatCents(q.priceCents)],
+    [`Price (USD 45 x m², ${PRICE_VAT_NOTE})`, formatCents(q.priceCents)],
     ["Down payment", formatCents(q.downPaymentCents)],
     ["Legal fee (Agreement of Sale)", formatCents(q.legalFeeCents)],
     ["Due at start", formatCents(q.dueNowCents)],
@@ -41,7 +41,7 @@ export async function paymentSchedulePdf(lead: Lead, stand: Stand) {
     [false, false, false, true, true],
   );
   b.gap(10);
-  b.text("PLACEHOLDER: the final instalment absorbs rounding differences. VAT treatment TBC (OI-TBC-06). Not a tax invoice.", { size: 8 });
+  b.text("PLACEHOLDER: the final instalment absorbs rounding differences. The stand price includes 15.5% VAT. Not a tax invoice.", { size: 8 });
   return b.bytes();
 }
 
@@ -50,7 +50,7 @@ export async function offerPdf(lead: Lead, stand: Stand) {
   const o = lead.offer;
   const b = await PdfBuilder.create(
     "Offer to Purchase - PLACEHOLDER copy of General Offer Form",
-    `Stand ${stand.standNumber} · Submitted ${o?.submittedAt.slice(0, 10) ?? "-"}${MOCK}`,
+    `Stand ${stand.standNumber} · Submitted ${o?.submittedAt.slice(0, 10) ?? "-"}`,
   );
   if (o) {
     [o.buyer, ...o.coOwners].forEach((p, i) => {
@@ -89,7 +89,7 @@ export async function offerPdf(lead: Lead, stand: Stand) {
   b.keyValues([
     ["Stand number", stand.standNumber],
     ["Size", `${q.sizeSqm} m²`],
-    ["Price (USD)", formatCents(q.priceCents)],
+    [`Price (USD, ${PRICE_VAT_NOTE})`, formatCents(q.priceCents)],
     ["Down payment (USD)", formatCents(q.downPaymentCents)],
     ["Legal fee (USD)", formatCents(q.legalFeeCents)],
     ["Due at start (USD)", formatCents(q.dueNowCents)],

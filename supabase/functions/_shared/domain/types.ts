@@ -9,8 +9,11 @@ export type PortalStatus = "not_started" | "prepopulated";
 
 export interface Stand {
   standNumber: string;
-  /** Mock sizes until LakeCity supplies real ones (OI-TBC-04). */
+  /** Area in m² from the Marketing Campaign Tracker (col J). */
   sizeSqm: number | null;
+  /** Development phase, e.g. "K", "M", "Q". */
+  phase: string | null;
+  landUse: string | null;
   status: StandStatus;
   reservedLeadId: string | null;
 }

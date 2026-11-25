@@ -1,157 +1,233 @@
 {
-  "_note": "Stand numbers: the 38 campaign stands (3 further stands TBC, OI-TBC-05). sizeSqm values are MOCK, generated for development only, NOT real survey sizes (OI-TBC-04). Price is always computed as USD 45 x sqm, never stored.",
+  "_source": "LakeCity Marketing Campaign Tracker (Google Sheet 1b_ZLUR1WXjQfyhnNBc7oYSspiEJOOd9aKwuhzYR42u0, tab \"Marketing Campaign Tracker\": col A stand, col J area sqm), supplied by Alex 2026-11-25. Real sizes (OI-TBC-04 closed). 3 further stands TBC (OI-TBC-05). Price is always computed as USD 45 x sqm (VAT inclusive), never stored.",
   "stands": [
     {
       "standNumber": "3567",
-      "sizeSqm": 660
+      "phase": "M",
+      "landUse": "Residential",
+      "sizeSqm": 1200
     },
     {
       "standNumber": "3076",
-      "sizeSqm": 770
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 1622
     },
     {
       "standNumber": "3034",
-      "sizeSqm": 480
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1794
     },
     {
       "standNumber": "3035",
-      "sizeSqm": 850
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1795
     },
     {
       "standNumber": "3061",
-      "sizeSqm": 710
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1796
     },
     {
       "standNumber": "3060",
-      "sizeSqm": 340
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1798
     },
     {
       "standNumber": "3056",
-      "sizeSqm": 690
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1891
     },
     {
       "standNumber": "3057",
-      "sizeSqm": 450
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1892
     },
     {
       "standNumber": "3058",
-      "sizeSqm": 820
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1893
     },
     {
       "standNumber": "3059",
-      "sizeSqm": 580
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1894
     },
     {
       "standNumber": "3036",
-      "sizeSqm": 610
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1897
     },
     {
       "standNumber": "3037",
-      "sizeSqm": 370
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1899
     },
     {
       "standNumber": "3038",
-      "sizeSqm": 740
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1900
     },
     {
       "standNumber": "3039",
-      "sizeSqm": 500
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1901
     },
     {
       "standNumber": "3049",
-      "sizeSqm": 540
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1983
     },
     {
       "standNumber": "3050",
-      "sizeSqm": 300
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1985
     },
     {
       "standNumber": "3051",
-      "sizeSqm": 670
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1986
     },
     {
       "standNumber": "3052",
-      "sizeSqm": 430
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1987
     },
     {
       "standNumber": "3053",
-      "sizeSqm": 800
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1988
     },
     {
       "standNumber": "3054",
-      "sizeSqm": 560
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1989
     },
     {
       "standNumber": "3055",
-      "sizeSqm": 320
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 1990
     },
     {
       "standNumber": "3075",
-      "sizeSqm": 400
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 2000
     },
     {
       "standNumber": "3043",
-      "sizeSqm": 760
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2001
     },
     {
       "standNumber": "3041",
-      "sizeSqm": 630
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2002
     },
     {
       "standNumber": "3044",
-      "sizeSqm": 520
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2002
     },
     {
       "standNumber": "3040",
-      "sizeSqm": 870
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2003
     },
     {
       "standNumber": "3042",
-      "sizeSqm": 390
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2003
     },
     {
       "standNumber": "3045",
-      "sizeSqm": 890
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2003
     },
     {
       "standNumber": "3046",
-      "sizeSqm": 650
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2003
     },
     {
       "standNumber": "3062",
-      "sizeSqm": 470
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2057
     },
     {
       "standNumber": "3048",
-      "sizeSqm": 780
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2085
     },
     {
       "standNumber": "3047",
-      "sizeSqm": 410
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2110
     },
     {
       "standNumber": "3033",
-      "sizeSqm": 720
+      "phase": "K",
+      "landUse": "Residential",
+      "sizeSqm": 2255
     },
     {
       "standNumber": "3093",
-      "sizeSqm": 350
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 2470
     },
     {
       "standNumber": "3089",
-      "sizeSqm": 700
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 2514
     },
     {
       "standNumber": "3095",
-      "sizeSqm": 480
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 2676
     },
     {
       "standNumber": "3096",
-      "sizeSqm": 850
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 2971
     },
     {
       "standNumber": "3084",
-      "sizeSqm": 680
+      "phase": "Q",
+      "landUse": "Residential",
+      "sizeSqm": 3288
     }
   ]
 }

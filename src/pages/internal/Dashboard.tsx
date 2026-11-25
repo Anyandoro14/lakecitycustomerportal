@@ -1,13 +1,14 @@
-import { Loader2, RotateCcw } from "lucide-react";
+import { Download, Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PortalBadge, StageBadge } from "@/components/StatusBadges";
+import { PortalBadge, ReportStatusBadge } from "@/components/StatusBadges";
 import { StaffGate } from "@/components/StaffGate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { backend, type Lead, type LeadStage, type Stand } from "@/lib/backend";
+import { backend, type Lead, type Stand } from "@/lib/backend";
+import { REPORT_STATUSES, reportCounts, reportCsv, reportStatus, type ReportStatus } from "@shared/domain/report.ts";
 
 export default function Dashboard() {
   return <StaffGate>{(staff) => <DashboardView staffEmail={staff.email} />}</StaffGate>;
@@ -34,13 +35,23 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
     return () => clearInterval(t);
   }, [load]);
 
-  const counts = {
+  const stock = {
     total: stands.length,
-    available: stands.filter((s) => s.status === "available").length,
-    paid: stands.filter((s) => s.status === "paid").length,
-    signed: stands.filter((s) => s.status === "signed").length,
+    available: stands.filter((x) => x.status === "available").length,
   };
-  const byStage = (stage: LeadStage) => (leads ?? []).filter((l) => l.stage === stage);
+  const counts = reportCounts(leads ?? []);
+  const byStatus = (status: ReportStatus) => (leads ?? []).filter((l) => reportStatus(l) === status);
+  const tones: Record<ReportStatus, string> = { signed_up: "text-foreground", signed_up_paid: "text-amber-700", signed_up_paid_signed: "text-primary" };
+
+  function exportCsv() {
+    const blob = new Blob([reportCsv(leads ?? [], stands)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lakecity-sales-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="container space-y-8 py-10">
@@ -59,38 +70,50 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {[
-          ["Remaining (available)", counts.available, "text-primary"],
-          ["Paid (reserved)", counts.paid, "text-amber-700"],
-          ["Signed (allocated)", counts.signed, "text-emerald-700"],
-          ["Total stands", counts.total, "text-foreground"],
-        ].map(([label, value, cls]) => (
-          <Card key={label as string}>
+        {REPORT_STATUSES.map((r) => (
+          <Card key={r.key} data-testid={`count-${r.key}`}>
             <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-              <p className={`mt-2 font-serif text-3xl font-semibold ${cls}`}>{value}</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{r.label}</p>
+              <p className={`mt-2 font-serif text-3xl font-semibold ${tones[r.key]}`}>{counts[r.key]}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{r.meaning}</p>
             </CardContent>
           </Card>
         ))}
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Stands available</p>
+            <p className="mt-2 font-serif text-3xl font-semibold text-primary">{stock.available} <span className="text-base text-muted-foreground">/ {stock.total}</span></p>
+            <p className="mt-1 text-xs text-muted-foreground">A stand leaves inventory when its payment is confirmed</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Lead lists</CardTitle>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="text-lg">Sales report</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              One status per lead. Buyers who pay but don't sign stay "Signed up and Paid" and are still enrolled in the portal and Odoo.
+              {counts.notInReport > 0 && ` ${counts.notInReport} application(s) without a submitted offer are not in the report.`}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!leads}>
+            <Download className="mr-1.5 h-4 w-4" /> Export report (CSV)
+          </Button>
         </CardHeader>
         <CardContent>
           {!leads ? (
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           ) : (
-            <Tabs defaultValue="form_filled">
-              <TabsList>
-                <TabsTrigger value="form_filled">Form filled ({byStage("form_filled").length})</TabsTrigger>
-                <TabsTrigger value="paid">Paid ({byStage("paid").length})</TabsTrigger>
-                <TabsTrigger value="signed">Signed ({byStage("signed").length})</TabsTrigger>
+            <Tabs defaultValue="signed_up">
+              <TabsList className="h-auto flex-wrap">
+                {REPORT_STATUSES.map((r) => (
+                  <TabsTrigger key={r.key} value={r.key}>{r.label} ({counts[r.key]})</TabsTrigger>
+                ))}
               </TabsList>
-              {(["form_filled", "paid", "signed"] as const).map((s) => (
-                <TabsContent key={s} value={s}>
-                  {byStage(s).length ? <LeadTable leads={byStage(s)} /> : <p className="py-6 text-sm text-muted-foreground">No leads in this list yet.</p>}
+              {REPORT_STATUSES.map((r) => (
+                <TabsContent key={r.key} value={r.key}>
+                  {byStatus(r.key).length ? <LeadTable leads={byStatus(r.key)} /> : <p className="py-6 text-sm text-muted-foreground">No leads with this status yet.</p>}
                 </TabsContent>
               ))}
             </Tabs>
@@ -125,7 +148,7 @@ function LeadTable({ leads }: { leads: Lead[] }) {
               </TableCell>
               <TableCell>{l.standNumber}</TableCell>
               <TableCell>{l.offer ? "Submitted" : "Not yet"}</TableCell>
-              <TableCell><StageBadge stage={l.stage} /></TableCell>
+              <TableCell><ReportStatusBadge lead={l} /></TableCell>
               <TableCell><PortalBadge status={l.portalStatus} /></TableCell>
               <TableCell className="whitespace-nowrap text-xs">{l.createdAt.slice(0, 16).replace("T", " ")}</TableCell>
               <TableCell>

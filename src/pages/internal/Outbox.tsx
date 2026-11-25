@@ -11,7 +11,6 @@ import { backend, type Lead, type OutboxEmailRecord, type Stand } from "@/lib/ba
 import { downloadPdf } from "@/lib/pdf/builder";
 import { offerPdf, paymentSchedulePdf } from "@/lib/pdf/documents";
 import { cn } from "@/lib/utils";
-import { EMAIL_STAGES } from "@shared/domain/emails.ts";
 
 export default function Outbox() {
   return <StaffGate>{() => <OutboxView />}</StaffGate>;
@@ -57,8 +56,8 @@ function OutboxView() {
       <Alert className="border-dashed border-gold bg-accent/40">
         <AlertTitle>Nothing here has been sent</AlertTitle>
         <AlertDescription>
-          Transactional emails are rendered and queued for preview only. Live sending needs QC PASS + Alex Key 1 and Key 2
-          approval, an owner decision on automated customer comms, and provider configuration. <PlaceholderTag>All copy PLACEHOLDER</PlaceholderTag>
+          Automated emails are approved and are triggered by each stage, rendered on the LakeCity standard template (v4). They
+          stay in this outbox until an email provider is configured (OI-TBC-20). <PlaceholderTag>All copy PLACEHOLDER</PlaceholderTag>
         </AlertDescription>
       </Alert>
 
@@ -73,7 +72,6 @@ function OutboxView() {
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
           <ul className="space-y-2">
             {(emails ?? []).map((e) => {
-              const stageNo = EMAIL_STAGES.findIndex((s) => s.key === e.template) + 1;
               return (
                 <li key={e.id}>
                   <button
@@ -84,7 +82,7 @@ function OutboxView() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-primary">Stage {stageNo} · {e.template}</span>
+                      <span className="text-xs font-semibold text-primary">Automated · {e.template}</span>
                       <span className="text-[10px] text-muted-foreground">{e.createdAt.slice(11, 19)}</span>
                     </div>
                     <p className="mt-1 text-sm font-medium leading-snug">{e.subject}</p>
