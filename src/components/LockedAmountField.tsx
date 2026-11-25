@@ -5,8 +5,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatUsd } from "@shared/domain/schedule.ts";
 
-/** Auto-populated value the customer copies into ZikiMall. Read-only by design: it can never be changed here. */
-export function LockedField({ id, label, value, hint, copyLabel }: { id: string; label: string; value: string; hint?: string; copyLabel: string }) {
+/** Auto-populated, read-only value: it can never be changed here. Optional copy button. */
+export function LockedField({
+  id,
+  label,
+  value,
+  hint,
+  copyLabel,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  hint?: string;
+  copyLabel?: string;
+}) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -34,10 +46,19 @@ export function LockedField({ id, label, value, hint, copyLabel }: { id: string;
           />
           <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         </div>
-        <Button type="button" variant="outline" className="h-10 shrink-0" onClick={() => void copy()} aria-label={copyLabel} data-testid={`${id}-copy`}>
-          {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-          <span className="ml-1.5 hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
-        </Button>
+        {copyLabel && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 shrink-0"
+            onClick={() => void copy()}
+            aria-label={copyLabel}
+            data-testid={`${id}-copy`}
+          >
+            {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+            <span className="ml-1.5 hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+          </Button>
+        )}
       </div>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
@@ -51,8 +72,7 @@ export function LockedAmountField({ id, label, amountCents }: { id: string; labe
       id={id}
       label={label}
       value={formatUsd(amountCents)}
-      copyLabel="Copy amount"
-      hint="Down payment + legal fee. This amount is set by LakeCity and can't be changed."
+      hint="Down payment + legal fee, in USD. Set by LakeCity; it can't be changed."
     />
   );
 }

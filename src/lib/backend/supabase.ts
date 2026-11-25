@@ -3,6 +3,7 @@ import { config, useSupabase } from "@/config";
 import { rowToLead, rowToStand } from "@shared/domain/rows.ts";
 import type { Backend } from "./types";
 import type { OutboxEmailRecord } from "./models";
+import type { PaymentIssue } from "./types";
 
 // Only constructed when Supabase env vars are present; mock mode never touches it.
 const supabase = useSupabase
@@ -52,7 +53,9 @@ export const supabaseBackend: Backend = {
     await leadApi("submit-offer", leadId, { offer });
   },
   startPayment: (leadId) => leadApi("start-payment", leadId),
-  simulatePaymentConfirmed: (leadId, reference) => leadApi("simulate-payment", leadId, reference ? { reference } : {}),
+  paymentResult: (leadId, reference, kind) => leadApi("payment-result", leadId, { reference, kind }),
+  checkPayment: (leadId) => leadApi("check-payment", leadId),
+  simulateCardResult: (leadId, reference, cardStatus) => leadApi("simulate-payment", leadId, { reference, cardStatus }),
   async enrolPortal(leadId, input) {
     await leadApi("enrol-portal", leadId, input);
   },
@@ -93,6 +96,24 @@ export const supabaseBackend: Backend = {
         props: r.props,
         attachmentNames: r.attachment_names ?? [],
         status: "queued_dev_only",
+        createdAt: r.created_at,
+      }),
+    );
+  },
+  async listPaymentIssues() {
+    const { data, error } = await supabase
+      .from("payment_events")
+      .select("reference, stand_number, lead_id, outcome, reason, created_at")
+      .neq("outcome", "applied")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(
+      (r): PaymentIssue => ({
+        reference: r.reference,
+        standNumber: r.stand_number,
+        leadId: r.lead_id,
+        outcome: r.outcome,
+        reason: r.reason,
         createdAt: r.created_at,
       }),
     );

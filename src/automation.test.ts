@@ -3,7 +3,8 @@ import { renderStandardEmail, progressBarHtml } from "@shared/domain/email-html.
 import { buildEmailProps, EMAIL_TEMPLATE_KEYS, EMAIL_SIGN_OFF } from "@shared/domain/emails.ts";
 import { currentStep } from "@shared/domain/flow.ts";
 import { DuplicateStandRecordError, createMockIntegrations, prepopulatePortalRecords, StandKeyedStore } from "@shared/domain/integrations.ts";
-import { handlePaymentConfirmed, mockPaymentConfirmationAdapter, type PaymentEventStore } from "@shared/domain/payment-events.ts";
+import type { ApplyPaymentInput } from "@shared/domain/iveri.ts";
+import { handlePaymentConfirmed, type PaymentEventStore } from "@shared/domain/payment-events.ts";
 import { progressFor } from "@shared/domain/progress.ts";
 import { reportCounts, reportCsv, reportStatus } from "@shared/domain/report.ts";
 import type { Lead, OfferSubmission, Stand } from "@shared/domain/types.ts";
@@ -38,14 +39,14 @@ const availableStand = (n = "3076"): Stand => ({ standNumber: n, phase: "3", lan
 
 /** In-memory store whose commit applies every change together, like the SQL transaction. */
 function memoryStore(leads: Lead[], stands: Stand[]) {
-  const state = { leads, stands, refs: new Set<string>(), emails: [] as { leadId: string; template: string }[], commits: 0 };
+  const state = { leads, stands, refs: new Map<string, string>(), emails: [] as { leadId: string; template: string }[], commits: 0 };
   const store: PaymentEventStore = {
     isProcessed: (r) => state.refs.has(r),
-    leads: () => state.leads,
+    lead: (id) => state.leads.find((l) => l.id === id) ?? null,
     stand: (n) => state.stands.find((s) => s.standNumber === n) ?? null,
-    commit: ({ reference, stand, lead, emailFor }) => {
+    commit: ({ reference, outcome, stand, lead, emailFor }) => {
       state.commits++;
-      state.refs.add(reference);
+      state.refs.set(reference, outcome.status);
       if (stand) state.stands = state.stands.map((s) => (s.standNumber === stand.standNumber ? stand : s));
       if (lead) state.leads = state.leads.map((l) => (l.id === lead.id ? lead : l));
       if (emailFor) state.emails.push({ leadId: emailFor.id, template: "payment_thank_you" });
@@ -54,8 +55,18 @@ function memoryStore(leads: Lead[], stands: Stand[]) {
   return { state, store };
 }
 
-describe("payment-confirmed handler (automatic, mock ZikiMall/CBZ adapter)", () => {
-  const event = mockPaymentConfirmationAdapter.simulate({ standNumber: "3076", reference: "ZM-TEST-1", now: new Date("2026-11-25T12:00:00Z") });
+const iveriEvent = (over: Partial<ApplyPaymentInput> = {}): ApplyPaymentInput => ({
+  reference: "LC3076-TEST0001",
+  leadId: "lead-1",
+  standNumber: "3076",
+  amountCents: 225000,
+  paidAt: "2026-11-25T12:00:00.000Z",
+  source: "mock-iveri",
+  ...over,
+});
+
+describe("payment-confirmed handler (iVeri AuthoriseInfo status 0 only)", () => {
+  const event = iveriEvent();
 
   it("success takes the stand out of inventory, queues exactly one email and advances to the portal step", () => {
     const { state, store } = memoryStore([makeLead()], [availableStand()]);
@@ -64,7 +75,7 @@ describe("payment-confirmed handler (automatic, mock ZikiMall/CBZ adapter)", () 
     expect(state.stands[0].status).toBe("paid");
     expect(state.stands[0].reservedLeadId).toBe("lead-1");
     expect(state.emails).toEqual([{ leadId: "lead-1", template: "payment_thank_you" }]);
-    expect(state.leads[0]).toMatchObject({ stage: "paid", paymentReference: "ZM-TEST-1", paymentAmountCents: 225000, paidAt: "2026-11-25T12:00:00.000Z" });
+    expect(state.leads[0]).toMatchObject({ stage: "paid", paymentReference: "LC3076-TEST0001", paymentAmountCents: 225000, paidAt: "2026-11-25T12:00:00.000Z" });
     expect(currentStep(state.leads[0])).toBe("portal");
     expect(state.commits).toBe(1);
   });
@@ -73,7 +84,7 @@ describe("payment-confirmed handler (automatic, mock ZikiMall/CBZ adapter)", () 
     const { state, store } = memoryStore([makeLead()], [availableStand()]);
     handlePaymentConfirmed(store, event);
     const snapshot = structuredClone({ leads: state.leads, stands: state.stands, emails: state.emails });
-    expect(handlePaymentConfirmed(store, event)).toEqual({ status: "duplicate", reference: "ZM-TEST-1" });
+    expect(handlePaymentConfirmed(store, event)).toEqual({ status: "duplicate", reference: "LC3076-TEST0001" });
     expect({ leads: state.leads, stands: state.stands, emails: state.emails }).toEqual(snapshot);
     expect(state.emails).toHaveLength(1);
     expect(state.commits).toBe(1);
@@ -88,25 +99,28 @@ describe("payment-confirmed handler (automatic, mock ZikiMall/CBZ adapter)", () 
     expect(state.emails).toHaveLength(0);
   });
 
-  it("is keyed by stand number: no open offer on that stand means unmatched", () => {
+  it("is keyed by stand number: a reference for another stand than the lead's is recorded as unmatched", () => {
     const { state, store } = memoryStore([makeLead()], [availableStand(), availableStand("3077")]);
     const out = handlePaymentConfirmed(store, { ...event, reference: "ZM-TEST-3", standNumber: "3077" });
     expect(out.status).toBe("unmatched");
+    expect(state.refs.get("ZM-TEST-3")).toBe("unmatched");
     expect(state.leads[0].stage).toBe("form_filled");
+    expect(state.stands.map((s) => s.status)).toEqual(["available", "available"]);
     expect(state.emails).toHaveLength(0);
   });
 
-  it("tells two open offers on one stand apart by the payer's surname, otherwise leaves it unmatched", () => {
-    const leads = [makeLead(), makeLead({ id: "lead-2", contact: { fullName: "Rudo Chari", email: "r@example.com", phone: "+263 77 000 0000" }, offer: { ...offer, buyer: { ...offer.buyer, fullName: "Rudo Chari" } } })];
-    expect(handlePaymentConfirmed(memoryStore(leads, [availableStand()]).store, { ...event, payerSurname: undefined }).status).toBe("unmatched");
+  it("only applies to the paying lead, even with two open offers on one stand", () => {
+    const leads = [makeLead(), makeLead({ id: "lead-2", contact: { fullName: "Rudo Chari", email: "r@example.com", phone: "+263 77 000 0000" } })];
     const { state, store } = memoryStore(leads, [availableStand()]);
-    expect(handlePaymentConfirmed(store, { ...event, payerSurname: "chari" })).toMatchObject({ status: "applied", leadId: "lead-2" });
+    expect(handlePaymentConfirmed(store, { ...event, leadId: "lead-2" })).toMatchObject({ status: "applied", leadId: "lead-2" });
     expect(state.leads.find((l) => l.id === "lead-1")!.stage).toBe("form_filled");
   });
 
-  it("does not take a second payment for a stand that already left inventory", () => {
+  it("records a second payment for a stand that already left inventory as unmatched, with a trace", () => {
     const { state, store } = memoryStore([makeLead()], [{ ...availableStand(), status: "paid", reservedLeadId: "other" }]);
     expect(handlePaymentConfirmed(store, { ...event, reference: "ZM-TEST-4" }).status).toBe("unmatched");
+    expect(state.refs.get("ZM-TEST-4")).toBe("unmatched");
+    expect(state.stands[0]).toMatchObject({ status: "paid", reservedLeadId: "other" });
     expect(state.emails).toHaveLength(0);
   });
 });
@@ -121,7 +135,7 @@ describe("Valerie's report statuses", () => {
 
   it("follows the payment handler: a confirmed payment flips the lead to Signed up and Paid", () => {
     const { state, store } = memoryStore([makeLead()], [availableStand()]);
-    handlePaymentConfirmed(store, mockPaymentConfirmationAdapter.simulate({ standNumber: "3076", reference: "ZM-R" }));
+    handlePaymentConfirmed(store, iveriEvent({ reference: "LC3076-R" }));
     expect(reportStatus(state.leads[0])).toBe("signed_up_paid");
   });
 

@@ -140,7 +140,7 @@ const b = (s: string) => `<strong style="color:${C.green};">${e(s)}</strong>`;
 function offerCompleted(p: EmailProps): StandardEmail {
   return {
     title: emailSubject("offer_completed", p.standNumber),
-    preheader: `Your offer for stand ${p.standNumber} has been submitted. Pay ${money(p.dueNowCents)} via ZikiMall to reserve it.`,
+    preheader: `Your offer for stand ${p.standNumber} has been submitted. Pay ${money(p.dueNowCents)} by card to reserve it.`,
     customerName: p.customerName,
     progress: p.progress,
     intro: [
@@ -160,7 +160,7 @@ function offerCompleted(p: EmailProps): StandardEmail {
     },
     cta: { label: "View your offer", href: p.offerUrl },
     closing: [
-      `${b("Next step:")} pay ${e(money(p.dueNowCents))} at zikimall.com (All Payments › All Billers › Warwickshire). Your account number is your stand number, ${b(p.standNumber)}. Keep your proof of payment (screenshot or receipt).`,
+      `${b("Next step:")} pay ${e(money(p.dueNowCents))} by Visa or Mastercard on the secure CBZ iVeri payment page. Your stand ${b(p.standNumber)} is reserved as soon as the bank approves the payment.`,
       "Attachment: offer-to-purchase.pdf",
     ],
   };

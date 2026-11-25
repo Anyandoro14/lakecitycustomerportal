@@ -34,7 +34,7 @@ export interface StandQuote {
   priceCents: number;
   downPaymentCents: number;
   legalFeeCents: number;
-  /** Down payment + legal fee: the only amount taken at the ZikiMall step. */
+  /** Down payment + legal fee: the only amount taken at the card payment step. */
   dueNowCents: number;
   /** Price - down payment, paid over CAMPAIGN.termMonths. The legal fee is not part of the price. */
   balanceCents: number;
@@ -67,7 +67,7 @@ export function quoteForSize(sizeSqm: number, termMonths: number = CAMPAIGN.term
   };
 }
 
-/** The amount the ZikiMall step charges. Always computed server-side; never taken from the client. */
+/** The amount the card payment step charges. Always computed server-side; never taken from the client. */
 export function paymentDueNowCents(): number {
   return cents(DUE_AT_START_USD);
 }

@@ -1,14 +1,30 @@
-import type { Contact, Lead, OfferOfficialUse, OfferSubmission, OutboxEmailRecord, PaymentOutcome, Stand } from "./models";
+import type { PaymentResultKind } from "@shared/domain/iveri.ts";
+import type { Contact, Lead, OfferOfficialUse, OfferSubmission, OutboxEmailRecord, Stand } from "./models";
 
-export interface PaymentStart {
-  /** Plain link opened in a new tab. No API: our app never handles the money. */
-  zikimallUrl: string;
-  /** The ZikiMall account number = the selected stand number (read-only). */
-  accountNumber: string;
-  /** Mock/dev only: feed a simulated ZikiMall/CBZ confirmation into the payment handler. */
-  simulationAllowed: boolean;
-  /** Fixed server-side: down payment + legal fee (USD 2,250). Never taken from the browser. */
-  amountCents: number;
+/** Card payment start. The amount is fixed server-side (USD 2,250); the browser never sets it. */
+export type PaymentStart =
+  /** iVeri Lite Full Redirect: the browser POSTs these signed fields to iVeri's hosted card page. */
+  | { kind: "iveri"; reference: string; amountCents: number; action: string; fields: Record<string, string>; simulationAllowed: boolean }
+  /** Local demo: the mock iVeri page stands in for the hosted card page. */
+  | { kind: "mock"; reference: string; amountCents: number };
+
+/** What the buyer sees after returning from the card page (from AuthoriseInfo, never from the browser). */
+export interface PaymentResultView {
+  reference: string;
+  result: PaymentResultKind;
+  cardStatus: number | null;
+  title: string;
+  message: string;
+}
+
+/** A payment that needs staff attention (approved but not applied, or rejected). Never card data. */
+export interface PaymentIssue {
+  reference: string;
+  standNumber: string;
+  leadId: string | null;
+  outcome: "unmatched" | "rejected";
+  reason: string | null;
+  createdAt: string;
 }
 
 export interface StaffSession {
@@ -25,11 +41,15 @@ export interface Backend {
   getLead(leadId: string): Promise<Lead | null>;
   submitOffer(leadId: string, offer: OfferSubmission): Promise<void>;
   startPayment(leadId: string): Promise<PaymentStart>;
+  /** Result for one attempt, verified server-side via iVeri AuthoriseInfo. Safe to call repeatedly. */
+  paymentResult(leadId: string, reference: string, kind?: string): Promise<PaymentResultView>;
+  /** Re-checks the latest attempt (for buyers whose browser never came back from the card page). */
+  checkPayment(leadId: string): Promise<PaymentResultView>;
   /**
-   * MOCK/DEV ONLY: the mock ZikiMall/CBZ confirmation adapter emits a successful payment for the lead's
-   * stand and the payment-confirmed handler processes it. No money moves. Pass a reference to replay one.
+   * DEV ONLY (mock mode, or ALLOW_DEV_SIMULATIONS on the server): stand in for the card page and
+   * AuthoriseInfo with the given card status (null = cancelled). Only for the caller's own attempt.
    */
-  simulatePaymentConfirmed(leadId: string, reference?: string): Promise<PaymentOutcome>;
+  simulateCardResult?(leadId: string, reference: string, cardStatus: number | null): Promise<PaymentResultView>;
   /** Portal account step: stand number + phone must match; pre-populates records via MOCK adapters. */
   enrolPortal(leadId: string, input: { standNumber: string; phone: string }): Promise<void>;
 
@@ -40,5 +60,6 @@ export interface Backend {
   listLeads(): Promise<Lead[]>;
   setOfficialUse(leadId: string, value: Omit<OfferOfficialUse, "updatedBy" | "updatedAt">): Promise<void>;
   listOutbox(): Promise<OutboxEmailRecord[]>;
+  listPaymentIssues(): Promise<PaymentIssue[]>;
   resetDemo?(): Promise<void>;
 }

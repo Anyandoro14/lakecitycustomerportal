@@ -1,68 +1,119 @@
-import { paymentDueNowCents } from "../domain/campaign.ts";
 import { buildEmailProps, emailSubject, EMAIL_ATTACHMENTS } from "../domain/emails.ts";
-import { matchLead, type PaymentConfirmation, type PaymentOutcome } from "../domain/payment-events.ts";
-import { rowToLead } from "../domain/rows.ts";
-import type { Lead } from "../domain/types.ts";
+import {
+  bracedApplicationId,
+  iveriConfigFromEnv,
+  parseAuthoriseInfo,
+  processIveriReturn,
+  type ApplyPaymentInput,
+  type ApplyStatus,
+  type AuthoriseInfo,
+  type IveriConfig,
+  type IveriReturnDeps,
+  type PaymentAttempt,
+} from "../domain/iveri.ts";
+import { rowToLead, rowToStand } from "../domain/rows.ts";
 import { HttpError, adminClient, env } from "./http.ts";
-import { loadStand } from "./leads.ts";
 
-/**
- * Payment-confirmed event handler (server side of payment-events.ts). Fed by the ZikiMall/CBZ
- * confirmation adapter; only a MOCK exists until the confirmation source is known (OI-TBC-30).
- *
- * The lead is matched by stand number in TS, then ONE database transaction (apply_payment_confirmed)
- * records the reference, takes the stand out of available inventory, marks the lead paid and queues the
- * thank-you email in the preview outbox. A reference already processed is a no-op.
- */
-export async function handlePaymentConfirmed(event: PaymentConfirmation): Promise<PaymentOutcome> {
+/** iVeri TEST config from env, or a 503. The App ID and secret are never logged or returned. */
+export function iveriConfig(): IveriConfig {
+  const c = iveriConfigFromEnv(env);
+  if ("disabled" in c) {
+    console.warn("[iveri] card payments disabled:", c.disabled);
+    throw new HttpError(503, "Card payments are not available yet. Please try again later or contact LakeCity Accounts.");
+  }
+  return c;
+}
+
+/** Logs a database failure by code only (never row data) and returns a generic client error. */
+export function dbFailure(where: string, error: { code?: string } | null): HttpError {
+  console.error(`[db] ${where} failed`, error?.code ?? "unknown");
+  return new HttpError(500, "Something went wrong. Please try again.");
+}
+
+export async function authoriseInfo(config: IveriConfig, reference: string): Promise<AuthoriseInfo> {
+  const res = await fetch(config.authoriseInfoUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ Lite_Merchant_ApplicationId: bracedApplicationId(config.applicationId), Lite_Merchant_Trace: reference }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    console.warn(`[iveri] AuthoriseInfo HTTP ${res.status}`);
+    throw new Error("AuthoriseInfo unavailable");
+  }
+  return parseAuthoriseInfo(await res.text());
+}
+
+function rowToAttempt(r: Record<string, unknown>): PaymentAttempt {
+  return {
+    reference: String(r.reference),
+    leadId: String(r.lead_id),
+    standNumber: String(r.stand_number),
+    amountCents: Number(r.amount_cents),
+    status: r.status as PaymentAttempt["status"],
+    cardStatus: r.card_status === null ? null : Number(r.card_status),
+    createdAt: String(r.created_at),
+  };
+}
+
+export async function getAttempt(reference: string): Promise<PaymentAttempt | null> {
+  const { data, error } = await adminClient().from("payment_attempts").select("*").eq("reference", reference).maybeSingle();
+  if (error) throw dbFailure("payment_attempts select", error);
+  return data ? rowToAttempt(data) : null;
+}
+
+export async function latestAttempt(leadId: string): Promise<PaymentAttempt | null> {
+  const { data, error } = await adminClient().from("payment_attempts").select("*").eq("lead_id", leadId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw dbFailure("payment_attempts latest", error);
+  return data ? rowToAttempt(data) : null;
+}
+
+async function markAttempt(reference: string, status: PaymentAttempt["status"], cardStatus: number | null) {
+  const { error } = await adminClient().from("payment_attempts").update({ status, card_status: cardStatus, updated_at: new Date().toISOString() }).eq("reference", reference);
+  if (error) throw dbFailure("payment_attempts update", error);
+}
+
+/** Calls apply_payment_confirmed (one transaction). Only ever reached for AuthoriseInfo card status 0. */
+async function applyPayment(input: ApplyPaymentInput): Promise<ApplyStatus> {
   const db = adminClient();
-  const reference = event.reference.trim();
-  if (!reference) return { status: "rejected", reason: "Missing payment reference." };
-  if (event.amountCents !== paymentDueNowCents()) {
-    await recordUnapplied(reference, event, "rejected");
-    return { status: "rejected", reason: "Amount does not match the USD 2,250 due." };
-  }
+  const [{ data: leadRow, error: leadErr }, { data: standRow, error: standErr }] = await Promise.all([
+    db.from("leads").select("*").eq("id", input.leadId).maybeSingle(),
+    db.from("stands").select("*").eq("stand_number", input.standNumber).maybeSingle(),
+  ]);
+  if (leadErr || standErr) throw dbFailure("load lead/stand for payment", leadErr ?? standErr);
+  if (!leadRow || !standRow) throw dbFailure("load lead/stand for payment", { code: "not_found" });
+  const lead = rowToLead(leadRow);
+  const stand = rowToStand(standRow);
+  const paidLead = { ...lead, stage: "paid" as const, paidAt: input.paidAt, paymentReference: input.reference, paymentAmountCents: input.amountCents };
+  const urls = { appUrl: env("APP_URL") || "http://127.0.0.1:8137", portalUrl: env("PORTAL_URL") || "https://lakecity.standledger.io" };
 
-  const { data: rows, error } = await db.from("leads").select("*").eq("stand_number", event.standNumber.trim());
-  if (error) throw new HttpError(500, "Could not load applications.");
-  const match = matchLead((rows ?? []).map(rowToLead), event);
-  if (!("id" in match)) {
-    const dup = await recordUnapplied(reference, event, "unmatched");
-    return dup ? { status: "duplicate", reference } : { status: "unmatched", reason: match.reason };
-  }
-
-  const stand = await loadStand(match.standNumber);
-  const paidLead: Lead = { ...match, stage: "paid", paidAt: event.paidAt, paymentReference: reference, paymentAmountCents: event.amountCents };
-  const appUrl = env("APP_URL") || "http://127.0.0.1:8137";
-  const portalUrl = env("PORTAL_URL") || "https://lakecity.standledger.io";
-
-  const { data: status, error: rpcError } = await db.rpc("apply_payment_confirmed", {
-    p_reference: reference,
-    p_stand_number: stand.standNumber,
-    p_lead_id: match.id,
-    p_amount_cents: event.amountCents,
-    p_paid_at: event.paidAt,
-    p_source: event.source,
-    p_email_to: match.contact.email,
+  const { data, error } = await db.rpc("apply_payment_confirmed", {
+    p_reference: input.reference,
+    p_stand_number: input.standNumber,
+    p_lead_id: input.leadId,
+    p_amount_cents: input.amountCents,
+    p_paid_at: input.paidAt,
+    p_source: input.source,
+    p_email_to: lead.contact.email,
     p_email_subject: emailSubject("payment_thank_you", stand.standNumber),
-    p_email_props: buildEmailProps(paidLead, stand, { appUrl, portalUrl }),
+    p_email_props: buildEmailProps(paidLead, { ...stand, status: "paid", reservedLeadId: lead.id }, urls),
     p_email_attachments: EMAIL_ATTACHMENTS.payment_thank_you ?? [],
   });
-  if (rpcError) throw new HttpError(409, rpcError.message);
-  if (status === "duplicate") return { status: "duplicate", reference };
-  if (status !== "applied") return { status: "unmatched", reason: String(status) };
-  console.info(`[payment] applied ${reference.slice(0, 12)} for stand ${stand.standNumber}`);
-  return { status: "applied", leadId: match.id, standNumber: stand.standNumber, nextStep: "portal", emailQueued: "payment_thank_you" };
+  if (error) throw dbFailure("apply_payment_confirmed", error);
+  const status = String(data) as ApplyStatus;
+  console.info(`[payment] ${input.reference.slice(0, 8)}… ${status}`);
+  return status;
 }
 
-/** Records a reference that could not be applied. Returns true if it had been processed before. */
-async function recordUnapplied(reference: string, event: PaymentConfirmation, outcome: "rejected" | "unmatched"): Promise<boolean> {
-  const { error } = await adminClient().from("payment_events").insert({
-    reference,
-    stand_number: event.standNumber.trim(),
-    amount_cents: event.amountCents,
-    source: event.source,
-    outcome,
-  });
-  return !!error && error.code === "23505";
+export function iveriDeps(config: IveriConfig, overrides: Partial<IveriReturnDeps> = {}): IveriReturnDeps {
+  return {
+    getAttempt,
+    authoriseInfo: (reference) => authoriseInfo(config, reference),
+    applyPayment,
+    markAttempt,
+    source: "iveri",
+    ...overrides,
+  };
 }
+
+export { processIveriReturn };

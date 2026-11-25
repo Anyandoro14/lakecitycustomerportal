@@ -8,6 +8,8 @@ import OfferStep from "@/pages/OfferStep";
 import PaymentStep from "@/pages/PaymentStep";
 import CelebrationStep from "@/pages/CelebrationStep";
 import PortalStep from "@/pages/PortalStep";
+import MockIveri from "@/pages/MockIveri";
+import { backend } from "@/lib/backend";
 import Dashboard from "@/pages/internal/Dashboard";
 import LeadDetail from "@/pages/internal/LeadDetail";
 import Outbox from "@/pages/internal/Outbox";
@@ -33,6 +35,7 @@ export default function App() {
           <Route path="/apply/:leadId/payment" element={<PaymentStep />} />
           <Route path="/apply/:leadId/celebration" element={<CelebrationStep />} />
           <Route path="/apply/:leadId/portal" element={<PortalStep />} />
+          {backend.mode === "mock" && <Route path="/mock-iveri/:reference" element={<MockIveri />} />}
           <Route path="/internal" element={<Dashboard />} />
           <Route path="/internal/leads/:leadId" element={<LeadDetail />} />
           <Route path="/internal/outbox" element={<Outbox />} />

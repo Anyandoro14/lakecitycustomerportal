@@ -1,7 +1,7 @@
 import type { Lead } from "./types.ts";
 
 // Core wizard (Alex, 2026-11-25): choose stand (landing) -> stand details + side pane with contact
-// details and the digital offer form -> ZikiMall payment (USD 2,250) -> celebration + thank-you
+// details and the digital offer form -> iVeri card payment (USD 2,250) -> celebration + thank-you
 // email -> portal account step (stand number + phone; records pre-populated).
 export const WIZARD_STEPS = [
   { key: "offer", label: "Offer form" },

@@ -53,7 +53,7 @@ export interface OdooRecords {
   partner: { ref: string; name: string; email: string; phone: string };
   /** Customer receivable / analytic account for the stand. Model names TBC with Odoo admin. */
   account: { ref: string; name: string; standNumber: string };
-  /** Payment already received at the ZikiMall step. */
+  /** Payment already received at the card payment step. */
   payment: { ref: string; amountCents: number; date: string; memo: string };
 }
 

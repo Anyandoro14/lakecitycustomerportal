@@ -131,7 +131,7 @@ const clauses = [
   ["3. PAYMENT", [
     "3.1 PLACEHOLDER: The Purchaser shall pay the initial deposit stated above, followed by monthly instalments for the term stated above, in accordance with the payment schedule issued by the Seller.",
     "3.2 PLACEHOLDER: The monthly instalment is calculated as the total purchase price (inclusive of VAT) less the deposit, divided by the term in months.",
-    "3.3 PLACEHOLDER: Payments shall be made through the Seller's nominated payment channel (ZikiMall, settlement details TBC).",
+    "3.3 PLACEHOLDER: Payments shall be made through the Seller's nominated payment channel (card payment via CBZ iVeri, settlement details TBC).",
   ]],
   ["4. DEFAULT AND RE-ALLOCATION", [
     "4.1 PLACEHOLDER: Should the Purchaser miss three (3) consecutive monthly payments, the Seller may re-allocate the stand.",

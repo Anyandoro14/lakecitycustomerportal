@@ -38,7 +38,7 @@ export const MERGE_FIELDS: MergeField[] = [
   { key: "deposit", label: "Down payment (USD)", source: "Campaign rule: USD 1,750 fixed" },
   { key: "instalment", label: "Monthly instalment (USD)", source: "Computed: (price - down payment) / 48" },
   { key: "term_months", label: "Term (months)", source: "Campaign config: 48 months" },
-  { key: "payment_reference", label: "Payment reference", source: "ZikiMall payment callback › payment reference" },
+  { key: "payment_reference", label: "Payment reference", source: "iVeri card payment › merchant reference" },
   { key: "collection_account_id", label: "Collection schedule account", source: "Portal account step › collection schedule adapter" },
 ];
 

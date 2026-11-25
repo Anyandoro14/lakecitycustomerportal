@@ -1,5 +1,5 @@
 // Collection schedule for one stand:
-//   row 1: down payment + legal fee, due on the start date (paid at the ZikiMall step)
+//   row 1: down payment + legal fee, due on the start date (paid by card at the payment step)
 //   rows 2..49: monthly instalments = (price - down payment) / 48, on the due day of each month
 // Integer cents throughout; the final instalment absorbs rounding.
 // When instalments start (month after payment, assumed) is TBC (OI-TBC-11).

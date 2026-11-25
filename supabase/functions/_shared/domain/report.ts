@@ -11,7 +11,7 @@ export type ReportStatus = "signed_up" | "signed_up_paid" | "signed_up_paid_sign
 
 export const REPORT_STATUSES: { key: ReportStatus; label: string; meaning: string }[] = [
   { key: "signed_up", label: "Signed up", meaning: "Offer form submitted" },
-  { key: "signed_up_paid", label: "Signed up and Paid", meaning: "Payment confirmed (ZikiMall/CBZ)" },
+  { key: "signed_up_paid", label: "Signed up and Paid", meaning: "Card payment approved (iVeri AuthoriseInfo status 0)" },
   { key: "signed_up_paid_signed", label: "Signed up, Paid and Signed", meaning: "Agreement of Sale signed" },
 ];
 

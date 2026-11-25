@@ -1,6 +1,7 @@
 // Local mock backend so the whole flow runs without Supabase. State is kept in localStorage so the
 // demo survives reloads. Nothing here is sent anywhere: no money moves, no emails leave the browser,
-// payment confirmations come from the MOCK ZikiMall/CBZ adapter, and portal records are built by MOCK
+// card payments go to a MOCK iVeri page (no card data, no gateway) and its result is
+// processed by the same iVeri return handler the server uses, and portal records are built by MOCK
 // adapters (keyed by stand number) without touching the real sheets or Odoo.
 
 import seed from "@/data/stands.seed.json";
@@ -8,14 +9,14 @@ import { config } from "@/config";
 import { CAMPAIGN, paymentDueNowCents } from "@shared/domain/campaign.ts";
 import { EMAIL_ATTACHMENTS, buildEmailProps, emailSubject, type EmailTemplateKey } from "@shared/domain/emails.ts";
 import { DuplicateStandRecordError, createMockIntegrations, matchesPortalCredentials, prepopulatePortalRecords } from "@shared/domain/integrations.ts";
-import { handlePaymentConfirmed, mockPaymentConfirmationAdapter } from "@shared/domain/payment-events.ts";
-import { ZIKIMALL, zikimallAccountNumber } from "@shared/domain/payment-methods.ts";
+import { handlePaymentConfirmed } from "@shared/domain/payment-events.ts";
+import { newMerchantReference, processIveriReturn, type ApplyPaymentInput, type PaymentAttempt } from "@shared/domain/iveri.ts";
 import { normaliseOffer, validateOfferForm } from "@shared/domain/offer-form.ts";
 import { validateContact } from "@shared/domain/contact.ts";
-import type { Backend } from "./types";
+import type { Backend, PaymentIssue, PaymentResultView } from "./types";
 import type { Lead, OutboxEmailRecord, Stand } from "./models";
 
-const STORAGE_KEY = "lakecity-mock-v4";
+const STORAGE_KEY = "lakecity-mock-v5";
 const MOCK_STAFF = "dev-staff@lakecity.local";
 
 interface MockState {
@@ -23,7 +24,10 @@ interface MockState {
   leads: Lead[];
   outbox: OutboxEmailRecord[];
   /** Payment references already handled (idempotency), with their outcome. */
-  payments: { reference: string; standNumber: string; status: string; at: string }[];
+  payments: { reference: string; standNumber: string; leadId: string | null; status: string; reason: string | null; at: string }[];
+  paymentAttempts: PaymentAttempt[];
+  /** What the mock iVeri page "answered" per reference (card status; null = cancelled). */
+  mockGateway: Record<string, number | null>;
 }
 
 function freshState(): MockState {
@@ -32,6 +36,8 @@ function freshState(): MockState {
     leads: [],
     outbox: [],
     payments: [],
+    paymentAttempts: [],
+    mockGateway: {},
   };
 }
 
@@ -91,6 +97,61 @@ function queueEmail(template: EmailTemplateKey, lead: Lead) {
   console.info(`[email:preview-outbox] queued "${template}" for lead ${lead.id.slice(0, 8)} (not sent)`);
 }
 
+/** Same handler as the server: the mock gateway plays AuthoriseInfo; only card status 0 applies the payment. */
+async function mockReturn(leadId: string, reference: string, kind?: string): Promise<PaymentResultView> {
+  const attempt = state.paymentAttempts.find((a) => a.reference === reference);
+  if (!attempt || attempt.leadId !== leadId) throw new Error("We couldn't find this payment.");
+  const outcome = await processIveriReturn(
+    {
+      getAttempt: async (ref) => structuredClone(state.paymentAttempts.find((a) => a.reference === ref) ?? null),
+      authoriseInfo: async (ref) => {
+        if (!(ref in state.mockGateway)) throw new Error("no answer yet");
+        return { cardStatus: state.mockGateway[ref], description: "", trace: ref, amountCents: attempt.amountCents };
+      },
+      applyPayment: async (input) => applyMockPayment(input),
+      markAttempt: async (ref, status, cardStatus) => {
+        const a = state.paymentAttempts.find((x) => x.reference === ref);
+        if (a) Object.assign(a, { status, cardStatus });
+        save();
+      },
+      source: "mock-iveri",
+    },
+    { reference, kind },
+  );
+  return { reference, result: outcome.result, cardStatus: outcome.cardStatus, title: outcome.title, message: outcome.message };
+}
+
+/** Mirror of apply_payment_confirmed: one synchronous commit + one save(); all or nothing. */
+function applyMockPayment(input: ApplyPaymentInput) {
+  const outcome = handlePaymentConfirmed(
+    {
+      isProcessed: (ref) => state.payments.some((p) => p.reference === ref),
+      lead: (id) => state.leads.find((l) => l.id === id) ?? null,
+      stand: (n) => state.stands.find((s) => s.standNumber === n) ?? null,
+      commit: ({ reference: ref, event, outcome: o, stand, lead: updated, emailFor }) => {
+        const next = structuredClone(state);
+        const reason = o.status === "unmatched" || o.status === "rejected" ? o.reason : null;
+        const leadId = next.leads.some((l) => l.id === event.leadId) ? event.leadId : null;
+        next.payments.push({ reference: ref, standNumber: event.standNumber, leadId, status: o.status, reason, at: now() });
+        if (stand) next.stands = next.stands.map((s) => (s.standNumber === stand.standNumber ? stand : s));
+        if (updated) next.leads = next.leads.map((l) => (l.id === updated.id ? updated : l));
+        if (o.status === "applied") next.paymentAttempts = next.paymentAttempts.map((a) => (a.reference === ref ? { ...a, status: "approved", cardStatus: 0 } : a));
+        const prev = state;
+        state = next;
+        try {
+          if (emailFor) queueEmail("payment_thank_you", emailFor);
+        } catch (e) {
+          state = prev;
+          throw e;
+        }
+      },
+    },
+    input,
+  );
+  save();
+  return outcome.status;
+}
+
 export const mockBackend: Backend = {
   mode: "mock",
 
@@ -147,40 +208,40 @@ export const mockBackend: Backend = {
     await delay(200);
     const lead = requireLead(leadId);
     if (!lead.offer) throw new Error("Complete the offer form first.");
-    return { zikimallUrl: ZIKIMALL.url, accountNumber: zikimallAccountNumber(lead), simulationAllowed: true, amountCents: paymentDueNowCents() };
+    if (lead.stage !== "form_filled") throw new Error("This application has already been paid.");
+    if (requireStand(lead.standNumber).status !== "available") throw new Error("Sorry, this stand is no longer available.");
+    const attempt: PaymentAttempt = {
+      reference: newMerchantReference(lead.standNumber),
+      leadId,
+      standNumber: lead.standNumber,
+      amountCents: paymentDueNowCents(),
+      status: "started",
+      cardStatus: null,
+      createdAt: now(),
+    };
+    state.paymentAttempts.push(attempt);
+    save();
+    return { kind: "mock", reference: attempt.reference, amountCents: attempt.amountCents };
   },
 
-  async simulatePaymentConfirmed(leadId, reference) {
-    await delay(600);
-    const lead = requireLead(leadId);
-    const surname = (lead.offer?.buyer.fullName ?? lead.contact.fullName).trim().split(/\s+/).at(-1);
-    const event = mockPaymentConfirmationAdapter.simulate({ standNumber: lead.standNumber, payerSurname: surname, reference });
-    const outcome = handlePaymentConfirmed(
-      {
-        isProcessed: (ref) => state.payments.some((p) => p.reference === ref),
-        leads: () => state.leads,
-        stand: (n) => state.stands.find((s) => s.standNumber === n) ?? null,
-        // Single synchronous commit followed by one save(): all or nothing.
-        commit: ({ reference: ref, outcome: o, stand, lead: updated, emailFor }) => {
-          const next = structuredClone(state);
-          next.payments.push({ reference: ref, standNumber: event.standNumber, status: o.status, at: now() });
-          if (stand) next.stands = next.stands.map((s) => (s.standNumber === stand.standNumber ? stand : s));
-          if (updated) next.leads = next.leads.map((l) => (l.id === updated.id ? updated : l));
-          const prev = state;
-          state = next;
-          try {
-            if (emailFor) queueEmail("payment_thank_you", emailFor);
-          } catch (e) {
-            state = prev;
-            throw e;
-          }
-        },
-      },
-      event,
-    );
+  async paymentResult(leadId, reference, kind) {
+    await delay(300);
+    return mockReturn(leadId, reference, kind);
+  },
+
+  async checkPayment(leadId) {
+    await delay(300);
+    const latest = state.paymentAttempts.filter((a) => a.leadId === leadId).at(-1);
+    if (!latest) throw new Error("We couldn't find this payment.");
+    return mockReturn(leadId, latest.reference);
+  },
+
+  async simulateCardResult(leadId, reference, cardStatus) {
+    const attempt = state.paymentAttempts.find((a) => a.reference === reference);
+    if (!attempt || attempt.leadId !== leadId) throw new Error("We couldn't find this payment.");
+    state.mockGateway[reference] = cardStatus;
     save();
-    if (outcome.status === "rejected" || outcome.status === "unmatched") throw new Error(outcome.reason);
-    return outcome;
+    return mockReturn(leadId, reference, cardStatus === 0 ? "success" : "fail");
   },
 
   async enrolPortal(leadId, input) {
@@ -224,6 +285,13 @@ export const mockBackend: Backend = {
 
   async listOutbox() {
     return structuredClone(state.outbox).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  async listPaymentIssues() {
+    return state.payments
+      .filter((p) => p.status === "unmatched" || p.status === "rejected")
+      .map((p): PaymentIssue => ({ reference: p.reference, standNumber: p.standNumber, leadId: p.leadId, outcome: p.status as PaymentIssue["outcome"], reason: p.reason, createdAt: p.at }))
+      .reverse();
   },
 
   async resetDemo() {

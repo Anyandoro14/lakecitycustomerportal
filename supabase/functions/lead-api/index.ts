@@ -2,17 +2,24 @@
 
 import { CAMPAIGN, paymentDueNowCents } from "../_shared/domain/campaign.ts";
 import { DuplicateStandRecordError, createMockIntegrations, matchesPortalCredentials, prepopulatePortalRecords } from "../_shared/domain/integrations.ts";
-import { mockPaymentConfirmationAdapter } from "../_shared/domain/payment-events.ts";
-import { ZIKIMALL, zikimallAccountNumber } from "../_shared/domain/payment-methods.ts";
+import { buildLiteForm, newMerchantReference, storedResult, type PaymentAttempt } from "../_shared/domain/iveri.ts";
 import { normaliseOffer, validateOfferForm } from "../_shared/domain/offer-form.ts";
 import { rowToLead, toCustomerLead } from "../_shared/domain/rows.ts";
 import type { OfferSubmission } from "../_shared/domain/types.ts";
 import { queueEmail } from "../_shared/server/email.ts";
-import { HttpError, adminClient, devSimulationsAllowed, json, serve } from "../_shared/server/http.ts";
+import { HttpError, adminClient, devSimulationsAllowed, env, json, serve } from "../_shared/server/http.ts";
 import { loadLead, loadLeadForCustomer, loadStand, updateLead } from "../_shared/server/leads.ts";
-import { handlePaymentConfirmed } from "../_shared/server/payment.ts";
+import { dbFailure, getAttempt, iveriConfig, iveriDeps, latestAttempt, processIveriReturn } from "../_shared/server/payment.ts";
 
 const now = () => new Date().toISOString();
+
+/** Re-checks AuthoriseInfo while the outcome is open; otherwise returns the stored result. */
+async function resultFor(attempt: PaymentAttempt, kind?: string) {
+  if (attempt.status === "started" || attempt.status === "pending") {
+    return processIveriReturn(iveriDeps(iveriConfig()), { reference: attempt.reference, kind });
+  }
+  return { ...storedResult(attempt, kind), leadId: attempt.leadId, reference: attempt.reference, applied: null };
+}
 
 serve(async (req) => {
   if (req.method !== "POST") throw new HttpError(405, "Method not allowed");
@@ -37,27 +44,46 @@ serve(async (req) => {
 
     case "start-payment": {
       if (!lead.offer) throw new HttpError(409, "Complete the offer form first.");
-      // Plain link to zikimall.com (new tab). No API: this app never handles the money.
-      return json({
-        zikimallUrl: ZIKIMALL.url,
-        accountNumber: zikimallAccountNumber(lead),
-        simulationAllowed: devSimulationsAllowed(),
-        amountCents: paymentDueNowCents(),
+      if (lead.stage !== "form_filled") throw new HttpError(409, "This application has already been paid.");
+      if (stand.status !== "available") throw new HttpError(409, "Sorry, this stand is no longer available.");
+      const config = iveriConfig();
+      const reference = newMerchantReference(lead.standNumber);
+      const amountCents = paymentDueNowCents();
+      const { error } = await adminClient().from("payment_attempts").insert({ reference, lead_id: lead.id, stand_number: lead.standNumber, amount_cents: amountCents });
+      if (error) throw dbFailure("payment_attempts insert", error);
+      const returnUrl = env("IVERI_RETURN_URL") || `${env("SUPABASE_URL")}/functions/v1/iveri-return`;
+      const form = await buildLiteForm({
+        config,
+        amountCents,
+        email: lead.contact.email,
+        reference,
+        description: `LakeCity stand ${lead.standNumber}: down payment + legal fee`,
+        returnUrl,
       });
+      return json({ kind: "iveri", reference, amountCents, action: form.action, fields: form.fields, simulationAllowed: devSimulationsAllowed() });
+    }
+
+    case "payment-result":
+    case "check-payment": {
+      const attempt = body.action === "payment-result" ? await getAttempt(String(body.reference ?? "")) : await latestAttempt(lead.id);
+      if (!attempt || attempt.leadId !== lead.id) throw new HttpError(404, "We couldn't find this payment.");
+      return json(await resultFor(attempt, typeof body.kind === "string" ? body.kind : undefined));
     }
 
     case "simulate-payment": {
-      // Dev only: the MOCK ZikiMall/CBZ adapter emits a confirmation that goes through the real handler.
+      // Dev only: stands in for the iVeri hosted page + AuthoriseInfo. The attempt must belong to the caller's
+      // own lead, and that lead must hold an open offer.
       if (!devSimulationsAllowed()) throw new HttpError(403, "Simulations are disabled.");
-      const surname = (lead.offer?.buyer.fullName ?? lead.contact.fullName).trim().split(/\s+/).at(-1);
-      const event = mockPaymentConfirmationAdapter.simulate({
-        standNumber: lead.standNumber,
-        payerSurname: surname,
-        reference: typeof body.reference === "string" ? body.reference : undefined,
+      const attempt = await getAttempt(String(body.reference ?? ""));
+      if (!attempt || attempt.leadId !== lead.id) throw new HttpError(404, "We couldn't find this payment.");
+      if (!lead.offer || lead.stage !== "form_filled") throw new HttpError(409, "This application is not awaiting payment.");
+      const cardStatus = body.cardStatus === null ? null : Number(body.cardStatus);
+      if (cardStatus !== null && !Number.isInteger(cardStatus)) throw new HttpError(400, "Invalid card status.");
+      const deps = iveriDeps(iveriConfig(), {
+        source: "mock-iveri",
+        authoriseInfo: () => Promise.resolve({ cardStatus, description: "", trace: attempt.reference, amountCents: attempt.amountCents }),
       });
-      const outcome = await handlePaymentConfirmed(event);
-      if (outcome.status === "rejected" || outcome.status === "unmatched") throw new HttpError(409, outcome.reason);
-      return json(outcome);
+      return json(await processIveriReturn(deps, { reference: attempt.reference, kind: cardStatus === 0 ? "success" : "fail" }));
     }
 
     case "enrol-portal": {
@@ -69,7 +95,7 @@ serve(async (req) => {
       // MOCK adapters only: nothing is written to the collection schedule, master schedule or Odoo (OI-TBC-15..17).
       // Stand number is the key: seed the adapters with the stand's existing records so a second buyer is rejected.
       const { data: sameStand, error } = await adminClient().from("leads").select("*").eq("stand_number", lead.standNumber).eq("portal_status", "prepopulated");
-      if (error) throw new HttpError(500, "Could not check existing records.");
+      if (error) throw dbFailure("leads same stand", error);
       let records;
       try {
         records = prepopulatePortalRecords({ lead, stand, now: new Date() }, createMockIntegrations((sameStand ?? []).map(rowToLead)));

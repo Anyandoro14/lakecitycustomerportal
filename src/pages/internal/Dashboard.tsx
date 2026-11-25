@@ -1,4 +1,4 @@
-import { Download, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, Download, Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { PortalBadge, ReportStatusBadge } from "@/components/StatusBadges";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { backend, type Lead, type Stand } from "@/lib/backend";
+import { backend, type Lead, type PaymentIssue, type Stand } from "@/lib/backend";
 import { REPORT_STATUSES, reportCounts, reportCsv, reportStatus, type ReportStatus } from "@shared/domain/report.ts";
 
 export default function Dashboard() {
@@ -17,13 +17,15 @@ export default function Dashboard() {
 function DashboardView({ staffEmail }: { staffEmail: string }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [stands, setStands] = useState<Stand[]>([]);
+  const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [l, s] = await Promise.all([backend.listLeads(), backend.listStands()]);
+      const [l, s, i] = await Promise.all([backend.listLeads(), backend.listStands(), backend.listPaymentIssues()]);
       setLeads(l);
       setStands(s);
+      setIssues(i);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     }
@@ -41,6 +43,7 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
   };
   const counts = reportCounts(leads ?? []);
   const byStatus = (status: ReportStatus) => (leads ?? []).filter((l) => reportStatus(l) === status);
+  const contactOnly = (leads ?? []).filter((l) => reportStatus(l) === null);
   const tones: Record<ReportStatus, string> = { signed_up: "text-foreground", signed_up_paid: "text-amber-700", signed_up_paid_signed: "text-primary" };
 
   function exportCsv() {
@@ -88,6 +91,52 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
         </Card>
       </div>
 
+      {issues.length > 0 && (
+        <Card className="border-amber-300" data-testid="payment-issues">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-600" /> Payments needing attention ({issues.length})
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Card payments the bank approved that could not be applied (for example the stand was already sold). Nothing changed in
+              inventory; LakeCity Accounts should contact the buyer about a refund (OI-TBC-25).
+            </p>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Stand</TableHead>
+                  <TableHead>Outcome</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>When</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {issues.map((i) => (
+                  <TableRow key={i.reference}>
+                    <TableCell className="font-mono text-xs">{i.reference}</TableCell>
+                    <TableCell>{i.standNumber}</TableCell>
+                    <TableCell className="capitalize">{i.outcome}</TableCell>
+                    <TableCell className="text-xs">{i.reason ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">{i.createdAt.slice(0, 16).replace("T", " ")}</TableCell>
+                    <TableCell>
+                      {i.leadId && (
+                        <Button asChild size="sm" variant="outline">
+                          <Link to={`/internal/leads/${i.leadId}`}>Open lead</Link>
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <div>
@@ -110,12 +159,17 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
                 {REPORT_STATUSES.map((r) => (
                   <TabsTrigger key={r.key} value={r.key}>{r.label} ({counts[r.key]})</TabsTrigger>
                 ))}
+                <TabsTrigger value="contact_only" data-testid="tab-contact-only">Contact only, not in report ({contactOnly.length})</TabsTrigger>
               </TabsList>
               {REPORT_STATUSES.map((r) => (
                 <TabsContent key={r.key} value={r.key}>
                   {byStatus(r.key).length ? <LeadTable leads={byStatus(r.key)} /> : <p className="py-6 text-sm text-muted-foreground">No leads with this status yet.</p>}
                 </TabsContent>
               ))}
+              <TabsContent value="contact_only">
+                <p className="pb-2 pt-1 text-xs text-muted-foreground">Left contact details on a stand page but haven't submitted an offer yet. Not in the sales report.</p>
+                {contactOnly.length ? <LeadTable leads={contactOnly} /> : <p className="py-6 text-sm text-muted-foreground">No contact-only leads.</p>}
+              </TabsContent>
             </Tabs>
           )}
         </CardContent>
