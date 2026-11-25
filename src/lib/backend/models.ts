@@ -1,4 +1,5 @@
 export type * from "@shared/domain/types.ts";
+export type * from "@shared/domain/integrations.ts";
 import type { EmailProps, EmailTemplateKey } from "@shared/domain/emails.ts";
 
 export interface OutboxEmailRecord {

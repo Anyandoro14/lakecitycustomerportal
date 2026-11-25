@@ -3,13 +3,13 @@ import type { Lead, Stand } from "../domain/types.ts";
 import { adminClient, HttpError, sha256Hex, timingSafeEqual } from "./http.ts";
 
 export async function loadLead(leadId: string): Promise<Lead> {
-  const { data, error } = await adminClient().from("leads").select("*, co_owners(*)").eq("id", leadId).maybeSingle();
+  const { data, error } = await adminClient().from("leads").select("*").eq("id", leadId).maybeSingle();
   if (error) throw new HttpError(500, "Could not load application.");
   if (!data) throw new HttpError(404, "Application not found.");
   return rowToLead(data);
 }
 
-/** Customers authenticate per lead with the random access token issued at intake. */
+/** Customers authenticate per lead with the random access token issued when the application starts. */
 export async function loadLeadForCustomer(leadId: unknown, accessToken: unknown): Promise<Lead> {
   if (typeof leadId !== "string" || typeof accessToken !== "string") throw new HttpError(400, "Missing credentials.");
   const { data } = await adminClient().from("leads").select("access_token_hash").eq("id", leadId).maybeSingle();

@@ -1,14 +1,13 @@
 import { Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { IdReviewBadge, PortalBadge } from "@/components/StatusBadges";
+import { PortalBadge, StageBadge } from "@/components/StatusBadges";
 import { StaffGate } from "@/components/StaffGate";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { backend, type Lead, type LeadStage, type Stand } from "@/lib/backend";
-import { maskIdNumber } from "@shared/domain/id-validation.ts";
 
 export default function Dashboard() {
   return <StaffGate>{(staff) => <DashboardView staffEmail={staff.email} />}</StaffGate>;
@@ -41,7 +40,6 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
     paid: stands.filter((s) => s.status === "paid").length,
     signed: stands.filter((s) => s.status === "signed").length,
   };
-  const pending = (leads ?? []).filter((l) => l.idReviewStatus === "id_pending_review");
   const byStage = (stage: LeadStage) => (leads ?? []).filter((l) => l.stage === stage);
 
   return (
@@ -75,20 +73,6 @@ function DashboardView({ staffEmail }: { staffEmail: string }) {
           </Card>
         ))}
       </div>
-
-      <Card className={pending.length ? "border-amber-300" : undefined}>
-        <CardHeader>
-          <CardTitle className="text-lg">ID review queue ({pending.length})</CardTitle>
-          <CardDescription>Customers can't pay until their ID (and every co-owner's ID) is approved.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing waiting for review.</p>
-          ) : (
-            <LeadTable leads={pending} />
-          )}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -125,7 +109,7 @@ function LeadTable({ leads }: { leads: Lead[] }) {
           <TableRow>
             <TableHead>Buyer</TableHead>
             <TableHead>Stand</TableHead>
-            <TableHead>ID</TableHead>
+            <TableHead>Offer</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Portal</TableHead>
             <TableHead>Created</TableHead>
@@ -136,12 +120,12 @@ function LeadTable({ leads }: { leads: Lead[] }) {
           {leads.map((l) => (
             <TableRow key={l.id}>
               <TableCell>
-                <p className="font-medium">{l.buyer.fullName}</p>
-                <p className="text-xs text-muted-foreground">{l.buyer.email}{l.coOwners.length ? ` · +${l.coOwners.length} co-owner(s)` : ""}</p>
+                <p className="font-medium">{l.contact.fullName}</p>
+                <p className="text-xs text-muted-foreground">{l.contact.email}{l.offer?.coOwners.length ? ` · +${l.offer.coOwners.length} co-owner(s)` : ""}</p>
               </TableCell>
               <TableCell>{l.standNumber}</TableCell>
-              <TableCell className="font-mono text-xs">{maskIdNumber(l.buyer.idNumber)}</TableCell>
-              <TableCell><IdReviewBadge status={l.idReviewStatus} /></TableCell>
+              <TableCell>{l.offer ? "Submitted" : "Not yet"}</TableCell>
+              <TableCell><StageBadge stage={l.stage} /></TableCell>
               <TableCell><PortalBadge status={l.portalStatus} /></TableCell>
               <TableCell className="whitespace-nowrap text-xs">{l.createdAt.slice(0, 16).replace("T", " ")}</TableCell>
               <TableCell>

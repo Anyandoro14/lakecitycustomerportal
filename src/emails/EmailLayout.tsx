@@ -1,5 +1,5 @@
 import { Body, Column, Container, Head, Hr, Html, Preview, Row, Section, Text } from "@react-email/components";
-import { EMAIL_CONTACT, EMAIL_SIGN_OFF, EMAIL_STAGES, type EmailTemplateKey } from "@shared/domain/emails.ts";
+import { EMAIL_CONTACT, EMAIL_SIGN_OFF, EMAIL_STAGES, type EmailStageKey } from "@shared/domain/emails.ts";
 
 export const brand = {
   green: "#0b3d2e",
@@ -13,7 +13,7 @@ export const brand = {
 
 const font = "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
 
-export function EmailLayout({ stage, preview, children }: { stage: EmailTemplateKey; preview: string; children: React.ReactNode }) {
+export function EmailLayout({ stage, preview, children }: { stage: EmailStageKey; preview: string; children: React.ReactNode }) {
   const idx = EMAIL_STAGES.findIndex((s) => s.key === stage);
   const current = EMAIL_STAGES[idx];
   return (

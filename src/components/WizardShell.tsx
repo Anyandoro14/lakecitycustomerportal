@@ -6,9 +6,9 @@ import type { Lead } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { WIZARD_STEPS, currentStep, stepIndex, type WizardStep } from "@shared/domain/flow.ts";
 
-const ALL_STEPS = [{ key: "intake", label: "Your details" }, ...WIZARD_STEPS];
+const ALL_STEPS = [{ key: "stand", label: "Choose stand" }, ...WIZARD_STEPS];
 
-export function WizardProgress({ active }: { active: WizardStep | "intake" }) {
+export function WizardProgress({ active }: { active: WizardStep | "stand" }) {
   const activeIdx = ALL_STEPS.findIndex((s) => s.key === active);
   return (
     <ol className="flex w-full items-center gap-1 overflow-x-auto pb-1" aria-label="Progress">
@@ -44,14 +44,14 @@ export function WizardProgress({ active }: { active: WizardStep | "intake" }) {
 
 interface Props {
   step: WizardStep;
-  pollMs?: number;
+  wide?: boolean;
   children: (ctx: { lead: Lead; refresh: () => Promise<void> }) => React.ReactNode;
 }
 
 /** Loads the lead and prevents skipping ahead: later steps redirect to the current one. */
-export function WizardShell({ step, pollMs, children }: Props) {
+export function WizardShell({ step, wide, children }: Props) {
   const { leadId } = useParams();
-  const { lead, loading, error, refresh } = useLead(leadId, pollMs);
+  const { lead, loading, error, refresh } = useLead(leadId);
 
   if (loading) {
     return (
@@ -65,7 +65,7 @@ export function WizardShell({ step, pollMs, children }: Props) {
       <div className="container max-w-xl py-16">
         <Alert variant="destructive">
           <AlertTitle>We couldn't load your application</AlertTitle>
-          <AlertDescription>{error ?? "Not found."} Please start again from the campaign page.</AlertDescription>
+          <AlertDescription>{error ?? "Not found."} Please start again from the stand list.</AlertDescription>
         </Alert>
       </div>
     );
@@ -77,8 +77,8 @@ export function WizardShell({ step, pollMs, children }: Props) {
   }
 
   return (
-    <div className="container max-w-3xl py-8 sm:py-12">
-      <div className="mb-8">
+    <div className={cn("container py-8 sm:py-12", wide ? "max-w-6xl" : "max-w-3xl")}>
+      <div className="mx-auto mb-8 max-w-3xl">
         <WizardProgress active={step} />
       </div>
       {children({ lead, refresh })}

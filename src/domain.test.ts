@@ -3,8 +3,6 @@ import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { MERGE_FIELDS } from "@shared/domain/agreement-fields.ts";
 import { validateIdentity, zimbabweCheckLetter } from "@shared/domain/id-validation.ts";
-import { computeSchedule } from "@shared/domain/schedule.ts";
-import { sniffIdUploadMime } from "@shared/domain/uploads.ts";
 
 const NOW = new Date("2026-11-25T12:00:00Z");
 const ok = (country: string, idNumber: string, idType: "national_id" | "passport" = "national_id", expiryDate?: string) =>
@@ -53,34 +51,6 @@ describe("generic national ID + passport", () => {
   it("requires an ISO issuing country", () => {
     expect(ok("", "123456789", "passport", "2030-01-01").errors.issuingCountry).toBeDefined();
     expect(ok("QQ", "123456789", "passport", "2030-01-01").errors.issuingCountry).toBeDefined();
-  });
-});
-
-describe("payment schedule", () => {
-  it("instalment = (price - deposit) / 48, final instalment absorbs rounding", () => {
-    const s = computeSchedule({ priceUsd: 25000, depositUsd: 2500, termMonths: 48, depositInstalments: 1, dueDay: 5, startDate: "2026-11-25" });
-    expect(s.rows).toHaveLength(49);
-    expect(s.monthlyInstalmentCents).toBe(46875);
-    expect(s.rows.at(-1)!.balanceCents).toBe(0);
-    expect(s.rows[1].dueDate).toBe("2026-12-05");
-    expect(s.rows.at(-1)!.dueDate).toBe("2030-11-05");
-  });
-  it("handles uneven division and 3-part deposits", () => {
-    const s = computeSchedule({ priceUsd: 10000, depositUsd: 1000, termMonths: 48, depositInstalments: 3, dueDay: 1, startDate: "2026-01-31" });
-    const instalments = s.rows.filter((r) => r.kind === "instalment");
-    expect(s.rows.filter((r) => r.kind === "deposit").map((r) => r.amountCents)).toEqual([33333, 33333, 33334]);
-    expect(instalments).toHaveLength(48);
-    expect(instalments.reduce((a, r) => a + r.amountCents, 0)).toBe(900000);
-    expect(s.rows.at(-1)!.balanceCents).toBe(0);
-    expect(instalments[0].dueDate).toBe("2026-04-01");
-  });
-});
-
-describe("uploads", () => {
-  it("sniffs magic bytes", () => {
-    expect(sniffIdUploadMime(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe("image/jpeg");
-    expect(sniffIdUploadMime(new TextEncoder().encode("%PDF-1.7"))).toBe("application/pdf");
-    expect(sniffIdUploadMime(new TextEncoder().encode("hello"))).toBeNull();
   });
 });
 

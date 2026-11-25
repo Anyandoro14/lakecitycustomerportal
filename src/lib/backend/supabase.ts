@@ -2,27 +2,30 @@ import { createClient } from "@supabase/supabase-js";
 import { config, useSupabase } from "@/config";
 import { rowToLead, rowToStand } from "@shared/domain/rows.ts";
 import type { Backend } from "./types";
-import type { IdReviewLogEntry, OutboxEmailRecord } from "./models";
+import type { OutboxEmailRecord } from "./models";
 
 // Only constructed when Supabase env vars are present; mock mode never touches it.
 const supabase = useSupabase
   ? createClient(config.supabaseUrl, config.supabaseAnonKey)
   : (null as unknown as ReturnType<typeof createClient>);
 
+// Same-device access token per application. Opening the offer link on another device is OI-TBC-19.
 const tokenKey = (leadId: string) => `lakecity-lead-token:${leadId}`;
+
+async function invoke<T>(fn: string, body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(fn, { body });
+  if (error) {
+    const ctx = (error as { context?: Response }).context;
+    const parsed = ctx ? await ctx.json().catch(() => null) : null;
+    throw new Error(parsed?.error ?? error.message);
+  }
+  return data as T;
+}
 
 async function leadApi<T>(action: string, leadId: string, extra: Record<string, unknown> = {}): Promise<T> {
   const accessToken = localStorage.getItem(tokenKey(leadId));
   if (!accessToken) throw new Error("This application was started on another device or browser.");
-  const { data, error } = await supabase.functions.invoke("lead-api", {
-    body: { action, leadId, accessToken, ...extra },
-  });
-  if (error) {
-    const ctx = (error as { context?: Response }).context;
-    const body = ctx ? await ctx.json().catch(() => null) : null;
-    throw new Error(body?.error ?? error.message);
-  }
-  return data as T;
+  return invoke<T>("lead-api", { action, leadId, accessToken, ...extra });
 }
 
 export const supabaseBackend: Backend = {
@@ -34,25 +37,8 @@ export const supabaseBackend: Backend = {
     return (data ?? []).map(rowToStand);
   },
 
-  async submitIntake(input) {
-    const form = new FormData();
-    const strip = <T extends { idFront: Blob; idBack: Blob | null }>({ idFront: _f, idBack: _b, ...rest }: T) => rest;
-    form.append(
-      "payload",
-      JSON.stringify({ buyer: strip(input.buyer), coOwners: input.coOwners.map(strip), standNumber: input.standNumber }),
-    );
-    form.append("buyer_front", input.buyer.idFront);
-    if (input.buyer.idBack) form.append("buyer_back", input.buyer.idBack);
-    input.coOwners.forEach((c, i) => {
-      form.append(`coowner${i + 1}_front`, c.idFront);
-      if (c.idBack) form.append(`coowner${i + 1}_back`, c.idBack);
-    });
-    const { data, error } = await supabase.functions.invoke("lead-intake", { body: form });
-    if (error) {
-      const ctx = (error as { context?: Response }).context;
-      const body = ctx ? await ctx.json().catch(() => null) : null;
-      throw new Error(body?.error ?? error.message);
-    }
+  async startApplication(input) {
+    const data = await invoke<{ leadId: string; accessToken: string }>("lead-intake", input);
     localStorage.setItem(tokenKey(data.leadId), data.accessToken);
     return { leadId: data.leadId };
   },
@@ -65,20 +51,12 @@ export const supabaseBackend: Backend = {
   async submitOffer(leadId, offer) {
     await leadApi("submit-offer", leadId, { offer });
   },
-  async acceptSchedule(leadId) {
-    await leadApi("accept-schedule", leadId);
-  },
   startPayment: (leadId) => leadApi("start-payment", leadId),
   async simulatePaymentConfirmed(leadId) {
     await leadApi("simulate-payment", leadId);
   },
-  getSigningSession: (leadId, returnUrl) =>
-    leadApi("signing-session", leadId, { returnUrl, origin: window.location.origin }),
-  async simulateSigningCompleted(leadId) {
-    await leadApi("simulate-signing", leadId);
-  },
-  async activatePortal(leadId, method) {
-    await leadApi("activate-portal", leadId, { method });
+  async enrolPortal(leadId, input) {
+    await leadApi("enrol-portal", leadId, input);
   },
 
   async staffSession() {
@@ -96,40 +74,9 @@ export const supabaseBackend: Backend = {
     await supabase.auth.signOut();
   },
   async listLeads() {
-    const { data, error } = await supabase
-      .from("leads")
-      .select("*, co_owners(*)")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map(rowToLead);
-  },
-  async listReviewLog(leadId) {
-    const { data, error } = await supabase
-      .from("id_review_log")
-      .select("*")
-      .eq("lead_id", leadId)
-      .order("created_at");
-    if (error) throw error;
-    return (data ?? []).map(
-      (r): IdReviewLogEntry => ({
-        id: r.id,
-        leadId: r.lead_id,
-        decision: r.decision,
-        reason: r.reason,
-        reviewer: r.reviewer,
-        createdAt: r.created_at,
-      }),
-    );
-  },
-  async getIdDocumentUrl(path) {
-    // Private bucket + staff-only storage policy; URL expires after 5 minutes.
-    const { data, error } = await supabase.storage.from("id-documents").createSignedUrl(path, 300);
-    if (error) return null;
-    return data.signedUrl;
-  },
-  async reviewId(leadId, decision, reason) {
-    const { error } = await supabase.rpc("review_id", { p_lead_id: leadId, p_decision: decision, p_reason: reason });
-    if (error) throw error;
   },
   async setOfficialUse(leadId, value) {
     const { error } = await supabase.rpc("set_offer_official_use", { p_lead_id: leadId, p_official_use: value });

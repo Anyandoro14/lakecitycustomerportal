@@ -1,10 +1,9 @@
+// PARKED (OI-TBC-13): the Agreement of Sale step is not in the core wizard yet.
 // DocuSign Connect webhook (JSON, SIM mode). On envelope-completed the stand is ALLOCATED (signed)
 // and the lead moves to the signed list. HMAC verification is mandatory when a key is configured.
 // https://developers.docusign.com/platform/webhooks/connect/hmac/
 
-import { queueEmail } from "../_shared/server/email.ts";
 import { HttpError, adminClient, env, json, serve, timingSafeEqual } from "../_shared/server/http.ts";
-import { loadLead, loadStand } from "../_shared/server/leads.ts";
 
 async function hmacBase64(key: string, body: string) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -33,15 +32,7 @@ serve(async (req) => {
   if (event === "envelope-completed") {
     const { data: leadId, error } = await db.rpc("mark_signed", { p_envelope_id: envelopeId });
     if (error) throw new HttpError(409, error.message);
-    if (leadId) {
-      const lead = await loadLead(leadId);
-      const { count } = await db.from("email_outbox").select("id", { count: "exact", head: true }).eq("lead_id", leadId).eq("template", "agreement_signed");
-      if (!count) {
-        const stand = await loadStand(lead.standNumber);
-        await queueEmail("agreement_signed", lead, stand);
-        await queueEmail("portal_created", lead, stand);
-      }
-    }
+    if (leadId) console.info(`[docusign] envelope completed for lead ${String(leadId).slice(0, 8)}`);
   }
   return json({ ok: true });
 });

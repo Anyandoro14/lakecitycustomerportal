@@ -1,5 +1,4 @@
 import type { Lead, Stand } from "@/lib/backend";
-import { CAMPAIGN, resolvePricing } from "@shared/domain/campaign.ts";
 import { countryName } from "@shared/domain/countries.ts";
 import { ID_TYPE_LABELS } from "@shared/domain/id-validation.ts";
 import { offerAcknowledgements } from "@shared/domain/offer-form.ts";
@@ -7,39 +6,32 @@ import { computeSchedule, formatCents } from "@shared/domain/schedule.ts";
 import { PdfBuilder } from "./builder";
 
 export function scheduleFor(lead: Lead, stand: Stand) {
-  const pricing = resolvePricing(stand);
-  return {
-    pricing,
-    schedule: computeSchedule({
-      priceUsd: pricing.priceUsd,
-      depositUsd: pricing.depositUsd,
-      termMonths: lead.offer?.termMonths ?? CAMPAIGN.termMonths,
-      depositInstalments: lead.offer?.depositInstalments ?? 1,
-      dueDay: CAMPAIGN.dueDay,
-      startDate: (lead.offer?.submittedAt ?? new Date().toISOString()).slice(0, 10),
-    }),
-  };
+  if (!stand.sizeSqm) throw new Error("Stand size is unknown.");
+  return computeSchedule({ sizeSqm: stand.sizeSqm, startDate: (lead.paidAt ?? lead.offer?.submittedAt ?? new Date().toISOString()).slice(0, 10) });
 }
 
 const money = (c: number) => (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MOCK = " · MOCK stand size (OI-TBC-04)";
 
-/** Layout mirrors a clean collection schedule; align to the official Drive template (open item TBC). */
+/** Layout is a clean collection schedule; align to the official Drive template (OI-TBC-10). */
 export async function paymentSchedulePdf(lead: Lead, stand: Stand) {
-  const { pricing, schedule } = scheduleFor(lead, stand);
+  const schedule = scheduleFor(lead, stand);
+  const q = schedule.quote;
   const b = await PdfBuilder.create(
-    `Payment Schedule - Stand ${stand.standNumber} (${schedule.termMonths} months, VAT incl.)`,
-    `Generated ${new Date().toISOString().slice(0, 10)}${pricing.isPlaceholder ? " · DEMO FIGURES - stand price TBC" : ""}`,
+    `Payment Schedule - Stand ${stand.standNumber} (${q.termMonths} months)`,
+    `Generated ${new Date().toISOString().slice(0, 10)}${MOCK}`,
   );
   b.keyValues([
-    ["Purchaser", [lead.buyer.fullName, ...lead.coOwners.map((c) => c.fullName)].join(", ")],
-    ["Stand", stand.standNumber],
-    ["Collection account", lead.collectionAccountId ?? "Created after deposit payment"],
-    ["Total price (VAT incl.)", formatCents(schedule.totalCents)],
-    [`  of which VAT (${CAMPAIGN.vatRatePercent}%)`, formatCents(schedule.vatCents)],
-    ["Deposit", `${formatCents(schedule.depositCents)}${schedule.depositInstalments === 3 ? " (3 monthly payments)" : ""}`],
-    ["Balance financed", formatCents(schedule.financedCents)],
-    ["Monthly instalment", `${formatCents(schedule.monthlyInstalmentCents)} x ${schedule.termMonths} (final ${formatCents(schedule.finalInstalmentCents)})`],
-    ["Due day", `${schedule.dueDay === 1 ? "1st" : "5th"} of each month (standard due day TBC)`],
+    ["Purchaser", [lead.offer?.buyer.fullName ?? lead.contact.fullName, ...(lead.offer?.coOwners ?? []).map((c) => c.fullName)].join(", ")],
+    ["Stand", `${stand.standNumber} (${q.sizeSqm} m²)`],
+    ["Collection account", lead.portalRecords?.collectionSchedule.accountId ?? "Created at the portal account step"],
+    ["Price (USD 45 x m²)", formatCents(q.priceCents)],
+    ["Down payment", formatCents(q.downPaymentCents)],
+    ["Legal fee (Agreement of Sale)", formatCents(q.legalFeeCents)],
+    ["Due at start", formatCents(q.dueNowCents)],
+    ["Balance over the term", formatCents(q.balanceCents)],
+    ["Monthly instalment", `${formatCents(q.monthlyCents)} x ${q.termMonths} (final ${formatCents(q.finalMonthlyCents)})`],
+    ["Due day", `${schedule.dueDay === 1 ? "1st" : "5th"} of each month (TBC, OI-TBC-11)`],
   ]);
   b.gap(10);
   b.table(
@@ -49,34 +41,35 @@ export async function paymentSchedulePdf(lead: Lead, stand: Stand) {
     [false, false, false, true, true],
   );
   b.gap(10);
-  b.text("PLACEHOLDER: amounts are VAT inclusive. The final instalment absorbs rounding differences. Not a tax invoice.", { size: 8 });
+  b.text("PLACEHOLDER: the final instalment absorbs rounding differences. VAT treatment TBC (OI-TBC-06). Not a tax invoice.", { size: 8 });
   return b.bytes();
 }
 
 export async function offerPdf(lead: Lead, stand: Stand) {
-  const { pricing, schedule } = scheduleFor(lead, stand);
+  const q = scheduleFor(lead, stand).quote;
   const o = lead.offer;
   const b = await PdfBuilder.create(
     "Offer to Purchase - PLACEHOLDER copy of General Offer Form",
-    `Stand ${stand.standNumber} · Submitted ${o?.submittedAt.slice(0, 10) ?? "-"}${pricing.isPlaceholder ? " · DEMO FIGURES - price TBC" : ""}`,
+    `Stand ${stand.standNumber} · Submitted ${o?.submittedAt.slice(0, 10) ?? "-"}${MOCK}`,
   );
-  [lead.buyer, ...lead.coOwners].forEach((p, i) => {
-    b.text(i === 0 ? "Purchaser" : `Co-purchaser ${i}`, { font: b.bold, size: 11 });
-    b.keyValues([
-      ["Full name", p.fullName],
-      ["D.O.B.", p.dateOfBirth],
-      ["ID", `${p.idNumber} (${ID_TYPE_LABELS[p.idType]}, ${countryName(p.idIssuingCountry)})`],
-      ["Cell", p.phone],
-      ["Email", p.email],
-    ]);
-    b.gap(6);
-  });
-  b.keyValues([
-    ["Residential address", lead.buyer.physicalAddress],
-    ["Business phone", o?.businessPhone ?? ""],
-    ["Alternative / postal address", o?.alternativeAddress ?? lead.buyer.postalAddress],
-  ]);
   if (o) {
+    [o.buyer, ...o.coOwners].forEach((p, i) => {
+      b.text(i === 0 ? "Purchaser" : `Co-purchaser ${i}`, { font: b.bold, size: 11 });
+      b.keyValues([
+        ["Full name", p.fullName],
+        ["D.O.B.", p.dateOfBirth],
+        ["ID", `${p.idNumber} (${ID_TYPE_LABELS[p.idType]}, ${countryName(p.idIssuingCountry)})`],
+        ["Cell", p.phone],
+        ["Email", p.email],
+      ]);
+      b.gap(6);
+    });
+    b.keyValues([
+      ["Residential address", o.buyer.physicalAddress],
+      ["Postal address", o.buyer.postalAddress],
+      ["Business phone", o.businessPhone],
+      ["Alternative address", o.alternativeAddress],
+    ]);
     b.gap(6);
     b.text("Next of kin", { font: b.bold, size: 11 });
     const n = o.nextOfKin;
@@ -95,14 +88,17 @@ export async function offerPdf(lead: Lead, stand: Stand) {
   b.text("Offer", { font: b.bold, size: 11 });
   b.keyValues([
     ["Stand number", stand.standNumber],
-    ["Price (USD, VAT incl.)", formatCents(schedule.totalCents)],
-    ["Initial deposit (USD)", formatCents(schedule.depositCents)],
-    ["Term in months", String(schedule.termMonths)],
-    ["Monthly payment (USD)", formatCents(schedule.monthlyInstalmentCents)],
+    ["Size", `${q.sizeSqm} m²`],
+    ["Price (USD)", formatCents(q.priceCents)],
+    ["Down payment (USD)", formatCents(q.downPaymentCents)],
+    ["Legal fee (USD)", formatCents(q.legalFeeCents)],
+    ["Due at start (USD)", formatCents(q.dueNowCents)],
+    ["Term in months", String(q.termMonths)],
+    ["Monthly payment (USD)", formatCents(q.monthlyCents)],
   ]);
   b.gap(6);
   b.text("Conditions acknowledged", { font: b.bold, size: 11 });
-  for (const a of offerAcknowledgements(schedule.termMonths)) {
+  for (const a of offerAcknowledgements(q.termMonths)) {
     b.text(`[${o?.acknowledgements[a.key] ? "x" : " "}] ${a.text}`, { size: 9 });
   }
   if (o) {

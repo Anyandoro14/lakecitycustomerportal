@@ -1,7 +1,7 @@
 // Email provider abstraction. DEV MODE ONLY: every email is written to public.email_outbox and
-// rendered in the internal outbox preview. No adapter sends anything.
+// rendered in the internal outbox preview. No adapter sends anything; LakeCity staff send customer comms.
 
-import { EMAIL_ATTACHMENTS, EMAIL_SUBJECTS, buildEmailProps, emailsLive, type EmailTemplateKey } from "../domain/emails.ts";
+import { EMAIL_ATTACHMENTS, buildEmailProps, emailSubject, emailsLive, type EmailTemplateKey } from "../domain/emails.ts";
 import type { Lead, Stand } from "../domain/types.ts";
 import { adminClient, env } from "./http.ts";
 
@@ -28,12 +28,14 @@ export const PROVIDERS = { resend: resendAdapter, google_workspace: googleWorksp
 
 export async function queueEmail(template: EmailTemplateKey, lead: Lead, stand: Stand) {
   const portalUrl = env("PORTAL_URL") || "https://lakecity.standledger.io";
-  const props = buildEmailProps(lead, stand, portalUrl);
+  // Server-configured only, so a client can never inject the link (OI-TBC-19).
+  const appUrl = env("APP_URL") || "http://127.0.0.1:8137";
+  const props = buildEmailProps(lead, stand, { appUrl, portalUrl });
   const { error } = await adminClient().from("email_outbox").insert({
     lead_id: lead.id,
     template,
-    to_email: lead.buyer.email,
-    subject: EMAIL_SUBJECTS[template],
+    to_email: lead.contact.email,
+    subject: emailSubject(template, lead.standNumber),
     props,
     attachment_names: EMAIL_ATTACHMENTS[template] ?? [],
     status: "queued_dev_only",

@@ -1,108 +1,150 @@
-import { Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, Download, Loader2, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Field } from "@/components/form";
+import { CountrySelect, Field } from "@/components/form";
+import { PersonFields, draftToIdentity, emptyPerson, type PersonDraft, type PersonErrors } from "@/components/PersonFields";
 import { PlaceholderTag } from "@/components/Placeholder";
 import { SignaturePad } from "@/components/SignaturePad";
+import { StandLayout } from "@/components/StandLayout";
 import { WizardShell } from "@/components/WizardShell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useStand } from "@/hooks/useStand";
-import { backend, type Lead, type NextOfKin, type OfferForm, type Stand } from "@/lib/backend";
-import { CAMPAIGN, resolvePricing } from "@shared/domain/campaign.ts";
-import { ID_TYPE_LABELS } from "@shared/domain/id-validation.ts";
+import { backend, type Lead, type NextOfKin, type OfferSubmission, type Stand } from "@/lib/backend";
+import { offerPdf } from "@/lib/pdf/documents";
+import { CAMPAIGN } from "@shared/domain/campaign.ts";
+import { MAX_CO_OWNERS } from "@shared/domain/types.ts";
 import { offerAcknowledgements, validateOfferForm, type OfferFormErrors } from "@shared/domain/offer-form.ts";
-import { computeSchedule, formatCents } from "@shared/domain/schedule.ts";
-import { countryName } from "@shared/domain/countries.ts";
 
 export default function OfferStep() {
   return (
-    <WizardShell step="offer">
-      {({ lead }) => <OfferFormView lead={lead} />}
+    <WizardShell step="offer" wide>
+      {({ lead }) => <OfferPane lead={lead} />}
     </WizardShell>
+  );
+}
+
+function OfferPane({ lead }: { lead: Lead }) {
+  const { stand, band, loading } = useStand(lead.standNumber);
+  if (loading || !stand) return <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" aria-label="Loading" />;
+  return (
+    <StandLayout stand={stand} band={band}>
+      {lead.offer ? <SubmittedOffer lead={lead} stand={stand} /> : <OfferFormEditor lead={lead} />}
+    </StandLayout>
+  );
+}
+
+function SubmittedOffer({ lead, stand }: { lead: Lead; stand: Stand }) {
+  const navigate = useNavigate();
+  const o = lead.offer!;
+  const paid = lead.stage !== "form_filled";
+
+  async function download() {
+    const bytes = await offerPdf(lead, stand);
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lakecity-offer-stand-${stand.standNumber}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="mt-1 h-6 w-6 shrink-0 text-primary" />
+        <div>
+          <h2 className="font-serif text-2xl font-semibold">Your offer for stand {lead.standNumber}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Signed by {o.purchaserName} at {o.signedAtPlace} on {o.signedDate}.
+          </p>
+        </div>
+      </div>
+      <dl className="grid gap-3 rounded-lg bg-muted/50 p-4 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs text-muted-foreground">Purchaser{o.coOwners.length ? "s" : ""}</dt>
+          <dd className="font-medium">{[o.buyer.fullName, ...o.coOwners.map((c) => c.fullName)].join(", ")}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Term</dt>
+          <dd className="font-medium">{o.termMonths} months</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Next of kin</dt>
+          <dd className="font-medium">{o.nextOfKin.fullName}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Status</dt>
+          <dd className="font-medium">{paid ? "Paid - stand reserved" : "Awaiting payment"}</dd>
+        </div>
+      </dl>
+      <div className="flex flex-wrap gap-3">
+        <Button onClick={() => navigate(`/apply/${lead.id}/${paid ? "portal" : "payment"}`)}>
+          {paid ? "Go to your portal account" : "Continue to payment"} <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+        <Button variant="outline" onClick={() => void download()}>
+          <Download className="mr-2 h-4 w-4" /> Download offer (PDF)
+        </Button>
+      </div>
+    </div>
   );
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function ReadOnly({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium">{value || "—"}</dd>
-    </div>
-  );
-}
-
-function OfferFormView({ lead }: { lead: Lead }) {
-  const stand = useStand(lead.standNumber);
-  if (!stand) {
-    return <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />;
+function errorsFor(errors: OfferFormErrors, prefix: string): PersonErrors {
+  const out: PersonErrors = {};
+  for (const [k, v] of Object.entries(errors)) {
+    if (k.startsWith(`${prefix}.`)) out[k.slice(prefix.length + 1) as keyof PersonDraft] = v;
   }
-  if (lead.offer) {
-    return <SubmittedOffer lead={lead} />;
-  }
-  return <OfferFormEditor lead={lead} stand={stand} />;
+  return out;
 }
 
-function SubmittedOffer({ lead }: { lead: Lead }) {
-  const navigate = useNavigate();
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Offer submitted</CardTitle>
-        <CardDescription>Signed at {lead.offer!.signedAtPlace} on {lead.offer!.signedDate}.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button onClick={() => navigate(`/apply/${lead.id}/schedule`)}>View payment schedule</Button>
-      </CardContent>
-    </Card>
-  );
+interface BuyerExtras {
+  physicalAddress: string;
+  postalAddress: string;
+  country: string;
 }
 
-function OfferFormEditor({ lead, stand }: { lead: Lead; stand: Stand }) {
+function OfferFormEditor({ lead }: { lead: Lead }) {
   const navigate = useNavigate();
-  const pricing = resolvePricing(stand);
-  const [form, setForm] = useState<Omit<OfferForm, "submittedAt">>({
+  const [buyer, setBuyer] = useState<PersonDraft>(emptyPerson({ fullName: lead.contact.fullName, email: lead.contact.email, phone: lead.contact.phone }));
+  const [extras, setExtras] = useState<BuyerExtras>({ physicalAddress: "", postalAddress: "", country: "" });
+  const [coOwners, setCoOwners] = useState<PersonDraft[]>([]);
+  const [rest, setRest] = useState({
     businessPhone: "",
-    alternativeAddress: lead.buyer.postalAddress,
-    nextOfKin: { fullName: "", dateOfBirth: "", idNumber: "", residentialAddress: "", cellPhone: "", businessPhone: "", email: "", alternativeAddress: "" },
-    termMonths: CAMPAIGN.termMonths,
-    depositInstalments: 1,
-    acknowledgements: {},
+    alternativeAddress: "",
+    nextOfKin: { fullName: "", dateOfBirth: "", idNumber: "", residentialAddress: "", cellPhone: "", businessPhone: "", email: "", alternativeAddress: "" } as NextOfKin,
+    acknowledgements: {} as Record<string, boolean>,
     signedAtPlace: "",
     signedDate: today(),
-    signatureType: "typed",
+    signatureType: "typed" as "typed" | "drawn",
     signatureValue: "",
-    purchaserName: lead.buyer.fullName,
+    purchaserName: lead.contact.fullName,
   });
   const [errors, setErrors] = useState<OfferFormErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const schedule = useMemo(
-    () =>
-      computeSchedule({
-        priceUsd: pricing.priceUsd,
-        depositUsd: pricing.depositUsd,
-        termMonths: form.termMonths,
-        depositInstalments: form.depositInstalments,
-        dueDay: CAMPAIGN.dueDay,
-        startDate: today(),
-      }),
-    [pricing.priceUsd, pricing.depositUsd, form.termMonths, form.depositInstalments],
-  );
+  const setNok = (patch: Partial<NextOfKin>) => setRest((r) => ({ ...r, nextOfKin: { ...r.nextOfKin, ...patch } }));
 
-  const setNok = (patch: Partial<NextOfKin>) => setForm((f) => ({ ...f, nextOfKin: { ...f.nextOfKin, ...patch } }));
-  const purchasers = [lead.buyer, ...lead.coOwners];
+  function build(): OfferSubmission {
+    return {
+      buyer: { ...draftToIdentity(buyer), ...extras },
+      coOwners: coOwners.map((c, i) => ({ ...draftToIdentity(c), position: i + 1 })),
+      termMonths: CAMPAIGN.termMonths,
+      ...rest,
+    };
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const errs = validateOfferForm(form);
+    const offer = build();
+    const errs = validateOfferForm(offer);
     setErrors(errs);
     if (Object.keys(errs).length) {
       toast.error("Please complete the highlighted fields.");
@@ -111,8 +153,8 @@ function OfferFormEditor({ lead, stand }: { lead: Lead; stand: Stand }) {
     }
     setSubmitting(true);
     try {
-      await backend.submitOffer(lead.id, form);
-      navigate(`/apply/${lead.id}/schedule`);
+      await backend.submitOffer(lead.id, offer);
+      navigate(`/apply/${lead.id}/payment`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not submit your offer.");
     } finally {
@@ -120,176 +162,157 @@ function OfferFormEditor({ lead, stand }: { lead: Lead; stand: Stand }) {
     }
   }
 
-  const tag = pricing.isPlaceholder ? <PlaceholderTag>Demo figure · price TBC</PlaceholderTag> : null;
-
   return (
     <form onSubmit={submit} noValidate className="space-y-6">
       <div>
-        <h1 className="font-serif text-3xl font-semibold">Offer to purchase</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Based on LakeCity's General Offer Form (September 2025). We've filled in what you already told us.{" "}
-          <PlaceholderTag />
+        <h2 className="font-serif text-2xl font-semibold">Offer to purchase</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Based on LakeCity's General Offer Form (September 2025). <PlaceholderTag />
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Purchaser{purchasers.length > 1 ? "s" : ""} (I/We)</CardTitle>
-          <CardDescription>From your application. Contact us if anything is wrong.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {purchasers.map((p, i) => (
-            <dl key={i} className="grid gap-3 rounded-lg bg-muted/50 p-4 sm:grid-cols-3">
-              <ReadOnly label={i === 0 ? "Full name" : `Co-owner ${i} full name`} value={p.fullName} />
-              <ReadOnly label="D.O.B." value={p.dateOfBirth} />
-              <ReadOnly label="ID number" value={`${p.idNumber} (${ID_TYPE_LABELS[p.idType]}, ${countryName(p.idIssuingCountry)})`} />
-              <ReadOnly label="Cell number" value={p.phone} />
-              <ReadOnly label="Email" value={p.email} />
-              {i === 0 && <ReadOnly label="Residential address" value={lead.buyer.physicalAddress} />}
-            </dl>
-          ))}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="businessPhone" label="Business phone" optional>
-              <Input id="businessPhone" type="tel" value={form.businessPhone} onChange={(e) => setForm({ ...form, businessPhone: e.target.value })} />
-            </Field>
-            <Field id="alternativeAddress" label="Alternative residential / postal address" optional className="sm:col-span-2">
-              <Textarea id="alternativeAddress" rows={2} value={form.alternativeAddress} onChange={(e) => setForm({ ...form, alternativeAddress: e.target.value })} />
-            </Field>
-          </div>
-        </CardContent>
-      </Card>
+      <section className="space-y-4">
+        <h3 className="font-semibold">Purchaser (I/We)</h3>
+        <PersonFields prefix="buyer" value={buyer} errors={errorsFor(errors, "buyer")} onChange={(p) => setBuyer((b) => ({ ...b, ...p }))} lockContact />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="physicalAddress" label="Residential address" error={errors["buyer.physicalAddress"]} className="sm:col-span-2">
+            <Textarea id="physicalAddress" rows={2} autoComplete="street-address" value={extras.physicalAddress} onChange={(e) => setExtras({ ...extras, physicalAddress: e.target.value })} />
+          </Field>
+          <Field id="postalAddress" label="Postal address" error={errors["buyer.postalAddress"]} className="sm:col-span-2">
+            <Textarea id="postalAddress" rows={2} value={extras.postalAddress} onChange={(e) => setExtras({ ...extras, postalAddress: e.target.value })} />
+          </Field>
+          <Field id="country" label="Country of residence" error={errors["buyer.country"]}>
+            <CountrySelect id="country" value={extras.country} invalid={!!errors["buyer.country"]} onChange={(e) => setExtras({ ...extras, country: e.target.value })} />
+          </Field>
+          <Field id="businessPhone" label="Business phone" optional>
+            <Input id="businessPhone" type="tel" value={rest.businessPhone} onChange={(e) => setRest({ ...rest, businessPhone: e.target.value })} />
+          </Field>
+          <Field id="alternativeAddress" label="Alternative residential address" optional className="sm:col-span-2">
+            <Textarea id="alternativeAddress" rows={2} value={rest.alternativeAddress} onChange={(e) => setRest({ ...rest, alternativeAddress: e.target.value })} />
+          </Field>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Next of kin</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field id="nok-name" label="Full name" error={errors["nextOfKin.fullName"]} className="sm:col-span-2">
-            <Input id="nok-name" value={form.nextOfKin.fullName} onChange={(e) => setNok({ fullName: e.target.value })} />
-          </Field>
-          <Field id="nok-dob" label="D.O.B." error={errors["nextOfKin.dateOfBirth"]}>
-            <Input id="nok-dob" type="date" value={form.nextOfKin.dateOfBirth} onChange={(e) => setNok({ dateOfBirth: e.target.value })} />
-          </Field>
-          <Field id="nok-id" label="ID number" error={errors["nextOfKin.idNumber"]}>
-            <Input id="nok-id" value={form.nextOfKin.idNumber} onChange={(e) => setNok({ idNumber: e.target.value })} />
-          </Field>
-          <Field id="nok-address" label="Residential address" error={errors["nextOfKin.residentialAddress"]} className="sm:col-span-2">
-            <Textarea id="nok-address" rows={2} value={form.nextOfKin.residentialAddress} onChange={(e) => setNok({ residentialAddress: e.target.value })} />
-          </Field>
-          <Field id="nok-cell" label="Cell number" error={errors["nextOfKin.cellPhone"]}>
-            <Input id="nok-cell" type="tel" value={form.nextOfKin.cellPhone} onChange={(e) => setNok({ cellPhone: e.target.value })} />
-          </Field>
-          <Field id="nok-business" label="Business phone" optional>
-            <Input id="nok-business" type="tel" value={form.nextOfKin.businessPhone} onChange={(e) => setNok({ businessPhone: e.target.value })} />
-          </Field>
-          <Field id="nok-email" label="Email" optional error={errors["nextOfKin.email"]}>
-            <Input id="nok-email" type="email" value={form.nextOfKin.email} onChange={(e) => setNok({ email: e.target.value })} />
-          </Field>
-          <Field id="nok-alt" label="Alternative / postal address" optional className="sm:col-span-2">
-            <Textarea id="nok-alt" rows={2} value={form.nextOfKin.alternativeAddress} onChange={(e) => setNok({ alternativeAddress: e.target.value })} />
-          </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Offer</CardTitle>
-          <CardDescription>Prices are VAT inclusive ({CAMPAIGN.vatRatePercent}%).</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <dl className="grid gap-4 sm:grid-cols-3">
-            <ReadOnly label="Stand number" value={stand.standNumber} />
-            <ReadOnly label="Size" value={<>{pricing.sizeSqm ? `${pricing.sizeSqm} m²` : "TBC"} {tag}</>} />
-            <ReadOnly label="Price (USD)" value={<>{formatCents(schedule.totalCents)} {tag}</>} />
-            <ReadOnly label="Initial deposit (USD)" value={<>{formatCents(schedule.depositCents)} {tag}</>} />
-            <ReadOnly label="Term in months" value={form.termMonths} />
-            <ReadOnly label="Monthly payment (USD)" value={<>{formatCents(schedule.monthlyInstalmentCents)} {tag}</>} />
-          </dl>
-          <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
-            <Checkbox
-              checked={form.depositInstalments === 3}
-              onCheckedChange={(v) => setForm({ ...form, depositInstalments: v ? 3 : 1 })}
-              className="mt-0.5"
-            />
-            <span>
-              Pay the deposit in 3 monthly payments
-              <span className="block text-xs text-muted-foreground">
-                Monthly instalments start after the deposit is fully paid. <PlaceholderTag>TBC</PlaceholderTag>
-              </span>
-            </span>
-          </label>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Conditions</CardTitle>
-          <CardDescription>
-            Please read and confirm each condition. <PlaceholderTag>PLACEHOLDER wording</PlaceholderTag>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {offerAcknowledgements(form.termMonths).map((a) => (
-            <div key={a.key}>
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox
-                  checked={!!form.acknowledgements[a.key]}
-                  onCheckedChange={(v) => setForm({ ...form, acknowledgements: { ...form.acknowledgements, [a.key]: !!v } })}
-                  className="mt-0.5"
-                  aria-invalid={!!errors[`ack.${a.key}`]}
-                />
-                <span>{a.text}</span>
-              </label>
-              {errors[`ack.${a.key}`] && <p className="ml-7 text-xs font-medium text-destructive">{errors[`ack.${a.key}`]}</p>}
+      <Separator />
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-semibold">Co-owners</h3>
+          {coOwners.length < MAX_CO_OWNERS && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setCoOwners((c) => [...c, emptyPerson()])}>
+              <Plus className="mr-1 h-4 w-4" /> Add co-owner
+            </Button>
+          )}
+        </div>
+        {coOwners.length === 0 && <p className="text-sm text-muted-foreground">Optional. Add up to {MAX_CO_OWNERS} people buying the stand with you.</p>}
+        {coOwners.map((c, i) => (
+          <div key={i} className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Co-owner {i + 1}</p>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setCoOwners((list) => list.filter((_, j) => j !== i))}>
+                <Trash2 className="mr-1 h-4 w-4" /> Remove
+              </Button>
             </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Signature</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field id="signedAt" label="Signed at (place)" error={errors.signedAtPlace}>
-            <Input id="signedAt" placeholder="e.g. Harare" value={form.signedAtPlace} onChange={(e) => setForm({ ...form, signedAtPlace: e.target.value })} />
-          </Field>
-          <Field id="signedDate" label="Date" error={errors.signedDate}>
-            <Input id="signedDate" type="date" value={form.signedDate} onChange={(e) => setForm({ ...form, signedDate: e.target.value })} />
-          </Field>
-          <Field id="purchaserName" label="Purchaser name" error={errors.purchaserName} className="sm:col-span-2">
-            <Input id="purchaserName" value={form.purchaserName} onChange={(e) => setForm({ ...form, purchaserName: e.target.value })} />
-          </Field>
-          <div className="sm:col-span-2">
-            <Tabs value={form.signatureType} onValueChange={(v) => setForm({ ...form, signatureType: v as "typed" | "drawn", signatureValue: "" })}>
-              <TabsList>
-                <TabsTrigger value="typed">Type signature</TabsTrigger>
-                <TabsTrigger value="drawn">Draw signature</TabsTrigger>
-              </TabsList>
-              <TabsContent value="typed">
-                <Input
-                  aria-label="Typed signature"
-                  placeholder="Type your full name"
-                  className="font-serif text-xl italic"
-                  value={form.signatureValue}
-                  onChange={(e) => setForm({ ...form, signatureValue: e.target.value })}
-                />
-              </TabsContent>
-              <TabsContent value="drawn">
-                <SignaturePad invalid={!!errors.signatureValue} onChange={(v) => setForm((f) => ({ ...f, signatureValue: v }))} />
-              </TabsContent>
-            </Tabs>
-            {errors.signatureValue && <p className="mt-1 text-xs font-medium text-destructive">{errors.signatureValue}</p>}
-            <p className="mt-2 text-xs text-muted-foreground">
-              This signs your offer. The legally binding Agreement of Sale is signed later via DocuSign.
-            </p>
+            <PersonFields
+              prefix={`coOwner${i + 1}`}
+              value={c}
+              errors={errorsFor(errors, `coOwner${i + 1}`)}
+              onChange={(p) => setCoOwners((list) => list.map((x, j) => (j === i ? { ...x, ...p } : x)))}
+            />
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </section>
 
-      <Button type="submit" size="lg" disabled={submitting}>
+      <Separator />
+      <section className="grid gap-4 sm:grid-cols-2">
+        <h3 className="font-semibold sm:col-span-2">Next of kin</h3>
+        <Field id="nok-name" label="Full name" error={errors["nextOfKin.fullName"]} className="sm:col-span-2">
+          <Input id="nok-name" value={rest.nextOfKin.fullName} onChange={(e) => setNok({ fullName: e.target.value })} />
+        </Field>
+        <Field id="nok-dob" label="D.O.B." error={errors["nextOfKin.dateOfBirth"]}>
+          <Input id="nok-dob" type="date" value={rest.nextOfKin.dateOfBirth} onChange={(e) => setNok({ dateOfBirth: e.target.value })} />
+        </Field>
+        <Field id="nok-id" label="ID number" error={errors["nextOfKin.idNumber"]}>
+          <Input id="nok-id" value={rest.nextOfKin.idNumber} onChange={(e) => setNok({ idNumber: e.target.value })} />
+        </Field>
+        <Field id="nok-address" label="Residential address" error={errors["nextOfKin.residentialAddress"]} className="sm:col-span-2">
+          <Textarea id="nok-address" rows={2} value={rest.nextOfKin.residentialAddress} onChange={(e) => setNok({ residentialAddress: e.target.value })} />
+        </Field>
+        <Field id="nok-cell" label="Cell number" error={errors["nextOfKin.cellPhone"]}>
+          <Input id="nok-cell" type="tel" value={rest.nextOfKin.cellPhone} onChange={(e) => setNok({ cellPhone: e.target.value })} />
+        </Field>
+        <Field id="nok-business" label="Business phone" optional>
+          <Input id="nok-business" type="tel" value={rest.nextOfKin.businessPhone} onChange={(e) => setNok({ businessPhone: e.target.value })} />
+        </Field>
+        <Field id="nok-email" label="Email" optional error={errors["nextOfKin.email"]}>
+          <Input id="nok-email" type="email" value={rest.nextOfKin.email} onChange={(e) => setNok({ email: e.target.value })} />
+        </Field>
+        <Field id="nok-alt" label="Alternative / postal address" optional className="sm:col-span-2">
+          <Textarea id="nok-alt" rows={2} value={rest.nextOfKin.alternativeAddress} onChange={(e) => setNok({ alternativeAddress: e.target.value })} />
+        </Field>
+      </section>
+
+      <Separator />
+      <section className="space-y-3">
+        <h3 className="font-semibold">
+          Conditions <PlaceholderTag>PLACEHOLDER wording</PlaceholderTag>
+        </h3>
+        {offerAcknowledgements(CAMPAIGN.termMonths).map((a) => (
+          <div key={a.key}>
+            <label className="flex items-start gap-3 text-sm">
+              <Checkbox
+                checked={!!rest.acknowledgements[a.key]}
+                onCheckedChange={(v) => setRest({ ...rest, acknowledgements: { ...rest.acknowledgements, [a.key]: !!v } })}
+                className="mt-0.5"
+                aria-invalid={!!errors[`ack.${a.key}`]}
+              />
+              <span>{a.text}</span>
+            </label>
+            {errors[`ack.${a.key}`] && <p className="ml-7 text-xs font-medium text-destructive">{errors[`ack.${a.key}`]}</p>}
+          </div>
+        ))}
+      </section>
+
+      <Separator />
+      <section className="grid gap-4 sm:grid-cols-2">
+        <h3 className="font-semibold sm:col-span-2">Signature</h3>
+        <Field id="signedAt" label="Signed at (place)" error={errors.signedAtPlace}>
+          <Input id="signedAt" placeholder="e.g. Harare" value={rest.signedAtPlace} onChange={(e) => setRest({ ...rest, signedAtPlace: e.target.value })} />
+        </Field>
+        <Field id="signedDate" label="Date" error={errors.signedDate}>
+          <Input id="signedDate" type="date" value={rest.signedDate} onChange={(e) => setRest({ ...rest, signedDate: e.target.value })} />
+        </Field>
+        <Field id="purchaserName" label="Purchaser name" error={errors.purchaserName} className="sm:col-span-2">
+          <Input id="purchaserName" value={rest.purchaserName} onChange={(e) => setRest({ ...rest, purchaserName: e.target.value })} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Tabs value={rest.signatureType} onValueChange={(v) => setRest({ ...rest, signatureType: v as "typed" | "drawn", signatureValue: "" })}>
+            <TabsList>
+              <TabsTrigger value="typed">Type signature</TabsTrigger>
+              <TabsTrigger value="drawn">Draw signature</TabsTrigger>
+            </TabsList>
+            <TabsContent value="typed">
+              <Input
+                aria-label="Typed signature"
+                placeholder="Type your full name"
+                className="font-serif text-xl italic"
+                value={rest.signatureValue}
+                onChange={(e) => setRest({ ...rest, signatureValue: e.target.value })}
+              />
+            </TabsContent>
+            <TabsContent value="drawn">
+              <SignaturePad invalid={!!errors.signatureValue} onChange={(v) => setRest((r) => ({ ...r, signatureValue: v }))} />
+            </TabsContent>
+          </Tabs>
+          {errors.signatureValue && <p className="mt-1 text-xs font-medium text-destructive">{errors.signatureValue}</p>}
+          <p className="mt-2 text-xs text-muted-foreground">
+            This signs your offer to purchase. LakeCity will arrange the Agreement of Sale with you separately. <PlaceholderTag>TBC</PlaceholderTag>
+          </p>
+        </div>
+      </section>
+
+      <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={submitting}>
         {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Submit offer
+        Submit offer and continue to payment
       </Button>
     </form>
   );

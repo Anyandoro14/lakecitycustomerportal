@@ -1,42 +1,30 @@
-// Local mock backend so the whole flow runs without Supabase.
-// Non-image data is kept in localStorage so the demo survives reloads. ID images are personal data
-// and are held in memory only (lost on reload); nothing here is sent anywhere.
+// Local mock backend so the whole flow runs without Supabase. State is kept in localStorage so the
+// demo survives reloads. Nothing here is sent anywhere: no money moves, no emails leave the browser,
+// and the portal records are built by MOCK adapters without touching Sheets or Odoo.
 
 import seed from "@/data/stands.seed.json";
 import { config } from "@/config";
-import { CAMPAIGN } from "@shared/domain/campaign.ts";
-import { EMAIL_ATTACHMENTS, EMAIL_SUBJECTS, buildEmailProps, type EmailTemplateKey } from "@shared/domain/emails.ts";
-import { validateIdentity } from "@shared/domain/id-validation.ts";
-import { validateOfferForm } from "@shared/domain/offer-form.ts";
-import { checkIdUploadMeta } from "@shared/domain/uploads.ts";
-import type { Backend, IntakeSubmission, PersonSubmission } from "./types";
-import type { IdReviewLogEntry, Lead, OutboxEmailRecord, Stand } from "./models";
+import { CAMPAIGN, paymentDueNowCents } from "@shared/domain/campaign.ts";
+import { EMAIL_ATTACHMENTS, buildEmailProps, emailSubject, type EmailTemplateKey } from "@shared/domain/emails.ts";
+import { matchesPortalCredentials, prepopulatePortalRecords } from "@shared/domain/integrations.ts";
+import { normaliseOffer, validateOfferForm } from "@shared/domain/offer-form.ts";
+import { validateContact } from "@shared/domain/contact.ts";
+import type { Backend } from "./types";
+import type { Lead, OutboxEmailRecord, Stand } from "./models";
 
-const STORAGE_KEY = "lakecity-mock-v1";
+const STORAGE_KEY = "lakecity-mock-v2";
 const MOCK_STAFF = "dev-staff@lakecity.local";
 
 interface MockState {
   stands: Stand[];
   leads: Lead[];
-  reviewLog: IdReviewLogEntry[];
   outbox: OutboxEmailRecord[];
 }
 
-const idImages = new Map<string, Blob>();
-const objectUrls = new Map<string, string>();
-
 function freshState(): MockState {
   return {
-    stands: seed.stands.map((s) => ({
-      standNumber: s.standNumber,
-      sizeSqm: s.sizeSqm,
-      priceUsd: s.priceUsd,
-      depositUsd: s.depositUsd,
-      status: "available",
-      reservedLeadId: null,
-    })),
+    stands: seed.stands.map((s) => ({ standNumber: s.standNumber, sizeSqm: s.sizeSqm, status: "available", reservedLeadId: null })),
     leads: [],
-    reviewLog: [],
     outbox: [],
   };
 }
@@ -80,39 +68,21 @@ function requireStand(standNumber: string): Stand {
   return stand;
 }
 
-function storeImage(leadId: string, who: string, side: "front" | "back", blob: Blob | null): string | null {
-  if (!blob) return null;
-  const err = checkIdUploadMeta(blob);
-  if (err) throw new Error(err);
-  const path = `mock://${leadId}/${who}-${side}`;
-  idImages.set(path, blob);
-  return path;
-}
-
-function validatePerson(p: PersonSubmission, label: string) {
-  const v = validateIdentity({ idType: p.idType, issuingCountry: p.idIssuingCountry, idNumber: p.idNumber, expiryDate: p.idExpiry });
-  if (!v.ok) throw new Error(`${label}: ${Object.values(v.errors)[0]}`);
-  if (!p.fullName.trim() || !p.email.trim() || !p.phone.trim() || !p.dateOfBirth) {
-    throw new Error(`${label}: name, date of birth, email and phone are required.`);
-  }
-  return v.normalized;
-}
-
-/** Dev outbox: records the email and logs metadata only (never the address, ID data or body). */
+/** Preview outbox: records the email and logs metadata only (never the address, ID data or body). */
 function queueEmail(template: EmailTemplateKey, lead: Lead) {
   const stand = requireStand(lead.standNumber);
   state.outbox.push({
     id: uid(),
     leadId: lead.id,
     template,
-    to: lead.buyer.email,
-    subject: EMAIL_SUBJECTS[template],
-    props: buildEmailProps(lead, stand, config.portalUrl),
+    to: lead.contact.email,
+    subject: emailSubject(template, lead.standNumber),
+    props: buildEmailProps(lead, stand, { appUrl: config.appUrl, portalUrl: config.portalUrl }),
     attachmentNames: EMAIL_ATTACHMENTS[template] ?? [],
     status: "queued_dev_only",
     createdAt: now(),
   });
-  console.info(`[email:dev-outbox] queued "${template}" for lead ${lead.id.slice(0, 8)} (not sent)`);
+  console.info(`[email:preview-outbox] queued "${template}" for lead ${lead.id.slice(0, 8)} (not sent)`);
 }
 
 export const mockBackend: Backend = {
@@ -123,68 +93,31 @@ export const mockBackend: Backend = {
     return structuredClone(state.stands);
   },
 
-  async submitIntake(input: IntakeSubmission) {
-    await delay(500);
-    const stand = requireStand(input.standNumber);
+  async startApplication({ standNumber, contact }) {
+    await delay(400);
+    const stand = requireStand(standNumber);
     if (stand.status !== "available") throw new Error("Sorry, this stand is no longer available.");
-    const buyerId = validatePerson(input.buyer, "Buyer");
-    const id = uid();
+    const errors = validateContact(contact);
+    if (Object.keys(errors).length) throw new Error(Object.values(errors)[0]);
     const lead: Lead = {
-      id,
+      id: uid(),
       createdAt: now(),
       stage: "form_filled",
-      idReviewStatus: "id_pending_review",
-      idReviewReason: null,
-      idReviewedBy: null,
-      idReviewedAt: null,
-      buyer: {
-        fullName: input.buyer.fullName.trim(),
-        dateOfBirth: input.buyer.dateOfBirth,
-        email: input.buyer.email.trim(),
-        phone: input.buyer.phone.trim(),
-        physicalAddress: input.buyer.physicalAddress.trim(),
-        postalAddress: input.buyer.postalAddress.trim(),
-        country: input.buyer.country,
-        idType: input.buyer.idType,
-        idIssuingCountry: input.buyer.idIssuingCountry,
-        idNumber: buyerId,
-        idExpiry: input.buyer.idExpiry || null,
-        idFrontPath: storeImage(id, "buyer", "front", input.buyer.idFront),
-        idBackPath: storeImage(id, "buyer", "back", input.buyer.idBack),
-      },
-      coOwners: input.coOwners.map((c, i) => ({
-        id: uid(),
-        position: i + 1,
-        fullName: c.fullName.trim(),
-        dateOfBirth: c.dateOfBirth,
-        email: c.email.trim(),
-        phone: c.phone.trim(),
-        idType: c.idType,
-        idIssuingCountry: c.idIssuingCountry,
-        idNumber: validatePerson(c, `Co-owner ${i + 1}`),
-        idExpiry: c.idExpiry || null,
-        idFrontPath: storeImage(id, `coowner${i + 1}`, "front", c.idFront),
-        idBackPath: storeImage(id, `coowner${i + 1}`, "back", c.idBack),
-      })),
-      standNumber: input.standNumber,
+      contact: { fullName: contact.fullName.trim(), email: contact.email.trim().toLowerCase(), phone: contact.phone.trim() },
+      standNumber,
       offer: null,
       officialUse: null,
-      scheduleEmailedAt: null,
-      scheduleAcceptedAt: null,
       paidAt: null,
       paymentReference: null,
-      collectionAccountId: null,
-      collectionAccountCreatedAt: null,
-      portalStatus: "not_created",
-      portalCreatedAt: null,
-      portalActivatedAt: null,
+      paymentAmountCents: null,
+      portalStatus: "not_started",
+      portalRecords: null,
       envelopeId: null,
       signedAt: null,
     };
     state.leads.push(lead);
-    queueEmail("intake_submitted", lead);
     save();
-    return { leadId: id };
+    return { leadId: lead.id };
   },
 
   async getLead(leadId) {
@@ -196,89 +129,49 @@ export const mockBackend: Backend = {
   async submitOffer(leadId, offer) {
     await delay(400);
     const lead = requireLead(leadId);
-    if (lead.idReviewStatus !== "approved") throw new Error("Your ID has not been approved yet.");
+    if (lead.stage !== "form_filled") throw new Error("This offer has already been paid for and can no longer be changed.");
     const errors = validateOfferForm(offer);
     if (Object.keys(errors).length) throw new Error(Object.values(errors)[0]);
-    lead.offer = { ...offer, termMonths: CAMPAIGN.termMonths, submittedAt: now() };
+    lead.offer = { ...normaliseOffer(offer), termMonths: CAMPAIGN.termMonths, submittedAt: now() };
     queueEmail("offer_completed", lead);
-    queueEmail("schedule_generated", lead);
-    lead.scheduleEmailedAt = now();
-    save();
-  },
-
-  async acceptSchedule(leadId) {
-    await delay(200);
-    const lead = requireLead(leadId);
-    if (!lead.offer) throw new Error("Complete the offer form first.");
-    lead.scheduleAcceptedAt ??= now();
     save();
   },
 
   async startPayment(leadId) {
     await delay(200);
     const lead = requireLead(leadId);
-    if (lead.idReviewStatus !== "approved") throw new Error("Your ID has not been approved yet.");
-    const props = buildEmailProps(lead, requireStand(lead.standNumber), config.portalUrl);
-    return { redirectUrl: null, simulationAllowed: true, amountCents: props.depositCents / (lead.offer?.depositInstalments ?? 1) };
+    if (!lead.offer) throw new Error("Complete the offer form first.");
+    return { redirectUrl: null, simulationAllowed: true, amountCents: paymentDueNowCents() };
   },
 
   async simulatePaymentConfirmed(leadId) {
     await delay(600);
     const lead = requireLead(leadId);
     if (lead.stage !== "form_filled") return;
-    if (lead.idReviewStatus !== "approved" || !lead.scheduleAcceptedAt) throw new Error("Previous steps are not complete.");
+    if (!lead.offer) throw new Error("Complete the offer form first.");
     const stand = requireStand(lead.standNumber);
     if (stand.status !== "available") throw new Error("Stand no longer available.");
     stand.status = "paid";
     stand.reservedLeadId = lead.id;
     lead.stage = "paid";
     lead.paidAt = now();
+    lead.paymentAmountCents = paymentDueNowCents();
     lead.paymentReference = `ZM-SIM-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    queueEmail("payment_received", lead);
-    // Collection Schedule account, then the portal account pre-linked to it (activation comes later).
-    lead.collectionAccountId = `LC-CS-${lead.standNumber}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    lead.collectionAccountCreatedAt = now();
-    lead.portalStatus = "created";
-    lead.portalCreatedAt = now();
+    queueEmail("payment_thank_you", lead);
     save();
   },
 
-  async getSigningSession(leadId) {
-    await delay(300);
-    const lead = requireLead(leadId);
-    if (lead.stage === "signed") return { status: "signed" };
-    return {
-      status: "not_configured",
-      message: "DocuSign is not configured in local mock mode. Connect Supabase and add DocuSign demo keys to sign for real.",
-      simulationAllowed: true,
-    };
-  },
-
-  async simulateSigningCompleted(leadId) {
-    await delay(600);
-    const lead = requireLead(leadId);
-    if (lead.stage !== "paid") throw new Error("Payment must be confirmed before signing.");
-    const stand = requireStand(lead.standNumber);
-    stand.status = "signed";
-    lead.stage = "signed";
-    lead.signedAt = now();
-    lead.envelopeId = `SIMULATED-${lead.id.slice(0, 8)}`;
-    queueEmail("agreement_signed", lead);
-    queueEmail("portal_created", lead);
-    save();
-  },
-
-  async activatePortal(leadId, method) {
+  async enrolPortal(leadId, input) {
     await delay(500);
     const lead = requireLead(leadId);
-    if (lead.portalStatus === "not_created") throw new Error("Your portal account has not been created yet.");
-    if (lead.stage !== "signed") throw new Error("Sign your agreement first.");
-    if (method.kind === "password" && method.password.length < 10) throw new Error("Use at least 10 characters.");
-    // The password is never stored by the mock.
-    if (lead.portalStatus !== "activated") {
-      lead.portalStatus = "activated";
-      lead.portalActivatedAt = now();
-      queueEmail("celebration", lead);
+    if (lead.stage === "form_filled") throw new Error("Your payment has not been confirmed yet.");
+    if (!matchesPortalCredentials(lead, input.standNumber, input.phone)) {
+      throw new Error("The stand number and phone number don't match this application.");
+    }
+    if (lead.portalStatus !== "prepopulated") {
+      lead.portalRecords = prepopulatePortalRecords({ lead, stand: requireStand(lead.standNumber), now: new Date() });
+      lead.portalStatus = "prepopulated";
+      queueEmail("portal_ready", lead);
     }
     save();
   },
@@ -294,34 +187,6 @@ export const mockBackend: Backend = {
     return structuredClone(state.leads).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
-  async listReviewLog(leadId) {
-    return state.reviewLog.filter((r) => r.leadId === leadId);
-  },
-
-  async getIdDocumentUrl(path) {
-    const blob = idImages.get(path);
-    if (!blob) return null;
-    let url = objectUrls.get(path);
-    if (!url) {
-      url = URL.createObjectURL(blob);
-      objectUrls.set(path, url);
-    }
-    return url;
-  },
-
-  async reviewId(leadId, decision, reason) {
-    await delay(300);
-    const lead = requireLead(leadId);
-    if (lead.stage !== "form_filled") throw new Error("Lead already paid; ID review is locked.");
-    if (decision === "rejected" && !reason.trim()) throw new Error("A reason is required when rejecting.");
-    lead.idReviewStatus = decision;
-    lead.idReviewReason = reason.trim() || null;
-    lead.idReviewedBy = MOCK_STAFF;
-    lead.idReviewedAt = now();
-    state.reviewLog.push({ id: uid(), leadId, decision, reason: reason.trim() || null, reviewer: MOCK_STAFF, createdAt: now() });
-    save();
-  },
-
   async setOfficialUse(leadId, value) {
     const lead = requireLead(leadId);
     lead.officialUse = { ...value, updatedBy: MOCK_STAFF, updatedAt: now() };
@@ -334,9 +199,6 @@ export const mockBackend: Backend = {
 
   async resetDemo() {
     state = freshState();
-    idImages.clear();
-    objectUrls.forEach((u) => URL.revokeObjectURL(u));
-    objectUrls.clear();
     save();
   },
 };

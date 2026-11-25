@@ -1,4 +1,4 @@
-// DocuSign eSignature (DEVELOPER / DEMO environment only): JWT grant, embedded envelope, recipient view.
+// PARKED (OI-TBC-13): not used by the core wizard. DocuSign eSignature (DEVELOPER / DEMO environment only): JWT grant, embedded envelope, recipient view.
 // Docs: https://developers.docusign.com/platform/auth/jwt/jwt-get-token/
 //       https://developers.docusign.com/docs/esign-rest-api/esign101/concepts/embedding/focused-view/
 
@@ -117,9 +117,10 @@ export interface Signer {
 }
 
 export function signersFor(lead: Lead): Signer[] {
+  if (!lead.offer) throw new HttpError(409, "Offer form has not been submitted.");
   return [
-    { recipientId: "1", clientUserId: `buyer-${lead.id}`, name: lead.buyer.fullName, email: lead.buyer.email, routingOrder: 1 },
-    ...lead.coOwners.map((c, i) => ({
+    { recipientId: "1", clientUserId: `buyer-${lead.id}`, name: lead.offer.buyer.fullName, email: lead.contact.email, routingOrder: 1 },
+    ...lead.offer.coOwners.map((c, i) => ({
       recipientId: String(i + 2),
       clientUserId: `coowner${i + 1}-${lead.id}`,
       name: c.fullName,

@@ -1,125 +1,167 @@
-import { KeyRound, Loader2, Mail, UserCheck } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Database, Loader2, Sheet, UserCheck } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Field } from "@/components/form";
 import { PlaceholderTag } from "@/components/Placeholder";
 import { WizardShell } from "@/components/WizardShell";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { config } from "@/config";
-import { backend, type Lead } from "@/lib/backend";
+import { backend, type Lead, type PortalRecords } from "@/lib/backend";
+import { formatUsd } from "@shared/domain/schedule.ts";
 
 export default function PortalStep() {
   return (
     <WizardShell step="portal">
-      {({ lead, refresh }) => <PortalView lead={lead} refresh={refresh} />}
+      {({ lead, refresh }) => (lead.portalRecords ? <PortalRecordsView lead={lead} records={lead.portalRecords} /> : <PortalEnrol lead={lead} refresh={refresh} />)}
     </WizardShell>
   );
 }
 
-function PortalView({ lead, refresh }: { lead: Lead; refresh: () => Promise<void> }) {
-  const navigate = useNavigate();
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+function PortalEnrol({ lead, refresh }: { lead: Lead; refresh: () => Promise<void> }) {
+  const [standNumber, setStandNumber] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [linkRequested, setLinkRequested] = useState(false);
 
-  async function activate(method: Parameters<typeof backend.activatePortal>[1]) {
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!standNumber.trim() || !phone.trim()) return setError("Enter your stand number and phone number.");
+    setError(null);
     setBusy(true);
     try {
-      await backend.activatePortal(lead.id, method);
+      await backend.enrolPortal(lead.id, { standNumber, phone });
       await refresh();
-      navigate(`/apply/${lead.id}/complete`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Activation failed.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not set up your account.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
   }
 
-  function submitPassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (password.length < 10) return setError("Use at least 10 characters.");
-    if (password !== confirm) return setError("Passwords don't match.");
-    setError(null);
-    void activate({ kind: "password", password });
-  }
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-serif text-3xl font-semibold">Activate your customer portal</h1>
+        <h1 className="font-serif text-3xl font-semibold">Set up your portal account</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          We've created your LakeCity customer portal account and linked it to your collection schedule. Activate it now
-          to finish. You'll use it to view your statement and track every payment. <PlaceholderTag />
+          Enter your stand number and the phone number you gave us. We'll prepare your payment schedule and account records. <PlaceholderTag />
         </p>
       </div>
-
-      <Card>
-        <CardHeader className="flex-row items-start justify-between space-y-0">
-          <div>
-            <CardTitle className="text-lg">Your portal account</CardTitle>
-            <CardDescription>{config.portalUrl.replace(/^https?:\/\//, "")}</CardDescription>
-          </div>
-          <Badge variant={lead.portalStatus === "activated" ? "default" : "secondary"} className="capitalize">
-            {lead.portalStatus.replace("_", " ")}
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-3 rounded-lg bg-muted/60 p-4 text-sm sm:grid-cols-3">
-            <div><dt className="text-xs text-muted-foreground">Username (email)</dt><dd className="font-medium break-all">{lead.buyer.email}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Stand</dt><dd className="font-medium">{lead.standNumber}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Collection account</dt><dd className="font-medium">{lead.collectionAccountId}</dd></div>
-          </dl>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardContent className="pt-6">
-          <Tabs defaultValue="password">
-            <TabsList className="mb-4">
-              <TabsTrigger value="password"><KeyRound className="mr-1.5 h-4 w-4" /> Set a password</TabsTrigger>
-              <TabsTrigger value="magic"><Mail className="mr-1.5 h-4 w-4" /> Magic link</TabsTrigger>
-            </TabsList>
-            <TabsContent value="password">
-              <form onSubmit={submitPassword} className="grid gap-4 sm:max-w-sm" noValidate>
-                <input type="email" autoComplete="username" value={lead.buyer.email} readOnly hidden />
-                <Field id="pw" label="New password" hint="At least 10 characters.">
-                  <Input id="pw" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </Field>
-                <Field id="pw2" label="Confirm password" error={error ?? undefined}>
-                  <Input id="pw2" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-                </Field>
-                <Button type="submit" disabled={busy}>
-                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
-                  Activate portal
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="magic" className="space-y-3 text-sm">
-              <p>We'll email a one-time sign-in link to <strong>{lead.buyer.email}</strong>. Opening it activates your account.</p>
-              {!linkRequested ? (
-                <Button variant="outline" onClick={() => setLinkRequested(true)}>Send magic link</Button>
-              ) : (
-                <div className="space-y-3 rounded-lg border border-dashed border-gold bg-accent/40 p-4">
-                  <p className="text-xs">
-                    Developer mode: magic-link emails are not sent in this build. Simulate the customer opening the link:
-                  </p>
-                  <Button size="sm" onClick={() => activate({ kind: "magic_link" })} disabled={busy}>
-                    {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Simulate opening the magic link
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={submit} noValidate className="grid gap-4 sm:max-w-md">
+            <Field id="portal-stand" label="Stand number">
+              <Input id="portal-stand" inputMode="numeric" autoComplete="off" placeholder="e.g. 3041" value={standNumber} onChange={(e) => setStandNumber(e.target.value)} />
+            </Field>
+            <Field id="portal-phone" label="Phone number" error={error ?? undefined}>
+              <Input id="portal-phone" type="tel" autoComplete="tel" placeholder="+263 77 000 0000" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+            <Button type="submit" disabled={busy}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
+              Set up my account
+            </Button>
+          </form>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function PortalRecordsView({ lead, records }: { lead: Lead; records: PortalRecords }) {
+  const cs = records.collectionSchedule;
+  const firstRows = cs.rows.slice(0, 4);
+  return (
+    <div className="space-y-6" data-testid="portal-records">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="mt-1 h-7 w-7 shrink-0 text-primary" />
+        <div>
+          <h1 className="font-serif text-3xl font-semibold">Your account records are ready</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Stand {lead.standNumber} · {cs.customerName}</p>
+        </div>
+      </div>
+
+      <Alert className="border-dashed border-gold bg-accent/40">
+        <Database className="h-4 w-4" />
+        <AlertTitle>Preview data</AlertTitle>
+        <AlertDescription>
+          These records were prepared by mock adapters. Nothing has been written to LakeCity's collection schedule, master schedule or Odoo yet.
+        </AlertDescription>
+      </Alert>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg"><Sheet className="h-5 w-5 text-gold" /> Collection schedule</CardTitle>
+          <CardDescription>Account {cs.accountId}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <dl className="grid gap-3 text-sm sm:grid-cols-4">
+            <div><dt className="text-xs text-muted-foreground">Price</dt><dd className="font-medium">{formatUsd(cs.priceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{formatUsd(cs.paidToDateCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Balance</dt><dd className="font-medium">{formatUsd(cs.balanceCents)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Monthly</dt><dd className="font-medium">{formatUsd(cs.monthlyCents)} × {cs.termMonths}</dd></div>
+          </dl>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>No.</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Due</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {firstRows.map((r) => (
+                  <TableRow key={r.no}>
+                    <TableCell>{r.no}</TableCell>
+                    <TableCell>{r.label}</TableCell>
+                    <TableCell>{r.dueDate}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatUsd(r.amountCents)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <p className="mt-2 text-xs text-muted-foreground">Showing {firstRows.length} of {cs.rows.length} rows.</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Master schedule</CardTitle>
+            <CardDescription>Row {records.masterSchedule.rowId}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">{records.masterSchedule.status}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Odoo</CardTitle>
+            <CardDescription>Customer {records.odoo.partner.ref}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm text-muted-foreground">
+            <p>Account {records.odoo.account.ref}</p>
+            <p>Payment {records.odoo.payment.ref} · {formatUsd(records.odoo.payment.amountCents)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <section className="rounded-2xl border-2 border-gold/60 bg-accent/40 p-6">
+        <h2 className="font-serif text-xl font-semibold">Your customer portal</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          LakeCity will confirm when your portal login is ready. You'll use it to view your statement and track every payment. <PlaceholderTag>TBC</PlaceholderTag>
+        </p>
+        <Button asChild variant="outline" className="mt-4">
+          <a href={config.portalUrl} target="_blank" rel="noreferrer">
+            Open the customer portal <ArrowUpRight className="ml-2 h-4 w-4" />
+          </a>
+        </Button>
+      </section>
     </div>
   );
 }

@@ -1,233 +1,157 @@
 {
-  "_note": "PLACEHOLDER seed. 38 stands; size_sqm / price_usd (VAT incl.) / deposit_usd are TBC (null). Term is campaign-wide (48 months, see campaign.ts). 3 further stands to be added later (TBC).",
+  "_note": "Stand numbers: the 38 campaign stands (3 further stands TBC, OI-TBC-05). sizeSqm values are MOCK, generated for development only, NOT real survey sizes (OI-TBC-04). Price is always computed as USD 45 x sqm, never stored.",
   "stands": [
     {
       "standNumber": "3567",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 660
     },
     {
       "standNumber": "3076",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 770
     },
     {
       "standNumber": "3034",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 480
     },
     {
       "standNumber": "3035",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 850
     },
     {
       "standNumber": "3061",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 710
     },
     {
       "standNumber": "3060",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 340
     },
     {
       "standNumber": "3056",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 690
     },
     {
       "standNumber": "3057",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 450
     },
     {
       "standNumber": "3058",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 820
     },
     {
       "standNumber": "3059",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 580
     },
     {
       "standNumber": "3036",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 610
     },
     {
       "standNumber": "3037",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 370
     },
     {
       "standNumber": "3038",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 740
     },
     {
       "standNumber": "3039",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 500
     },
     {
       "standNumber": "3049",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 540
     },
     {
       "standNumber": "3050",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 300
     },
     {
       "standNumber": "3051",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 670
     },
     {
       "standNumber": "3052",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 430
     },
     {
       "standNumber": "3053",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 800
     },
     {
       "standNumber": "3054",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 560
     },
     {
       "standNumber": "3055",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 320
     },
     {
       "standNumber": "3075",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 400
     },
     {
       "standNumber": "3043",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 760
     },
     {
       "standNumber": "3041",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 630
     },
     {
       "standNumber": "3044",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 520
     },
     {
       "standNumber": "3040",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 870
     },
     {
       "standNumber": "3042",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 390
     },
     {
       "standNumber": "3045",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 890
     },
     {
       "standNumber": "3046",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 650
     },
     {
       "standNumber": "3062",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 470
     },
     {
       "standNumber": "3048",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 780
     },
     {
       "standNumber": "3047",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 410
     },
     {
       "standNumber": "3033",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 720
     },
     {
       "standNumber": "3093",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 350
     },
     {
       "standNumber": "3089",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 700
     },
     {
       "standNumber": "3095",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 480
     },
     {
       "standNumber": "3096",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 850
     },
     {
       "standNumber": "3084",
-      "sizeSqm": null,
-      "priceUsd": null,
-      "depositUsd": null
+      "sizeSqm": 680
     }
   ]
 }

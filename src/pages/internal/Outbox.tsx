@@ -52,7 +52,7 @@ function OutboxView() {
     <div className="container space-y-6 py-10">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-serif text-3xl font-semibold">Email outbox</h1>
-        <Badge variant="secondary">DEV MODE · EMAILS_LIVE=false</Badge>
+        <Badge variant="secondary">PREVIEW MODE · EMAILS_LIVE=false</Badge>
       </div>
       <Alert className="border-dashed border-gold bg-accent/40">
         <AlertTitle>Nothing here has been sent</AlertTitle>
@@ -66,7 +66,7 @@ function OutboxView() {
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
             <Inbox className="h-8 w-8" />
-            <p>No emails queued yet. Submit an application to trigger the first one.</p>
+            <p>No emails queued yet. Choose a stand and submit an offer to trigger the first one.</p>
           </CardContent>
         </Card>
       ) : (

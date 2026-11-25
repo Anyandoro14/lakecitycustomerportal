@@ -1,5 +1,5 @@
--- Seed: 38 campaign stands (PLACEHOLDER). Sizes, prices (VAT incl.) and deposits are TBC (null).
--- Source of truth for the list: src/data/stands.seed.json. 3 further stands to be added later (TBC).
+-- Seed: the 38 campaign stand numbers. Sizes are NOT seeded here: real sizes are TBC (OI-TBC-04).
+-- Development mock sizes live in supabase/seed.sql (local dev only). 3 further stands TBC (OI-TBC-05).
 insert into public.stands (stand_number) values
   ('3567'),
   ('3076'),
