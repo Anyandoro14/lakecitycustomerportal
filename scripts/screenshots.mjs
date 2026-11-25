@@ -102,30 +102,57 @@ await page.getByLabel("Typed signature").fill("Tendai Test Moyo");
 await shot("offer-form-completed");
 await page.getByRole("button", { name: /submit offer/i }).click();
 
-// 5. ZikiMall step: plain link, locked account number (= stand) and locked $2,250
+// 5. Card payment step: locked $2,250, one "Pay by card" button, no ZikiMall
 await page.waitForURL(/\/payment$/);
-const account = page.locator("#zikimall-account");
-await account.waitFor();
-check((await account.inputValue()) === "3076", "ZikiMall account number = selected stand 3076");
-check((await account.isEditable()) === false, "ZikiMall account number is read-only");
-await account.press("x").catch(() => {});
-check((await account.inputValue()) === "3076", "ZikiMall account number unchanged after a keypress");
-check((await page.locator('[data-testid="zikimall-account-copy"]').count()) === 1, "account number has a copy button");
-const link = page.locator('[data-testid="zikimall-link"]');
-check((await link.getAttribute("href")) === "https://zikimall.com" && (await link.getAttribute("target")) === "_blank", "ZikiMall button is a plain link opening a new tab");
-const steps = await page.locator('[data-testid="zikimall-steps"] li').allInnerTexts();
-check(steps.length === 7 && steps[4].includes("your stand number: 3076"), "7 ZikiMall steps; step 5 names stand 3076");
-const amount = page.locator("#zikimall-amount");
+const amount = page.locator("#payment-amount");
 await amount.waitFor();
-check(usd(await amount.inputValue()) === 2250, "ZikiMall amount is $2,250");
-check((await amount.isEditable()) === false, "ZikiMall amount is not editable");
+check(usd(await amount.inputValue()) === 2250, "payment amount is $2,250");
+check((await amount.isEditable()) === false, "payment amount is not editable");
 await amount.press("Backspace").catch(() => {});
-check(usd(await amount.inputValue()) === 2250, "ZikiMall amount unchanged after a keypress");
-await shot("payment-zikimall-locked-amount");
-await page.getByRole("button", { name: "Simulate ZikiMall payment confirmation" }).click();
+check(usd(await amount.inputValue()) === 2250, "payment amount unchanged after a keypress");
+check(!/zikimall/i.test(await page.locator("main").innerText()), "no ZikiMall on the payment step");
+check((await page.locator('[data-testid="pay-by-card"]').innerText()).includes("$2,250"), "pay button names $2,250");
+await shot("payment-step-card");
+await page.setViewportSize({ width: 390, height: 844 });
+await shot("payment-step-mobile");
+await page.setViewportSize({ width: 1280, height: 900 });
 
-// 6. Celebration (the page moves on by itself once the handler has applied the payment)
+// Each non-approved iVeri status returns to the payment step with a friendly message and changes nothing.
+const refs = new Set();
+const attempt = async (choice, expected, name) => {
+  await page.locator('[data-testid="pay-by-card"]').click();
+  await page.waitForURL(/\/mock-iveri\//);
+  const ref = decodeURIComponent(page.url().split("/mock-iveri/")[1].split("?")[0]);
+  check(/^LC3076-[A-Z2-9]{8}$/.test(ref) && !refs.has(ref), `new merchant reference per attempt (${ref})`);
+  refs.add(ref);
+  if (choice === "Approve (status 0)") return ref;
+  if (name === "declined-4") await shot("mock-iveri-page");
+  await page.getByRole("button", { name: choice }).click();
+  await page.waitForSelector(`[data-testid="payment-result"][data-result="${expected}"]`);
+  const stage = await page.evaluate((id) => JSON.parse(localStorage.getItem("lakecity-mock-v5")).leads.find((l) => l.id === id).stage, leadId);
+  check(stage === "form_filled", `${choice}: application unchanged`);
+  await shot(`payment-result-${name}`);
+  return ref;
+};
+await attempt("Denied (4)", "declined", "declined-4");
+await attempt("Invalid card (14)", "declined", "invalid-card-14");
+await attempt("3-D Secure required (255)", "declined", "3ds-255");
+await attempt("Unable to process (9)", "retry_later", "try-later-9");
+await attempt("Cancel", "cancelled", "cancelled");
+const approvedRef = await attempt("Approve (status 0)");
+await page.getByRole("button", { name: "Approve (status 0)" }).click();
+
+// 6. Celebration (status 0 applied once: stand out of inventory, one thank-you email, wizard advanced)
 await page.waitForURL(/\/celebration$/);
+const after = await page.evaluate(() => JSON.parse(localStorage.getItem("lakecity-mock-v5")));
+check(after.stands.find((x) => x.standNumber === "3076").status === "paid", "stand 3076 left available inventory");
+check(after.outbox.filter((e) => e.template === "payment_thank_you").length === 1, "exactly one thank-you email queued");
+// Replaying the same return changes nothing.
+await page.goto(`${BASE}/apply/${leadId}/payment?ref=${approvedRef}&kind=success`);
+await page.waitForURL(/\/celebration$/);
+const replay = await page.evaluate(() => JSON.parse(localStorage.getItem("lakecity-mock-v5")));
+check(replay.outbox.length === after.outbox.length && replay.payments.length === after.payments.length, "same reference processed twice changes nothing");
+await page.goto(`${BASE}/apply/${leadId}/celebration`);
 await page.waitForSelector('[data-testid="celebration"]');
 check((await page.locator('[data-testid="celebration"]').innerText()).includes("3076"), "celebration names stand 3076");
 await shot("celebration");
@@ -156,7 +183,17 @@ await page.evaluate(() => window.scrollTo(0, 0));
 await shot("portal-banner-mobile", { fullPage: false });
 await page.setViewportSize({ width: 1280, height: 900 });
 
-// 8. Staff views
+// 8. Contact-only lead (side pane on another stand, no offer yet)
+const otherStand = await page.evaluate(() => JSON.parse(localStorage.getItem("lakecity-mock-v5")).stands.find((x) => x.status === "available").standNumber);
+await page.goto(`${BASE}/stands/${otherStand}`);
+await page.waitForSelector("#fullName");
+await fill("#fullName", "Rudo Test Chari");
+await fill("#email", "rudo.test@example.com");
+await fill("#phone", "+263 77 000 0001");
+await page.getByRole("button", { name: /continue to offer form/i }).click();
+await page.waitForURL(/\/offer$/);
+
+// 9. Staff views
 await page.goto(`${BASE}/internal`);
 if (await page.getByRole("button", { name: "Sign in" }).isVisible().catch(() => false)) {
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -165,12 +202,16 @@ await page.waitForSelector("text=/Signed up and Paid \\(/");
 check((await page.locator('[data-testid="count-signed_up_paid"]').innerText()).includes("1"), "report counts 1 'Signed up and Paid'");
 await page.getByRole("tab", { name: /Signed up and Paid/ }).click();
 await shot("staff-dashboard");
+await page.locator('[data-testid="tab-contact-only"]').click();
+await page.waitForSelector("text=Rudo Test Chari");
+check((await page.locator('[data-testid="tab-contact-only"]').innerText()).includes("(1)"), "contact-only tab lists the lead without an offer");
+await shot("staff-contact-only-leads");
 await page.goto(`${BASE}/internal/leads/${leadId}`);
 await page.waitForSelector("text=/Stand 3076/");
 await page.waitForTimeout(500);
 await shot("staff-lead-detail");
 
-// 9. Outbox: email previews (never sent)
+// 10. Outbox: email previews (never sent)
 await page.goto(`${BASE}/internal/outbox`);
 await page.waitForSelector("text=/Automated ·/");
 for (const key of ["offer_completed", "payment_thank_you", "portal_ready"]) {
@@ -181,7 +222,7 @@ for (const key of ["offer_completed", "payment_thank_you", "portal_ready"]) {
   await shot(`email-${key.replace(/_/g, "-")}`);
 }
 
-// 10. Full-length email preview (desktop + mobile) of the thank-you email
+// 11. Full-length email preview (desktop + mobile) of the thank-you email
 await page.locator("ul li button", { hasText: "· payment_thank_you" }).first().click();
 await page.waitForTimeout(700);
 const html = await page.frameLocator('iframe[title="Email preview"]').locator("html").evaluate((el) => "<!DOCTYPE html>" + el.outerHTML);

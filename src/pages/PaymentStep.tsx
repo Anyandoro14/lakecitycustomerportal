@@ -14,7 +14,7 @@ import { formatUsd } from "@shared/domain/schedule.ts";
 export default function PaymentStep() {
   return (
     <WizardShell step="payment" wide>
-      {({ lead, refresh }) => <PaymentPane lead={lead} refresh={refresh} />}
+      {({ lead }) => <PaymentPane lead={lead} />}
     </WizardShell>
   );
 }
@@ -35,7 +35,7 @@ function submitToIveri(action: string, fields: Record<string, string>) {
   form.submit();
 }
 
-function PaymentPane({ lead, refresh }: { lead: Lead; refresh: () => Promise<void> }) {
+function PaymentPane({ lead }: { lead: Lead }) {
   const { stand, band } = useStand(lead.standNumber);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -47,22 +47,25 @@ function PaymentPane({ lead, refresh }: { lead: Lead; refresh: () => Promise<voi
   const paid = lead.stage !== "form_filled";
   const amountCents = paymentDueNowCents();
 
-  async function show(view: PaymentResultView) {
+  function show(view: PaymentResultView) {
     setResult(view);
-    if (view.result === "approved") {
-      await refresh();
-      navigate(`/apply/${lead.id}/celebration`, { replace: true });
-    }
+    // The celebration step reloads the lead itself; refreshing here first would unmount this pane mid-navigation.
+    if (view.result === "approved") navigate(`/apply/${lead.id}/celebration`, { replace: true });
   }
 
   useEffect(() => {
-    if (!returnedRef || paid) return;
+    if (!returnedRef) return;
+    // The return handler applies an approved payment before sending the buyer back here.
+    if (paid) {
+      if (returnedRef === lead.paymentReference) navigate(`/apply/${lead.id}/celebration`, { replace: true });
+      return;
+    }
     let cancelled = false;
     setBusy("result");
     backend
       .paymentResult(lead.id, returnedRef, returnedKind)
       .then((view) => {
-        if (!cancelled) return show(view);
+        if (!cancelled) show(view);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "We couldn't check this payment.");
@@ -74,7 +77,7 @@ function PaymentPane({ lead, refresh }: { lead: Lead; refresh: () => Promise<voi
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [returnedRef, returnedKind, lead.id, paid]);
+  }, [returnedRef, returnedKind, lead.id, lead.paymentReference, paid]);
 
   async function pay() {
     setBusy("pay");
@@ -97,7 +100,7 @@ function PaymentPane({ lead, refresh }: { lead: Lead; refresh: () => Promise<voi
     setBusy("check");
     setError(null);
     try {
-      await show(await backend.checkPayment(lead.id));
+      show(await backend.checkPayment(lead.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "We couldn't check your payment.");
     } finally {
@@ -158,7 +161,7 @@ function PaymentPane({ lead, refresh }: { lead: Lead; refresh: () => Promise<voi
             <AlertDescription className="space-y-1">
               <p>{result.message}</p>
               {(result.result === "declined" || result.result === "cancelled" || result.result === "retry_later") && (
-                <p className="text-xs">Nothing was charged for this attempt and your application is unchanged.</p>
+                <p className="text-xs">Your application and stand are unchanged.</p>
               )}
             </AlertDescription>
           </Alert>

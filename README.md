@@ -1,14 +1,18 @@
 # LakeCity stand sales
 
 Online sales wizard for the LakeCity stand campaign. A buyer picks a stand, fills in contact details and the digital
-offer form, pays the fixed USD 2,250 due at start on zikimall.com (plain link; the app never handles money), and is
-moved on automatically when the payment is confirmed (**mock** ZikiMall/CBZ confirmation adapter). They then set up
+offer form, and pays the fixed USD 2,250 due at start by card on CBZ's hosted **iVeri Lite** page (Full Redirect,
+**TEST environment only**; card details never touch this app). Only an iVeri AuthoriseInfo status 0, checked
+server-side, moves them on. They then set up
 their portal account with stand number + phone, which pre-populates their collection schedule, master schedule and
 Odoo records (**mock adapters**, keyed by stand number). Staff see Valerie's sales report, fill the official-use block
 and preview the automated emails on internal pages.
 
 > **Rules for this build**
-> * Read-only by default. Bots never move money. Nothing here can take a payment.
+> * Read-only by default. Bots never move money. Card payments run on the **iVeri TEST** environment only; there is
+>   no Live App ID in this repo and Live/Production needs Alex's own yes (OI-TBC-33).
+> * The iVeri App ID and shared secret come from environment variables only. They are never hard-coded, logged or
+>   sent to the browser (the browser gets only the signed form fields iVeri requires).
 > * No Production. **Not deployed to Staging** either: that needs Alex's own yes.
 > * Automated customer emails are approved (OI-TBC-18 closed) but stay in the **preview outbox** until an email
 >   provider is configured (OI-TBC-20). Nothing is sent.
@@ -29,8 +33,9 @@ npm run dev          # http://127.0.0.1:8137
 ```
 
 With no Supabase env vars the app uses an **in-browser mock backend**: data in `localStorage`, emails rendered to the
-outbox preview, and a "Demo mode" button that feeds a simulated ZikiMall/CBZ confirmation through the real
-payment-confirmed handler (no money moves).
+outbox preview, and a **mock iVeri page** (`/mock-iveri/:reference`, mock mode only) standing in for CBZ's card page:
+pick the card status AuthoriseInfo should report (0, 3, 4, 5, 9, 14, 255 or cancel) and it runs through the same
+return handler and payment-confirmed handler as the server. No card data, no money.
 Staff pages need no login in mock mode. "Reset demo data" on `/internal` clears everything.
 
 | Page | URL |
@@ -46,9 +51,9 @@ Scripts:
 
 | Command | What it does |
 | --- | --- |
-| `npm test` | Vitest: pricing on the real sizes, A/B/C banding + filter, read-only amount and account number, ZikiMall steps, payment handler (inventory, email, step, idempotency), report statuses, stand-keyed adapters, purchase progress, v4 emails, flow, ID validators |
+| `npm test` | Vitest: pricing on the real sizes, A/B/C banding + filter, read-only amount, iVeri (env config, merchant reference, signed form + token, AuthoriseInfo parsing, status messages, return handler with a mocked gateway: approve once, duplicates, 3/4/5/9/14/255/cancel change nothing, gateway down, amount/trace mismatch, stand already sold), payment handler, **SQL test of `apply_payment_confirmed` on PGlite** (all migrations), report statuses, stand-keyed adapters, purchase progress, v4 emails, flow, ID validators |
 | `npm run typecheck` / `npm run lint` / `npm run build` | The usual |
-| `npm run screenshots` | Walks every step in headless Chrome against the running dev server and saves PNGs to `OUT_DIR` (default `/opt/cursor/artifacts`). It also asserts the stand count and phases, band coverage, VAT note, $2,250 due now, the read-only account number and amount, the ZikiMall link and steps, the portal progress banner and the report counts, and saves full-length email previews. Set `CHROME_PATH` if Chrome isn't at `/usr/local/bin/google-chrome`. |
+| `npm run screenshots` | Walks every step in headless Chrome against the running dev server and saves PNGs to `OUT_DIR` (default `/opt/cursor/artifacts`). It also asserts the stand count and phases, band coverage, VAT note, $2,250 due now, the locked amount and card button, a new merchant reference per attempt, each declined/cancelled result leaving the application unchanged, approval moving the stand out of inventory with one email, a replayed return changing nothing, the portal progress banner, the report counts and the contact-only tab, and saves full-length email previews. Set `CHROME_PATH` if Chrome isn't at `/usr/local/bin/google-chrome`. |
 | `cd supabase/functions && deno check */index.ts` | Typechecks the edge functions |
 
 ## Pricing rules
@@ -60,14 +65,15 @@ Source of truth: `supabase/functions/_shared/domain/campaign.ts`.
 | Stand price | USD 45 × size in m², **including 15.5% VAT** (shown as "incl. 15.5% VAT"; OI-TBC-06 closed) |
 | Down payment | USD 1,750 (fixed) |
 | Legal fee (Agreement of Sale preparation, non-refundable, to Chigwanda Legal Practitioners) | USD 500 (fixed) |
-| **Due at start (ZikiMall step)** | **USD 2,250** = down payment + legal fee |
+| **Due at start (card payment step)** | **USD 2,250** = down payment + legal fee |
 | Balance | price − down payment, over 48 monthly instalments; the last instalment absorbs rounding |
 | Instalment due day | 5th of the month, starting the month after payment (OI-TBC-11) |
 
 No VAT breakdown is shown for the down payment or the legal fee.
 
-The amount at the ZikiMall step is always computed server-side (`paymentDueNowCents()`), shown in a read-only,
-non-focusable field, and checked again by the payment handler and the `apply_payment_confirmed` database function.
+The card amount is always computed server-side (`paymentDueNowCents()`), shown in a read-only,
+non-focusable field, sent to iVeri as `Lite_Order_Amount=225000` (USD), checked against AuthoriseInfo, and checked again by the payment
+handler and the `apply_payment_confirmed` database function.
 
 **Ranges A / B / C:** the span from the cheapest to the dearest stand price is split into three equal bands,
 A = [min, min + w), B = [min + w, min + 2w), C = [min + 2w, max], where w = (max − min) / 3. Bands are computed over
@@ -95,18 +101,25 @@ Smallest stand 1,200 m² (USD 54,000), largest 3,288 m² (USD 147,960).
    OI-TBC-12), addresses, up to 3 co-owners, next of kin, the six conditions, and a typed or drawn signature. Email
    and phone are locked to the contact details. On submit, the offer email is queued to the outbox preview with the
    offer PDF.
-4. **ZikiMall** (official Payment Methods document): an **Open zikimall.com** button (plain link, new tab, no API),
-   two read-only fields with copy buttons: the **account number = the selected stand number** and the **$2,250**
-   due now. Below them the 7 steps (All Payments › All Billers › search "Warwickshire" › account number = stand
-   number, Initial and Surname › Visa / Mastercard / Ecocash / Zimswitch › submit), "Keep your proof of payment
-   (screenshot or receipt)" and "Powered by CBZ. Funds settle to the Warwickshire Pvt Ltd CBZ ...0018 account".
-   The page polls and moves on by itself when the payment is confirmed.
-   **Automatic payment confirmation:** a ZikiMall/CBZ confirmation goes to the payment-confirmed handler
-   (`payment-events.ts`; server side `_shared/server/payment.ts` + the `apply_payment_confirmed` SQL function). In
-   one atomic step it takes the stand out of available inventory (`paid`; it is allocated to the buyer only at
-   signing), queues the branded thank-you email and advances the wizard to the portal step. It is keyed by stand
-   number and idempotent per payment reference (`payment_events`): the same reference is processed once. There is
-   no staff confirmation step. The confirmation source is a **mock** adapter until OI-TBC-30 is resolved.
+4. **Card payment (iVeri Lite, Full Redirect)**: the locked **$2,250** amount and one **Pay $2,250 by card** button.
+   * `lead-api` `start-payment` (offer submitted, not yet paid, stand still available) creates a `payment_attempts`
+     row with a new **merchant reference** `LC<stand>-<8 random chars>` (unique per attempt, at most 20 characters,
+     also the `Lite_Merchant_Trace`) and returns the signed Lite form (`iveri.ts` `buildLiteForm`: braced App ID,
+     amount in cents, USD, the four return URLs, line item, email; `Lite_Transaction_Token` when a shared secret
+     is set). The browser POSTs it to `portal.host.iveri.com/Lite/Authorise.aspx`.
+   * iVeri sends the browser to the `iveri-return` edge function. Nothing iVeri posts is trusted: it calls
+     **AuthoriseInfo** server-side for that trace and only **card status 0** (with matching trace and amount)
+     calls `apply_payment_confirmed`. It then redirects to the payment step with the reference.
+   * Statuses **3, 4, 5, 9, 14, 255** and cancel show a friendly message (255 explains 3-D Secure cards can't be
+     used yet) and **change nothing**; "Try again" starts a new attempt with a new reference. If AuthoriseInfo
+     can't be reached the attempt stays open and **Check payment status** re-checks it later.
+   * **Idempotent:** a settled attempt is never re-processed, and `payment_events` records each reference once.
+   * An approved payment that can't be applied (stand already sold, lead already paid, wrong amount) is **recorded**
+     as `unmatched`/`rejected` with a reason, nothing else changes, the buyer is told LakeCity Accounts will contact
+     them, and staff see it under **Payments needing attention** on `/internal` (refund route OI-TBC-25).
+   `apply_payment_confirmed` does everything else in one transaction: stand out of available inventory (`paid`;
+   allocated to the buyer only at signing), lead paid, attempt approved, one thank-you email queued, wizard on to
+   the portal step. ZikiMall has been **removed** from the wizard (OI-TBC-07).
 5. **Celebration:** a confirmation screen naming the stand and payment (wording OI-TBC-02), with a button on to the
    portal step.
 6. **Portal account:** the customer enters stand number + phone. If they match the application (last 9 digits of
@@ -120,8 +133,9 @@ Buyers who pay but never sign are still enrolled in the portal and Odoo: enrolme
 signing (OI-TBC-09 closed).
 
 **Valerie's report** (`/internal`, `report.ts`): every signed-up lead has exactly one status, with counts and a
-CSV export (no ID numbers): **Signed up** (offer submitted), **Signed up and Paid** (payment confirmed),
-**Signed up, Paid and Signed** (agreement signed). Applications without a submitted offer are left out (OI-TBC-29).
+CSV export (no ID numbers): **Signed up** (offer submitted), **Signed up and Paid** (card payment approved),
+**Signed up, Paid and Signed** (agreement signed). Applications without a submitted offer are left out of the report
+(OI-TBC-29) and listed on their own **Contact only, not in report** tab.
 
 The Agreement of Sale / DocuSign step is **parked** (OI-TBC-13). The code stays in the repo (`docusign.ts`,
 `docusign-connect`, `mark_signed`, the template merge fields) but the core wizard doesn't call it.
@@ -138,7 +152,7 @@ completed stages and the current stage in gold. Body copy is still PLACEHOLDER (
 
 | Stage | Trigger | Template | Content |
 | --- | --- | --- | --- |
-| Signed up | Offer submitted | `offer_completed` | Price (incl. 15.5% VAT), $2,250 due now, ZikiMall how-to; **offer-to-purchase.pdf** attached |
+| Signed up | Offer submitted | `offer_completed` | Price (incl. 15.5% VAT), $2,250 due now, pay by card; **offer-to-purchase.pdf** attached |
 | Paid | Payment confirmed (automatic) | `payment_thank_you` | Thank you, stand reserved, amount/date/reference, **View your offer** link |
 | Portal active | Portal records ready | `portal_ready` | Collection account id, portal link. **Never a password.** |
 
@@ -151,19 +165,23 @@ provider is chosen (OI-TBC-20).
 ## Connecting Supabase (when approved; not done)
 
 1. `supabase link && supabase db push` applies `supabase/migrations/` (schema, the 38 stands with real sizes and
-   phases, and the payment-events table).
+   phases, the payment-events and payment-attempts tables).
 2. Copy `.env.example` → `.env.local` and fill `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_APP_URL`.
-3. Function secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_URL`, `PORTAL_URL`. Set
-   `ALLOW_DEV_SIMULATIONS=true` only on a local stack.
-4. Functions: `lead-intake`, `lead-api`, `zikimall-callback` (returns 501 until the confirmation source is known,
-   OI-TBC-30), `docusign-connect` (parked).
+3. Function secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_URL`, `PORTAL_URL`, and for card payments
+   `IVERI_ENVIRONMENT=test`, `IVERI_APPLICATION_ID` (**TEST** App ID), optionally `IVERI_SHARED_SECRET` and
+   `IVERI_RETURN_URL` (see `.env.example`). Without a TEST App ID card payments are off (friendly 503); any
+   environment other than `test` also turns them off. Set `ALLOW_DEV_SIMULATIONS=true` only on a local stack: it
+   lets `simulate-payment` play AuthoriseInfo for the caller's **own** attempt on an application awaiting payment.
+4. Functions: `lead-intake`, `lead-api`, `iveri-return` (no JWT; verifies via AuthoriseInfo), `docusign-connect`
+   (parked).
 5. Staff: create a Supabase Auth user, then `insert into public.staff_users (user_id, email) values (…)`.
 
 Security model: customers are anonymous and talk only to edge functions using a random per-lead access token (only
 its SHA-256 hash is stored). Staff read through RLS (`is_staff()`) and write only through the security-definer
 `set_offer_official_use`. `apply_payment_confirmed` (one transaction: reference recorded once, offer submitted,
-stand number matches, amount 225000 cents, stand still available, outbox row) and `mark_signed` are service-role
-only.
+stand number matches, amount 225000 cents, stand still available, outbox row; anything else is recorded as
+`unmatched`/`rejected` instead of rolled back) and `mark_signed` are service-role only. Database errors are logged
+by code only and the client gets a generic message.
 
 ## Importing into Lovable
 
@@ -216,8 +234,8 @@ the lead page. Validators live in a per-country registry (`_shared/domain/id-val
 | OI-TBC-04 | **CLOSED** (Alex, 2026-11-25): real sizes and phases from the Marketing Campaign Tracker sheet | `stands.seed.json`, seed migration |
 | OI-TBC-05 | The 3 additional campaign stands (38 seeded) | `stands.seed.json`, seed migration |
 | OI-TBC-06 | **CLOSED**: 15.5% VAT is included in the USD 45/m² price; shown as "incl. 15.5% VAT" | `campaign.ts` (`VAT`, `PRICE_VAT_NOTE`) |
-| OI-TBC-07 | ZikiMall: flow defined (official Payment Methods document; plain link, account number = stand number, locked $2,250). Confirmation is automatic through the payment-confirmed handler, fed by a **mock** adapter; source TBC (OI-TBC-30) | `PaymentStep.tsx`, `payment-methods.ts`, `payment-events.ts` |
-| OI-TBC-08 | CBZ settlement (Warwickshire Pvt Ltd CBZ ...0018): flow defined; automatic confirmation handler wired to a **mock** adapter; reconciliation source TBC (OI-TBC-30) | `payment-events.ts`, `_shared/server/payment.ts` |
+| OI-TBC-07 | **SUPERSEDED**: ZikiMall removed from the wizard (Alex, 25 Nov: iVeri Lite card payments are the payment solution). Nothing could confirm ZikiMall payments automatically, so it isn't offered as another way to pay | (none) |
+| OI-TBC-08 | CBZ settlement of iVeri card payments (Warwickshire Pvt Ltd CBZ ...0018): settlement and reconciliation report from CBZ/iVeri TBC | `iveri.ts` |
 | OI-TBC-09 | **CLOSED**: pay-but-never-sign buyers stay enrolled in the portal and Odoo; report shows them as "Signed up and Paid" | `report.ts`, Dashboard |
 | OI-TBC-10 | Collection schedule PDF layout to match the official template on Drive | `src/lib/pdf/documents.ts` |
 | OI-TBC-11 | Standard instalment due day (5th vs 1st) and when instalments start | `campaign.ts`, `schedule.ts` |
@@ -234,9 +252,12 @@ the lead page. Validators live in a per-country registry (`_shared/domain/id-val
 | OI-TBC-22 | Where signed agreements are filed | Agreement step |
 | OI-TBC-23 | Staging deployment: needs Alex's own yes (not deployed) | Infra |
 | OI-TBC-24 | Range banding basis: all stands vs available only, and whether bands should be fixed price points | `priceBands()` in `campaign.ts` |
-| OI-TBC-25 | Stand hold: two buyers can fill offers for the same stand; the first confirmed payment takes the stand (two open offers are told apart by the payer's surname) and a later payment is left unmatched for ZikiMall/CBZ to refund | `payment-events.ts`, `apply_payment_confirmed` |
+| OI-TBC-25 | Stand hold: two buyers can fill offers for the same stand; the first approved card payment takes the stand; a later approved payment is recorded as `unmatched` (Payments needing attention on `/internal`). Who refunds it and how (iVeri BackOffice void/refund) is TBC | `payment-events.ts`, `apply_payment_confirmed` |
 | OI-TBC-26 | Retention and data-protection policy for offer-form personal data (IDs, next of kin) | `leads.offer` |
-| OI-TBC-27 | **CLOSED**: the ZikiMall account number a new buyer enters is the stand number (auto-filled, read-only, copy button) | `PaymentStep.tsx`, `zikimallAccountNumber()` |
+| OI-TBC-27 | **CLOSED** (ZikiMall account number = stand number). Now moot: ZikiMall removed (OI-TBC-07); the stand number is the base of the iVeri merchant reference | `newMerchantReference()` |
 | OI-TBC-28 | **WITHDRAWN**: manual staff confirmation of ZikiMall receipts, superseded by automatic confirmation | (none) |
 | OI-TBC-29 | Applications without a submitted offer are not "Signed up" and are left out of Valerie's report; confirm that's wanted | `report.ts` |
-| OI-TBC-30 | Source of automatic ZikiMall/CBZ payment confirmation (webhook, API or bank feed) TBC; a mock adapter feeds the handler today, and unmatched or wrong-amount payments need a staff follow-up route | `payment-events.ts`, `zikimall-callback` (501) |
+| OI-TBC-30 | **CLOSED**: iVeri AuthoriseInfo (server-side, status 0 only) is the payment confirmation source. Unmatched or wrong-amount payments are recorded and listed for staff | `iveri.ts`, `iveri-return`, `apply_payment_confirmed` |
+| OI-TBC-31 | **Blocker before Live:** 3-D Secure / ECI must be enabled on the CBZ iVeri application. 3DS cards return status 255 ("ElectronicCommerceIndicator required") on TEST; the buyer is told to try another card | CBZ / iVeri setup |
+| OI-TBC-32 | iVeri TEST card 5454… returns an iVeri 500 error (iVeri side; raise with iVeri/CBZ). If it happens the buyer sees a generic "payment not completed" message and nothing changes | iVeri |
+| OI-TBC-33 | iVeri **Live** App ID and moving to Production: needs Alex's own yes. Only `IVERI_ENVIRONMENT=test` is accepted today | `iveriConfigFromEnv()` |
