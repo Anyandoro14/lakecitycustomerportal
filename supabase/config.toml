@@ -1,0 +1,15 @@
+project_id = "lakecity-stand-sales"
+
+# Customers are anonymous: these functions do their own auth (per-lead access token,
+# DocuSign HMAC, or nothing for the 501 stub), so the gateway JWT check is disabled.
+[functions.lead-intake]
+verify_jwt = false
+
+[functions.lead-api]
+verify_jwt = false
+
+[functions.docusign-connect]
+verify_jwt = false
+
+[functions.zikimall-callback]
+verify_jwt = false
