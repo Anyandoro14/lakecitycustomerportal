@@ -40,6 +40,7 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
     if (location.pathname.includes('looking-glass')) return 'looking-glass';
     if (location.pathname.includes('internal-portal')) return 'portal';
     if (location.pathname.includes('stand-inventory')) return 'stand-inventory';
+    if (location.pathname.includes('stand-sales')) return 'stand-sales';
     return '';
   })();
 
@@ -57,6 +58,13 @@ const InternalNav = ({ isSuperAdmin = false, isDirector = false, currentPage }: 
       label: 'Stand inventory',
       icon: MapPin,
       path: '/stand-inventory',
+      visible: true,
+    },
+    {
+      id: 'stand-sales',
+      label: 'Stand sales',
+      icon: MapPin,
+      path: '/internal/stand-sales',
       visible: true,
     },
     {

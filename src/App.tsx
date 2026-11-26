@@ -65,6 +65,13 @@ const RefundPolicy = lazy(() => import("./pages/legal/RefundPolicy"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const Pay = lazy(() => import("./pages/Pay"));
 const PayReturn = lazy(() => import("./pages/PayReturn"));
+const StandsPage = lazy(() => import("./pages/stands/StandsPage"));
+const StandDetailPage = lazy(() => import("./pages/stands/StandDetailPage"));
+const StandPayPage = lazy(() => import("./pages/stands/StandPayPage"));
+const StandPayResultPage = lazy(() => import("./pages/stands/StandPayResultPage"));
+const StandWelcomePage = lazy(() => import("./pages/stands/StandWelcomePage"));
+const StandPortalPage = lazy(() => import("./pages/stands/StandPortalPage"));
+const StandSalesDashboard = lazy(() => import("./pages/internal/StandSalesDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -101,6 +108,13 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/pay" element={<Pay />} />
                   <Route path="/pay/return" element={<PayReturn />} />
+                  <Route path="/stands" element={<StandsPage />} />
+                  <Route path="/stands/pay/result" element={<StandPayResultPage />} />
+                  <Route path="/stands/:standNumber" element={<StandDetailPage />} />
+                  <Route path="/stands/:standNumber/pay" element={<StandPayPage />} />
+                  <Route path="/stands/:standNumber/welcome" element={<StandWelcomePage />} />
+                  <Route path="/stands/:standNumber/portal" element={<StandPortalPage />} />
+                  <Route path="/internal/stand-sales" element={<StandSalesDashboard />} />
                   <Route path="/monthly-statements" element={<MonthlyStatements />} />
                   <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />
                   <Route path="/reporting" element={<Reporting />} />

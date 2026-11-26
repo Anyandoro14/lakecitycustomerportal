@@ -126,3 +126,17 @@ verify_jwt = false
 [functions.paynow-status]
 verify_jwt = true
 
+# Stand sales wizard. iVeri return has no Supabase JWT (the gateway cannot send one).
+# iVeri stays off unless IVERI_ENVIRONMENT=test. These functions are not deployed by this change.
+[functions.stand-sales]
+verify_jwt = false
+
+[functions.iveri-init]
+verify_jwt = false
+
+[functions.iveri-return]
+verify_jwt = false
+
+[functions.iveri-sweep]
+verify_jwt = false
+
