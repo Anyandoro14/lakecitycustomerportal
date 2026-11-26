@@ -373,8 +373,8 @@ export async function dismissForStaff(
   }
   if (!isHold(current)) {
     const outcome = await recheck(current);
-    if (outcome.result === "approved" || outcome.result === "second_charge") {
-      throw new SalesError(409, "This attempt was approved by the bank and cannot be dismissed.", "approved");
+    if (outcome.cardStatus === 0 || outcome.result === "approved" || outcome.result === "second_charge") {
+      throw new SalesError(409, "The bank approved this attempt. It is now held for Accounts. Dismiss it again only if you mean to release that hold.", "payment_held");
     }
     if (outcome.result === "pending") {
       throw new SalesError(409, "We couldn't confirm this attempt with the bank, so it was left in place.", "recheck_unavailable");

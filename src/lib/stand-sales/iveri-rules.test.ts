@@ -391,7 +391,29 @@ describe("staff dismiss re-checks the bank first", () => {
       reference: attempt.reference,
       applied: "applied",
       reason: null,
-    }))).rejects.toMatchObject({ code: "approved" });
+    }))).rejects.toMatchObject({ code: "payment_held" });
+
+    await expect(dismissForStaff(store(), "staff-1", attempt.reference, async () => ({
+      result: "error",
+      cardStatus: 0,
+      title: "We need to check this payment",
+      message: "held",
+      applicationId: "app-1",
+      reference: attempt.reference,
+      applied: "unmatched:stand_not_available",
+      reason: "stand_not_available",
+    }))).rejects.toMatchObject({ code: "payment_held" });
+
+    await expect(dismissForStaff(store(), "staff-1", attempt.reference, async () => ({
+      result: "pending",
+      cardStatus: null,
+      title: "Checking your payment",
+      message: "try again",
+      applicationId: "app-1",
+      reference: attempt.reference,
+      applied: null,
+      reason: null,
+    }))).rejects.toMatchObject({ code: "recheck_unavailable" });
   });
 
   it("dismisses a held payment without another bank call, which releases the 409", async () => {
