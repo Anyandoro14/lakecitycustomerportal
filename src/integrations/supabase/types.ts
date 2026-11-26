@@ -1067,6 +1067,80 @@ export type Database = {
         }
         Relationships: []
       }
+      stand_inventory: {
+        Row: {
+          agreement_requested: string | null
+          agreement_signed_by_client: string | null
+          agreement_signed_warwickshire: string | null
+          area_sqm: number | null
+          campaign_stand: boolean
+          created_at: string
+          id: string
+          land_use: string | null
+          odoo_product_id: number | null
+          odoo_product_tmpl_id: number | null
+          odoo_synced_at: string | null
+          phase: string | null
+          purchase_price: number | null
+          rights: string | null
+          stand_number: string
+          status: string | null
+          tenant_id: string
+          updated_at: string
+          wizard_sale_status: string | null
+        }
+        Insert: {
+          agreement_requested?: string | null
+          agreement_signed_by_client?: string | null
+          agreement_signed_warwickshire?: string | null
+          area_sqm?: number | null
+          campaign_stand?: boolean
+          created_at?: string
+          id?: string
+          land_use?: string | null
+          odoo_product_id?: number | null
+          odoo_product_tmpl_id?: number | null
+          odoo_synced_at?: string | null
+          phase?: string | null
+          purchase_price?: number | null
+          rights?: string | null
+          stand_number: string
+          status?: string | null
+          tenant_id: string
+          updated_at?: string
+          wizard_sale_status?: string | null
+        }
+        Update: {
+          agreement_requested?: string | null
+          agreement_signed_by_client?: string | null
+          agreement_signed_warwickshire?: string | null
+          area_sqm?: number | null
+          campaign_stand?: boolean
+          created_at?: string
+          id?: string
+          land_use?: string | null
+          odoo_product_id?: number | null
+          odoo_product_tmpl_id?: number | null
+          odoo_synced_at?: string | null
+          phase?: string | null
+          purchase_price?: number | null
+          rights?: string | null
+          stand_number?: string
+          status?: string | null
+          tenant_id?: string
+          updated_at?: string
+          wizard_sale_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_inventory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stand_portal_settings: {
         Row: {
           created_at: string
@@ -1131,6 +1205,216 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stand_sales_applications: {
+        Row: {
+          access_token_hash: string
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          offer: Json | null
+          offer_submitted_at: string | null
+          paid_at: string | null
+          payment_amount_cents: number | null
+          payment_reference: string | null
+          phone: string
+          portal_user_id: string | null
+          stage: string
+          stand_inventory_id: string
+          stand_number: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_hash: string
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          offer?: Json | null
+          offer_submitted_at?: string | null
+          paid_at?: string | null
+          payment_amount_cents?: number | null
+          payment_reference?: string | null
+          phone: string
+          portal_user_id?: string | null
+          stage?: string
+          stand_inventory_id: string
+          stand_number: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_hash?: string
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          offer?: Json | null
+          offer_submitted_at?: string | null
+          paid_at?: string | null
+          payment_amount_cents?: number | null
+          payment_reference?: string | null
+          phone?: string
+          portal_user_id?: string | null
+          stage?: string
+          stand_inventory_id?: string
+          stand_number?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_sales_applications_stand_inventory_id_fkey"
+            columns: ["stand_inventory_id"]
+            isOneToOne: false
+            referencedRelation: "stand_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stand_sales_applications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stand_sales_email_outbox: {
+        Row: {
+          application_id: string
+          created_at: string
+          html: string
+          id: string
+          status: string
+          subject: string
+          template: string
+          to_email: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          html: string
+          id?: string
+          status?: string
+          subject: string
+          template: string
+          to_email: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          html?: string
+          id?: string
+          status?: string
+          subject?: string
+          template?: string
+          to_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_sales_email_outbox_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "stand_sales_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stand_sales_payment_attempts: {
+        Row: {
+          amount_cents: number
+          application_id: string
+          card_status: number | null
+          created_at: string
+          dismissed_at: string | null
+          dismissed_by: string | null
+          merchant_reference: string
+          nonce: string
+          reference: string
+          stand_number: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          application_id: string
+          card_status?: number | null
+          created_at?: string
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          merchant_reference: string
+          nonce: string
+          reference: string
+          stand_number: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          application_id?: string
+          card_status?: number | null
+          created_at?: string
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          merchant_reference?: string
+          nonce?: string
+          reference?: string
+          stand_number?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_sales_payment_attempts_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "stand_sales_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stand_sales_payment_events: {
+        Row: {
+          amount_cents: number
+          application_id: string | null
+          created_at: string
+          outcome: string
+          reason: string | null
+          reference: string
+          source: string
+          stand_number: string
+        }
+        Insert: {
+          amount_cents: number
+          application_id?: string | null
+          created_at?: string
+          outcome: string
+          reason?: string | null
+          reference: string
+          source: string
+          stand_number: string
+        }
+        Update: {
+          amount_cents?: number
+          application_id?: string | null
+          created_at?: string
+          outcome?: string
+          reason?: string | null
+          reference?: string
+          source?: string
+          stand_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stand_sales_payment_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "stand_sales_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -1368,6 +1652,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_stand_sales_payment: {
+        Args: {
+          p_amount_cents: number
+          p_application_id: string
+          p_email_html: string
+          p_email_subject: string
+          p_email_to: string
+          p_merchant_reference: string
+          p_nonce: string
+          p_paid_at: string
+          p_reference: string
+          p_source: string
+          p_stand_number: string
+        }
+        Returns: string
+      }
       cleanup_expired_bypass_codes: { Args: never; Returns: undefined }
       cleanup_expired_email_otp_codes: { Args: never; Returns: undefined }
       cleanup_expired_password_reset_tokens: { Args: never; Returns: undefined }
