@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WizardFrame } from "@/components/stand-sales/WizardFrame";
-import { standSalesApi, type ApplicationView } from "@/lib/stand-sales/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { standSalesApi, type ApplicationView, type PaymentView } from "@/lib/stand-sales/api";
 import { formatMoney } from "@/lib/stand-sales/money";
 import { readStandSession } from "@/lib/stand-sales/session";
 
@@ -11,12 +12,19 @@ export default function StandWelcomePage() {
   const { standNumber = "" } = useParams();
   const session = readStandSession();
   const [application, setApplication] = useState<ApplicationView | null>(null);
+  const [secondCharge, setSecondCharge] = useState<PaymentView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const current = readStandSession();
     if (!current || current.standNumber !== standNumber) return;
-    standSalesApi.get(current.applicationId, current.accessToken).then((res) => setApplication(res.application)).catch((err) => setError(err instanceof Error ? err.message : "Could not load your payment."));
+    standSalesApi.get(current.applicationId, current.accessToken).then(async (res) => {
+      setApplication(res.application);
+      if (res.application.stage === "paid") {
+        const checked = await standSalesApi.checkPayment(current.applicationId, current.accessToken).catch(() => null);
+        if (checked?.result === "second_charge") setSecondCharge(checked);
+      }
+    }).catch((err) => setError(err instanceof Error ? err.message : "Could not load your payment."));
   }, [standNumber]);
 
   return (
@@ -38,6 +46,12 @@ export default function StandWelcomePage() {
             <div className="flex justify-between gap-4"><dt>Reference</dt><dd>{application.paymentReference}</dd></div>
             <div className="flex justify-between gap-4"><dt>Paid on</dt><dd>{application.paidAt?.slice(0, 10)}</dd></div>
           </dl>
+          {secondCharge && (
+            <Alert variant="destructive" className="mt-6 text-left" data-testid="welcome-second-charge">
+              <AlertTitle>{secondCharge.title}</AlertTitle>
+              <AlertDescription>{secondCharge.message}</AlertDescription>
+            </Alert>
+          )}
           <Button asChild className="mt-8 bg-sl-gold text-primary hover:bg-sl-gold/90">
             <Link to={`/stands/${standNumber}/portal`}>Set up your portal login</Link>
           </Button>

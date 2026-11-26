@@ -4,7 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { iveriConfigFromEnv } from "../_shared/iveri.ts";
-import { SalesError, checkCardPayments, handleGatewayReturn, startCardPayment } from "../_shared/stand-sales-service.ts";
+import { SalesError, checkCardPayments, handleGatewayReturn, requireBuyer, startCardPayment } from "../_shared/stand-sales-service.ts";
 import { corsHeaders, envGet, json } from "../_shared/stand-sales-http.ts";
 import { createSupabaseStore, lakecityTenantId } from "../_shared/stand-sales-store.ts";
 
@@ -26,6 +26,9 @@ serve(async (req) => {
     }
     if (body.action === "simulate") {
       if (!config.simulations) return json({ error: "Simulations are disabled.", code: "simulations_off" }, 403);
+      const buyer = await requireBuyer(store, String(body.applicationId ?? ""), String(body.accessToken ?? ""));
+      const owned = await store.getAttempt(String(body.reference ?? ""));
+      if (!owned || owned.applicationId !== buyer.id) return json({ error: "We couldn't find this payment.", code: "not_found" }, 404);
       const cardStatus = body.cardStatus === null || body.cardStatus === "null" ? null : Number(body.cardStatus);
       const amountCents = body.amountCents == null ? 225000 : Number(body.amountCents);
       const nonce = body.nonceMismatch ? "different-nonce" : undefined;

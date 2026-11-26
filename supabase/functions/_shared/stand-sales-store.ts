@@ -87,7 +87,7 @@ export function createSupabaseStore(db: Db, tenantId: string): SalesStore {
   return {
     async listStands() {
       const stands = await must(
-        await db.from("stand_inventory").select("id, stand_number, phase, land_use, area_sqm, status, wizard_sale_status").eq("tenant_id", tenantId),
+        await db.from("stand_inventory").select("id, stand_number, phase, land_use, area_sqm, status, wizard_sale_status").eq("tenant_id", tenantId).eq("campaign_stand", true),
         "list stands",
       );
       const paid = await must(

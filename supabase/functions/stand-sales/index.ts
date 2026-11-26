@@ -2,7 +2,8 @@
 // Does not send customer email or WhatsApp. Paynow is not used here.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { SalesError, createApplication, createPortalLogin, dismissForStaff, queueForStaff, sha256Hex, submitOffer } from "../_shared/stand-sales-service.ts";
+import { iveriConfigFromEnv } from "../_shared/iveri.ts";
+import { SalesError, createApplication, createPortalLogin, dismissForStaff, queueForStaff, recheckAttempt, sha256Hex, submitOffer } from "../_shared/stand-sales-service.ts";
 import { corsHeaders, envGet, json } from "../_shared/stand-sales-http.ts";
 import { createSupabaseStore, lakecityTenantId } from "../_shared/stand-sales-store.ts";
 
@@ -48,7 +49,12 @@ serve(async (req) => {
         const token = (req.headers.get("Authorization") || "").replace("Bearer ", "").trim();
         const { data } = await db.auth.getUser(token);
         if (!data.user) return json({ error: "Please sign in as LakeCity staff." }, 401);
-        if (body.action === "staff-dismiss") return json(await dismissForStaff(store, data.user.id, String(body.reference ?? "")));
+        if (body.action === "staff-dismiss") {
+          const config = iveriConfigFromEnv(envGet);
+          if ("disabled" in config) return json({ error: "Card payments are off, so this attempt cannot be re-checked before dismiss." }, 503);
+          const reference = String(body.reference ?? "");
+          return json(await dismissForStaff(store, data.user.id, reference, (row) => recheckAttempt(store, config, row)));
+        }
         return json({ rows: await queueForStaff(store, data.user.id) });
       }
       default:

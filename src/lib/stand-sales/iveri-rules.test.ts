@@ -17,7 +17,7 @@ import {
   type PaymentAttempt,
 } from "../../../supabase/functions/_shared/iveri.ts";
 import { buildResendRequest, renderStandSalesEmail, sendWithTransport } from "../../../supabase/functions/_shared/stand-sales-email.ts";
-import { sha256Hex, startCardPayment, type SalesStore } from "../../../supabase/functions/_shared/stand-sales-service.ts";
+import { dismissForStaff, sha256Hex, startCardPayment, type SalesStore } from "../../../supabase/functions/_shared/stand-sales-service.ts";
 
 const APP_ID = "00000000-0000-4000-8000-000000000001";
 const config: IveriConfig = {
@@ -357,5 +357,51 @@ describe("emails stay in tests and the outbox", () => {
     const sent: string[] = [];
     await sendWithTransport(email, { send: async (message) => { sent.push(message.to); } });
     expect(sent).toEqual(["tariro@example.com"]);
+  });
+});
+
+describe("staff dismiss re-checks the bank first", () => {
+  const attempt = {
+    reference: "LC3076-OLDER111",
+    applicationId: "app-1",
+    standNumber: "3076",
+    amountCents: 225000,
+    nonce: "n",
+    status: "declined" as const,
+    cardStatus: 4,
+    createdAt: "2026-11-25T10:00:00.000Z",
+    dismissedAt: null,
+  };
+
+  function store(row: PaymentAttempt = { ...attempt }) {
+    return {
+      isStaff: async () => true,
+      getAttempt: async () => row,
+      dismissAttempt: async () => ({ ...row, status: "dismissed" as const, dismissedAt: "2026-11-25T12:00:00.000Z" }),
+    } as unknown as SalesStore;
+  }
+
+  it("refuses to dismiss an attempt the bank has approved", async () => {
+    await expect(dismissForStaff(store(), "staff-1", attempt.reference, async () => ({
+      result: "approved",
+      cardStatus: 0,
+      title: "Payment approved",
+      message: "approved",
+      applicationId: "app-1",
+      reference: attempt.reference,
+      applied: "applied",
+      reason: null,
+    }))).rejects.toMatchObject({ code: "approved" });
+  });
+
+  it("dismisses a held payment without another bank call, which releases the 409", async () => {
+    let called = 0;
+    const held = { ...attempt, status: "error" as const, cardStatus: 0 };
+    const result = await dismissForStaff(store(held), "staff-1", held.reference, async () => {
+      called += 1;
+      throw new Error("should not recheck a held payment");
+    });
+    expect(called).toBe(0);
+    expect(result.status).toBe("dismissed");
   });
 });

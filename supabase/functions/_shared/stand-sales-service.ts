@@ -6,6 +6,7 @@ import { DUE_NOW_CENTS, VAT_NOTE, bandOf, priceBands, standPriceCents } from "./
 import {
   bracedApplicationId,
   buildLiteForm,
+  isHold,
   isStaffAttention,
   newMerchantReference,
   newNonce,
@@ -110,7 +111,7 @@ export function newAccessToken(): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function requireApp(store: SalesStore, applicationId: string, accessToken: string): Promise<SalesApplication> {
+export async function requireBuyer(store: SalesStore, applicationId: string, accessToken: string): Promise<SalesApplication> {
   const app = await store.getApplication(applicationId);
   const hash = await sha256Hex(accessToken);
   if (!app || hash !== app.accessTokenHash) throw new SalesError(403, "This application link is not valid.", "forbidden");
@@ -174,7 +175,7 @@ export async function startCardPayment(input: {
   fetchImpl?: typeof fetch;
   authoriseInfo?: (reference: string) => Promise<AuthoriseInfo>;
 }) {
-  const app = await requireApp(input.store, input.applicationId, input.accessToken);
+  const app = await requireBuyer(input.store, input.applicationId, input.accessToken);
   if (app.stage === "paid") throw new SalesError(409, "This application has already been paid.", "already_paid");
   if (!app.offer || app.stage !== "offer") throw new SalesError(409, "Complete the offer form first.", "offer_required");
   const stand = await input.store.standByNumber(app.standNumber);
@@ -219,7 +220,7 @@ export async function checkCardPayments(input: {
   fetchImpl?: typeof fetch;
   authoriseInfo?: (reference: string) => Promise<AuthoriseInfo>;
 }) {
-  const app = await requireApp(input.store, input.applicationId, input.accessToken);
+  const app = await requireBuyer(input.store, input.applicationId, input.accessToken);
   const attempts = await input.store.listAttempts(app.id);
   if (attempts.length === 0) throw new SalesError(404, "There is no card payment to check yet.", "no_attempt");
   const authorise = input.authoriseInfo ?? ((reference: string) => authoriseFromGateway(input.config, reference, input.fetchImpl ?? fetch));
@@ -312,7 +313,7 @@ export async function createApplication(store: SalesStore, input: { standNumber:
 }
 
 export async function submitOffer(store: SalesStore, input: { applicationId: string; accessToken: string; offer: Record<string, unknown> }) {
-  const app = await requireApp(store, input.applicationId, input.accessToken);
+  const app = await requireBuyer(store, input.applicationId, input.accessToken);
   if (app.stage === "paid") throw new SalesError(409, "The offer can no longer be changed.", "already_paid");
   const errors = validateOffer(input.offer, app.fullName);
   if (Object.keys(errors).length) throw new SalesError(400, Object.values(errors)[0], "invalid_offer");
@@ -332,7 +333,7 @@ export async function submitOffer(store: SalesStore, input: { applicationId: str
 }
 
 export async function createPortalLogin(store: SalesStore, input: { applicationId: string; accessToken: string; standNumber: string; password: string }) {
-  const app = await requireApp(store, input.applicationId, input.accessToken);
+  const app = await requireBuyer(store, input.applicationId, input.accessToken);
   if (app.stage !== "paid") throw new SalesError(409, "Your payment has not been confirmed yet.", "not_paid");
   if (input.standNumber.trim() !== app.standNumber) throw new SalesError(403, "The stand number does not match this application.", "stand_mismatch");
   if (input.password.length < 8) throw new SalesError(400, "Use a password of at least 8 characters.", "weak_password");
@@ -352,8 +353,33 @@ export async function createPortalLogin(store: SalesStore, input: { applicationI
   return { ok: true, already: false };
 }
 
-export async function dismissForStaff(store: SalesStore, staffUserId: string, reference: string) {
+export async function recheckAttempt(store: SalesStore, config: IveriConfig, attempt: PaymentAttempt) {
+  const app = await store.getApplication(attempt.applicationId);
+  if (!app) throw new SalesError(404, "That payment attempt cannot be dismissed.", "not_found");
+  const deps = withBuyerEmail(store, config, (reference) => authoriseFromGateway(config, reference, fetch), app);
+  return processIveriReturn(deps, { reference: attempt.reference });
+}
+
+export async function dismissForStaff(
+  store: SalesStore,
+  staffUserId: string,
+  reference: string,
+  recheck: (attempt: PaymentAttempt) => Promise<IveriReturnOutcome>,
+) {
   if (!(await store.isStaff(staffUserId))) throw new SalesError(403, "Staff access is required.", "not_staff");
+  const current = await store.getAttempt(reference);
+  if (!current || current.status === "approved" || current.dismissedAt) {
+    throw new SalesError(404, "That payment attempt cannot be dismissed.", "not_found");
+  }
+  if (!isHold(current)) {
+    const outcome = await recheck(current);
+    if (outcome.result === "approved" || outcome.result === "second_charge") {
+      throw new SalesError(409, "This attempt was approved by the bank and cannot be dismissed.", "approved");
+    }
+    if (outcome.result === "pending") {
+      throw new SalesError(409, "We couldn't confirm this attempt with the bank, so it was left in place.", "recheck_unavailable");
+    }
+  }
   const attempt = await store.dismissAttempt(reference, staffUserId);
   if (!attempt) throw new SalesError(404, "That payment attempt cannot be dismissed.", "not_found");
   return { ok: true, reference: attempt.reference, status: attempt.status };
@@ -370,7 +396,7 @@ export function decorateStands(rows: Array<{ standNumber: string; phase: string 
   return rows.map((row) => {
     const priceCents = row.sizeSqm && row.sizeSqm > 0 ? standPriceCents(row.sizeSqm) : null;
     const official = (row.status ?? "").trim().toLowerCase();
-    const marketable = official === "" || official === "available";
+    const marketable = official === "available";
     const wizardFree = !row.wizardSaleStatus || row.wizardSaleStatus === "available";
     return {
       standNumber: row.standNumber,
