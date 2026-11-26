@@ -399,24 +399,6 @@ alter table public.stand_sales_payment_attempts enable row level security;
 alter table public.stand_sales_payment_events enable row level security;
 alter table public.stand_sales_email_outbox enable row level security;
 
-drop policy if exists "staff read campaign stands" on public.stand_inventory;
-do $$
-begin
-  if to_regprocedure('public.is_internal_user(uuid)') is not null then
-    execute $policy$
-      create policy "staff read campaign stands"
-      on public.stand_inventory for select to authenticated
-      using (public.is_internal_user(auth.uid()) and campaign_stand = true)
-    $policy$;
-  else
-    execute $policy$
-      create policy "staff read campaign stands"
-      on public.stand_inventory for select to authenticated
-      using (false)
-    $policy$;
-  end if;
-end $$;
-
 drop policy if exists "staff read stand sales applications" on public.stand_sales_applications;
 do $$
 begin

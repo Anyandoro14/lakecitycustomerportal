@@ -17,7 +17,7 @@ const migration83000 = path.join(repoRoot, "supabase/migrations/20261125183000_s
 const migration83100 = path.join(repoRoot, "supabase/migrations/20261125183100_auth_hook_search_path.sql");
 const migration83200 = path.join(repoRoot, "supabase/migrations/20261125183200_campaign_stands.sql");
 
-const bootstrapSql = `
+const liveShapeBootstrapSql = `
 create extension if not exists pgcrypto;
 
 create schema if not exists auth;
@@ -72,6 +72,62 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 `;
 
+const repoReplayBootstrapSql = `
+create extension if not exists pgcrypto;
+
+create schema if not exists auth;
+
+create table if not exists auth.users (
+  id uuid primary key,
+  email text,
+  raw_app_meta_data jsonb
+);
+
+create table if not exists public.tenants (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  display_name text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+insert into public.tenants (slug, display_name, is_active)
+values ('lakecity', 'Lake City', true)
+on conflict (slug) do update
+  set display_name = excluded.display_name,
+      is_active = excluded.is_active;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  full_name text,
+  phone_number text,
+  stand_number text,
+  tenant_id uuid not null references public.tenants(id)
+);
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email)
+  values (new.id, new.email)
+  on conflict (id) do update
+    set email = excluded.email;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+`;
+
 function execPsql(connectionString: string, sql: string): string {
   return execFileSync(
     "psql",
@@ -95,26 +151,39 @@ function dbUrlFor(dbName: string): string {
   return parsed.toString();
 }
 
+function resetDb(dbName: string): string {
+  const dbUrl = dbUrlFor(dbName);
+  execPsql(adminUrl, `drop database if exists "${dbName}" with (force);`);
+  execPsql(adminUrl, `create database "${dbName}" template template0;`);
+  return dbUrl;
+}
+
+function applyReworkedMigrations(dbUrl: string) {
+  execPsqlFile(dbUrl, migration83000);
+  execPsqlFile(dbUrl, migration83100);
+  execPsqlFile(dbUrl, migration83200);
+}
+
 describe.skipIf(!runLocal)("stand-sales migrations on live-shape schema", () => {
   const dbName = `stand_sales_live_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-  const dbUrl = dbUrlFor(dbName);
+  const repoDbName = `stand_sales_repo_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const tmpDir = mkdtempSync(path.join(tmpdir(), "stand-sales-live-shape-"));
-  const bootstrapPath = path.join(tmpDir, "bootstrap.sql");
+  const liveBootstrapPath = path.join(tmpDir, "bootstrap-live-shape.sql");
+  const repoBootstrapPath = path.join(tmpDir, "bootstrap-repo-shape.sql");
 
   afterAll(() => {
     try {
       execPsql(adminUrl, `drop database if exists "${dbName}" with (force);`);
+      execPsql(adminUrl, `drop database if exists "${repoDbName}" with (force);`);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
   it("applies reworked migrations and preserves handle_new_user()", () => {
-    execPsql(adminUrl, `drop database if exists "${dbName}" with (force);`);
-    execPsql(adminUrl, `create database "${dbName}" template template0;`);
-
-    writeFileSync(bootstrapPath, bootstrapSql);
-    execPsqlFile(dbUrl, bootstrapPath);
+    const dbUrl = resetDb(dbName);
+    writeFileSync(liveBootstrapPath, liveShapeBootstrapSql);
+    execPsqlFile(dbUrl, liveBootstrapPath);
 
     const beforeDef = execPsql(dbUrl, "select pg_get_functiondef('public.handle_new_user()'::regprocedure);");
     const beforeTriggerFn = execPsql(
@@ -130,9 +199,8 @@ describe.skipIf(!runLocal)("stand-sales migrations on live-shape schema", () => 
           and not t.tgisinternal;`,
     );
 
-    execPsqlFile(dbUrl, migration83000);
-    execPsqlFile(dbUrl, migration83100);
-    execPsqlFile(dbUrl, migration83200);
+    applyReworkedMigrations(dbUrl);
+    applyReworkedMigrations(dbUrl);
 
     const afterDef = execPsql(dbUrl, "select pg_get_functiondef('public.handle_new_user()'::regprocedure);");
     const afterTriggerFn = execPsql(
@@ -158,12 +226,50 @@ describe.skipIf(!runLocal)("stand-sales migrations on live-shape schema", () => 
         order by column_name;`,
     );
 
+    const standPolicy = execPsql(
+      dbUrl,
+      `select policyname
+         from pg_policies
+        where schemaname = 'public'
+          and tablename = 'stand_inventory'
+          and policyname = 'staff read campaign stands';`,
+    );
+
     expect(beforeDef.trim()).toBe(afterDef.trim());
     expect(beforeTriggerFn.trim()).toBe("handle_new_user");
     expect(afterTriggerFn.trim()).toBe("handle_new_user");
+    expect(standPolicy.trim()).toBe("");
     expect(inventoryColumns).toContain("campaign_stand");
     expect(inventoryColumns).toContain("wizard_sale_status");
     expect(inventoryColumns).toContain("odoo_product_tmpl_id");
     expect(inventoryColumns).toContain("odoo_product_id");
+  }, 120000);
+
+  it("keeps legacy handle_new_user working on repo replay shape", () => {
+    const dbUrl = resetDb(repoDbName);
+    writeFileSync(repoBootstrapPath, repoReplayBootstrapSql);
+    execPsqlFile(dbUrl, repoBootstrapPath);
+
+    applyReworkedMigrations(dbUrl);
+
+    execPsql(
+      dbUrl,
+      "insert into auth.users (id, email, raw_app_meta_data) values ('00000000-0000-4000-8000-000000000001', 'buyer@example.com', '{}'::jsonb);",
+    );
+
+    const profileTenant = execPsql(
+      dbUrl,
+      `select p.tenant_id::text
+         from public.profiles p
+        where p.id = '00000000-0000-4000-8000-000000000001'::uuid
+        limit 1;`,
+    );
+    const lakecityTenant = execPsql(
+      dbUrl,
+      "select id::text from public.tenants where slug = 'lakecity' limit 1;",
+    );
+
+    expect(profileTenant.trim()).not.toBe("");
+    expect(profileTenant.trim()).toBe(lakecityTenant.trim());
   }, 120000);
 });
