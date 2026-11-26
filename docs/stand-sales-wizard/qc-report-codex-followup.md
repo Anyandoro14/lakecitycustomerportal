@@ -1,4 +1,4 @@
-# QC report: stand-sales wizard migrations follow-up (commit `dfbddfc`)
+# QC report: stand-sales wizard migrations follow-up
 
 Branch: `feat/stand-sales-wizard`. Scope: the live-shape rework of
 `20261125183000_stand_sales_wizard.sql`, `20261125183100_auth_hook_search_path.sql`,
@@ -6,97 +6,80 @@ Branch: `feat/stand-sales-wizard`. Scope: the live-shape rework of
 `docs/stand-sales-wizard/live-apply.sql`. No remote or live database was contacted; all DB checks ran
 against throwaway databases on the local Docker Supabase Postgres (`127.0.0.1:54322`) and were dropped.
 
-## Verdict: **FIX**
+## Round 2 (re-review after follow-up fixes)
 
-The migrations now apply cleanly and replay safely on the live shape, and they leave
-`handle_new_user()` and the `on_auth_user_created` trigger alone. Two things should be fixed before
-the migrations ship. First, fresh local replay can no longer create auth users, which breaks the
-wizard's portal-login step. Second, the migration adds a new `stand_inventory` read policy that
-bypasses tenant scoping.
+Reviewed state: the working tree on top of `c1cd6d7`. **The follow-up fixes are not committed yet**;
+`HEAD` still contains the round-1 migrations.
 
-## Findings
+### Verdict: **PASS** (conditional on how the fixes are committed)
 
-### 1. High: fresh repo replay can no longer create auth users (portal login breaks)
+All three round-1 problems are fixed and verified. No new correctness or safety problem was
+found in the migrations. The PASS holds on two conditions:
 
-`20261125183100` used to replace `public.handle_new_user()` so new profiles got the LakeCity
-`tenant_id`. The rework removed that replacement. In a fresh replay of the repo migrations,
-`profiles.tenant_id` is `NOT NULL` (`20260401000002_tenant_id_columns.sql:28`), and the original
-trigger (`20251118080444_...sql`) inserts only `(id, email)`. So every `auth.users` insert fails,
-including `createPortalUser` in `supabase/functions/_shared/stand-sales-store.ts:243`, which runs after
-a paid sale.
+- Commit the four reviewed files (the three migrations and the test), so that `HEAD` matches what
+  was reviewed.
+- Keep `supabase/functions/mcp/index.ts` out of that commit (see the blocking note below).
 
-Reproduced on a repo-shape scratch DB:
+### Round-1 findings: status
 
-- At HEAD, the `auth.users` insert fails with `null value in column "tenant_id" of relation "profiles" violates not-null constraint`.
-- With the parent commit's `20261125183100`, the same insert succeeds.
+| # | Round-1 finding | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | High: fresh repo replay could not create auth users | **Fixed** | `20261125183100` creates `default_lakecity_tenant_id()` and sets it as the `profiles.tenant_id` default, but only when that column exists. On a repo-shape DB, an `auth.users` insert now succeeds and the profile gets the LakeCity tenant. Re-applying the migration also succeeds. `handle_new_user()` is untouched. |
+| 2 | Medium: `"staff read campaign stands"` policy bypassed tenant isolation | **Fixed** | The policy was removed. Other-tenant staff now see 0 LakeCity rows, and the only policy left on `stand_inventory` is the original tenant-scoped `internal_tenant_select_stand_inventory`. |
+| 3 | Low: campaign flag update was not tenant-scoped | **Fixed** | The update is now scoped to the `lakecity` tenant. Another tenant's stand `3567` stays `campaign_stand=false`. |
+| 4 | Low: test coverage gap | **Mostly fixed** | The test now covers a double apply, policy absence, and a repo-replay auth-user insert with `profiles.tenant_id NOT NULL`. It still doesn't cover campaign scoping across tenants, and it remains opt-in (`RUN_LOCAL_DB_MIGRATION_TEST=1`), so CI doesn't run it. |
 
-The live shape is unaffected because it has no `profiles.tenant_id`. However, the migration header
-claims to support fresh local replay, and that path regressed.
+### New observations
 
-Suggested fix, which still leaves the auth trigger function alone: in a guarded `DO` block, only
-when `public.profiles.tenant_id` exists, give the column a default from a small
-`security definer` SQL function that returns the `lakecity` tenant id (subqueries aren't allowed
-directly in defaults). Another option is to re-introduce the `handle_new_user()` replacement, but
-only inside that same column-exists guard. Either way, add a repo-shape case to the migration test.
+- **Blocking for the commit (not a migration finding): `supabase/functions/mcp/index.ts` has an unrelated uncommitted change.** It looks like a regenerated Lovable MCP bundle. The diff:
+  - inlines a local env object (the `127.0.0.1:54321` Supabase URL, a demo anon key, and a `VITE_PAYMENTS_CLIENT_TOKEN: "live_..."` value);
+  - replaces `projectRef = "gumkxjeahojrcaqnosyz"` with `define_import_meta_env_default.VITE_SUPABASE_PROJECT_ID ?? "project-ref-unset"`. The inlined object has no `VITE_SUPABASE_PROJECT_ID`, so the project ref would resolve to `"project-ref-unset"`.
 
-### 2. Medium: the new `"staff read campaign stands"` policy bypasses tenant isolation
-
-`20261125183000` lines 402-418 add a permissive SELECT policy:
-`is_internal_user(auth.uid()) and campaign_stand = true`. It has no tenant predicate. Permissive
-policies are combined with OR, so on a database that already has
-`internal_tenant_select_stand_inventory` (tenant-scoped, from `20260512120001`), this widens access.
-
-Reproduced: an internal user of a second tenant, with that tenant in their JWT, could read all 38
-LakeCity campaign stands (`rows visible to other-tenant staff=38`). This policy is new in this pass;
-the parent commit had no policy on `stand_inventory`. Nothing in `src/` reads `campaign_stand`
-through the authenticated client, and the wizard reads it with the service role, so the policy
-looks unnecessary.
-
-Suggested fix: drop the policy, or add `and tenant_id = public.jwt_tenant_id()` when that function
-exists.
-
-### 3. Low: the campaign flag update is not tenant-scoped (pre-existing)
-
-`20261125183200` sets `campaign_stand = true` by `stand_number` alone, across every tenant. If
-another tenant ever has a matching stand number, it would be flagged. Combined with finding 2, that
-row would also become readable to internal staff in every tenant. Suggest adding
-`and tenant_id = (select id from public.tenants where slug = 'lakecity')`.
-
-### 4. Low: test coverage gap
-
-`migrations-live-shape.test.ts` covers only the live shape, with a single apply. It does not cover
-a second apply (idempotency), the repo-replay shape (which would have caught finding 1), or RLS.
-The test is opt-in (`RUN_LOCAL_DB_MIGRATION_TEST=1`), so CI never runs it.
-
-### 5. Info
-
-- **`status` casing change:** seed rows changed from `'Available'` to `'available'`. This is harmless, because `decorateStands` (`stand-sales-service.ts:398`) and `src/lib/stand-inventory.ts:19` both compare case-insensitively. Existing rows are still not overwritten (`on conflict do nothing`).
-- **`stand_inventory` created from scratch on live:** if the table is missing on live, it gets none of the `20260512120001` tenant policies, `stand_inventory_buyer`, or the `trg_stand_inventory_updated` trigger. That is acceptable for the wizard (service-role access, and the RPC sets `updated_at` itself), but staff UI that relies on those policies will see nothing.
-- **`20261125183100` on live:** if a live `handle_auth_login()` exists, the migration still alters it to pin `search_path = public`. Any unqualified reference to a non-`public` object in that live body would then break. This is low risk, but it is a live auth-path change; confirm the live function body before applying.
-- **Unknown `application_id` in the RPC:** `apply_stand_sales_payment` raises an FK error instead of returning `unmatched` when the application id is unknown. This is pre-existing and the function is unchanged in this pass. Callers always pass the attempt's own application id.
-- **Policy creation is idempotent:** policies are dropped and recreated, with a `using (false)` fallback when `is_internal_user(uuid)` is absent.
-- **Payment function permissions are intact:** `apply_stand_sales_payment` is still revoked from `public`/`anon`/`authenticated` and granted only to `service_role`, with `search_path` pinned.
-- **`live-apply.sql`:** applies all three migrations and their version rows in one transaction. It uses `\i`, so it must be run from the repository root, as its header says.
+  Committing it would break the deployed MCP's project ref and bake local and payment env values into source. Revert it, or leave it unstaged (`git checkout -- supabase/functions/mcp/index.ts`).
+- **Low: `public.default_lakecity_tenant_id()` is `SECURITY DEFINER` with the default PUBLIC execute grant.** Because it lives in `public`, PostgREST exposes it as an RPC, and anonymous callers could read the LakeCity tenant UUID. That value is not a secret, so the impact is minimal.
+  - Optional hardening: `revoke execute on function public.default_lakecity_tenant_id() from public, anon;` then `grant execute ... to authenticated, service_role;`.
+  - Keep execute for whichever roles insert into `profiles` without a `tenant_id`, because column defaults are evaluated as the inserting role. This is not blocking.
+- **Info: the `profiles.tenant_id` default is set unconditionally whenever the column exists.** On a database that already had a different default, the migration replaces it. Live has no such column and repo replay has no prior default, so this doesn't matter today.
+- **Info: the live shape is unchanged.** `default_lakecity_tenant_id()` is not created on the live shape (no `profiles.tenant_id`), so on live, `20261125183100` still only pins `search_path` on a pre-existing `handle_auth_login()`.
 
 ### iVeri TEST-only check: no violation
 
-None of the migrations enable payments. `iveriConfigFromEnv` still refuses anything other than
-`IVERI_ENVIRONMENT=test` and allows only the `portal.host.iveri.com` TEST hosts. Simulations stay
-behind `ALLOW_DEV_SIMULATIONS=true`. `.env.example` and `supabase/config.toml` keep iVeri off by
-default.
+No payment or iVeri code changed in this round. Payments stay off unless `IVERI_ENVIRONMENT=test`,
+only TEST hosts are allowed, and simulations require `ALLOW_DEV_SIMULATIONS=true`.
 
-## Checks run
+### Checks run (round 2)
 
 | Check | Result |
 | --- | --- |
-| `RUN_LOCAL_DB_MIGRATION_TEST=1 npx vitest run src/lib/stand-sales/migrations-live-shape.test.ts` | Pass |
-| `npx vitest run src/lib/stand-sales` | 16 passed, 2 skipped (env-gated) |
+| `RUN_LOCAL_DB_MIGRATION_TEST=1 npx vitest run src/lib/stand-sales/migrations-live-shape.test.ts` | 2/2 pass (live shape with double apply; repo replay auth insert) |
+| `npx vitest run src/lib/stand-sales` | 16 passed, 3 skipped (env-gated) |
 | `npx eslint src/lib/stand-sales/migrations-live-shape.test.ts` | Clean |
-| Live shape: `live-apply.sql` twice, then raw migrations a third time | All pass; 38 campaign rows; 3 version rows; no duplicate constraints; `auth.users` insert OK |
-| Repo replay shape (`profiles.tenant_id NOT NULL`), HEAD vs parent `20261125183100` | HEAD **fails** on `auth.users` insert; parent succeeds (finding 1) |
-| `handle_auth_login` `search_path` after migration | `search_path=public` (same as before) |
-| RLS: other-tenant internal user reads `stand_inventory` | 38 rows visible (finding 2) |
-| `apply_stand_sales_payment` body diff vs parent | Unchanged |
+| Live shape: `live-apply.sql` twice, then raw migrations a third time | All pass; 38 campaign rows; 3 version rows; 4 policies (no `stand_inventory` policy added); default function absent; `auth.users` insert OK |
+| Repo replay shape: `auth.users` insert, `20261125183100` re-apply, default and grants | Insert OK; re-apply OK; default `default_lakecity_tenant_id()`; profile tenant = LakeCity; function is `SECURITY DEFINER` with default PUBLIC execute |
+| RLS with a second tenant and internal user | 0 LakeCity rows visible; only `internal_tenant_select_stand_inventory` remains |
+| Campaign scoping with the same stand number in another tenant | Other tenant's row stays `campaign_stand=false` |
+| `git diff` review of the working tree | The three migrations and the test match the described fixes; unrelated `mcp/index.ts` change flagged |
 
-The scratch harness lives outside the repo at `/tmp/qc-stand-sales/run.sh`. It ran only against
+The scratch harness lives outside the repo at `/tmp/qc-stand-sales/run2.sh`. It ran only against
 the local Docker Postgres.
+
+---
+
+## Round 1 (commit `dfbddfc`): verdict FIX
+
+The round-1 findings are kept below for history; their status is in the table above.
+
+1. **High:** fresh repo replay could not create auth users. `20261125183100` had stopped replacing
+   `handle_new_user()`, `profiles.tenant_id` is `NOT NULL` in repo replay, and the legacy trigger
+   inserts only `(id, email)`. As a result, `createPortalUser`
+   (`supabase/functions/_shared/stand-sales-store.ts:243`) failed with a NOT NULL violation.
+2. **Medium:** the new `"staff read campaign stands"` permissive policy had no tenant predicate.
+   Another tenant's internal user could read all 38 LakeCity campaign stands.
+3. **Low:** `20261125183200` flagged campaign stands by `stand_number` across all tenants.
+4. **Low:** the test covered only the live shape with a single apply.
+5. **Info, still applicable:**
+   - The seed `status` changed from `'Available'` to `'available'`; this is harmless because the comparisons are case-insensitive.
+   - A `stand_inventory` created from scratch on live lacks the `20260512120001` tenant policies, `stand_inventory_buyer`, and the updated-at trigger.
+   - `20261125183100` alters a pre-existing live `handle_auth_login()` to pin its `search_path`; confirm that function's body before applying.
+   - `apply_stand_sales_payment` raises an FK error for an unknown application id. This is pre-existing and unchanged.
+   - `live-apply.sql` must be run from the repository root.
