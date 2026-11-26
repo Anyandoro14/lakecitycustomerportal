@@ -17,9 +17,11 @@ ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "tenants readable to all" ON public.tenants
   FOR SELECT USING (true);
 
-INSERT INTO public.tenants (slug, name, is_active)
-VALUES ('lakecity', 'Lake City', TRUE)
-ON CONFLICT (slug) DO NOTHING;
+-- The tenants table from 20260401000001 uses display_name. This migration used to
+-- assume a `name` column, which stops a fresh local database before later migrations run.
+INSERT INTO public.tenants (slug, display_name, is_active)
+SELECT 'lakecity', 'Lake City', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM public.tenants WHERE slug = 'lakecity');
 
 -- 2. jwt_tenant_id() helper
 CREATE OR REPLACE FUNCTION public.jwt_tenant_id()
@@ -69,8 +71,16 @@ CREATE INDEX IF NOT EXISTS idx_stand_portal_settings_enrolled
 
 ALTER TABLE public.stand_portal_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "tenant_isolation" ON public.stand_portal_settings
-  USING (tenant_id = public.jwt_tenant_id());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'stand_portal_settings' AND policyname = 'tenant_isolation'
+  ) THEN
+    CREATE POLICY "tenant_isolation" ON public.stand_portal_settings
+      USING (tenant_id = public.jwt_tenant_id());
+  END IF;
+END $$;
 
 -- 4. Grandfather all existing profile stands as enrolled
 INSERT INTO public.stand_portal_settings (tenant_id, stand_number, portal_enrolled, synced_at)
