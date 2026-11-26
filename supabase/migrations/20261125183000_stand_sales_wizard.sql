@@ -1,11 +1,81 @@
--- Stand sales wizard tables.
--- NOT applied to the live project (gumkxjeahojrcaqnosyz). Local Supabase only until Alex says otherwise.
--- Reconciles with the existing public.stand_inventory register: does not recreate it, does not
--- overwrite a stand that is already there, and keeps the official status text. Wizard sale state
--- lives in wizard_sale_status plus the stand_sales_* tables below.
+-- Stand sales wizard schema.
+-- Idempotent and self-sufficient for both:
+-- 1) fresh local replay from repo migrations, and
+-- 2) live-shape databases that never ran stand_inventory migrations.
+
+create table if not exists public.stand_inventory (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  stand_number text not null,
+  land_use text,
+  area_sqm numeric(14, 2),
+  phase text,
+  rights text,
+  status text,
+  purchase_price numeric(18, 2),
+  agreement_requested text,
+  agreement_signed_warwickshire text,
+  agreement_signed_by_client text,
+  odoo_product_tmpl_id integer,
+  odoo_product_id integer,
+  odoo_synced_at timestamptz,
+  wizard_sale_status text,
+  campaign_stand boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 alter table public.stand_inventory
-  add column if not exists wizard_sale_status text;
+  add column if not exists tenant_id uuid references public.tenants(id) on delete cascade,
+  add column if not exists stand_number text,
+  add column if not exists land_use text,
+  add column if not exists area_sqm numeric(14, 2),
+  add column if not exists phase text,
+  add column if not exists rights text,
+  add column if not exists status text,
+  add column if not exists purchase_price numeric(18, 2),
+  add column if not exists agreement_requested text,
+  add column if not exists agreement_signed_warwickshire text,
+  add column if not exists agreement_signed_by_client text,
+  add column if not exists odoo_product_tmpl_id integer,
+  add column if not exists odoo_product_id integer,
+  add column if not exists odoo_synced_at timestamptz,
+  add column if not exists wizard_sale_status text,
+  add column if not exists campaign_stand boolean,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+update public.stand_inventory
+   set campaign_stand = false
+ where campaign_stand is null;
+
+alter table public.stand_inventory
+  alter column campaign_stand set default false,
+  alter column campaign_stand set not null;
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_inventory_tenant_stand_unique'
+       and conrelid = 'public.stand_inventory'::regclass
+  ) then
+    alter table public.stand_inventory
+      add constraint stand_inventory_tenant_stand_unique unique (tenant_id, stand_number);
+  end if;
+
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_inventory_stand_number_trimmed'
+       and conrelid = 'public.stand_inventory'::regclass
+  ) then
+    alter table public.stand_inventory
+      add constraint stand_inventory_stand_number_trimmed
+      check (stand_number = trim(stand_number) and stand_number <> '');
+  end if;
+end $$;
 
 alter table public.stand_inventory
   drop constraint if exists stand_inventory_wizard_sale_status_check;
@@ -14,8 +84,34 @@ alter table public.stand_inventory
   add constraint stand_inventory_wizard_sale_status_check
   check (wizard_sale_status is null or wizard_sale_status in ('available', 'paid', 'signed'));
 
-insert into public.stand_inventory (tenant_id, stand_number, phase, land_use, area_sqm, status)
-select t.id, v.stand_number, v.phase, v.land_use, v.area_sqm, 'Available'
+create index if not exists idx_stand_inventory_tenant
+  on public.stand_inventory (tenant_id);
+
+create index if not exists idx_stand_inventory_tenant_stand
+  on public.stand_inventory (tenant_id, stand_number);
+
+create index if not exists idx_stand_inventory_campaign_status
+  on public.stand_inventory (tenant_id, campaign_stand, status);
+
+insert into public.stand_inventory (
+  tenant_id,
+  stand_number,
+  phase,
+  land_use,
+  area_sqm,
+  status,
+  wizard_sale_status,
+  campaign_stand
+)
+select
+  t.id,
+  v.stand_number,
+  v.phase,
+  v.land_use,
+  v.area_sqm,
+  'available',
+  'available',
+  true
 from public.tenants t
 join (values
   ('3567', 'M', 'Residential', 1200),
@@ -66,7 +162,7 @@ create table if not exists public.stand_sales_applications (
   stand_inventory_id uuid not null references public.stand_inventory(id),
   stand_number text not null,
   access_token_hash text not null,
-  stage text not null default 'contact' check (stage in ('contact', 'offer', 'paid')),
+  stage text not null default 'contact',
   full_name text not null,
   email text not null,
   phone text not null,
@@ -77,9 +173,51 @@ create table if not exists public.stand_sales_applications (
   payment_amount_cents integer,
   portal_user_id uuid,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint stand_sales_amount_fixed check (payment_amount_cents is null or payment_amount_cents = 225000)
+  updated_at timestamptz not null default now()
 );
+
+alter table public.stand_sales_applications
+  add column if not exists tenant_id uuid references public.tenants(id),
+  add column if not exists stand_inventory_id uuid references public.stand_inventory(id),
+  add column if not exists stand_number text,
+  add column if not exists access_token_hash text,
+  add column if not exists stage text,
+  add column if not exists full_name text,
+  add column if not exists email text,
+  add column if not exists phone text,
+  add column if not exists offer jsonb,
+  add column if not exists offer_submitted_at timestamptz,
+  add column if not exists paid_at timestamptz,
+  add column if not exists payment_reference text,
+  add column if not exists payment_amount_cents integer,
+  add column if not exists portal_user_id uuid,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_stage_check'
+       and conrelid = 'public.stand_sales_applications'::regclass
+  ) then
+    alter table public.stand_sales_applications
+      add constraint stand_sales_stage_check
+      check (stage in ('contact', 'offer', 'paid'));
+  end if;
+
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_amount_fixed'
+       and conrelid = 'public.stand_sales_applications'::regclass
+  ) then
+    alter table public.stand_sales_applications
+      add constraint stand_sales_amount_fixed
+      check (payment_amount_cents is null or payment_amount_cents = 225000);
+  end if;
+end $$;
 
 create index if not exists stand_sales_applications_stand_idx
   on public.stand_sales_applications (tenant_id, stand_number, stage);
@@ -92,18 +230,65 @@ create table if not exists public.stand_sales_payment_attempts (
   reference text primary key,
   application_id uuid not null references public.stand_sales_applications(id) on delete cascade,
   stand_number text not null,
-  amount_cents integer not null check (amount_cents = 225000),
+  amount_cents integer not null,
   nonce text not null,
   merchant_reference text not null,
-  status text not null default 'started'
-    check (status in ('started', 'approved', 'declined', 'cancelled', 'retry_later', 'pending', 'error', 'dismissed')),
+  status text not null default 'started',
   card_status integer,
   dismissed_at timestamptz,
   dismissed_by uuid,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint stand_sales_attempt_merchant_ref check (merchant_reference = reference)
+  updated_at timestamptz not null default now()
 );
+
+alter table public.stand_sales_payment_attempts
+  add column if not exists application_id uuid references public.stand_sales_applications(id) on delete cascade,
+  add column if not exists stand_number text,
+  add column if not exists amount_cents integer,
+  add column if not exists nonce text,
+  add column if not exists merchant_reference text,
+  add column if not exists status text,
+  add column if not exists card_status integer,
+  add column if not exists dismissed_at timestamptz,
+  add column if not exists dismissed_by uuid,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_attempt_amount_check'
+       and conrelid = 'public.stand_sales_payment_attempts'::regclass
+  ) then
+    alter table public.stand_sales_payment_attempts
+      add constraint stand_sales_attempt_amount_check
+      check (amount_cents = 225000);
+  end if;
+
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_attempt_status_check'
+       and conrelid = 'public.stand_sales_payment_attempts'::regclass
+  ) then
+    alter table public.stand_sales_payment_attempts
+      add constraint stand_sales_attempt_status_check
+      check (status in ('started', 'approved', 'declined', 'cancelled', 'retry_later', 'pending', 'error', 'dismissed'));
+  end if;
+
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_attempt_merchant_ref'
+       and conrelid = 'public.stand_sales_payment_attempts'::regclass
+  ) then
+    alter table public.stand_sales_payment_attempts
+      add constraint stand_sales_attempt_merchant_ref
+      check (merchant_reference = reference);
+  end if;
+end $$;
 
 create index if not exists stand_sales_attempts_app_idx
   on public.stand_sales_payment_attempts (application_id, created_at);
@@ -113,11 +298,45 @@ create table if not exists public.stand_sales_payment_events (
   stand_number text not null,
   application_id uuid references public.stand_sales_applications(id) on delete set null,
   amount_cents integer not null,
-  source text not null check (source in ('iveri', 'mock-iveri')),
-  outcome text not null check (outcome in ('applied', 'rejected', 'unmatched')),
+  source text not null,
+  outcome text not null,
   reason text,
   created_at timestamptz not null default now()
 );
+
+alter table public.stand_sales_payment_events
+  add column if not exists stand_number text,
+  add column if not exists application_id uuid references public.stand_sales_applications(id) on delete set null,
+  add column if not exists amount_cents integer,
+  add column if not exists source text,
+  add column if not exists outcome text,
+  add column if not exists reason text,
+  add column if not exists created_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_events_source_check'
+       and conrelid = 'public.stand_sales_payment_events'::regclass
+  ) then
+    alter table public.stand_sales_payment_events
+      add constraint stand_sales_events_source_check
+      check (source in ('iveri', 'mock-iveri'));
+  end if;
+
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_events_outcome_check'
+       and conrelid = 'public.stand_sales_payment_events'::regclass
+  ) then
+    alter table public.stand_sales_payment_events
+      add constraint stand_sales_events_outcome_check
+      check (outcome in ('applied', 'rejected', 'unmatched'));
+  end if;
+end $$;
 
 create table if not exists public.stand_sales_email_outbox (
   id uuid primary key default gen_random_uuid(),
@@ -126,44 +345,149 @@ create table if not exists public.stand_sales_email_outbox (
   to_email text not null,
   subject text not null,
   html text not null,
-  status text not null default 'queued_dev_only' check (status in ('queued_dev_only')),
+  status text not null default 'queued_dev_only',
   created_at timestamptz not null default now()
 );
+
+alter table public.stand_sales_email_outbox
+  add column if not exists application_id uuid references public.stand_sales_applications(id) on delete cascade,
+  add column if not exists template text,
+  add column if not exists to_email text,
+  add column if not exists subject text,
+  add column if not exists html text,
+  add column if not exists status text,
+  add column if not exists created_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'stand_sales_email_status_check'
+       and conrelid = 'public.stand_sales_email_outbox'::regclass
+  ) then
+    alter table public.stand_sales_email_outbox
+      add constraint stand_sales_email_status_check
+      check (status in ('queued_dev_only'));
+  end if;
+end $$;
+
+create or replace function public.stand_sales_touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 
 drop trigger if exists trg_stand_sales_applications_updated on public.stand_sales_applications;
 create trigger trg_stand_sales_applications_updated
   before update on public.stand_sales_applications
-  for each row execute function public.handle_updated_at();
+  for each row execute function public.stand_sales_touch_updated_at();
 
 drop trigger if exists trg_stand_sales_attempts_updated on public.stand_sales_payment_attempts;
 create trigger trg_stand_sales_attempts_updated
   before update on public.stand_sales_payment_attempts
-  for each row execute function public.handle_updated_at();
+  for each row execute function public.stand_sales_touch_updated_at();
 
+alter table public.stand_inventory enable row level security;
 alter table public.stand_sales_applications enable row level security;
 alter table public.stand_sales_payment_attempts enable row level security;
 alter table public.stand_sales_payment_events enable row level security;
 alter table public.stand_sales_email_outbox enable row level security;
 
+drop policy if exists "staff read campaign stands" on public.stand_inventory;
+do $$
+begin
+  if to_regprocedure('public.is_internal_user(uuid)') is not null then
+    execute $policy$
+      create policy "staff read campaign stands"
+      on public.stand_inventory for select to authenticated
+      using (public.is_internal_user(auth.uid()) and campaign_stand = true)
+    $policy$;
+  else
+    execute $policy$
+      create policy "staff read campaign stands"
+      on public.stand_inventory for select to authenticated
+      using (false)
+    $policy$;
+  end if;
+end $$;
+
 drop policy if exists "staff read stand sales applications" on public.stand_sales_applications;
-create policy "staff read stand sales applications"
-  on public.stand_sales_applications for select to authenticated
-  using (public.is_internal_user(auth.uid()));
+do $$
+begin
+  if to_regprocedure('public.is_internal_user(uuid)') is not null then
+    execute $policy$
+      create policy "staff read stand sales applications"
+      on public.stand_sales_applications for select to authenticated
+      using (public.is_internal_user(auth.uid()))
+    $policy$;
+  else
+    execute $policy$
+      create policy "staff read stand sales applications"
+      on public.stand_sales_applications for select to authenticated
+      using (false)
+    $policy$;
+  end if;
+end $$;
 
 drop policy if exists "staff read stand sales attempts" on public.stand_sales_payment_attempts;
-create policy "staff read stand sales attempts"
-  on public.stand_sales_payment_attempts for select to authenticated
-  using (public.is_internal_user(auth.uid()));
+do $$
+begin
+  if to_regprocedure('public.is_internal_user(uuid)') is not null then
+    execute $policy$
+      create policy "staff read stand sales attempts"
+      on public.stand_sales_payment_attempts for select to authenticated
+      using (public.is_internal_user(auth.uid()))
+    $policy$;
+  else
+    execute $policy$
+      create policy "staff read stand sales attempts"
+      on public.stand_sales_payment_attempts for select to authenticated
+      using (false)
+    $policy$;
+  end if;
+end $$;
 
 drop policy if exists "staff read stand sales events" on public.stand_sales_payment_events;
-create policy "staff read stand sales events"
-  on public.stand_sales_payment_events for select to authenticated
-  using (public.is_internal_user(auth.uid()));
+do $$
+begin
+  if to_regprocedure('public.is_internal_user(uuid)') is not null then
+    execute $policy$
+      create policy "staff read stand sales events"
+      on public.stand_sales_payment_events for select to authenticated
+      using (public.is_internal_user(auth.uid()))
+    $policy$;
+  else
+    execute $policy$
+      create policy "staff read stand sales events"
+      on public.stand_sales_payment_events for select to authenticated
+      using (false)
+    $policy$;
+  end if;
+end $$;
 
 drop policy if exists "staff read stand sales outbox" on public.stand_sales_email_outbox;
-create policy "staff read stand sales outbox"
-  on public.stand_sales_email_outbox for select to authenticated
-  using (public.is_internal_user(auth.uid()));
+do $$
+begin
+  if to_regprocedure('public.is_internal_user(uuid)') is not null then
+    execute $policy$
+      create policy "staff read stand sales outbox"
+      on public.stand_sales_email_outbox for select to authenticated
+      using (public.is_internal_user(auth.uid()))
+    $policy$;
+  else
+    execute $policy$
+      create policy "staff read stand sales outbox"
+      on public.stand_sales_email_outbox for select to authenticated
+      using (false)
+    $policy$;
+  end if;
+end $$;
 
 -- Confirms a card payment only when the caller (the edge function, after AuthoriseInfo) passes
 -- amount 225000, the merchant reference and the LC_Nonce stored on the attempt. Idempotent per reference.
