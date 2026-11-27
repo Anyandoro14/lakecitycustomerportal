@@ -15,6 +15,13 @@ import {
   maskPhoneNumber,
   getPasswordErrors
 } from "@/lib/validation";
+import {
+  customerFacingEdgeMessage,
+  logEdgeFunctionFailure,
+  readEdgeFunctionError,
+  registrationFailureDescription,
+  withStableErrorCode,
+} from "@/lib/signup/edge-function-error";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
 
@@ -22,6 +29,11 @@ type SignUpStep = 'validate' | 'register' | 'verify' | 'success';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_RESEND_ATTEMPTS = 3;
+
+function messageFromUnknown(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+}
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -140,19 +152,12 @@ const SignUp = () => {
 
       // Handle edge function errors (including 409 for existing accounts)
       if (error) {
-        // Try to parse the error context for structured response
-        const errorContext = error.context;
-        let errorBody: any = null;
-        
-        try {
-          // The edge function returns JSON even on error responses
-          if (errorContext && typeof errorContext.json === 'function') {
-            errorBody = await errorContext.json();
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
-        
+        const { body } = await readEdgeFunctionError(error);
+        const errorBody =
+          body && typeof body === "object" && !Array.isArray(body)
+            ? (body as { existingAccount?: unknown })
+            : null;
+
         // Check if this is an "account already exists" error
         if (errorBody?.existingAccount) {
           toast({
@@ -162,9 +167,16 @@ const SignUp = () => {
           });
           return;
         }
-        
-        // Use the structured error message if available
-        const errorMessage = errorBody?.error || error.message || "Verification failed";
+
+        const serverMessage = customerFacingEdgeMessage(body);
+        const errorMessage = withStableErrorCode(
+          serverMessage ||
+            (error instanceof Error ? error.message : "") ||
+            "Verification failed",
+          body && typeof body === "object" && !Array.isArray(body)
+            ? (body as { code?: unknown }).code
+            : undefined,
+        );
         throw new Error(errorMessage);
       }
       
@@ -177,7 +189,7 @@ const SignUp = () => {
           });
           return;
         }
-        throw new Error(data.error || "Validation failed");
+        throw new Error(withStableErrorCode(data.error || "Validation failed", data.code));
       }
 
       setValidatedData({
@@ -201,10 +213,10 @@ const SignUp = () => {
         description: "Your stand number and phone have been verified. Please create your password.",
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Verification failed",
-        description: error.message,
+        description: messageFromUnknown(error, "Verification failed"),
         variant: "destructive",
       });
     } finally {
@@ -263,10 +275,15 @@ const SignUp = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        const details = await readEdgeFunctionError(error);
+        logEdgeFunctionFailure("register-user", details);
+        const fallback = error instanceof Error ? error.message : undefined;
+        throw new Error(registrationFailureDescription(details, fallback));
+      }
       
       if (!data.success) {
-        throw new Error(data.error || "Registration failed");
+        throw new Error(withStableErrorCode(data.error || "Registration failed", data.code));
       }
 
       setRegistrationData({
@@ -292,10 +309,10 @@ const SignUp = () => {
         navigate("/login");
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Registration failed",
-        description: error.message,
+        description: messageFromUnknown(error, "Edge Function returned a non-2xx status code"),
         variant: "destructive",
       });
     } finally {
@@ -353,10 +370,10 @@ const SignUp = () => {
         navigate("/index", { replace: true });
       }, 2000);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Verification failed",
-        description: error.message,
+        description: messageFromUnknown(error, "Verification failed"),
         variant: "destructive",
       });
     } finally {
@@ -388,7 +405,7 @@ const SignUp = () => {
         title: "New code sent",
         description: `Verification code sent to ${registrationData.phoneNumber}`,
       });
-    } catch (error: any) {
+    } catch (_error: unknown) {
       toast({
         title: "Failed to resend",
         description: "Please wait a moment and try again.",
