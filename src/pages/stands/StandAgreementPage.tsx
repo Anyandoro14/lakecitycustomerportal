@@ -125,9 +125,9 @@ export default function StandAgreementPage() {
 
   return (
     <WizardFrame step={5}>
-      <div className="mx-auto max-w-lg space-y-4" data-testid="agreement-page">
-        <Link to={`/stands/${standNumber}/portal`} className="text-sm text-muted-foreground">Back to portal</Link>
-        <h1 className="font-display text-3xl">Agreement of Sale</h1>
+      <div className="mx-auto max-w-xl space-y-6" data-testid="agreement-page">
+        <Link to={`/stands/${standNumber}/portal`} className="inline-flex min-h-11 items-center text-sm text-muted-foreground">Back to portal</Link>
+        <h1 className="font-display text-[2rem] leading-tight text-primary md:text-5xl">Agreement of Sale</h1>
         {loading && <Loader2 className="h-6 w-6 animate-spin" aria-label="Loading agreement" />}
         {!loading && error && !application && <p>{error}</p>}
         {!loading && !application && !error && <p>Open this page from your welcome step on this browser, or sign in on the portal step.</p>}
@@ -136,9 +136,10 @@ export default function StandAgreementPage() {
         )}
         {application && application.stage === "paid" && (
           <Card>
-            <CardContent className="space-y-4 p-6">
+            <CardContent className="space-y-5 p-6 md:p-10">
               <Badge data-testid="agreement-status">{AGREEMENT_STATUS_LABEL[status]}</Badge>
               <p>Stand {application.standNumber}. {application.fullName}</p>
+              <p className="font-body text-sm leading-relaxed text-muted-foreground">When you are ready, we will prepare your Agreement of Sale for signature in ink.</p>
               {status === "action_required" && application.actionMessage && <p>{application.actionMessage}</p>}
               <div data-testid="agreement-review">
                 <a className="underline" href={application.documentUrl || AGREEMENT_REVIEW_DOCUMENT_URL} target="_blank" rel="noreferrer">
@@ -158,17 +159,17 @@ export default function StandAgreementPage() {
               {error && <p className="text-sm text-destructive">{error}</p>}
               {requestOpen && (
                 <form onSubmit={requestAgreement} className="space-y-4" data-testid="agreement-choice">
-                  <label className="flex items-start gap-2 text-sm">
-                    <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
+                  <label className="flex min-h-11 items-start gap-3 py-1 font-body text-sm leading-6">
+                    <input className="mt-1" type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
                     I have reviewed the placeholder and I want LakeCity to prepare my Agreement of Sale.
                   </label>
                   <fieldset className="space-y-2">
-                    <legend className="text-sm font-medium">How will you sign?</legend>
-                    <label className="flex items-center gap-2 text-sm">
+                    <legend className="font-body text-sm font-medium">How will you sign?</legend>
+                    <label className="flex min-h-11 items-center gap-3 font-body text-sm">
                       <input type="radio" name="method" checked={method === "courier"} onChange={() => setMethod("courier")} />
                       Courier the pack to me
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
+                    <label className="flex min-h-11 items-center gap-3 font-body text-sm">
                       <input type="radio" name="method" checked={method === "in_person"} onChange={() => setMethod("in_person")} />
                       Sign in person
                     </label>
@@ -209,8 +210,8 @@ export default function StandAgreementPage() {
                   <p className="text-sm">Sign the original with both witnesses. {agreementReturnLine()}</p>
                   <Field id="return-courier" label="Courier you used" value={returnCourier} onChange={setReturnCourier} />
                   <Field id="return-tracking" label="Return tracking number" value={returnTracking} onChange={setReturnTracking} />
-                  <label className="flex items-start gap-2 text-sm">
-                    <input type="checkbox" checked={witnessesConfirmed} onChange={(event) => setWitnessesConfirmed(event.target.checked)} />
+                  <label className="flex min-h-11 items-start gap-3 py-1 font-body text-sm leading-6">
+                    <input className="mt-1" type="checkbox" checked={witnessesConfirmed} onChange={(event) => setWitnessesConfirmed(event.target.checked)} />
                     Both witnesses signed the original.
                   </label>
                   <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Submit return tracking"}</Button>

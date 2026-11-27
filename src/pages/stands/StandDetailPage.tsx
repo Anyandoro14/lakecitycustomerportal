@@ -9,6 +9,7 @@ import { WizardFrame } from "@/components/stand-sales/WizardFrame";
 import { standSalesApi, type StandCard } from "@/lib/stand-sales/api";
 import { formatMoney } from "@/lib/stand-sales/money";
 import { readStandSession, saveStandSession } from "@/lib/stand-sales/session";
+import spineRoad from "@/assets/stand-sales/luxe/hero-real-spine-road-aerial.jpg";
 
 export default function StandDetailPage() {
   const { standNumber = "" } = useParams();
@@ -82,26 +83,33 @@ export default function StandDetailPage() {
 
   return (
     <WizardFrame step={step === "contact" ? 0 : 1}>
-      <Link to="/stands" className="text-sm text-muted-foreground">All stands</Link>
+      <Link to="/stands" className="inline-flex min-h-11 items-center text-sm text-muted-foreground">All stands</Link>
       {loading && <Loader2 className="mt-8 h-6 w-6 animate-spin" aria-label="Loading stand" />}
       {error && <p className="mt-8">{error}</p>}
       {!loading && !error && !stand && <p className="mt-8">Stand {standNumber} was not found.</p>}
       {stand && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <Card data-testid="stand-summary">
-            <CardContent className="space-y-2 p-6">
-              <h1 className="font-display text-3xl">Stand {stand.standNumber}</h1>
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
+          <Card className="overflow-hidden border-border/80" data-testid="stand-summary">
+            <div className="relative h-56 md:h-72">
+              <img src={spineRoad} alt="LakeCity aerial, February 2026" className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[hsl(160_70%_8%/0.92)] via-[hsl(160_70%_10%/0.55)] to-[hsl(160_45%_14%/0.28)]" />
+              <div className="absolute inset-x-0 bottom-0 p-6">
+                <p className="text-[0.68rem] tracking-[0.16em] text-[hsl(40_33%_96%)]" aria-hidden="true">LakeCity aerial, February 2026</p>
+                <h1 className="mt-2 font-display text-[2rem] leading-tight text-[hsl(40_33%_96%)] md:text-5xl">Stand {stand.standNumber}</h1>
+              </div>
+            </div>
+            <CardContent className="space-y-2 p-6 md:p-8">
               <p className="text-sm text-muted-foreground">{stand.sizeSqm} m² · Phase {stand.phase} · Range {stand.band}</p>
-              <p className="text-lg">{formatMoney(stand.priceCents)} incl. 15.5% VAT</p>
+              <p className="text-lg text-foreground">{formatMoney(stand.priceCents)} incl. 15.5% VAT</p>
               <p>Down payment $1,750.00</p>
               <p>Legal fee $500.00</p>
-              <p className="font-medium">Due now $2,250.00</p>
+              <p className="font-medium text-primary">Due now $2,250.00</p>
               {!stand.available && <p>This stand is reserved.</p>}
             </CardContent>
           </Card>
           {stand.available && step === "contact" && (
-            <form onSubmit={saveContact} className="space-y-4" data-testid="contact-form">
-              <h2 className="font-display text-2xl">Your details</h2>
+            <form onSubmit={saveContact} className="space-y-5 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8" data-testid="contact-form">
+              <h2 className="font-display text-[2rem] leading-tight text-primary">Your details, to begin.</h2>
               <Field id="fullName" label="Full name" value={fullName} onChange={setFullName} />
               <Field id="email" label="Email" value={email} onChange={setEmail} type="email" />
               <Field id="phone" label="Phone" value={phone} onChange={setPhone} type="tel" />
@@ -110,14 +118,15 @@ export default function StandDetailPage() {
             </form>
           )}
           {stand.available && step === "offer" && (
-            <form onSubmit={saveOffer} className="space-y-4" data-testid="offer-form">
-              <h2 className="font-display text-2xl">Reserve stand {stand.standNumber}</h2>
-              <p className="text-sm text-muted-foreground">Purchaser {fullName}. Your details reserve this stand while you complete your initial payment. Your formal Agreement of Sale is completed after payment.</p>
+            <form onSubmit={saveOffer} className="space-y-5 rounded-2xl border border-border/80 bg-card p-6 shadow-sm md:p-8" data-testid="offer-form">
+              <h2 className="font-display text-[2rem] leading-tight text-primary">Reserve stand {stand.standNumber}</h2>
+              <p className="font-body text-sm leading-relaxed text-foreground">We will hold this stand in your name while you complete the initial payment.</p>
+              <p className="font-body text-sm leading-relaxed text-muted-foreground">Purchaser {fullName}. Your details reserve this stand while you complete your initial payment. Your formal Agreement of Sale is completed after payment.</p>
               <Field id="idNumber" label="ID or passport number" value={idNumber} onChange={setIdNumber} />
               <Field id="address" label="Address" value={address} onChange={setAddress} />
               <Field id="nextOfKin" label="Next of kin" value={nextOfKin} onChange={setNextOfKin} />
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
+              <label className="flex min-h-11 items-start gap-3 py-1 font-body text-sm leading-6">
+                <input className="mt-1" type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
                 I confirm these reservation details and accept the initial payment of USD 2,250.00 (USD 1,750.00 down payment and USD 500.00 legal fee).
               </label>
               <Field id="signature" label="Type your full name to confirm your reservation" value={signature} onChange={setSignature} />

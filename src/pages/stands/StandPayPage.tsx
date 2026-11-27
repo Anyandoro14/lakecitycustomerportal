@@ -107,8 +107,10 @@ export default function StandPayPage() {
   if (!session || session.standNumber !== standNumber) {
     return (
       <WizardFrame step={2}>
-        <p>Start from the stand page so we can match this payment to your reservation.</p>
-        <ButtonLink standNumber={standNumber} />
+        <div className="mx-auto max-w-xl space-y-4">
+          <p>Start from the stand page so we can match this payment to your reservation.</p>
+          <ButtonLink standNumber={standNumber} />
+        </div>
       </WizardFrame>
     );
   }
@@ -116,6 +118,7 @@ export default function StandPayPage() {
   return (
     <WizardFrame step={2}>
       {loading ? <Loader2 className="h-6 w-6 animate-spin" aria-label="Loading payment" /> : (
+        <div className="mx-auto max-w-2xl rounded-2xl border border-border/80 bg-card px-5 py-8 shadow-sm md:px-10 md:py-12">
         <PaymentPanel
           standNumber={standNumber}
           amountCents={DUE}
@@ -130,6 +133,7 @@ export default function StandPayPage() {
           onClear={() => { setResult(null); setError(null); }}
           onSimulate={(status) => void simulate(status)}
         />
+        </div>
       )}
     </WizardFrame>
   );
