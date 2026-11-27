@@ -112,9 +112,10 @@ export default function StandPortalPage() {
 
   return (
     <WizardFrame step={4}>
-      <div className="mx-auto max-w-lg space-y-4" data-testid="buyer-portal">
+      <div className="mx-auto max-w-xl space-y-6" data-testid="buyer-portal">
+        <p className="text-sm leading-relaxed text-muted-foreground">Your stand is reserved. The portal is next.</p>
         <p className="text-sm text-muted-foreground">Signed up · Paid · Portal. Sign in with your stand number, password, and a verification code.</p>
-        <h1 className="font-display text-3xl">Your LakeCity portal</h1>
+        <h1 className="font-display text-[2rem] leading-tight text-primary md:text-5xl">Your LakeCity portal</h1>
         {application?.stage === "paid" && <p>Stand {application.standNumber} · {application.fullName}</p>}
         {info && <p className="text-sm">{info}</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}

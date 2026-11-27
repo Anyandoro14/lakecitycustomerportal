@@ -1,0 +1,71 @@
+/* Boutique palette for the stand-sales wizard only. Other routes keep the existing tokens. */
+
+body.stand-sales-luxe-active,
+.stand-sales-luxe {
+  --background: 40 30% 97%;
+  --foreground: 220 15% 20%;
+  --card: 40 45% 99%;
+  --card-foreground: 220 15% 20%;
+  --popover: 40 45% 99%;
+  --popover-foreground: 220 15% 20%;
+  --primary: 160 70% 15%;
+  --primary-foreground: 40 33% 96%;
+  --secondary: 160 24% 28%;
+  --secondary-foreground: 40 33% 96%;
+  --muted: 40 22% 93%;
+  /* Darker green, about 7.7:1 on the cream ground. */
+  --muted-foreground: 164 18% 28%;
+  --accent: 40 24% 93%;
+  --accent-foreground: 160 70% 15%;
+  --border: 36 16% 86%;
+  --input: 36 14% 82%;
+  --ring: 160 70% 15%;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.stand-sales-luxe .shadow-sm {
+  box-shadow: 0 18px 40px -30px hsl(160 30% 12% / 0.28);
+}
+
+.stand-sales-luxe input:not([type="checkbox"]):not([type="radio"]),
+.stand-sales-luxe select,
+.stand-sales-luxe :is(button, a.inline-flex) {
+  min-height: 44px;
+}
+
+.stand-sales-luxe input[type="checkbox"],
+.stand-sales-luxe input[type="radio"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: hsl(160 70% 15%);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stand-sales-step {
+    animation: stand-sales-arrive 360ms ease-out both;
+  }
+}
+
+@keyframes stand-sales-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stand-sales-luxe video {
+    display: none !important;
+  }
+
+  body.stand-sales-luxe-active *:not(.animate-spin) {
+    animation: none !important;
+    transition: none !important;
+  }
+}
