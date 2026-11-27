@@ -11,7 +11,7 @@ export const HARE_OFFICE_HOURS_CONFIRMED = false;
 export const STAFF_AGREEMENT_NOTIFY_EMAIL = "accounts@lakecity.co.zw";
 
 /** Review placeholder only. Not a customer Agreement of Sale PDF. */
-export const AGREEMENT_REVIEW_DOCUMENT_URL = "https://example.invalid/lakecity/agreement-of-sale-placeholder";
+export const AGREEMENT_REVIEW_DOCUMENT_URL = "https://example.invalid/agreement-of-sale-placeholder";
 
 export const AGREEMENT_REVIEW_DOCUMENT_LABEL = "Agreement of Sale (placeholder for review)";
 

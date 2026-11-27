@@ -29,7 +29,7 @@ const paid = {
   paymentAmountCents: 225000,
   portalReady: false,
   agreementStatus: "pending_review" as const,
-  documentUrl: "https://example.invalid/lakecity/agreement-of-sale-placeholder",
+  documentUrl: "https://example.invalid/agreement-of-sale-placeholder",
   documentLabel: "Agreement of Sale (placeholder for review)",
   inPersonLine: "Sign in person at the LakeCity Harare office at 128 Domboshava Road, Borrowdale, Harare",
 };
