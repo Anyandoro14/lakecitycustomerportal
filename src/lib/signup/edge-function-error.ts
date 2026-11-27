@@ -129,18 +129,35 @@ export function customerFacingEdgeMessage(body: unknown): string | null {
   return message;
 }
 
+/** Stable signup `code` values are short snake_case tokens. Anything else stays off the toast. */
+export function stableErrorCode(body: unknown): string | null {
+  if (!isRecord(body) || typeof body.code !== "string") return null;
+  const code = body.code.trim();
+  if (!/^[a-z][a-z0-9_]{0,63}$/.test(code)) return null;
+  return code;
+}
+
+export function withStableErrorCode(message: string, code: unknown): string {
+  if (typeof code !== "string" || !/^[a-z][a-z0-9_]{0,63}$/.test(code)) return message;
+  if (message.includes(`(${code})`)) return message;
+  return `${message} (${code})`;
+}
+
 export function registrationFailureDescription(
   info: EdgeFunctionErrorInfo,
   fallbackMessage?: string,
 ): string {
-  if (info.status === 429) return REGISTRATION_RATE_LIMIT_MESSAGE;
+  const code = stableErrorCode(info.body);
+  const withCode = (message: string) => withStableErrorCode(message, code);
+
+  if (info.status === 429) return withCode(REGISTRATION_RATE_LIMIT_MESSAGE);
 
   const serverMessage = customerFacingEdgeMessage(info.body);
-  if (serverMessage) return serverMessage;
+  if (serverMessage) return withCode(serverMessage);
 
   const fallback = typeof fallbackMessage === "string" ? fallbackMessage.trim() : "";
-  if (fallback && customerFacingEdgeMessage(fallback)) return fallback;
-  return GENERIC_EDGE_FUNCTION_MESSAGE;
+  if (fallback && customerFacingEdgeMessage(fallback)) return withCode(fallback);
+  return withCode(GENERIC_EDGE_FUNCTION_MESSAGE);
 }
 
 function redactString(value: string): string {

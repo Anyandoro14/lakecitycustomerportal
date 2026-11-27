@@ -20,6 +20,7 @@ import {
   logEdgeFunctionFailure,
   readEdgeFunctionError,
   registrationFailureDescription,
+  withStableErrorCode,
 } from "@/lib/signup/edge-function-error";
 import logoWordmark from "@/assets/logo-wordmark-sea-green.svg";
 import logoMonogram from "@/assets/logo-monogram-sea-green.svg";
@@ -168,10 +169,14 @@ const SignUp = () => {
         }
 
         const serverMessage = customerFacingEdgeMessage(body);
-        const errorMessage =
+        const errorMessage = withStableErrorCode(
           serverMessage ||
-          (error instanceof Error ? error.message : "") ||
-          "Verification failed";
+            (error instanceof Error ? error.message : "") ||
+            "Verification failed",
+          body && typeof body === "object" && !Array.isArray(body)
+            ? (body as { code?: unknown }).code
+            : undefined,
+        );
         throw new Error(errorMessage);
       }
       
@@ -184,7 +189,7 @@ const SignUp = () => {
           });
           return;
         }
-        throw new Error(data.error || "Validation failed");
+        throw new Error(withStableErrorCode(data.error || "Validation failed", data.code));
       }
 
       setValidatedData({
@@ -278,7 +283,7 @@ const SignUp = () => {
       }
       
       if (!data.success) {
-        throw new Error(data.error || "Registration failed");
+        throw new Error(withStableErrorCode(data.error || "Registration failed", data.code));
       }
 
       setRegistrationData({

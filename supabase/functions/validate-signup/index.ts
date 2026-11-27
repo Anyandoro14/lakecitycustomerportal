@@ -8,6 +8,17 @@ import {
 } from "../_shared/collection-schedule-sheets.ts";
 import { checkStandPortalEnrolled, resolveTenantId } from "../_shared/portal-enrollment.ts";
 import { ensureStandContractFromSchedule, enrolViaOdooThenRecheck } from "../_shared/odoo-ensure-contract.ts";
+import {
+  emailDomain,
+  isMissingColumnError,
+  logSignupEvent,
+  normalizeSignupPhone,
+  phoneLast4,
+  readSignupText,
+  signupPhonesMatch,
+  signupStandsMatch,
+  type SignupLogEvent,
+} from "../_shared/signup-flow.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -59,41 +70,64 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { standNumber, phoneNumber }: ValidateSignupRequest = await req.json();
+  const requestId = crypto.randomUUID();
+  let step = "parse";
+  let standForLog: string | null = null;
+  let phoneForLog: string | null = null;
+  let emailForLog: string | null = null;
 
-    // Input validation
-    if (!standNumber || typeof standNumber !== 'string') {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Stand number is required" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+  const respond = (
+    code: string,
+    body: Record<string, unknown>,
+    errorMessage?: string | null,
+  ) => {
+    const event: SignupLogEvent = {
+      fn: "validate-signup",
+      request_id: requestId,
+      step,
+      stand_number: standForLog,
+      phone_last4: phoneLast4(phoneForLog),
+      email_domain: emailDomain(emailForLog),
+      status: 200,
+      error_code: code,
+      error_message: errorMessage ?? (typeof body.error === "string" ? body.error : null),
+    };
+    logSignupEvent(event);
+    return new Response(JSON.stringify({ ...body, code, request_id: requestId }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  };
+
+  try {
+    const parsed = await req.json() as ValidateSignupRequest;
+    const standNumber = readSignupText(parsed.standNumber);
+    const phoneNumber = readSignupText(parsed.phoneNumber);
+
+    // Input validation. These stay HTTP 200 so the existing client reads data.valid.
+    step = "validate_input";
+    if (!standNumber) {
+      return respond("stand_required", { valid: false, error: "Stand number is required" });
     }
 
-    if (!phoneNumber || typeof phoneNumber !== 'string') {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Phone number is required" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    if (!phoneNumber) {
+      return respond("phone_required", { valid: false, error: "Phone number is required" });
     }
 
     const trimmedStand = standNumber.trim();
     const trimmedPhone = phoneNumber.trim();
+    standForLog = trimmedStand;
+    phoneForLog = trimmedPhone;
 
     if (trimmedStand.length === 0 || trimmedStand.length > 50) {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Invalid stand number format" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("stand_invalid", { valid: false, error: "Invalid stand number format" });
     }
 
-    // Validate phone number format
+    // Validate phone number format. Unchanged: a local 0-prefix is rejected here
+    // and only the sheet value is rewritten to +263 during comparison below.
     const phoneRegex = /^\+?[1-9]\d{6,14}$/;
     if (!phoneRegex.test(trimmedPhone)) {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Invalid phone number format" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("phone_invalid", { valid: false, error: "Invalid phone number format" });
     }
 
     // Rate limiting check
@@ -104,11 +138,8 @@ const handler = async (req: Request): Promise<Response> => {
     if (attemptRecord) {
       if (Date.now() - attemptRecord.firstAttempt < RATE_LIMIT_WINDOW_MS) {
         if (attemptRecord.count >= RATE_LIMIT_MAX_ATTEMPTS) {
-          console.log(`Rate limit exceeded for phone: ${trimmedPhone}`);
-          return new Response(
-            JSON.stringify({ valid: false, error: "Too many attempts. Please try again later." }),
-            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-          );
+          step = "rate_limit";
+          return respond("rate_limited", { valid: false, error: "Too many attempts. Please try again later." });
         }
         attemptRecord.count++;
       } else {
@@ -118,7 +149,7 @@ const handler = async (req: Request): Promise<Response> => {
       validationAttempts.set(rateLimitKey, { count: 1, firstAttempt: Date.now() });
     }
 
-    console.log(`Validating signup for stand: ${trimmedStand}, phone: ${trimmedPhone}`);
+    step = "profile_lookup";
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -130,32 +161,48 @@ const handler = async (req: Request): Promise<Response> => {
     let tenantId: string | undefined;
     if (authHeader?.startsWith('Bearer ')) {
       const userToken = authHeader.replace('Bearer ', '');
-      const { data: { user } } = await supabaseAdmin.auth.getUser(userToken);
-      tenantId = user?.app_metadata?.tenant_id;
+      const { data: userData } = await supabaseAdmin.auth.getUser(userToken);
+      const appMeta = userData?.user?.app_metadata as { tenant_id?: string } | undefined;
+      tenantId = appMeta?.tenant_id;
     }
 
-    // Check if an account already exists for this stand number
-    let existingProfileQuery = supabaseAdmin
-      .from('profiles')
-      .select('id, stand_number')
-      .eq('stand_number', trimmedStand);
-    if (tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
-    const { data: existingProfile } = await existingProfileQuery.maybeSingle();
+    // Check if an account already exists for this stand number.
+    // Live profiles has no tenant_id. Filtering on it errors; retry without it.
+    const loadExistingProfile = (withTenant: boolean) => {
+      let existingProfileQuery = supabaseAdmin
+        .from('profiles')
+        .select('id, stand_number')
+        .eq('stand_number', trimmedStand);
+      if (withTenant && tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
+      return existingProfileQuery.maybeSingle();
+    };
+    let existingProfileResult = await loadExistingProfile(Boolean(tenantId));
+    if (tenantId && isMissingColumnError(existingProfileResult.error)) {
+      logSignupEvent({
+        fn: "validate-signup",
+        request_id: requestId,
+        step: "profile_lookup_skip_tenant",
+        stand_number: standForLog,
+        phone_last4: phoneLast4(phoneForLog),
+        email_domain: null,
+        status: 0,
+        error_code: "schema_mismatch",
+        error_message: existingProfileResult.error?.message ?? "profiles.tenant_id is not available",
+      });
+      existingProfileResult = await loadExistingProfile(false);
+    }
+    const existingProfile = existingProfileResult.data;
 
     if (existingProfile) {
-      console.log(`Account already exists for stand number: ${trimmedStand}`);
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: "An account already exists for this stand number. Please login instead.",
-          existingAccount: true
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("stand_already_registered", {
+        valid: false,
+        error: "An account already exists for this stand number. Please login instead.",
+        existingAccount: true,
+      });
     }
 
     // Look up stand number and phone in Google Sheets
-    console.log(`Looking up stand number in Google Sheets: ${trimmedStand}`);
+    step = "sheets";
 
     const keyString = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY') || '';
     const clientEmail = Deno.env.get('GOOGLE_CLIENT_EMAIL') || '';
@@ -173,11 +220,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!serviceAccountEmail) {
-      console.error('Google service account not configured');
-      return new Response(
-        JSON.stringify({ valid: false, error: "Server configuration error" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("sheets_not_configured", { valid: false, error: "Server configuration error" });
     }
 
     // Create JWT for Google Sheets API
@@ -229,21 +272,14 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (!tokenResponse.ok) {
-      console.error('Failed to get Google access token');
-      return new Response(
-        JSON.stringify({ valid: false, error: "Failed to verify credentials" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("sheets_auth_failed", { valid: false, error: "Failed to verify credentials" }, `google token status ${tokenResponse.status}`);
     }
 
     const { access_token } = await tokenResponse.json();
 
     const spreadsheetId = Deno.env.get('SPREADSHEET_ID');
     if (!spreadsheetId) {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Server configuration error" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("sheets_not_configured", { valid: false, error: "Server configuration error" }, "SPREADSHEET_ID is not set");
     }
 
     // Fetch spreadsheet data
@@ -253,11 +289,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (!metadataResponse.ok) {
-      console.error('Failed to fetch spreadsheet metadata');
-      return new Response(
-        JSON.stringify({ valid: false, error: "Failed to verify credentials" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("sheets_auth_failed", { valid: false, error: "Failed to verify credentials" }, `spreadsheet metadata status ${metadataResponse.status}`);
     }
 
     const metadata = await metadataResponse.json();
@@ -291,7 +323,7 @@ const handler = async (req: Request): Promise<Response> => {
       const hit = part.slice(1).find(
         (row: string[]) =>
           row[standNumIndex] &&
-          row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase(),
+          signupStandsMatch(row[standNumIndex].toString(), trimmedStand),
       );
       if (hit) {
         rows = part;
@@ -302,12 +334,10 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (rows.length === 0) {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Stand number not found in our records" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("stand_not_found", { valid: false, error: "Stand number not found in our records" });
     }
 
+    step = "enrollment";
     let portalCheck = await checkStandPortalEnrolled(supabaseAdmin, tenantId, trimmedStand);
     if (!portalCheck.enrolled) {
       // Account creation: ask Odoo to build the loan contract from the stand's
@@ -318,15 +348,22 @@ const handler = async (req: Request): Promise<Response> => {
           () => ensureStandContractFromSchedule(supabaseAdmin, tid, trimmedStand, trimmedPhone),
           async () => (await checkStandPortalEnrolled(supabaseAdmin, tid, trimmedStand)).enrolled,
         );
-        console.log(`Odoo ensure-from-schedule stand=${trimmedStand} outcome=${ensure.outcome} enrolled=${enrolled}`);
+        logSignupEvent({
+          fn: "validate-signup",
+          request_id: requestId,
+          step: "enrollment_odoo",
+          stand_number: standForLog,
+          phone_last4: phoneLast4(phoneForLog),
+          email_domain: null,
+          status: 200,
+          error_code: enrolled ? null : "not_enrolled",
+          error_message: `outcome=${ensure.outcome}`,
+        });
         if (enrolled) portalCheck = { enrolled: true };
       }
     }
     if (!portalCheck.enrolled) {
-      return new Response(
-        JSON.stringify({ valid: false, error: portalCheck.message }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
-      );
+      return respond("not_enrolled", { valid: false, error: portalCheck.message });
     }
 
     // Find column indices
@@ -339,93 +376,62 @@ const handler = async (req: Request): Promise<Response> => {
     const emailIndex = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('email'));
 
     if (standNumIndex === -1) {
-      console.error('Could not find stand number column in spreadsheet');
-      return new Response(
-        JSON.stringify({ valid: false, error: "Data source configuration error" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("sheets_shape_invalid", { valid: false, error: "Data source configuration error" });
     }
 
     // Find the row with matching stand number (case-insensitive)
-    const customerRow = rows.slice(1).find((row: string[]) => 
-      row[standNumIndex] && row[standNumIndex].toString().trim().toLowerCase() === trimmedStand.toLowerCase()
+    step = "phone_match";
+    const customerRow = rows.slice(1).find((row: string[]) =>
+      row[standNumIndex] && signupStandsMatch(row[standNumIndex].toString(), trimmedStand)
     );
 
     if (!customerRow) {
-      console.log(`Stand number not found: ${trimmedStand}`);
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: "Stand number not found in our records. Please contact support." 
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return respond("stand_not_found", {
+        valid: false,
+        error: "Stand number not found in our records. Please contact support.",
+      });
     }
 
     // Check phone column if it exists (optional validation)
     // IMPORTANT: Store the authoritative sheet phone number to return later
     let authoritativePhoneNumber = trimmedPhone; // Default to user input if no sheet phone
-    
+
     if (phoneIndex !== -1) {
-      // Normalize phone numbers for comparison
-      const normalizePhone = (phone: string): string => {
-        return phone.replace(/[\s\-\(\)]/g, '').replace(/^0/, '+263');
-      };
-
       const sheetPhone = customerRow[phoneIndex]?.toString().trim() || '';
-      
+
       if (sheetPhone) {
-        const normalizedSheetPhone = normalizePhone(sheetPhone);
-        const normalizedInputPhone = normalizePhone(trimmedPhone);
-
-        // Check if phone numbers match (allowing for some flexibility in input)
-        const phonesMatch = normalizedSheetPhone.endsWith(normalizedInputPhone.slice(-9)) || 
-                           normalizedInputPhone.endsWith(normalizedSheetPhone.slice(-9)) ||
-                           normalizedSheetPhone === normalizedInputPhone;
-
-        if (!phonesMatch) {
-          console.log(`Phone mismatch for stand ${trimmedStand}: sheet=${normalizedSheetPhone}, input=${normalizedInputPhone}`);
-          return new Response(
-            JSON.stringify({ 
-              valid: false, 
-              error: "The phone number does not match our records for this stand number. Please check and try again." 
-            }),
-            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-          );
+        if (!signupPhonesMatch(sheetPhone, trimmedPhone)) {
+          return respond("phone_mismatch", {
+            valid: false,
+            error: "The phone number does not match our records for this stand number. Please check and try again.",
+          }, `sheet_last4=${phoneLast4(sheetPhone) ?? "none"} input_last4=${phoneLast4(trimmedPhone) ?? "none"}`);
         }
-        
-        // CRITICAL FIX: Use the authoritative sheet phone number, not user input
-        // This prevents storing incorrectly formatted phone numbers in the profile
-        authoritativePhoneNumber = normalizedSheetPhone;
-        console.log(`Using authoritative sheet phone: ${authoritativePhoneNumber} (user entered: ${trimmedPhone})`);
+
+        // Use the authoritative sheet phone number, not user input.
+        // normalizeSignupPhone turns a leading 0 into +263 and strips spaces.
+        authoritativePhoneNumber = normalizeSignupPhone(sheetPhone);
+        phoneForLog = authoritativePhoneNumber;
       }
-    } else {
-      console.log('Phone column not found in spreadsheet - skipping phone validation');
     }
 
     // Get email if available (optional)
     const email = emailIndex !== -1 ? customerRow[emailIndex]?.toString().trim() : null;
+    emailForLog = email;
 
-    console.log(`Validation successful for stand: ${trimmedStand}, authoritative phone: ${authoritativePhoneNumber}`);
+    step = "done";
+    return respond("verified", {
+      valid: true,
+      standNumber: trimmedStand,
+      phoneNumber: authoritativePhoneNumber,
+      email: email || null,
+      paymentPlanMonths: matchedPlanMonths,
+      message: "Stand number and phone number verified successfully",
+    });
 
-    return new Response(
-      JSON.stringify({ 
-        valid: true,
-        standNumber: trimmedStand,
-        phoneNumber: authoritativePhoneNumber, // Return the authoritative sheet phone, not user input
-        email: email || null, // Pass email for account creation if available
-        paymentPlanMonths: matchedPlanMonths,
-        message: "Stand number and phone number verified successfully"
-      }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
-
-  } catch (error: any) {
-    console.error("Error in validate-signup function:", error);
-    return new Response(
-      JSON.stringify({ valid: false, error: "An unexpected error occurred" }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "An unexpected error occurred";
+    step = "unexpected";
+    return respond("unexpected", { valid: false, error: "An unexpected error occurred" }, message);
   }
 };
 
