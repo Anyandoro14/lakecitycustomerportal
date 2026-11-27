@@ -10,7 +10,6 @@ import { checkStandPortalEnrolled, resolveTenantId } from "../_shared/portal-enr
 import { ensureStandContractFromSchedule, enrolViaOdooThenRecheck } from "../_shared/odoo-ensure-contract.ts";
 import {
   emailDomain,
-  isMissingColumnError,
   logSignupEvent,
   normalizeSignupPhone,
   phoneLast4,
@@ -166,30 +165,17 @@ const handler = async (req: Request): Promise<Response> => {
       tenantId = appMeta?.tenant_id;
     }
 
-    // Check if an account already exists for this stand number.
-    // Live profiles has no tenant_id. Filtering on it errors; retry without it.
-    const loadExistingProfile = (withTenant: boolean) => {
-      let existingProfileQuery = supabaseAdmin
-        .from('profiles')
-        .select('id, stand_number')
-        .eq('stand_number', trimmedStand);
-      if (withTenant && tenantId) existingProfileQuery = existingProfileQuery.eq('tenant_id', tenantId);
-      return existingProfileQuery.maybeSingle();
-    };
-    let existingProfileResult = await loadExistingProfile(Boolean(tenantId));
-    if (tenantId && isMissingColumnError(existingProfileResult.error)) {
-      logSignupEvent({
-        fn: "validate-signup",
-        request_id: requestId,
-        step: "profile_lookup_skip_tenant",
-        stand_number: standForLog,
-        phone_last4: phoneLast4(phoneForLog),
-        email_domain: null,
-        status: 0,
-        error_code: "schema_mismatch",
-        error_message: existingProfileResult.error?.message ?? "profiles.tenant_id is not available",
-      });
-      existingProfileResult = await loadExistingProfile(false);
+    // Live profiles has no tenant_id. Select only columns that exist there.
+    const existingProfileResult = await supabaseAdmin
+      .from('profiles')
+      .select('id, stand_number')
+      .eq('stand_number', trimmedStand)
+      .maybeSingle();
+    if (existingProfileResult.error) {
+      return respond("profile_lookup_failed", {
+        valid: false,
+        error: "We couldn't check whether this stand already has an account. Please try again.",
+      }, existingProfileResult.error.message);
     }
     const existingProfile = existingProfileResult.data;
 

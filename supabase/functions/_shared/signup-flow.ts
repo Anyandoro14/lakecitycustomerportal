@@ -40,6 +40,34 @@ export function signupStandsMatch(left: string, right: string): boolean {
   return normalizeSignupStand(left).toLowerCase() === normalizeSignupStand(right).toLowerCase();
 }
 
+/**
+ * Columns present on live public.profiles that signup is allowed to write.
+ * Live has no tenant_id. payment_start_date is NOT NULL with a default, so it is omitted.
+ */
+export const LIVE_PROFILE_WRITE_COLUMNS = [
+  "id",
+  "email",
+  "phone_number",
+  "stand_number",
+  "payment_plan_months",
+] as const;
+
+export function liveProfileWrite(input: {
+  id: string;
+  email: string;
+  phoneNumber: string;
+  standNumber: string;
+  paymentPlanMonths: number;
+}): Record<(typeof LIVE_PROFILE_WRITE_COLUMNS)[number], string | number> {
+  return {
+    id: input.id,
+    email: input.email,
+    phone_number: input.phoneNumber,
+    stand_number: input.standNumber,
+    payment_plan_months: input.paymentPlanMonths,
+  };
+}
+
 export function signupAuthEmail(email: string | null | undefined, standNumber: string): string {
   const trimmed = (email ?? "").trim();
   if (trimmed.includes("@")) return trimmed.toLowerCase();

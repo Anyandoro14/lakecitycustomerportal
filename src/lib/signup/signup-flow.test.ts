@@ -1,8 +1,13 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { registrationFailureDescription } from "./edge-function-error";
 import {
+  LIVE_PROFILE_WRITE_COLUMNS,
   emailDomain,
   isMissingColumnError,
+  liveProfileWrite,
   mapAuthAdminCreateError,
   normalizeSignupPhone,
   phoneLast4,
@@ -12,6 +17,8 @@ import {
   signupPhonesMatch,
   signupStandsMatch,
 } from "../../../supabase/functions/_shared/signup-flow";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 describe("signup normalisation", () => {
   it("treats a local 0 prefix, spaces, and +263 as the same Zimbabwe number", () => {
@@ -37,6 +44,35 @@ describe("signup normalisation", () => {
     expect(signupAuthEmail(undefined, "272")).toBe("stand-272@lakecity.portal");
     expect(emailDomain("Owner@LakeCity.co.zw")).toBe("lakecity.co.zw");
     expect(phoneLast4("+263771234567")).toBe("4567");
+  });
+});
+
+describe("live profile write", () => {
+  it("upserts only columns that exist on live profiles", () => {
+    const row = liveProfileWrite({
+      id: "user-1",
+      email: "owner@lakecity.co.zw",
+      phoneNumber: "+263771234567",
+      standNumber: "272",
+      paymentPlanMonths: 36,
+    });
+    expect(Object.keys(row).sort()).toEqual([...LIVE_PROFILE_WRITE_COLUMNS].sort());
+    expect(row).not.toHaveProperty("tenant_id");
+    expect(row).not.toHaveProperty("payment_start_date");
+    console.log("profile write before", JSON.stringify({
+      op: "update",
+      columns: ["stand_number", "phone_number", "email", "payment_plan_months"],
+      filter: "id, and tenant_id when the JWT has one",
+      onError: "log and continue; no deleteUser",
+    }));
+    console.log("profile write after", JSON.stringify({ op: "upsert", onConflict: "id", row }));
+  });
+
+  it("does not delete the auth user or add an auth.users trigger", () => {
+    const source = readFileSync(path.join(repoRoot, "supabase/functions/register-user/index.ts"), "utf8");
+    expect(source).not.toMatch(/deleteUser/);
+    expect(source).not.toMatch(/\.eq\(["']tenant_id["']\)/);
+    expect(existsSync(path.join(repoRoot, "supabase/migrations/20261127134500_safe_auth_login_hook.sql"))).toBe(false);
   });
 });
 

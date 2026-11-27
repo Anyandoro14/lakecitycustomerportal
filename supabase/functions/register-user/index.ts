@@ -5,7 +5,7 @@ import { checkStandPortalEnrolled } from "../_shared/portal-enrollment.ts";
 import {
   SIGNUP_PASSWORD_PATTERN,
   emailDomain,
-  isMissingColumnError,
+  liveProfileWrite,
   logSignupEvent,
   mapAuthAdminCreateError,
   phoneLast4,
@@ -66,22 +66,11 @@ function twilioSummary(data: unknown): string | null {
 async function findProfile(
   supabase: { from: (table: string) => { select: (columns: string) => ProfileQuery } },
   match: { standNumber?: string; email?: string },
-  tenantId: string | undefined,
-): Promise<{ data: ProfileRow; error: QueryError; retriedWithoutTenant: boolean }> {
-  const run = (withTenant: boolean) => {
-    let query = supabase.from("profiles").select("id");
-    if (match.standNumber) query = query.eq("stand_number", match.standNumber);
-    if (match.email) query = query.eq("email", match.email);
-    if (withTenant && tenantId) query = query.eq("tenant_id", tenantId);
-    return query.maybeSingle();
-  };
-
-  const first = await run(Boolean(tenantId));
-  if (tenantId && isMissingColumnError(first.error)) {
-    const second = await run(false);
-    return { data: second.data, error: first.error ?? second.error, retriedWithoutTenant: true };
-  }
-  return { ...first, retriedWithoutTenant: false };
+): Promise<{ data: ProfileRow; error: QueryError }> {
+  let query = supabase.from("profiles").select("id");
+  if (match.standNumber) query = query.eq("stand_number", match.standNumber);
+  if (match.email) query = query.eq("email", match.email);
+  return query.maybeSingle();
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -190,19 +179,12 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     step = "profile_lookup";
-    const existingProfile = await findProfile(supabaseAdmin, { standNumber: trimmedStand }, tenantId);
-    if (existingProfile.retriedWithoutTenant) {
-      logSignupEvent({
-        fn: "register-user",
-        request_id: requestId,
-        step: "profile_lookup_skip_tenant",
-        stand_number: standForLog,
-        phone_last4: phoneLast4(phoneForLog),
-        email_domain: null,
-        status: 0,
-        error_code: "schema_mismatch",
-        error_message: existingProfile.error?.message ?? "profiles.tenant_id is not available",
-      });
+    const existingProfile = await findProfile(supabaseAdmin, { standNumber: trimmedStand });
+    if (existingProfile.error) {
+      return respond(500, "profile_lookup_failed", {
+        success: false,
+        error: "We couldn't check whether this stand already has an account. Please try again.",
+      }, existingProfile.error.message);
     }
 
     if (existingProfile.data) {
@@ -222,7 +204,13 @@ const handler = async (req: Request): Promise<Response> => {
     emailForLog = authEmail;
 
     step = "email_lookup";
-    const existingByEmail = await findProfile(supabaseAdmin, { email: authEmail }, tenantId);
+    const existingByEmail = await findProfile(supabaseAdmin, { email: authEmail });
+    if (existingByEmail.error) {
+      return respond(500, "profile_lookup_failed", {
+        success: false,
+        error: "We couldn't check whether this email is already in use. Please try again.",
+      }, existingByEmail.error.message);
+    }
     if (existingByEmail.data) {
       return respond(409, "email_already_registered", {
         success: false,
@@ -253,31 +241,24 @@ const handler = async (req: Request): Promise<Response> => {
     const userId = authData.user.id;
 
     step = "profile_update";
-    const profilePatch = {
-      stand_number: trimmedStand,
-      phone_number: trimmedPhone,
+    // handle_new_user() already inserted (id, email). Upsert the live columns only.
+    // Do not delete the auth user if this write fails: profiles.id cascades from auth.users,
+    // and deleting the user would hide the account that was just created.
+    const profileRow = liveProfileWrite({
+      id: userId,
       email: authEmail,
-      payment_plan_months: planMonths,
-    };
-    let profileUpdate = supabaseAdmin.from("profiles").update(profilePatch).eq("id", userId);
-    if (tenantId) profileUpdate = profileUpdate.eq("tenant_id", tenantId);
-    let { error: profileError } = await profileUpdate;
-    if (tenantId && isMissingColumnError(profileError)) {
-      const retry = await supabaseAdmin.from("profiles").update(profilePatch).eq("id", userId);
-      profileError = retry.error;
-    }
+      phoneNumber: trimmedPhone,
+      standNumber: trimmedStand,
+      paymentPlanMonths: planMonths,
+    });
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert(profileRow, { onConflict: "id" });
     if (profileError) {
-      logSignupEvent({
-        fn: "register-user",
-        request_id: requestId,
-        step: "profile_update",
-        stand_number: standForLog,
-        phone_last4: phoneLast4(phoneForLog),
-        email_domain: emailDomain(emailForLog),
-        status: 0,
-        error_code: profileError.code ?? "profile_update_failed",
-        error_message: profileError.message,
-      });
+      return respond(500, "profile_update_failed", {
+        success: false,
+        error: "Your account was created, but we couldn't save the stand details. Please try logging in.",
+      }, profileError.message);
     }
 
     step = "twilio";
