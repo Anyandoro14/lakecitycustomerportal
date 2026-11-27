@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo-wordmark-sea-green.svg";
 
-const STEPS = ["Stand", "Offer", "Pay", "Welcome", "Portal"];
+export const STEPS = ["Stand", "Reserve", "Pay", "Welcome", "Portal", "Agreement"];
 
 export function WizardFrame({ step, children }: { step: number; children: ReactNode }) {
   return (

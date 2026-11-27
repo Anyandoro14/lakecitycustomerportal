@@ -71,6 +71,7 @@ const StandPayPage = lazy(() => import("./pages/stands/StandPayPage"));
 const StandPayResultPage = lazy(() => import("./pages/stands/StandPayResultPage"));
 const StandWelcomePage = lazy(() => import("./pages/stands/StandWelcomePage"));
 const StandPortalPage = lazy(() => import("./pages/stands/StandPortalPage"));
+const StandAgreementPage = lazy(() => import("./pages/stands/StandAgreementPage"));
 const StandSalesDashboard = lazy(() => import("./pages/internal/StandSalesDashboard"));
 
 const queryClient = new QueryClient();
@@ -114,6 +115,7 @@ const App = () => (
                   <Route path="/stands/:standNumber/pay" element={<StandPayPage />} />
                   <Route path="/stands/:standNumber/welcome" element={<StandWelcomePage />} />
                   <Route path="/stands/:standNumber/portal" element={<StandPortalPage />} />
+                  <Route path="/stands/:standNumber/agreement" element={<StandAgreementPage />} />
                   <Route path="/internal/stand-sales" element={<StandSalesDashboard />} />
                   <Route path="/monthly-statements" element={<MonthlyStatements />} />
                   <Route path="/agreement-of-sale" element={<AgreementOfSaleDocuments />} />

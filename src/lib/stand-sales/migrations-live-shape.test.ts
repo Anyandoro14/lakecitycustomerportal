@@ -16,6 +16,7 @@ const repoRoot = path.resolve(thisDir, "../../../");
 const migration83000 = path.join(repoRoot, "supabase/migrations/20261125183000_stand_sales_wizard.sql");
 const migration83100 = path.join(repoRoot, "supabase/migrations/20261125183100_auth_hook_search_path.sql");
 const migration83200 = path.join(repoRoot, "supabase/migrations/20261125183200_campaign_stands.sql");
+const migrationAgreement = path.join(repoRoot, "supabase/migrations/20261127180100_stand_sales_agreement.sql");
 
 const liveShapeBootstrapSql = `
 create extension if not exists pgcrypto;
@@ -162,6 +163,7 @@ function applyReworkedMigrations(dbUrl: string) {
   execPsqlFile(dbUrl, migration83000);
   execPsqlFile(dbUrl, migration83100);
   execPsqlFile(dbUrl, migration83200);
+  execPsqlFile(dbUrl, migrationAgreement);
 }
 
 describe.skipIf(!runLocal)("stand-sales migrations on live-shape schema", () => {

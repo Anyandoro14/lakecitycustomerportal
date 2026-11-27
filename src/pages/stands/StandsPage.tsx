@@ -28,7 +28,7 @@ export default function StandsPage() {
     <WizardFrame step={0}>
       <section className="rounded-2xl bg-primary px-6 py-12 text-primary-foreground" data-testid="stands-hero">
         <h1 className="max-w-2xl font-display text-4xl leading-tight">Own your stand at LakeCity. $2,250.00 today, the balance over 48 months.</h1>
-        <p className="mt-4 max-w-xl text-primary-foreground/80">Every stand is priced at USD 45 per m², incl. 15.5% VAT. Choose a stand, complete the offer, and pay the down payment and legal fee by card.</p>
+        <p className="mt-4 max-w-xl text-primary-foreground/80">Every stand is priced at USD 45 per m², incl. 15.5% VAT. Choose a stand, reserve it, and pay the down payment and legal fee by card.</p>
         <p className="mt-6 text-sm">{stands === null ? "Checking availability…" : `${available} of ${stands.length} stands available`}</p>
       </section>
       <section id="stands" className="mt-8">

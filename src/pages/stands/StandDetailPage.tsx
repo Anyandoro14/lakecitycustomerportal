@@ -74,7 +74,7 @@ export default function StandDetailPage() {
       await standSalesApi.submitOffer(session.applicationId, session.accessToken, { idNumber, address, nextOfKin, signature, accepted });
       navigate(`/stands/${standNumber}/pay`);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Could not save the offer.");
+      setFormError(err instanceof Error ? err.message : "Could not save the reservation.");
     } finally {
       setBusy(false);
     }
@@ -106,21 +106,21 @@ export default function StandDetailPage() {
               <Field id="email" label="Email" value={email} onChange={setEmail} type="email" />
               <Field id="phone" label="Phone" value={phone} onChange={setPhone} type="tel" />
               {formError && <p className="text-sm text-destructive">{formError}</p>}
-              <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Continue to the offer"}</Button>
+              <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Continue to reserve"}</Button>
             </form>
           )}
           {stand.available && step === "offer" && (
             <form onSubmit={saveOffer} className="space-y-4" data-testid="offer-form">
-              <h2 className="font-display text-2xl">Digital offer</h2>
-              <p className="text-sm text-muted-foreground">Purchaser {fullName}. Email and phone stay as you entered them. Nothing is charged on this step.</p>
+              <h2 className="font-display text-2xl">Reserve stand {stand.standNumber}</h2>
+              <p className="text-sm text-muted-foreground">Purchaser {fullName}. Your details reserve this stand while you complete your initial payment. Your formal Agreement of Sale is completed after payment.</p>
               <Field id="idNumber" label="ID or passport number" value={idNumber} onChange={setIdNumber} />
               <Field id="address" label="Address" value={address} onChange={setAddress} />
               <Field id="nextOfKin" label="Next of kin" value={nextOfKin} onChange={setNextOfKin} />
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
-                I accept the conditions of the offer, including the USD 2,250 due now.
+                I confirm these reservation details and accept the initial payment of USD 2,250.00 (USD 1,750.00 down payment and USD 500.00 legal fee).
               </label>
-              <Field id="signature" label="Type your full name to sign" value={signature} onChange={setSignature} />
+              <Field id="signature" label="Type your full name to confirm your reservation" value={signature} onChange={setSignature} />
               {formError && <p className="text-sm text-destructive">{formError}</p>}
               <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Continue to payment"}</Button>
             </form>

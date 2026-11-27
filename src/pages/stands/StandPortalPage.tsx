@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { WizardFrame } from "@/components/stand-sales/WizardFrame";
 import { supabase } from "@/integrations/supabase/client";
 import { standSalesApi, type ApplicationView } from "@/lib/stand-sales/api";
+import { AGREEMENT_STATUS_LABEL } from "@/lib/stand-sales/agreement-labels";
 import { readStandSession } from "@/lib/stand-sales/session";
 
 type Phase = "create" | "login" | "code" | "ready";
@@ -99,6 +101,7 @@ export default function StandPortalPage() {
       }
       const { error: signError } = await supabase.auth.signInWithPassword({ email, password: loginPassword });
       if (signError) throw signError;
+      setInfo(null);
       setPhase("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed.");
@@ -169,6 +172,10 @@ export default function StandPortalPage() {
               <h2 className="font-display text-2xl">You are signed in</h2>
               <p>Stand {standNumber}. Your collection schedule is prepared as a preview only. Nothing was written to Odoo, and no customer email or WhatsApp was sent.</p>
               <p className="text-sm text-muted-foreground">Balance after the down payment is collected over 48 months, due on the 5th. The last instalment absorbs rounding.</p>
+              <Badge variant="outline" data-testid="agreement-status">{AGREEMENT_STATUS_LABEL[application?.agreementStatus ?? "pending_review"]}</Badge>
+              <Button asChild data-testid="agreement-cta">
+                <Link to={`/stands/${standNumber}/agreement`}>Review & complete Agreement of Sale</Link>
+              </Button>
             </CardContent>
           </Card>
         )}

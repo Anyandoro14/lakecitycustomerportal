@@ -107,7 +107,7 @@ export default function StandPayPage() {
   if (!session || session.standNumber !== standNumber) {
     return (
       <WizardFrame step={2}>
-        <p>Start from the stand page so we can match this payment to your offer.</p>
+        <p>Start from the stand page so we can match this payment to your reservation.</p>
         <ButtonLink standNumber={standNumber} />
       </WizardFrame>
     );

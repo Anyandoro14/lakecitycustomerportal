@@ -1,5 +1,7 @@
 // Supabase adapter for the stand-sales store. Service role only.
 
+import { agreementFromRow, agreementToColumns } from "./stand-sales-agreement.ts";
+import { OUTBOX_STATUS } from "./stand-sales-email.ts";
 import { decorateStands, staffRowFromAttempt, type PaymentAttempt, type SalesApplication, type SalesStore } from "./stand-sales-service.ts";
 import type { ApplyPaymentInput, ApplyStatus } from "./iveri.ts";
 
@@ -50,7 +52,12 @@ function rowApp(row: Record<string, unknown>): SalesApplication {
     paymentAmountCents: row.payment_amount_cents == null ? null : Number(row.payment_amount_cents),
     portalUserId: row.portal_user_id ? String(row.portal_user_id) : null,
     accessTokenHash: String(row.access_token_hash),
+    agreement: agreementFromRow(row),
   };
+}
+
+export function outboxInsert(row: { application_id: string; template: string; to_email: string; subject: string; html: string }) {
+  return { ...row, status: OUTBOX_STATUS };
 }
 
 function rowAttempt(row: Record<string, unknown>): PaymentAttempt {
@@ -208,7 +215,7 @@ export function createSupabaseStore(db: Db, tenantId: string): SalesStore {
     },
     async queueEmail(applicationId, template, to, subject, html) {
       await must(
-        await db.from("stand_sales_email_outbox").insert({ application_id: applicationId, template, to_email: to, subject, html }),
+        await db.from("stand_sales_email_outbox").insert(outboxInsert({ application_id: applicationId, template, to_email: to, subject, html })),
         "queue email",
       );
     },
@@ -264,6 +271,50 @@ export function createSupabaseStore(db: Db, tenantId: string): SalesStore {
     async isStaff(userId) {
       const row = await must(await db.from("internal_users").select("user_id").eq("user_id", userId).maybeSingle(), "staff");
       return Boolean(row);
+    },
+    async saveAgreement(input) {
+      await must(
+        await db.from("stand_sales_applications").update(agreementToColumns(input.state)).eq("id", input.applicationId),
+        "save agreement",
+      );
+      const current = asRow(
+        await must(
+          await db
+            .from("stand_inventory")
+            .select("agreement_requested, agreement_signed_by_client, agreement_signed_warwickshire")
+            .eq("id", input.standInventoryId)
+            .maybeSingle(),
+          "inventory agreement",
+        ),
+      );
+      const patch: Record<string, unknown> = {};
+      if (input.wizardStatus) patch.wizard_sale_status = input.wizardStatus;
+      if (input.requestedOn && current && !String(current.agreement_requested ?? "").trim()) patch.agreement_requested = input.requestedOn;
+      if (input.signedOn && current && !String(current.agreement_signed_by_client ?? "").trim()) patch.agreement_signed_by_client = input.signedOn;
+      if (input.signedOn && current && !String(current.agreement_signed_warwickshire ?? "").trim()) patch.agreement_signed_warwickshire = input.signedOn;
+      if (Object.keys(patch).length) {
+        await must(await db.from("stand_inventory").update(patch).eq("id", input.standInventoryId), "inventory agreement update");
+      }
+    },
+    async listPaidApplications() {
+      const rows = await must(
+        await db.from("stand_sales_applications").select("*").eq("tenant_id", tenantId).eq("stage", "paid").order("updated_at", { ascending: false }),
+        "paid applications",
+      );
+      return asRows(rows).map(rowApp);
+    },
+    async findPaidApplication(standNumber) {
+      const row = asRow(
+        await must(
+          await db.from("stand_sales_applications").select("*").eq("tenant_id", tenantId).eq("stand_number", standNumber).eq("stage", "paid").maybeSingle(),
+          "paid application",
+        ),
+      );
+      return row ? rowApp(row) : null;
+    },
+    async profileByUserId(userId) {
+      const row = asRow(await must(await db.from("profiles").select("id, stand_number").eq("id", userId).maybeSingle(), "profile by user"));
+      return row ? { id: String(row.id), standNumber: row.stand_number ? String(row.stand_number) : null } : null;
     },
   };
 }
