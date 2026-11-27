@@ -1,9 +1,23 @@
 // Stand-sales emails. Rendered for the outbox and for tests.
 // The edge functions queue HTML and do not call Resend. A test can pass a mock transport.
 
+import { inPersonSigningLine, STAFF_AGREEMENT_NOTIFY_EMAIL } from "./stand-sales-office.ts";
 import { DUE_AT_START_USD, VAT_NOTE, formatUsd } from "./stand-pricing.ts";
 
-export type EmailTemplate = "offer_completed" | "payment_thank_you" | "portal_ready";
+export const OUTBOX_STATUS = "queued_dev_only" as const;
+
+export type EmailTemplate =
+  | "offer_completed"
+  | "payment_thank_you"
+  | "portal_ready"
+  | "agreement_acknowledged"
+  | "agreement_sent_wet_signature"
+  | "agreement_return_submitted"
+  | "agreement_original_received"
+  | "agreement_countersigned_complete"
+  | "agreement_action_required"
+  | "staff_agreement_dispatch_needed"
+  | "staff_return_tracking_submitted";
 
 export interface StandEmail {
   template: EmailTemplate;
@@ -44,9 +58,15 @@ export function renderStandSalesEmail(input: {
   fullName: string;
   amountCents?: number;
   reference?: string;
+  tracking?: string;
+  courierName?: string;
+  actionMessage?: string;
+  executionMethod?: string | null;
 }): StandEmail {
   const stand = input.standNumber;
   const due = formatUsd(DUE_AT_START_USD * 100);
+  const name = escapeHtml(input.fullName);
+  const standHtml = escapeHtml(stand);
   if (input.template === "offer_completed") {
     return {
       template: input.template,
@@ -75,15 +95,109 @@ export function renderStandSalesEmail(input: {
       ),
     };
   }
-  return {
-    template: input.template,
-    to: input.to,
-    subject: `Your LakeCity portal for stand ${stand}`,
-    html: shell(
-      "Your portal login is ready",
-      `<p>Hello ${escapeHtml(input.fullName)}, you can sign in with stand number ${escapeHtml(stand)}, your password, and the verification code we send when you sign in. This email never includes a password.</p>`,
-    ),
-  };
+  if (input.template === "portal_ready") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Your LakeCity portal for stand ${stand}`,
+      html: shell(
+        "Your portal login is ready",
+        `<p>Hello ${name}, you can sign in with stand number ${standHtml}, your password, and the verification code we send when you sign in. This email never includes a password.</p>`,
+      ),
+    };
+  }
+  if (input.template === "agreement_acknowledged") {
+    const how = input.executionMethod === "in_person"
+      ? escapeHtml(inPersonSigningLine())
+      : "We will prepare a signature pack and send it to the courier address you gave.";
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Agreement of Sale request for stand ${stand}`,
+      html: shell(
+        "Agreement request received",
+        `<p>Hello ${name}, we have your request to complete the Agreement of Sale for stand ${standHtml}.</p><p>${how}</p><p>The document you reviewed was a placeholder. Your formal agreement is completed after signature.</p>`,
+      ),
+    };
+  }
+  if (input.template === "agreement_sent_wet_signature") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Signature pack sent for stand ${stand}`,
+      html: shell(
+        "Your signature pack is on the way",
+        `<p>Hello ${name}, LakeCity has sent the signature pack for stand ${standHtml}. Tracking: ${escapeHtml(input.tracking ?? "")}.</p><p>Sign it in ink with two witnesses, then send the original back with the return details included in the pack.</p>`,
+      ),
+    };
+  }
+  if (input.template === "agreement_return_submitted") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Return tracking received for stand ${stand}`,
+      html: shell(
+        "We have your return tracking",
+        `<p>Hello ${name}, we recorded return tracking ${escapeHtml(input.tracking ?? "")} (${escapeHtml(input.courierName ?? "")}) for stand ${standHtml}.</p>`,
+      ),
+    };
+  }
+  if (input.template === "agreement_original_received") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Signed original received for stand ${stand}`,
+      html: shell(
+        "We have the signed original",
+        `<p>Hello ${name}, LakeCity has received the signed original Agreement of Sale for stand ${standHtml}. Warwickshire still needs to countersign.</p>`,
+      ),
+    };
+  }
+  if (input.template === "agreement_countersigned_complete") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Agreement of Sale complete for stand ${stand}`,
+      html: shell(
+        "Your Agreement of Sale is complete",
+        `<p>Hello ${name}, the Agreement of Sale for stand ${standHtml} is complete. Warwickshire has countersigned the original.</p>`,
+      ),
+    };
+  }
+  if (input.template === "agreement_action_required") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Action needed on the agreement for stand ${stand}`,
+      html: shell(
+        "Please review a note from LakeCity",
+        `<p>Hello ${name}, LakeCity needs you to review this note about stand ${standHtml}:</p><p>${escapeHtml(input.actionMessage ?? "")}</p>`,
+      ),
+    };
+  }
+  if (input.template === "staff_agreement_dispatch_needed") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Prepare Agreement of Sale pack for stand ${stand}`,
+      html: shell(
+        "Agreement pack needed",
+        `<p>${name} (stand ${standHtml}) asked to complete an Agreement of Sale by ${escapeHtml(input.executionMethod ?? "courier")}.</p><p>This alert is queued only for ${escapeHtml(STAFF_AGREEMENT_NOTIFY_EMAIL)}.</p>`,
+      ),
+    };
+  }
+  if (input.template === "staff_return_tracking_submitted") {
+    return {
+      template: input.template,
+      to: input.to,
+      subject: `Buyer return tracking for stand ${stand}`,
+      html: shell(
+        "Return tracking submitted",
+        `<p>Stand ${standHtml} submitted return tracking ${escapeHtml(input.tracking ?? "")} via ${escapeHtml(input.courierName ?? "")}.</p>`,
+      ),
+    };
+  }
+  throw new Error("Unknown stand-sales email template");
 }
 
 function escapeHtml(value: string): string {

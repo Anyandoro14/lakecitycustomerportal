@@ -1228,6 +1228,26 @@ export type Database = {
           stand_number: string
           tenant_id: string
           updated_at: string
+          agreement_status: string
+          agreement_execution_method: string | null
+          agreement_region: string | null
+          agreement_acknowledged_at: string | null
+          agreement_courier: Json | null
+          agreement_domicilium: Json | null
+          agreement_witnesses: Json | null
+          agreement_dispatched_at: string | null
+          agreement_dispatch_tracking: string | null
+          agreement_return_submitted_at: string | null
+          agreement_return_tracking: string | null
+          agreement_return_courier: string | null
+          agreement_original_received_at: string | null
+          agreement_countersigned_at: string | null
+          agreement_action_required_at: string | null
+          agreement_action_message: string | null
+          agreement_document_url: string | null
+          docusign_envelope_id: string | null
+          docusign_status: string | null
+          docusign_sent_at: string | null
         }
         Insert: {
           access_token_hash: string
@@ -1247,6 +1267,26 @@ export type Database = {
           stand_number: string
           tenant_id: string
           updated_at?: string
+          agreement_status?: string
+          agreement_execution_method?: string | null
+          agreement_region?: string | null
+          agreement_acknowledged_at?: string | null
+          agreement_courier?: Json | null
+          agreement_domicilium?: Json | null
+          agreement_witnesses?: Json | null
+          agreement_dispatched_at?: string | null
+          agreement_dispatch_tracking?: string | null
+          agreement_return_submitted_at?: string | null
+          agreement_return_tracking?: string | null
+          agreement_return_courier?: string | null
+          agreement_original_received_at?: string | null
+          agreement_countersigned_at?: string | null
+          agreement_action_required_at?: string | null
+          agreement_action_message?: string | null
+          agreement_document_url?: string | null
+          docusign_envelope_id?: string | null
+          docusign_status?: string | null
+          docusign_sent_at?: string | null
         }
         Update: {
           access_token_hash?: string
@@ -1266,6 +1306,26 @@ export type Database = {
           stand_number?: string
           tenant_id?: string
           updated_at?: string
+          agreement_status?: string
+          agreement_execution_method?: string | null
+          agreement_region?: string | null
+          agreement_acknowledged_at?: string | null
+          agreement_courier?: Json | null
+          agreement_domicilium?: Json | null
+          agreement_witnesses?: Json | null
+          agreement_dispatched_at?: string | null
+          agreement_dispatch_tracking?: string | null
+          agreement_return_submitted_at?: string | null
+          agreement_return_tracking?: string | null
+          agreement_return_courier?: string | null
+          agreement_original_received_at?: string | null
+          agreement_countersigned_at?: string | null
+          agreement_action_required_at?: string | null
+          agreement_action_message?: string | null
+          agreement_document_url?: string | null
+          docusign_envelope_id?: string | null
+          docusign_status?: string | null
+          docusign_sent_at?: string | null
         }
         Relationships: [
           {

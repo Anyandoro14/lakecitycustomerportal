@@ -29,6 +29,15 @@ export interface StandCard {
   available: boolean;
 }
 
+export type AgreementStatus =
+  | "pending_review"
+  | "acknowledged"
+  | "dispatched"
+  | "return_submitted"
+  | "original_received"
+  | "countersigned"
+  | "action_required";
+
 export interface ApplicationView {
   id: string;
   standNumber: string;
@@ -41,6 +50,39 @@ export interface ApplicationView {
   paymentReference: string | null;
   paymentAmountCents: number | null;
   portalReady: boolean;
+  agreementStatus?: AgreementStatus;
+  executionMethod?: "courier" | "in_person" | "docusign" | null;
+  region?: "domestic" | "diaspora" | null;
+  acknowledgedAt?: string | null;
+  dispatchedAt?: string | null;
+  dispatchTracking?: string | null;
+  returnSubmittedAt?: string | null;
+  returnTracking?: string | null;
+  returnCourier?: string | null;
+  originalReceivedAt?: string | null;
+  countersignedAt?: string | null;
+  actionMessage?: string | null;
+  documentUrl?: string;
+  documentLabel?: string;
+  inPersonLine?: string;
+}
+
+export interface AgreementStaffRow {
+  applicationId: string;
+  standNumber: string;
+  fullName: string;
+  email: string;
+  status: AgreementStatus;
+  executionMethod: "courier" | "in_person" | "docusign" | null;
+  region: "domestic" | "diaspora" | null;
+  dispatchedAt: string | null;
+  dispatchTracking: string | null;
+  returnTracking: string | null;
+  returnCourier: string | null;
+  actionMessage: string | null;
+  followUp: { due: boolean; limitDays: number; overdueDays: number } | null;
+  witnesses: Array<{ name: string; idNumber: string }>;
+  domiciliumAddress: string | null;
 }
 
 async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
@@ -66,6 +108,26 @@ export const standSalesApi = {
     invoke<{ ok: boolean }>("stand-sales", { action: "submit-offer", applicationId, accessToken, offer }),
   get: (applicationId: string, accessToken: string) =>
     invoke<{ application: ApplicationView }>("stand-sales", { action: "get", applicationId, accessToken }),
+  getForPortal: (standNumber: string) =>
+    invoke<{ application: ApplicationView }>("stand-sales", { action: "get", standNumber }),
+  acknowledgeAgreement: (input: {
+    applicationId?: string;
+    accessToken?: string;
+    standNumber: string;
+    accepted: boolean;
+    executionMethod: "courier" | "in_person";
+    domiciliumAddress: string;
+    witnesses: Array<{ name: string; idNumber: string }>;
+    courier?: Record<string, string>;
+  }) => invoke<{ ok: boolean; agreementStatus: string }>("stand-sales", { action: "acknowledge-and-request-agreement", ...input }),
+  submitBuyerReturn: (input: {
+    applicationId?: string;
+    accessToken?: string;
+    standNumber: string;
+    tracking: string;
+    courierName: string;
+    witnessesConfirmed: boolean;
+  }) => invoke<{ ok: boolean; agreementStatus: string }>("stand-sales", { action: "submit-buyer-return", ...input }),
   createPortalLogin: (applicationId: string, accessToken: string, standNumber: string, password: string) =>
     invoke<{ ok: boolean }>("stand-sales", { action: "create-portal-login", applicationId, accessToken, standNumber, password }),
   startPayment: (applicationId: string, accessToken: string) =>
@@ -84,4 +146,13 @@ export const standSalesApi = {
     invoke<PaymentView>("iveri-init", { action: "simulate", applicationId, accessToken, reference, cardStatus, ...extra }),
   staffQueue: () => invoke<{ rows: Array<Record<string, unknown>> }>("stand-sales", { action: "staff-queue" }),
   staffDismiss: (reference: string) => invoke<{ ok: boolean }>("stand-sales", { action: "staff-dismiss", reference }),
+  staffAgreements: () => invoke<{ rows: AgreementStaffRow[] }>("stand-sales", { action: "staff-agreements-queue" }),
+  staffMarkDispatched: (applicationId: string, tracking: string) =>
+    invoke<{ ok: boolean }>("stand-sales", { action: "staff-mark-dispatched", applicationId, tracking }),
+  staffMarkOriginalReceived: (applicationId: string) =>
+    invoke<{ ok: boolean }>("stand-sales", { action: "staff-mark-original-received", applicationId }),
+  staffMarkCountersigned: (applicationId: string) =>
+    invoke<{ ok: boolean }>("stand-sales", { action: "staff-mark-countersigned", applicationId }),
+  staffMarkActionRequired: (applicationId: string, message: string) =>
+    invoke<{ ok: boolean }>("stand-sales", { action: "staff-mark-action-required", applicationId, message }),
 };

@@ -52,9 +52,12 @@ export default function StandWelcomePage() {
               <AlertDescription>{secondCharge.message}</AlertDescription>
             </Alert>
           )}
-          <Button asChild className="mt-8 bg-sl-gold text-primary hover:bg-sl-gold/90">
-            <Link to={`/stands/${standNumber}/portal`}>Set up your portal login</Link>
+          <Button asChild className="mt-8 bg-sl-gold text-primary hover:bg-sl-gold/90" data-testid="welcome-portal-cta">
+            <Link to={`/stands/${standNumber}/portal`}>Continue to Portal & Agreement</Link>
           </Button>
+          <p className="mt-4 text-sm">
+            <Link className="text-sl-gold underline" to={`/stands/${standNumber}/agreement`} data-testid="welcome-agreement-link">Go straight to Agreement of Sale</Link>
+          </p>
         </section>
       )}
     </WizardFrame>

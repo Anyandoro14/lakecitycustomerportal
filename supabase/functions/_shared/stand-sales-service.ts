@@ -1,7 +1,21 @@
 // Stand-sales orchestration shared by the edge functions and the local tests.
 // No Deno imports. Customer emails are queued, never delivered from here.
 
+import {
+  blankAgreement,
+  followUpReview,
+  planAcknowledge,
+  planActionRequired,
+  planBuyerReturn,
+  planCountersigned,
+  planDispatch,
+  planOriginalReceived,
+  AgreementTransitionError,
+  type AgreementState,
+  type TransitionResult,
+} from "./stand-sales-agreement.ts";
 import { renderStandSalesEmail } from "./stand-sales-email.ts";
+import { AGREEMENT_REVIEW_DOCUMENT_LABEL, AGREEMENT_REVIEW_DOCUMENT_URL, inPersonSigningLine, STAFF_AGREEMENT_NOTIFY_EMAIL } from "./stand-sales-office.ts";
 import { DUE_NOW_CENTS, VAT_NOTE, bandOf, priceBands, standPriceCents } from "./stand-pricing.ts";
 import {
   bracedApplicationId,
@@ -50,6 +64,7 @@ export interface SalesApplication {
   paymentAmountCents: number | null;
   portalUserId: string | null;
   accessTokenHash: string;
+  agreement?: AgreementState;
 }
 
 export interface StandListing {
@@ -99,6 +114,17 @@ export interface SalesStore {
   createPortalUser(input: { email: string; password: string; fullName: string; phone: string; standNumber: string }): Promise<string>;
   setPortalUser(applicationId: string, userId: string): Promise<void>;
   isStaff(userId: string): Promise<boolean>;
+  saveAgreement(input: {
+    applicationId: string;
+    standInventoryId: string;
+    state: AgreementState;
+    wizardStatus: string | null;
+    requestedOn?: string | null;
+    signedOn?: string | null;
+  }): Promise<void>;
+  listPaidApplications(): Promise<SalesApplication[]>;
+  findPaidApplication(standNumber: string): Promise<SalesApplication | null>;
+  profileByUserId(userId: string): Promise<{ id: string; standNumber: string | null } | null>;
 }
 
 export async function sha256Hex(value: string): Promise<string> {
@@ -388,6 +414,182 @@ export async function dismissForStaff(
 export async function queueForStaff(store: SalesStore, staffUserId: string) {
   if (!(await store.isStaff(staffUserId))) throw new SalesError(403, "Staff access is required.", "not_staff");
   return store.listStaffQueue(Date.now());
+}
+
+export function agreementOf(app: SalesApplication): AgreementState {
+  return app.agreement ?? blankAgreement();
+}
+
+export function toBuyerPayload(app: SalesApplication) {
+  const agreement = agreementOf(app);
+  return {
+    id: app.id,
+    standNumber: app.standNumber,
+    fullName: app.fullName,
+    email: app.email,
+    phone: app.phone,
+    stage: app.stage,
+    offer: app.offer,
+    paidAt: app.paidAt,
+    paymentReference: app.paymentReference,
+    paymentAmountCents: app.paymentAmountCents,
+    portalReady: Boolean(app.portalUserId),
+    agreementStatus: agreement.status,
+    executionMethod: agreement.executionMethod,
+    region: agreement.region,
+    acknowledgedAt: agreement.acknowledgedAt,
+    dispatchedAt: agreement.dispatchedAt,
+    dispatchTracking: agreement.dispatchTracking,
+    returnSubmittedAt: agreement.returnSubmittedAt,
+    returnTracking: agreement.returnTracking,
+    returnCourier: agreement.returnCourier,
+    originalReceivedAt: agreement.originalReceivedAt,
+    countersignedAt: agreement.countersignedAt,
+    actionMessage: agreement.status === "action_required" ? agreement.actionMessage : null,
+    documentUrl: AGREEMENT_REVIEW_DOCUMENT_URL,
+    documentLabel: AGREEMENT_REVIEW_DOCUMENT_LABEL,
+    inPersonLine: inPersonSigningLine(),
+  };
+}
+
+export async function requireAgreementBuyer(store: SalesStore, input: {
+  applicationId?: string;
+  accessToken?: string;
+  standNumber?: string;
+  portalUser?: { id: string; standNumber: string | null } | null;
+}): Promise<SalesApplication> {
+  if (input.accessToken) {
+    const app = await requireBuyer(store, String(input.applicationId ?? ""), input.accessToken);
+    if (input.standNumber && input.standNumber !== app.standNumber) {
+      throw new SalesError(403, "This application link is not valid.", "forbidden");
+    }
+    return app;
+  }
+  const standNumber = String(input.standNumber ?? "");
+  const portal = input.portalUser;
+  if (!portal?.id || !portal.standNumber || portal.standNumber !== standNumber) {
+    throw new SalesError(403, "This application link is not valid.", "forbidden");
+  }
+  const app = await store.findPaidApplication(standNumber);
+  if (!app || app.stage !== "paid") throw new SalesError(403, "This application link is not valid.", "forbidden");
+  if (app.portalUserId && app.portalUserId !== portal.id) throw new SalesError(403, "This application link is not valid.", "forbidden");
+  return app;
+}
+
+function requirePaidStage(app: SalesApplication) {
+  if (app.stage !== "paid") throw new SalesError(409, "Your payment has not been confirmed yet.", "not_paid");
+}
+
+function unwrapAgreement<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    if (error instanceof AgreementTransitionError) throw new SalesError(error.status, error.message, error.code);
+    throw error;
+  }
+}
+
+async function applyAgreement(store: SalesStore, app: SalesApplication, result: TransitionResult) {
+  await store.saveAgreement({
+    applicationId: app.id,
+    standInventoryId: app.standInventoryId,
+    state: result.state,
+    wizardStatus: result.wizardStatus,
+    requestedOn: result.requestedOn ?? null,
+    signedOn: result.signedOn ?? null,
+  });
+  for (const planned of result.emails) {
+    const to = planned.audience === "staff" ? STAFF_AGREEMENT_NOTIFY_EMAIL : app.email;
+    const tracking = planned.template === "agreement_sent_wet_signature"
+      ? result.state.dispatchTracking ?? ""
+      : result.state.returnTracking ?? "";
+    const email = renderStandSalesEmail({
+      template: planned.template,
+      to,
+      standNumber: app.standNumber,
+      fullName: app.fullName,
+      tracking,
+      courierName: result.state.returnCourier ?? "",
+      actionMessage: result.state.actionMessage ?? "",
+      executionMethod: result.state.executionMethod,
+    });
+    await store.queueEmail(app.id, email.template, email.to, email.subject, email.html);
+  }
+  return { ok: true as const, agreementStatus: result.state.status };
+}
+
+export async function acknowledgeAndRequestAgreement(
+  store: SalesStore,
+  app: SalesApplication,
+  input: Record<string, unknown>,
+  options: { docusignEnabled: boolean; now?: string },
+) {
+  requirePaidStage(app);
+  const now = options.now ?? new Date().toISOString();
+  const result = unwrapAgreement(() => planAcknowledge(agreementOf(app), input, now, options.docusignEnabled));
+  return applyAgreement(store, app, result);
+}
+
+export async function submitBuyerReturn(store: SalesStore, app: SalesApplication, input: Record<string, unknown>, now = new Date().toISOString()) {
+  requirePaidStage(app);
+  const result = unwrapAgreement(() => planBuyerReturn(agreementOf(app), input, now));
+  return applyAgreement(store, app, result);
+}
+
+async function paidForStaff(store: SalesStore, staffUserId: string, applicationId: string) {
+  if (!(await store.isStaff(staffUserId))) throw new SalesError(403, "Staff access is required.", "not_staff");
+  const app = await store.getApplication(applicationId);
+  if (!app || app.stage !== "paid") throw new SalesError(404, "That paid application was not found.", "not_found");
+  return app;
+}
+
+export async function agreementsForStaff(store: SalesStore, staffUserId: string, nowMs = Date.now()) {
+  if (!(await store.isStaff(staffUserId))) throw new SalesError(403, "Staff access is required.", "not_staff");
+  const apps = await store.listPaidApplications();
+  return apps.map((app) => {
+    const state = agreementOf(app);
+    return {
+      applicationId: app.id,
+      standNumber: app.standNumber,
+      fullName: app.fullName,
+      email: app.email,
+      status: state.status,
+      executionMethod: state.executionMethod,
+      region: state.region,
+      dispatchedAt: state.dispatchedAt,
+      dispatchTracking: state.dispatchTracking,
+      returnTracking: state.returnTracking,
+      returnCourier: state.returnCourier,
+      actionMessage: state.actionMessage,
+      followUp: followUpReview(state, nowMs),
+      witnesses: state.witnesses,
+      domiciliumAddress: state.domicilium?.address ?? null,
+    };
+  });
+}
+
+export async function staffMarkDispatched(store: SalesStore, staffUserId: string, applicationId: string, tracking: string, now = new Date().toISOString()) {
+  const app = await paidForStaff(store, staffUserId, applicationId);
+  const result = unwrapAgreement(() => planDispatch(agreementOf(app), tracking, now));
+  return applyAgreement(store, app, result);
+}
+
+export async function staffMarkOriginalReceived(store: SalesStore, staffUserId: string, applicationId: string, now = new Date().toISOString()) {
+  const app = await paidForStaff(store, staffUserId, applicationId);
+  const result = unwrapAgreement(() => planOriginalReceived(agreementOf(app), now));
+  return applyAgreement(store, app, result);
+}
+
+export async function staffMarkCountersigned(store: SalesStore, staffUserId: string, applicationId: string, now = new Date().toISOString()) {
+  const app = await paidForStaff(store, staffUserId, applicationId);
+  const result = unwrapAgreement(() => planCountersigned(agreementOf(app), now));
+  return applyAgreement(store, app, result);
+}
+
+export async function staffMarkActionRequired(store: SalesStore, staffUserId: string, applicationId: string, message: string, now = new Date().toISOString()) {
+  const app = await paidForStaff(store, staffUserId, applicationId);
+  const result = unwrapAgreement(() => planActionRequired(agreementOf(app), message, now));
+  return applyAgreement(store, app, result);
 }
 
 export function decorateStands(rows: Array<{ standNumber: string; phase: string | null; landUse: string | null; sizeSqm: number | null; status: string | null; wizardSaleStatus: string | null; paid: boolean }>): StandListing[] {
