@@ -51,6 +51,7 @@ describe("agreement review page", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByTestId("agreement-review")).toHaveTextContent("placeholder");
+    expect(screen.getByTestId("return-destination")).toHaveTextContent("Chigwanda Legal Practitioners, No. 49 The Chase, Mount Pleasant, Harare");
     expect(screen.getByText("Courier the pack to me")).toBeInTheDocument();
     expect(screen.getByText("Sign in person")).toBeInTheDocument();
     await user.click(screen.getByText("Sign in person"));

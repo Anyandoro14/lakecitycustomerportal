@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { WizardFrame } from "@/components/stand-sales/WizardFrame";
 import { standSalesApi, type ApplicationView } from "@/lib/stand-sales/api";
 import { AGREEMENT_STATUS_LABEL } from "@/lib/stand-sales/agreement-labels";
-import { AGREEMENT_REVIEW_DOCUMENT_LABEL, AGREEMENT_REVIEW_DOCUMENT_URL, inPersonSigningLine } from "@/lib/stand-sales/office";
+import { AGREEMENT_REVIEW_DOCUMENT_LABEL, AGREEMENT_REVIEW_DOCUMENT_URL, agreementReturnLine, inPersonSigningLine } from "@/lib/stand-sales/office";
 import { readStandSession } from "@/lib/stand-sales/session";
 
 const docusignUi = import.meta.env.VITE_ENABLE_DOCUSIGN_EXECUTION === "true";
@@ -188,6 +188,7 @@ export default function StandAgreementPage() {
                           <option value="diaspora">Outside Zimbabwe</option>
                         </select>
                       </label>
+                      <p className="text-sm" data-testid="return-destination">{agreementReturnLine()}</p>
                     </div>
                   )}
                   <Field id="domicilium" label="Address for notices" value={domicilium} onChange={setDomicilium} />
@@ -205,7 +206,7 @@ export default function StandAgreementPage() {
               )}
               {returnOpen && (
                 <form onSubmit={submitReturn} className="space-y-4" data-testid="return-tracking">
-                  <p className="text-sm">Sign the original with both witnesses, then send it back using the return details in the pack.</p>
+                  <p className="text-sm">Sign the original with both witnesses. {agreementReturnLine()}</p>
                   <Field id="return-courier" label="Courier you used" value={returnCourier} onChange={setReturnCourier} />
                   <Field id="return-tracking" label="Return tracking number" value={returnTracking} onChange={setReturnTracking} />
                   <label className="flex items-start gap-2 text-sm">

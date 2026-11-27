@@ -1,7 +1,7 @@
 // Stand-sales emails. Rendered for the outbox and for tests.
 // The edge functions queue HTML and do not call Resend. A test can pass a mock transport.
 
-import { inPersonSigningLine, STAFF_AGREEMENT_NOTIFY_EMAIL } from "./stand-sales-office.ts";
+import { agreementReturnLine, inPersonSigningLine, STAFF_AGREEMENT_NOTIFY_EMAIL } from "./stand-sales-office.ts";
 import { DUE_AT_START_USD, VAT_NOTE, formatUsd } from "./stand-pricing.ts";
 
 export const OUTBOX_STATUS = "queued_dev_only" as const;
@@ -109,7 +109,7 @@ export function renderStandSalesEmail(input: {
   if (input.template === "agreement_acknowledged") {
     const how = input.executionMethod === "in_person"
       ? escapeHtml(inPersonSigningLine())
-      : "We will prepare a signature pack and send it to the courier address you gave.";
+      : `We will prepare a signature pack and send it to the courier address you gave. ${escapeHtml(agreementReturnLine())}`;
     return {
       template: input.template,
       to: input.to,
@@ -127,7 +127,7 @@ export function renderStandSalesEmail(input: {
       subject: `Signature pack sent for stand ${stand}`,
       html: shell(
         "Your signature pack is on the way",
-        `<p>Hello ${name}, LakeCity has sent the signature pack for stand ${standHtml}. Tracking: ${escapeHtml(input.tracking ?? "")}.</p><p>Sign it in ink with two witnesses, then send the original back with the return details included in the pack.</p>`,
+        `<p>Hello ${name}, LakeCity has sent the signature pack for stand ${standHtml}. Tracking: ${escapeHtml(input.tracking ?? "")}.</p><p>Sign it in ink with two witnesses. ${escapeHtml(agreementReturnLine())}</p>`,
       ),
     };
   }

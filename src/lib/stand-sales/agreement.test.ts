@@ -99,6 +99,10 @@ describe("office config", () => {
     expect(appOffice.inPersonSigningLine()).toBe(edgeOffice.inPersonSigningLine());
     expect(appOffice.inPersonSigningLine()).toContain(appOffice.HARE_OFFICE_ADDRESS);
     expect(appOffice.inPersonSigningLine()).not.toContain(appOffice.HARE_OFFICE_HOURS);
+    expect(appOffice.AGREEMENT_RETURN_ADDRESS).toBe(edgeOffice.AGREEMENT_RETURN_ADDRESS);
+    expect(appOffice.AGREEMENT_RETURN_ADDRESS).toBe("Chigwanda Legal Practitioners, No. 49 The Chase, Mount Pleasant, Harare");
+    expect(appOffice.agreementReturnLine()).toBe(edgeOffice.agreementReturnLine());
+    expect(appOffice.agreementReturnLine()).not.toMatch(/@|phone/i);
     expect(appOffice.AGREEMENT_REVIEW_DOCUMENT_LABEL).toMatch(/placeholder/i);
   });
 });
@@ -181,6 +185,9 @@ describe("agreement emails stay queued", () => {
       expect(email.html).toContain("queued for preview");
       expect(email.html).toContain("3076");
       expect(email.html).not.toContain("api.resend.com");
+      if (template === "agreement_sent_wet_signature" || (template === "agreement_acknowledged" && email.html.includes("signature pack"))) {
+        expect(email.html).toContain("No. 49 The Chase, Mount Pleasant, Harare");
+      }
     }
     expect(OUTBOX_STATUS).toBe("queued_dev_only");
     expect(outboxInsert({

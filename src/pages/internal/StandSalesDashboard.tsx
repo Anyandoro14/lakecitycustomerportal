@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { standSalesApi, type AgreementStaffRow, type AgreementStatus } from "@/lib/stand-sales/api";
 import { AGREEMENT_STATUS_LABEL } from "@/lib/stand-sales/agreement-labels";
+import { agreementReturnLine } from "@/lib/stand-sales/office";
 
 interface QueueRow {
   reference: string;
@@ -255,6 +256,7 @@ export default function StandSalesDashboard() {
             </DialogHeader>
             {selected && (
               <div className="space-y-4">
+                {selected.executionMethod === "courier" && <p className="text-sm">{agreementReturnLine()}</p>}
                 {selected.domiciliumAddress && <p className="text-sm">Notices: {selected.domiciliumAddress}</p>}
                 {selected.dispatchTracking && <p className="text-sm">Outbound tracking: {selected.dispatchTracking}</p>}
                 {selected.returnTracking && <p className="text-sm">Return tracking: {selected.returnTracking} via {selected.returnCourier}</p>}
