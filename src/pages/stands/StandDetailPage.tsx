@@ -9,7 +9,7 @@ import { WizardFrame } from "@/components/stand-sales/WizardFrame";
 import { standSalesApi, type StandCard } from "@/lib/stand-sales/api";
 import { formatMoney } from "@/lib/stand-sales/money";
 import { readStandSession, saveStandSession } from "@/lib/stand-sales/session";
-import heroStill from "@/assets/stand-sales/luxe/hero-golden-hour-plot.jpg";
+import spineRoad from "@/assets/stand-sales/luxe/hero-real-spine-road-aerial.jpg";
 
 export default function StandDetailPage() {
   const { standNumber = "" } = useParams();
@@ -91,13 +91,12 @@ export default function StandDetailPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
           <Card className="overflow-hidden border-border/80" data-testid="stand-summary">
             <div className="relative h-56 md:h-72">
-              <img src={heroStill} alt="" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[hsl(160_70%_8%/0.92)] via-[hsl(160_70%_10%/0.5)] to-[hsl(160_45%_14%/0.2)]" />
+              <img src={spineRoad} alt="LakeCity aerial, February 2026" className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[hsl(160_70%_8%/0.92)] via-[hsl(160_70%_10%/0.55)] to-[hsl(160_45%_14%/0.28)]" />
               <div className="absolute inset-x-0 bottom-0 p-6">
-                <p className="text-[0.68rem] tracking-[0.16em] text-[hsl(40_33%_96%)]">Estate light, for atmosphere</p>
+                <p className="text-[0.68rem] tracking-[0.16em] text-[hsl(40_33%_96%)]" aria-hidden="true">LakeCity aerial, February 2026</p>
                 <h1 className="mt-2 font-display text-[2rem] leading-tight text-[hsl(40_33%_96%)] md:text-5xl">Stand {stand.standNumber}</h1>
               </div>
-              <span className="sr-only">Estate light, for atmosphere. Not a photograph of stand {stand.standNumber}.</span>
             </div>
             <CardContent className="space-y-2 p-6 md:p-8">
               <p className="text-sm text-muted-foreground">{stand.sizeSqm} m² · Phase {stand.phase} · Range {stand.band}</p>

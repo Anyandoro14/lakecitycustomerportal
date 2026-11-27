@@ -60,10 +60,6 @@ body.stand-sales-luxe-active,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stand-sales-luxe video {
-    display: none !important;
-  }
-
   body.stand-sales-luxe-active *:not(.animate-spin) {
     animation: none !important;
     transition: none !important;

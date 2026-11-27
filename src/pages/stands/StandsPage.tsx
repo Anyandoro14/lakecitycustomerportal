@@ -4,35 +4,21 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { WizardFrame } from "@/components/stand-sales/WizardFrame";
-import { usePrefersReducedMotion } from "@/components/stand-sales/usePrefersReducedMotion";
 import { standSalesApi, type StandCard } from "@/lib/stand-sales/api";
 import { formatMoney } from "@/lib/stand-sales/money";
 import { cn } from "@/lib/utils";
-import heroStill from "@/assets/stand-sales/luxe/hero-golden-hour-plot.jpg";
-import showcaseStill from "@/assets/stand-sales/luxe/showcase-plot-card.jpg";
-import ambienceLoop from "@/assets/stand-sales/luxe/ambience-plot-loop.mp4";
+import spineRoad from "@/assets/stand-sales/luxe/hero-real-spine-road-aerial.jpg";
+import standGrid from "@/assets/stand-sales/luxe/real-green-season-stand-grid.jpg";
 
 type Filter = "all" | "A" | "B" | "C";
 
-function useWideScreen() {
-  const [wide, setWide] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1280px)");
-    const apply = () => setWide(media.matches);
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
-  return wide;
-}
+const SPINE_ALT = "LakeCity aerial, February 2026";
+const GRID_ALT = "LakeCity stand grid, aerial, February 2026";
 
 export default function StandsPage() {
   const [stands, setStands] = useState<StandCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
-  const reducedMotion = usePrefersReducedMotion();
-  const wide = useWideScreen();
-  const playLoop = wide && !reducedMotion;
 
   function load() {
     setError(null);
@@ -47,31 +33,18 @@ export default function StandsPage() {
   return (
     <WizardFrame step={0}>
       <section className="relative overflow-hidden rounded-2xl bg-[hsl(160_70%_10%)]" data-testid="stands-hero">
-        <img src={heroStill} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        {playLoop && (
-          <video
-            className="absolute inset-0 h-full w-full object-cover"
-            muted
-            playsInline
-            loop
-            autoPlay
-            poster={heroStill}
-            aria-hidden="true"
-          >
-            <source src={ambienceLoop} type="video/mp4" />
-          </video>
-        )}
-        <div className="absolute inset-0 bg-[hsl(160_70%_8%/0.86)] md:bg-gradient-to-r md:from-[hsl(160_70%_8%/0.94)] md:via-[hsl(160_70%_10%/0.8)] md:to-[hsl(160_40%_16%/0.34)]" />
+        <img src={spineRoad} alt={SPINE_ALT} className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-[hsl(160_70%_8%/0.78)] md:bg-gradient-to-r md:from-[hsl(160_70%_8%/0.9)] md:via-[hsl(160_70%_10%/0.72)] md:to-[hsl(160_40%_16%/0.42)]" />
         <div className="relative max-w-3xl px-6 py-14 md:px-12 md:py-20">
           <p className="font-display text-xl italic leading-snug text-[hsl(40_33%_96%)] md:text-2xl">A place of your own at LakeCity.</p>
           <h1 className="mt-4 max-w-3xl font-display text-[2rem] font-medium leading-[1.15] text-[hsl(40_33%_96%)] md:text-[3.25rem]">Own your stand at LakeCity. $2,250.00 today, the balance over 48 months.</h1>
           <p className="mt-6 max-w-xl font-body text-sm leading-relaxed text-[hsl(40_33%_96%)] md:text-base">Every stand is priced at USD 45 per m², incl. 15.5% VAT. Choose a stand, reserve it, and pay the down payment and legal fee by card.</p>
           <p className="mt-8 font-body text-sm tracking-wide text-[hsl(40_33%_96%)]">{stands === null ? "Checking availability…" : `${available} of ${stands.length} stands available`}</p>
-          <p className="mt-6 text-[0.68rem] tracking-[0.16em] text-[hsl(40_33%_96%)]">Estate light, for atmosphere</p>
+          <p className="mt-6 text-[0.68rem] tracking-[0.16em] text-[hsl(40_33%_96%)]" aria-hidden="true">{SPINE_ALT}</p>
         </div>
       </section>
       <section id="stands" className="mt-12">
-        <p className="mb-6 max-w-xl text-sm leading-relaxed text-muted-foreground">Estate light, for atmosphere. The photograph is shared across these stands. It is not a view of any one stand.</p>
+        <p className="mb-6 max-w-xl text-sm leading-relaxed text-muted-foreground" aria-hidden="true">{GRID_ALT}</p>
         <div className="mb-8 flex flex-wrap gap-2" data-testid="band-filter">
           {(["all", "A", "B", "C"] as Filter[]).map((key) => (
             <Button
@@ -103,11 +76,10 @@ export default function StandsPage() {
             <Card key={stand.standNumber} className="overflow-hidden border-border/80" data-testid={`stand-${stand.standNumber}`}>
               <div className="relative aspect-[4/3] overflow-hidden">
                 <img
-                  src={showcaseStill}
-                  alt=""
-                  className={cn("h-full w-full object-cover", !stand.available && "opacity-75 saturate-50")}
+                  src={standGrid}
+                  alt={GRID_ALT}
+                  className={cn("h-full w-full object-cover", !stand.available && "opacity-80")}
                 />
-                <span className="sr-only">Estate light, for atmosphere. Not a photograph of stand {stand.standNumber}.</span>
               </div>
               <div className="space-y-3 p-6">
                 <div className="flex items-center justify-between gap-3">

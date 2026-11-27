@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { standSalesApi, type ApplicationView, type PaymentView } from "@/lib/stand-sales/api";
 import { formatMoney } from "@/lib/stand-sales/money";
 import { readStandSession } from "@/lib/stand-sales/session";
-import ambienceStill from "@/assets/stand-sales/luxe/ambience-highveld-light.jpg";
+import standGrid from "@/assets/stand-sales/luxe/real-green-season-stand-grid.jpg";
 
 export default function StandWelcomePage() {
   const { standNumber = "" } = useParams();
@@ -40,7 +40,7 @@ export default function StandWelcomePage() {
         <p>Your payment is not confirmed yet. <Link className="underline" to={`/stands/${standNumber}/pay`}>Check payment status</Link>.</p>
       ) : (
         <section className="relative overflow-hidden rounded-2xl bg-[hsl(160_70%_9%)] px-6 py-14 text-[hsl(40_33%_96%)] md:px-12 md:py-20" data-testid="welcome">
-          <img src={ambienceStill} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-40" />
+          <img src={standGrid} alt="LakeCity stand grid, aerial, February 2026" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-[hsl(160_70%_8%/0.88)]" />
           <div className="relative max-w-2xl">
             <div className="mb-8 h-px w-16 bg-sl-gold" aria-hidden="true" />
@@ -63,6 +63,7 @@ export default function StandWelcomePage() {
             <p className="mt-5 font-body text-sm">
               <Link className="text-[hsl(40_33%_96%)] underline decoration-sl-gold underline-offset-4" to={`/stands/${standNumber}/agreement`} data-testid="welcome-agreement-link">Go straight to Agreement of Sale</Link>
             </p>
+            <p className="mt-8 text-[0.68rem] tracking-[0.16em] text-[hsl(40_33%_96%)]" aria-hidden="true">LakeCity stand grid, aerial, February 2026</p>
           </div>
         </section>
       )}
